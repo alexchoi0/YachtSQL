@@ -135,10 +135,12 @@ impl LogicalPlanBuilder {
                     "TRIM with multiple character sets not supported".to_string(),
                 ))
             }
-        } else if trim_what.is_some() {
-            Err(Error::unsupported_feature(
-                "TRIM with explicit FROM clause requires different syntax".to_string(),
-            ))
+        } else if let Some(what) = trim_what {
+            let what_expr = self.sql_expr_to_expr(what)?;
+            Ok(Expr::Function {
+                name: yachtsql_ir::FunctionName::Custom(format!("{}_CHARS", func_name.as_str())),
+                args: vec![arg_expr, what_expr],
+            })
         } else {
             Ok(Expr::Function {
                 name: func_name,
@@ -212,6 +214,33 @@ impl LogicalPlanBuilder {
         Ok(Expr::Function {
             name: yachtsql_ir::FunctionName::Position,
             args: vec![substring_expr, string_expr],
+        })
+    }
+
+    pub(super) fn convert_substring(
+        &self,
+        expr: &ast::Expr,
+        substring_from: &Option<Box<ast::Expr>>,
+        substring_for: &Option<Box<ast::Expr>>,
+    ) -> Result<Expr> {
+        let string_expr = self.sql_expr_to_expr(expr)?;
+
+        let mut args = vec![string_expr];
+
+        if let Some(from_expr) = substring_from {
+            args.push(self.sql_expr_to_expr(from_expr)?);
+        }
+
+        if let Some(for_expr) = substring_for {
+            if substring_from.is_none() {
+                args.push(Expr::Literal(LiteralValue::Int64(1)));
+            }
+            args.push(self.sql_expr_to_expr(for_expr)?);
+        }
+
+        Ok(Expr::Function {
+            name: yachtsql_ir::FunctionName::Substring,
+            args,
         })
     }
 }

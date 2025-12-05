@@ -53,7 +53,7 @@ use crate::RecordBatch;
 
 fn create_default_optimizer() -> yachtsql_optimizer::Optimizer {
     yachtsql_optimizer::Optimizer::new()
-        .with_rule(Box::new(IndexSelectionRule::new()))
+        .with_rule(Box::new(IndexSelectionRule::disabled()))
         .with_rule(Box::new(SubqueryFlattening::new()))
         .with_rule(Box::new(WindowOptimization::new()))
         .with_rule(Box::new(UnionOptimization::new()))

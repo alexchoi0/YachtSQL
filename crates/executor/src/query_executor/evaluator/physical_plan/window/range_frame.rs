@@ -30,20 +30,7 @@ impl WindowExec {
         let peer_groups = Self::detect_peer_groups_ordered(indices, order_by, batch);
         let func_name_upper = name.to_uppercase();
 
-        if registry.has_aggregate(&func_name_upper) {
-            Self::compute_range_aggregate_with_registry(
-                &func_name_upper,
-                args,
-                indices,
-                &peer_groups,
-                batch,
-                results,
-                frame_start_offset,
-                frame_end_offset,
-                exclude,
-                registry,
-            );
-        } else if func_name_upper == "FIRST_VALUE"
+        if func_name_upper == "FIRST_VALUE"
             || func_name_upper == "LAST_VALUE"
             || func_name_upper == "NTH_VALUE"
         {
@@ -58,6 +45,19 @@ impl WindowExec {
                 frame_end_offset,
                 order_by,
                 exclude,
+            );
+        } else if registry.has_aggregate(&func_name_upper) {
+            Self::compute_range_aggregate_with_registry(
+                &func_name_upper,
+                args,
+                indices,
+                &peer_groups,
+                batch,
+                results,
+                frame_start_offset,
+                frame_end_offset,
+                exclude,
+                registry,
             );
         }
     }

@@ -68,7 +68,7 @@ impl WindowExec {
             return;
         }
 
-        let peer_groups = if exclude.is_some() {
+        let peer_groups = if exclude.is_some() || !order_by.is_empty() {
             Self::build_peer_groups(indices, order_by, batch)
         } else {
             std::collections::HashMap::new()
@@ -90,11 +90,24 @@ impl WindowExec {
                 }
             };
 
-            let frame_indices: Vec<usize> = indices
-                .iter()
-                .filter(|&&idx| !excluded_indices.contains(&idx))
-                .copied()
-                .collect();
+            let frame_indices: Vec<usize> = if !order_by.is_empty() && !is_first {
+                let current_peer_group = Self::find_peer_group(&peer_groups, row_idx);
+                let max_peer_idx = current_peer_group.iter().max().copied().unwrap_or(row_idx);
+                indices
+                    .iter()
+                    .take_while(|&&idx| {
+                        idx <= max_peer_idx || current_peer_group.contains(&idx)
+                    })
+                    .filter(|&&idx| !excluded_indices.contains(&idx))
+                    .copied()
+                    .collect()
+            } else {
+                indices
+                    .iter()
+                    .filter(|&&idx| !excluded_indices.contains(&idx))
+                    .copied()
+                    .collect()
+            };
 
             if frame_indices.is_empty() {
                 results[row_idx] = Value::null();
@@ -166,7 +179,7 @@ impl WindowExec {
             return;
         }
 
-        let peer_groups = if exclude.is_some() {
+        let peer_groups = if exclude.is_some() || !order_by.is_empty() {
             Self::build_peer_groups(indices, order_by, batch)
         } else {
             std::collections::HashMap::new()
@@ -188,11 +201,24 @@ impl WindowExec {
                 }
             };
 
-            let frame_indices: Vec<usize> = indices
-                .iter()
-                .filter(|&&idx| !excluded_indices.contains(&idx))
-                .copied()
-                .collect();
+            let frame_indices: Vec<usize> = if !order_by.is_empty() {
+                let current_peer_group = Self::find_peer_group(&peer_groups, row_idx);
+                let max_peer_idx = current_peer_group.iter().max().copied().unwrap_or(row_idx);
+                indices
+                    .iter()
+                    .take_while(|&&idx| {
+                        idx <= max_peer_idx || current_peer_group.contains(&idx)
+                    })
+                    .filter(|&&idx| !excluded_indices.contains(&idx))
+                    .copied()
+                    .collect()
+            } else {
+                indices
+                    .iter()
+                    .filter(|&&idx| !excluded_indices.contains(&idx))
+                    .copied()
+                    .collect()
+            };
 
             if frame_indices.is_empty() || n < 1 {
                 results[row_idx] = Value::null();

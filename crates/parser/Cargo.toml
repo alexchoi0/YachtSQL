@@ -25,6 +25,9 @@ rust_decimal = { version = "1.36", features = ["serde"] }
 # Utilities
 indexmap = { version = "2.12", features = ["serde"] }
 
+# Date/Time parsing
+chrono = "0.4"
+
 # Debug printing
 debug_print = "1.0"
 

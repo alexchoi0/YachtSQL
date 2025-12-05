@@ -164,4 +164,17 @@ mod tests {
         assert!(matches_regex("hello123", r"hello\d+").unwrap());
         assert!(matches_regex_case_insensitive("HELLO", "hello").unwrap());
     }
+
+    #[test]
+    fn test_similar_to_case_sensitive() {
+        assert!(matches_similar_to("Alice", "Alice").unwrap());
+        assert!(!matches_similar_to("ALICE", "Alice").unwrap());
+        assert!(!matches_similar_to("alice", "Alice").unwrap());
+    }
+
+    #[test]
+    fn test_similar_to_character_range() {
+        assert!(matches_similar_to("abc", "[a-z]+").unwrap());
+        assert!(!matches_similar_to("ABC", "[a-z]+").unwrap());
+    }
 }

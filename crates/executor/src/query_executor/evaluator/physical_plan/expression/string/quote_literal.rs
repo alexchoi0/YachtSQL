@@ -19,7 +19,7 @@ impl ProjectionWithExprExec {
         }
 
         if let Some(s) = val.as_str() {
-            let escaped = s.replace('\'', "''").replace('\\', "\\\\");
+            let escaped = s.replace('\'', "''");
             return Ok(Value::string(format!("'{}'", escaped)));
         }
 
@@ -61,13 +61,13 @@ mod tests {
     }
 
     #[test]
-    fn escapes_backslashes() {
+    fn preserves_backslashes() {
         let schema = Schema::from_fields(vec![Field::nullable("val", DataType::String)]);
         let batch = create_batch(schema, vec![vec![Value::string("path\\file".into())]]);
         let args = vec![Expr::column("val")];
         let result =
             ProjectionWithExprExec::evaluate_quote_literal(&args, &batch, 0).expect("success");
-        assert_eq!(result, Value::string("'path\\\\file'".into()));
+        assert_eq!(result, Value::string("'path\\file'".into()));
     }
 
     #[test]

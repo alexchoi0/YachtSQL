@@ -489,6 +489,8 @@ impl ExecutionPlan for ProjectionWithExprExec {
 
         let outer_table_aliases = Self::extract_outer_table_aliases(&self.expressions);
 
+        let srf_indices = Self::find_set_returning_function_indices(&self.expressions);
+
         for batch in input_batches {
             if batch.is_empty() {
                 output_batches.push(RecordBatch::empty(self.schema.clone()));
@@ -499,46 +501,123 @@ impl ExecutionPlan for ProjectionWithExprExec {
 
             let occurrence_indices = Self::compute_column_occurrence_indices(&self.expressions);
 
-            let mut output_columns: Vec<Column> = self
-                .schema
-                .fields()
-                .iter()
-                .map(|f| Column::new(&f.data_type, num_rows))
-                .collect();
+            if srf_indices.is_empty() {
+                let mut output_columns: Vec<Column> = self
+                    .schema
+                    .fields()
+                    .iter()
+                    .map(|f| Column::new(&f.data_type, num_rows))
+                    .collect();
 
-            for row_idx in 0..num_rows {
-                let correlation_ctx = Self::build_correlation_context_with_aliases(
-                    &batch,
-                    row_idx,
-                    &outer_table_aliases,
-                )?;
-
-                CORRELATION_CONTEXT.with(|ctx| {
-                    *ctx.borrow_mut() = Some(correlation_ctx);
-                });
-
-                for (expr_idx, (expr, _alias)) in self.expressions.iter().enumerate() {
-                    let occurrence_index = occurrence_indices[expr_idx];
-                    let value = Self::evaluate_expr_with_occurrence(
-                        expr,
+                for row_idx in 0..num_rows {
+                    let correlation_ctx = Self::build_correlation_context_with_aliases(
                         &batch,
                         row_idx,
-                        occurrence_index,
-                        self.dialect,
-                    );
-                    match value {
-                        Ok(v) => output_columns[expr_idx].push(v)?,
-                        Err(e) => return Err(e),
+                        &outer_table_aliases,
+                    )?;
+
+                    CORRELATION_CONTEXT.with(|ctx| {
+                        *ctx.borrow_mut() = Some(correlation_ctx);
+                    });
+
+                    for (expr_idx, (expr, _alias)) in self.expressions.iter().enumerate() {
+                        let occurrence_index = occurrence_indices[expr_idx];
+                        let value = Self::evaluate_expr_with_occurrence(
+                            expr,
+                            &batch,
+                            row_idx,
+                            occurrence_index,
+                            self.dialect,
+                        );
+                        match value {
+                            Ok(v) => output_columns[expr_idx].push(v)?,
+                            Err(e) => return Err(e),
+                        }
+                    }
+
+                    CORRELATION_CONTEXT.with(|ctx| {
+                        *ctx.borrow_mut() = None;
+                    });
+                }
+
+                let output_batch = RecordBatch::new(self.schema.clone(), output_columns)?;
+                output_batches.push(output_batch);
+            } else {
+                let mut all_rows: Vec<Vec<yachtsql_core::types::Value>> = Vec::new();
+
+                for row_idx in 0..num_rows {
+                    let correlation_ctx = Self::build_correlation_context_with_aliases(
+                        &batch,
+                        row_idx,
+                        &outer_table_aliases,
+                    )?;
+
+                    CORRELATION_CONTEXT.with(|ctx| {
+                        *ctx.borrow_mut() = Some(correlation_ctx);
+                    });
+
+                    let mut row_values: Vec<yachtsql_core::types::Value> = Vec::with_capacity(self.expressions.len());
+                    let mut srf_expansion_count = 1usize;
+
+                    for (expr_idx, (expr, _alias)) in self.expressions.iter().enumerate() {
+                        let occurrence_index = occurrence_indices[expr_idx];
+                        let value = Self::evaluate_expr_with_occurrence(
+                            expr,
+                            &batch,
+                            row_idx,
+                            occurrence_index,
+                            self.dialect,
+                        )?;
+
+                        if srf_indices.contains(&expr_idx) {
+                            if let Some(arr) = value.as_array() {
+                                srf_expansion_count = srf_expansion_count.max(arr.len());
+                            }
+                        }
+                        row_values.push(value);
+                    }
+
+                    CORRELATION_CONTEXT.with(|ctx| {
+                        *ctx.borrow_mut() = None;
+                    });
+
+                    for expansion_idx in 0..srf_expansion_count {
+                        let mut expanded_row: Vec<yachtsql_core::types::Value> = Vec::with_capacity(self.expressions.len());
+                        for (expr_idx, value) in row_values.iter().enumerate() {
+                            if srf_indices.contains(&expr_idx) {
+                                if let Some(arr) = value.as_array() {
+                                    if expansion_idx < arr.len() {
+                                        expanded_row.push(arr[expansion_idx].clone());
+                                    } else {
+                                        expanded_row.push(yachtsql_core::types::Value::null());
+                                    }
+                                } else {
+                                    expanded_row.push(value.clone());
+                                }
+                            } else {
+                                expanded_row.push(value.clone());
+                            }
+                        }
+                        all_rows.push(expanded_row);
                     }
                 }
 
-                CORRELATION_CONTEXT.with(|ctx| {
-                    *ctx.borrow_mut() = None;
-                });
-            }
+                let mut output_columns: Vec<Column> = self
+                    .schema
+                    .fields()
+                    .iter()
+                    .map(|f| Column::new(&f.data_type, all_rows.len()))
+                    .collect();
 
-            let output_batch = RecordBatch::new(self.schema.clone(), output_columns)?;
-            output_batches.push(output_batch);
+                for row in all_rows {
+                    for (col_idx, value) in row.into_iter().enumerate() {
+                        output_columns[col_idx].push(value)?;
+                    }
+                }
+
+                let output_batch = RecordBatch::new(self.schema.clone(), output_columns)?;
+                output_batches.push(output_batch);
+            }
         }
 
         Ok(output_batches)
@@ -597,6 +676,31 @@ impl ProjectionWithExprExec {
             Self::collect_table_aliases_from_expr(expr, &mut aliases);
         }
         aliases.into_iter().collect()
+    }
+
+    fn find_set_returning_function_indices(
+        expressions: &[(Expr, Option<String>)],
+    ) -> std::collections::HashSet<usize> {
+        let mut indices = std::collections::HashSet::new();
+        for (idx, (expr, _)) in expressions.iter().enumerate() {
+            if Self::is_set_returning_function(expr) {
+                indices.insert(idx);
+            }
+        }
+        indices
+    }
+
+    fn is_set_returning_function(expr: &Expr) -> bool {
+        match expr {
+            Expr::Function { name, .. } => {
+                let fn_name = name.as_str();
+                matches!(fn_name, "SKEYS" | "SVALS")
+            }
+            Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => {
+                Self::is_set_returning_function(expr)
+            }
+            _ => false,
+        }
     }
 
     fn collect_table_aliases_from_expr(
@@ -1235,6 +1339,38 @@ impl TableValuedFunctionExec {
 
         RecordBatch::new(self.schema.clone(), vec![val_col])
     }
+
+    fn execute_populate_record(&self, args: &[crate::types::Value]) -> Result<RecordBatch> {
+        use yachtsql_core::error::Error;
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        if args.len() < 2 {
+            return Err(Error::InvalidQuery(
+                "populate_record() requires at least 2 arguments".to_string(),
+            ));
+        }
+
+        let hstore_map = args[1].as_hstore().ok_or_else(|| Error::TypeMismatch {
+            expected: "HSTORE".to_string(),
+            actual: args[1].data_type().to_string(),
+        })?;
+
+        let mut columns: Vec<Column> = Vec::with_capacity(self.schema.fields().len());
+        for field in self.schema.fields() {
+            let mut col = Column::new(&field.data_type, 1);
+            let col_name = &field.name;
+            let value = hstore_map
+                .get(col_name)
+                .and_then(|v| v.as_ref().map(|s| Value::string(s.clone())))
+                .unwrap_or(Value::null());
+            col.push(value)?;
+            columns.push(col);
+        }
+
+        RecordBatch::new(self.schema.clone(), columns)
+    }
 }
 
 impl ExecutionPlan for TableValuedFunctionExec {
@@ -1251,6 +1387,7 @@ impl ExecutionPlan for TableValuedFunctionExec {
             "EACH" => self.execute_each(&args)?,
             "SKEYS" => self.execute_skeys(&args)?,
             "SVALS" => self.execute_svals(&args)?,
+            "POPULATE_RECORD" => self.execute_populate_record(&args)?,
 
             _ => {
                 return Err(Error::UnsupportedFeature(format!(

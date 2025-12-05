@@ -14,6 +14,74 @@ impl ProjectionWithExprExec {
         Self::validate_min_arg_count("TRIM", args, 1)?;
         Self::apply_string_unary("TRIM", &args[0], batch, row_idx, |s| s.trim().to_string())
     }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_trim_chars(
+        args: &[Expr],
+        batch: &RecordBatch,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("TRIM_CHARS", args, 2)?;
+        let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let chars = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        if s.is_null() || chars.is_null() {
+            return Ok(Value::null());
+        }
+        match (s.as_str(), chars.as_str()) {
+            (Some(s), Some(c)) => {
+                let chars_to_trim: Vec<char> = c.chars().collect();
+                Ok(Value::string(
+                    s.trim_matches(|ch| chars_to_trim.contains(&ch)).to_string(),
+                ))
+            }
+            _ => Ok(Value::null()),
+        }
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_ltrim_chars(
+        args: &[Expr],
+        batch: &RecordBatch,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("LTRIM_CHARS", args, 2)?;
+        let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let chars = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        if s.is_null() || chars.is_null() {
+            return Ok(Value::null());
+        }
+        match (s.as_str(), chars.as_str()) {
+            (Some(s), Some(c)) => {
+                let chars_to_trim: Vec<char> = c.chars().collect();
+                Ok(Value::string(
+                    s.trim_start_matches(|ch| chars_to_trim.contains(&ch))
+                        .to_string(),
+                ))
+            }
+            _ => Ok(Value::null()),
+        }
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_rtrim_chars(
+        args: &[Expr],
+        batch: &RecordBatch,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("RTRIM_CHARS", args, 2)?;
+        let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let chars = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        if s.is_null() || chars.is_null() {
+            return Ok(Value::null());
+        }
+        match (s.as_str(), chars.as_str()) {
+            (Some(s), Some(c)) => {
+                let chars_to_trim: Vec<char> = c.chars().collect();
+                Ok(Value::string(
+                    s.trim_end_matches(|ch| chars_to_trim.contains(&ch))
+                        .to_string(),
+                ))
+            }
+            _ => Ok(Value::null()),
+        }
+    }
 }
 
 #[cfg(test)]

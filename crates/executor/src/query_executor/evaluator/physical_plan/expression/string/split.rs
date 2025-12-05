@@ -30,6 +30,48 @@ impl ProjectionWithExprExec {
             })
         }
     }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_split_part(
+        args: &[Expr],
+        batch: &RecordBatch,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("SPLIT_PART", args, 3)?;
+        let values = Self::evaluate_args(args, batch, row_idx)?;
+        if values[0].is_null() || values[1].is_null() || values[2].is_null() {
+            return Ok(Value::null());
+        }
+
+        let s = values[0].as_str();
+        let delimiter = values[1].as_str();
+        let field_num = values[2].as_i64();
+
+        match (s, delimiter, field_num) {
+            (Some(s), Some(delimiter), Some(field_num)) => {
+                if field_num <= 0 {
+                    return Err(crate::error::Error::invalid_query(
+                        "SPLIT_PART: field number must be positive",
+                    ));
+                }
+                let parts: Vec<&str> = s.split(delimiter).collect();
+                let idx = (field_num - 1) as usize;
+                if idx < parts.len() {
+                    Ok(Value::string(parts[idx].to_string()))
+                } else {
+                    Ok(Value::string(String::new()))
+                }
+            }
+            _ => Err(crate::error::Error::TypeMismatch {
+                expected: "STRING, STRING, INT64".to_string(),
+                actual: format!(
+                    "{}, {}, {}",
+                    values[0].data_type(),
+                    values[1].data_type(),
+                    values[2].data_type()
+                ),
+            }),
+        }
+    }
 }
 
 #[cfg(test)]

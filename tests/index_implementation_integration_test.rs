@@ -246,7 +246,12 @@ fn test_index_with_update_operations() {
 
 #[test]
 fn test_physical_planner_creates_index_scan_exec() {
-    use yachtsql_executor::query_executor::evaluator::physical_planner::PhysicalPlanner;
+    use yachtsql_executor::query_executor::LogicalToPhysicalPlanner;
+
+    let mut executor = create_test_executor_with_table();
+    executor
+        .execute_sql("CREATE INDEX idx_users_id ON default.users (id)")
+        .expect("Failed to create index");
 
     let predicate = yachtsql_optimizer::expr::Expr::BinaryOp {
         left: Box::new(yachtsql_optimizer::expr::Expr::Column {
@@ -260,7 +265,7 @@ fn test_physical_planner_creates_index_scan_exec() {
     };
 
     let index_scan_node = yachtsql_optimizer::plan::PlanNode::IndexScan {
-        table_name: "users".to_string(),
+        table_name: "default.users".to_string(),
         alias: None,
         index_name: "idx_users_id".to_string(),
         predicate,
@@ -269,15 +274,10 @@ fn test_physical_planner_creates_index_scan_exec() {
 
     let logical_plan = yachtsql_optimizer::LogicalPlan::new(index_scan_node);
 
-    let planner = PhysicalPlanner::new(
-        yachtsql_parser::DialectType::PostgreSQL,
-        Rc::new(yachtsql_capability::FeatureRegistry::new(
-            yachtsql_parser::DialectType::PostgreSQL,
-        )),
-    );
+    let planner = LogicalToPhysicalPlanner::new(Rc::clone(&executor.storage));
 
     let physical_plan = planner
-        .create_physical_plan(logical_plan)
+        .create_physical_plan(&logical_plan)
         .expect("Failed to create physical plan");
 
     let plan_description = physical_plan.root().describe();

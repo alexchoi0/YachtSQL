@@ -4012,6 +4012,7 @@ dependencies = [
 name = "yachtsql-parser"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "debug_print",
  "indexmap",
  "rust_decimal",

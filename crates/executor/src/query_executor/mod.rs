@@ -16,5 +16,6 @@ pub use executor_context::{
     CorrelationGuard, ExecutorContext, FeatureRegistryGuard, SubqueryExecutorGuard,
 };
 pub use function_validator::validate_function;
+pub use logical_to_physical::LogicalToPhysicalPlanner;
 pub use operators::ExecutionContext;
 pub use statement_validator::validate_statement;

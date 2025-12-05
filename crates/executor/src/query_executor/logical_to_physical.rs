@@ -128,6 +128,28 @@ impl LogicalToPhysicalPlanner {
 
         match expr {
             Expr::Column { name, table } => {
+                if table.is_none() {
+                    let matching_fields: Vec<_> = schema
+                        .fields()
+                        .iter()
+                        .filter(|f| f.name.eq_ignore_ascii_case(name))
+                        .collect();
+
+                    if matching_fields.len() > 1 {
+                        let source_tables: std::collections::HashSet<_> = matching_fields
+                            .iter()
+                            .filter_map(|f| f.source_table.as_ref())
+                            .collect();
+
+                        if source_tables.len() > 1 {
+                            return Err(Error::InvalidQuery(format!(
+                                "Column reference '{}' is ambiguous - it exists in multiple tables. Use table.column syntax to disambiguate.",
+                                name
+                            )));
+                        }
+                    }
+                }
+
                 if schema.field(name).is_some() {
                     return Ok(());
                 }
@@ -480,6 +502,115 @@ impl LogicalToPhysicalPlanner {
             .map(|(expr, alias)| (self.resolve_custom_type_fields(expr), alias.clone()))
             .collect()
     }
+
+    fn validate_join_condition_types(
+        &self,
+        condition: &yachtsql_ir::expr::Expr,
+        left_schema: &yachtsql_storage::Schema,
+        right_schema: &yachtsql_storage::Schema,
+    ) -> Result<()> {
+        use yachtsql_core::types::DataType;
+        use yachtsql_ir::expr::{BinaryOp, Expr};
+
+        let combined_schema = {
+            let mut fields = left_schema.fields().to_vec();
+            fields.extend(right_schema.fields().to_vec());
+            yachtsql_storage::Schema::from_fields(fields)
+        };
+
+        match condition {
+            Expr::BinaryOp { left, op, right } => {
+                if matches!(op, BinaryOp::Equal) {
+                    let left_type = self.infer_expr_type(left, &combined_schema);
+                    let right_type = self.infer_expr_type(right, &combined_schema);
+
+                    if !self.types_are_compatible(&left_type, &right_type) {
+                        return Err(Error::InvalidQuery(format!(
+                            "Type mismatch in join condition: cannot compare {:?} with {:?}",
+                            left_type, right_type
+                        )));
+                    }
+                }
+
+                if matches!(op, BinaryOp::And | BinaryOp::Or) {
+                    self.validate_join_condition_types(left, left_schema, right_schema)?;
+                    self.validate_join_condition_types(right, left_schema, right_schema)?;
+                }
+
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn infer_expr_type(
+        &self,
+        expr: &yachtsql_ir::expr::Expr,
+        schema: &yachtsql_storage::Schema,
+    ) -> yachtsql_core::types::DataType {
+        use yachtsql_core::types::DataType;
+        use yachtsql_ir::expr::Expr;
+
+        match expr {
+            Expr::Column { name, table } => {
+                for field in schema.fields() {
+                    if let Some(tbl) = table {
+                        if let Some(source) = &field.source_table {
+                            if source.eq_ignore_ascii_case(tbl) && field.name.eq_ignore_ascii_case(name) {
+                                return field.data_type.clone();
+                            }
+                        }
+                    }
+                    if field.name.eq_ignore_ascii_case(name) {
+                        return field.data_type.clone();
+                    }
+                }
+                DataType::String
+            }
+            Expr::Literal(lit) => self.infer_literal_type(&Expr::Literal(lit.clone())),
+            _ => DataType::String,
+        }
+    }
+
+    fn types_are_compatible(
+        &self,
+        left: &yachtsql_core::types::DataType,
+        right: &yachtsql_core::types::DataType,
+    ) -> bool {
+        use yachtsql_core::types::DataType;
+
+        if left == right {
+            return true;
+        }
+
+        let is_numeric = |t: &DataType| {
+            matches!(
+                t,
+                DataType::Int64
+                    | DataType::Float64
+                    | DataType::Numeric(_)
+            )
+        };
+
+        if is_numeric(left) && is_numeric(right) {
+            return true;
+        }
+
+        let is_string = |t: &DataType| matches!(t, DataType::String);
+        let is_date_like = |t: &DataType| {
+            matches!(t, DataType::Date | DataType::DateTime | DataType::Timestamp)
+        };
+
+        if is_string(left) && is_string(right) {
+            return true;
+        }
+
+        if is_date_like(left) && is_date_like(right) {
+            return true;
+        }
+
+        false
+    }
 }
 
 impl LogicalToPhysicalPlanner {
@@ -679,6 +810,8 @@ impl LogicalToPhysicalPlanner {
             } => {
                 let left_exec = self.plan_node_to_exec(left)?;
                 let right_exec = self.plan_node_to_exec(right)?;
+
+                self.validate_join_condition_types(on, left_exec.schema(), right_exec.schema())?;
 
                 let left_tables = self.collect_table_names(left);
                 let join_conditions = self.parse_join_conditions(on, &left_tables);
@@ -1055,6 +1188,14 @@ impl LogicalToPhysicalPlanner {
                         "value",
                         yachtsql_core::types::DataType::String,
                     )]),
+                    "POPULATE_RECORD" => {
+                        if args.is_empty() {
+                            return Err(Error::InvalidQuery(
+                                "populate_record requires at least 1 argument".to_string(),
+                            ));
+                        }
+                        self.extract_record_type_schema(&args[0])?
+                    }
                     _ => {
                         return Err(Error::UnsupportedFeature(format!(
                             "Table-valued function '{}' not yet supported in optimizer path",
@@ -1257,5 +1398,43 @@ impl LogicalToPhysicalPlanner {
         expr: &yachtsql_ir::expr::Expr,
     ) -> yachtsql_optimizer::expr::Expr {
         expr.clone()
+    }
+
+    fn extract_record_type_schema(
+        &self,
+        expr: &yachtsql_ir::expr::Expr,
+    ) -> Result<yachtsql_storage::Schema> {
+        use yachtsql_ir::expr::{CastDataType, Expr};
+        use yachtsql_storage::{Field, Schema};
+
+        match expr {
+            Expr::Cast { data_type, .. } => match data_type {
+                CastDataType::Custom(type_name, fields) => {
+                    if !fields.is_empty() {
+                        let schema_fields: Vec<Field> = fields
+                            .iter()
+                            .map(|f| Field::nullable(&f.name, f.data_type.clone()))
+                            .collect();
+                        Ok(Schema::from_fields(schema_fields))
+                    } else {
+                        let storage = self.storage.borrow();
+                        if let Some(table) = storage.get_table(type_name) {
+                            return Ok(table.schema().clone());
+                        }
+                        Err(Error::InvalidQuery(format!(
+                            "Could not find table/type '{}' for populate_record",
+                            type_name
+                        )))
+                    }
+                }
+                _ => Err(Error::InvalidQuery(
+                    "populate_record requires first argument to be cast to a record type"
+                        .to_string(),
+                )),
+            },
+            _ => Err(Error::InvalidQuery(
+                "populate_record requires first argument to be cast to a record type".to_string(),
+            )),
+        }
     }
 }

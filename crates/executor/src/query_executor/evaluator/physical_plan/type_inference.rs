@@ -282,6 +282,17 @@ impl ProjectionWithExprExec {
             | BinaryOp::RegexMatchI
             | BinaryOp::RegexNotMatchI => Some(DataType::Bool),
 
+            BinaryOp::Concat => {
+                match (&left_type, &right_type) {
+                    (Some(DataType::Hstore), Some(DataType::Hstore)) => Some(DataType::Hstore),
+                    (Some(DataType::String), _) | (_, Some(DataType::String)) => {
+                        Some(DataType::String)
+                    }
+                    (Some(DataType::Bytes), Some(DataType::Bytes)) => Some(DataType::Bytes),
+                    _ => left_type.or(right_type),
+                }
+            }
+
             _ => None,
         }
     }
@@ -495,7 +506,7 @@ impl ProjectionWithExprExec {
 
             "ARRAY_LENGTH" | "ARRAY_POSITION" => Some(DataType::Int64),
             "ARRAY_CONTAINS" => Some(DataType::Bool),
-            "SPLIT" => Some(DataType::Array(Box::new(DataType::String))),
+            "SPLIT" | "STRING_TO_ARRAY" => Some(DataType::Array(Box::new(DataType::String))),
 
             "GENERATE_ARRAY" => Some(DataType::Array(Box::new(DataType::Int64))),
             "GENERATE_DATE_ARRAY" => Some(DataType::Array(Box::new(DataType::Date))),
@@ -524,10 +535,11 @@ impl ProjectionWithExprExec {
             | "SLICE"
             | "DELETE"
             | "HSTORE" => Some(DataType::Hstore),
-            "HSTORE_AKEYS" | "AKEYS" | "SKEYS" => {
+            "HSTORE_AKEYS" | "AKEYS" => {
                 Some(DataType::Array(Box::new(DataType::String)))
             }
-            "HSTORE_AVALS" | "AVALS" | "SVALS" => {
+            "SKEYS" | "SVALS" => Some(DataType::String),
+            "HSTORE_AVALS" | "AVALS" => {
                 Some(DataType::Array(Box::new(DataType::String)))
             }
             "HSTORE_TO_JSON" | "HSTORE_TO_JSONB" => Some(DataType::Json),

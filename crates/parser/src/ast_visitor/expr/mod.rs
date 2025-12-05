@@ -38,7 +38,16 @@ impl LogicalPlanBuilder {
 
             ast::Expr::BinaryOp { left, op, right } => match op {
                 ast::BinaryOperator::Arrow => {
-                    self.make_json_arrow_function("JSON_EXTRACT_JSON", left, right)
+                    if matches!(right.as_ref(), ast::Expr::Array(_)) {
+                        let left_expr = self.sql_expr_to_expr(left)?;
+                        let right_expr = self.sql_expr_to_expr(right)?;
+                        Ok(Expr::Function {
+                            name: yachtsql_ir::FunctionName::from_str("HSTORE_GET_VALUES"),
+                            args: vec![left_expr, right_expr],
+                        })
+                    } else {
+                        self.make_json_arrow_function("JSON_EXTRACT_JSON", left, right)
+                    }
                 }
                 ast::BinaryOperator::LongArrow => {
                     self.make_json_arrow_function("JSON_VALUE_TEXT", left, right)
@@ -107,6 +116,18 @@ impl LogicalPlanBuilder {
             },
 
             ast::Expr::UnaryOp { op, expr } => {
+                if *op == ast::UnaryOperator::Minus {
+                    if let ast::Expr::Value(value) = expr.as_ref() {
+                        if let ast::Value::Number(s, _) = &value.value {
+                            if !s.contains('.') && !s.to_lowercase().contains('e') {
+                                let neg_str = format!("-{}", s);
+                                if let Ok(i) = neg_str.parse::<i64>() {
+                                    return Ok(Expr::Literal(LiteralValue::Int64(i)));
+                                }
+                            }
+                        }
+                    }
+                }
                 let inner_expr = self.sql_expr_to_expr(expr)?;
                 let unary_op = self.sql_unary_op_to_op(op)?;
                 Ok(Expr::unary_op(unary_op, inner_expr))
@@ -435,6 +456,13 @@ impl LogicalPlanBuilder {
             } => self.convert_trim(expr, trim_where, trim_what, trim_characters),
 
             ast::Expr::Position { expr, r#in } => self.convert_position(expr, r#in),
+
+            ast::Expr::Substring {
+                expr,
+                substring_from,
+                substring_for,
+                ..
+            } => self.convert_substring(expr, substring_from, substring_for),
 
             ast::Expr::Ceil { expr, .. } => {
                 let arg_expr = self.sql_expr_to_expr(expr)?;

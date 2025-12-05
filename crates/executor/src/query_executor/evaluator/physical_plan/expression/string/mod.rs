@@ -46,8 +46,11 @@ impl ProjectionWithExprExec {
         match name {
             "CONCAT" => Self::evaluate_concat(args, batch, row_idx),
             "TRIM" => Self::evaluate_trim(args, batch, row_idx),
+            "TRIM_CHARS" => Self::evaluate_trim_chars(args, batch, row_idx),
             "LTRIM" => Self::evaluate_ltrim(args, batch, row_idx),
+            "LTRIM_CHARS" => Self::evaluate_ltrim_chars(args, batch, row_idx),
             "RTRIM" => Self::evaluate_rtrim(args, batch, row_idx),
+            "RTRIM_CHARS" => Self::evaluate_rtrim_chars(args, batch, row_idx),
             "UPPER" => Self::evaluate_upper(args, batch, row_idx),
             "LOWER" => Self::evaluate_lower(args, batch, row_idx),
             "REPLACE" => Self::evaluate_replace(args, batch, row_idx),
@@ -55,7 +58,8 @@ impl ProjectionWithExprExec {
             "LENGTH" | "CHAR_LENGTH" | "CHARACTER_LENGTH" => {
                 Self::evaluate_length(args, batch, row_idx)
             }
-            "SPLIT" => Self::evaluate_split(args, batch, row_idx),
+            "SPLIT" | "STRING_TO_ARRAY" => Self::evaluate_split(args, batch, row_idx),
+            "SPLIT_PART" => Self::evaluate_split_part(args, batch, row_idx),
             "STARTS_WITH" => Self::evaluate_starts_with(args, batch, row_idx),
             "ENDS_WITH" => Self::evaluate_ends_with(args, batch, row_idx),
             "REGEXP_CONTAINS" => Self::evaluate_regexp_contains(args, batch, row_idx),

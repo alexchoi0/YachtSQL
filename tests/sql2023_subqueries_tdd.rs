@@ -1449,6 +1449,48 @@ fn test_correlated_scalar_subquery_with_null_groups() {
     assert_eq!(sum2.to_string(), "40");
 }
 
+#[test]
+fn test_correlated_scalar_subquery_without_alias() {
+    let mut executor = setup_executor();
+
+    executor.execute_sql("DROP TABLE IF EXISTS orders").unwrap();
+    executor
+        .execute_sql(
+            "CREATE TABLE orders (order_id INT64, customer STRING, amount INT64)",
+        )
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO orders VALUES (1, 'Alice', 100), (2, 'Alice', 150), (3, 'Bob', 200)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT o1.order_id, \
+             (SELECT SUM(o2.amount) FROM orders o2 WHERE o2.customer = o1.customer) \
+             FROM orders o1 ORDER BY o1.order_id",
+        )
+        .unwrap();
+
+    assert_eq!(result.num_rows(), 3);
+
+    let order_id_col = result.column(0).unwrap();
+    let sum_col = result.column(1).unwrap();
+
+    assert_eq!(order_id_col.get(0).unwrap().as_i64(), Some(1));
+    let sum1 = sum_col.get(0).unwrap().as_numeric().unwrap();
+    assert_eq!(sum1.to_string(), "250");
+
+    assert_eq!(order_id_col.get(1).unwrap().as_i64(), Some(2));
+    let sum2 = sum_col.get(1).unwrap().as_numeric().unwrap();
+    assert_eq!(sum2.to_string(), "250");
+
+    assert_eq!(order_id_col.get(2).unwrap().as_i64(), Some(3));
+    let sum3 = sum_col.get(2).unwrap().as_numeric().unwrap();
+    assert_eq!(sum3.to_string(), "200");
+}
+
 // ============================================================================
 // Phase 3: Correlated EXISTS/IN Subquery Decorrelation Tests
 // These tests verify that correlated EXISTS/IN subqueries are correctly

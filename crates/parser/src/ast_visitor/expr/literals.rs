@@ -39,7 +39,15 @@ impl LogicalPlanBuilder {
         value: &str,
     ) -> Result<Expr> {
         match data_type {
-            ast::DataType::Date => Ok(Expr::Literal(LiteralValue::Date(value.to_string()))),
+            ast::DataType::Date => {
+                if chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").is_err() {
+                    return Err(Error::invalid_query(format!(
+                        "Invalid date format: '{}'. Expected format: YYYY-MM-DD",
+                        value
+                    )));
+                }
+                Ok(Expr::Literal(LiteralValue::Date(value.to_string())))
+            }
             ast::DataType::Timestamp(_, _) => {
                 Ok(Expr::Literal(LiteralValue::Timestamp(value.to_string())))
             }
