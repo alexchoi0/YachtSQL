@@ -38,7 +38,7 @@ impl SimdBackend for NeonBackend {
 
     #[inline]
     fn sum_i64(data: &[i64]) -> i64 {
-        super::neon::sum_i64(data)
+        super::scalar::sum_i64(data)
     }
 
     #[inline]
@@ -48,7 +48,7 @@ impl SimdBackend for NeonBackend {
 
     #[inline]
     fn sum_i64_masked(data: &[i64], nulls: &[u8]) -> i64 {
-        super::neon::sum_i64_masked(data, nulls)
+        super::scalar::sum_i64_masked(data, nulls)
     }
 
     #[inline]
@@ -58,17 +58,17 @@ impl SimdBackend for NeonBackend {
 
     #[inline]
     fn count_nonzero_i64(data: &[i64]) -> usize {
-        super::neon::count_nonzero_i64(data)
+        super::scalar::count_nonzero_i64(data)
     }
 
     #[inline]
     fn min_i64(data: &[i64]) -> Option<i64> {
-        super::neon::min_i64(data)
+        super::scalar::min_i64(data)
     }
 
     #[inline]
     fn max_i64(data: &[i64]) -> Option<i64> {
-        super::neon::max_i64(data)
+        super::scalar::max_i64(data)
     }
 
     #[inline]
@@ -113,7 +113,7 @@ impl SimdBackend for NeonBackend {
 
     #[inline]
     fn avg_i64(data: &[i64]) -> Option<f64> {
-        super::neon::avg_i64(data)
+        super::scalar::avg_i64(data)
     }
 
     #[inline]
@@ -123,7 +123,7 @@ impl SimdBackend for NeonBackend {
 
     #[inline]
     fn avg_i64_masked(data: &[i64], nulls: &[u8]) -> Option<f64> {
-        super::neon::avg_i64_masked(data, nulls)
+        super::scalar::avg_i64_masked(data, nulls)
     }
 
     #[inline]

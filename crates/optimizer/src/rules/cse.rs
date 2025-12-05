@@ -208,6 +208,18 @@ impl CommonSubexpressionElimination {
             Expr::StructFieldAccess { expr, field } => {
                 format!("structfield:{}.{}", Self::expr_signature(expr), field)
             }
+            Expr::IsDistinctFrom {
+                left,
+                right,
+                negated,
+            } => {
+                format!(
+                    "isdistinct:{}({},{})",
+                    if *negated { "not" } else { "" },
+                    Self::expr_signature(left),
+                    Self::expr_signature(right)
+                )
+            }
         }
     }
 
@@ -347,6 +359,10 @@ impl CommonSubexpressionElimination {
             Expr::StructFieldAccess { expr, .. } => {
                 Self::count_subexpressions(expr, counts);
             }
+            Expr::IsDistinctFrom { left, right, .. } => {
+                Self::count_subexpressions(left, counts);
+                Self::count_subexpressions(right, counts);
+            }
             Expr::Column { .. }
             | Expr::Literal(_)
             | Expr::Wildcard
@@ -392,7 +408,8 @@ impl CommonSubexpressionElimination {
             | Expr::AllOp { .. }
             | Expr::ScalarSubquery { .. }
             | Expr::StructLiteral { .. }
-            | Expr::StructFieldAccess { .. } => true,
+            | Expr::StructFieldAccess { .. }
+            | Expr::IsDistinctFrom { .. } => true,
         }
     }
 

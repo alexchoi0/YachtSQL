@@ -1,4 +1,5 @@
 mod ascii;
+mod casefold;
 mod chr;
 mod concat;
 mod ends_with;
@@ -75,6 +76,7 @@ impl ProjectionWithExprExec {
             "FORMAT" => Self::evaluate_format(args, batch, row_idx),
             "QUOTE_IDENT" => Self::evaluate_quote_ident(args, batch, row_idx),
             "QUOTE_LITERAL" => Self::evaluate_quote_literal(args, batch, row_idx),
+            "CASEFOLD" => Self::evaluate_casefold(args, batch, row_idx),
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown string function: {}",
                 name

@@ -11,6 +11,10 @@ impl ProjectionWithExprExec {
         batch: &RecordBatch,
         row_idx: usize,
     ) -> Result<Value> {
+        if args.len() == 2 {
+            return Self::eval_decode_base64(args, batch, row_idx);
+        }
+
         if args.len() < 3 {
             return Err(Error::invalid_query(
                 "DECODE requires at least 3 arguments: DECODE(expr, search1, result1, ..., default)"
@@ -41,6 +45,34 @@ impl ProjectionWithExprExec {
         } else {
             Ok(Value::null())
         }
+    }
+
+    fn eval_decode_base64(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+        let data_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let format_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+
+        let data_str = data_val
+            .as_str()
+            .ok_or_else(|| Error::invalid_query("DECODE data must be a string"))?;
+
+        let format = format_val
+            .as_str()
+            .ok_or_else(|| Error::invalid_query("DECODE format must be a string"))?;
+
+        let result = match format.to_lowercase().as_str() {
+            "hex" => hex::decode(data_str)
+                .map_err(|e| Error::invalid_query(format!("Invalid hex string: {}", e)))?,
+            "base64" => base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data_str)
+                .map_err(|e| Error::invalid_query(format!("Invalid base64 string: {}", e)))?,
+            "escape" => data_str.as_bytes().to_vec(),
+            _ => {
+                return Err(Error::invalid_query(format!(
+                    "Unsupported decoding format: {}",
+                    format
+                )));
+            }
+        };
+        Ok(Value::bytes(result))
     }
 }
 
@@ -120,10 +152,7 @@ mod tests {
     #[test]
     fn test_decode_too_few_args() {
         let batch = create_test_batch();
-        let args = vec![
-            Expr::Literal(LiteralValue::Int64(1)),
-            Expr::Literal(LiteralValue::Int64(1)),
-        ];
+        let args = vec![Expr::Literal(LiteralValue::Int64(1))];
         let result = ProjectionWithExprExec::eval_decode(&args, &batch, 0);
         assert!(result.is_err());
         match result {

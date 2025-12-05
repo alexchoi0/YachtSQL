@@ -17,13 +17,21 @@ impl ProjectionWithExprExec {
             ));
         }
 
-        let json_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let path_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
-        let path_str = path_val
+        let left_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let right_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+
+        if left_val.as_hstore().is_some() {
+            let key = right_val
+                .as_str()
+                .ok_or_else(|| Error::invalid_query("hstore key must be a string"))?;
+            return yachtsql_functions::hstore::hstore_get(&left_val, &Value::string(key.to_string()));
+        }
+
+        let path_str = right_val
             .as_str()
             .ok_or_else(|| Error::invalid_query("JSON path must be a string"))?;
 
-        yachtsql_functions::json::json_extract(&json_val, path_str)
+        yachtsql_functions::json::json_extract(&left_val, path_str)
     }
 }
 

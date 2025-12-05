@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use indexmap::IndexMap;
 use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_core::types::Value;
 
 pub fn hstore_from_arrays(keys: &Value, values: &Value) -> Result<Value> {
     if keys.is_null() || values.is_null() {
@@ -696,4 +694,22 @@ pub fn hstore_get_values(hstore: &Value, keys: &Value) -> Result<Value> {
         .collect();
 
     Ok(Value::array(values))
+}
+
+pub fn hstore_equal(left: &Value, right: &Value) -> Result<Value> {
+    if left.is_null() || right.is_null() {
+        return Ok(Value::null());
+    }
+
+    let left_map = left.as_hstore().ok_or_else(|| Error::TypeMismatch {
+        expected: "HSTORE".to_string(),
+        actual: left.data_type().to_string(),
+    })?;
+
+    let right_map = right.as_hstore().ok_or_else(|| Error::TypeMismatch {
+        expected: "HSTORE".to_string(),
+        actual: right.data_type().to_string(),
+    })?;
+
+    Ok(Value::bool_val(left_map == right_map))
 }

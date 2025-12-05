@@ -19,12 +19,62 @@ pub struct AggregateExec {
 }
 
 impl AggregateExec {
+    pub(crate) fn contains_aggregate(expr: &Expr) -> bool {
+        match expr {
+            Expr::Aggregate { .. } => true,
+            Expr::BinaryOp { left, right, .. } => {
+                Self::contains_aggregate(left) || Self::contains_aggregate(right)
+            }
+            Expr::UnaryOp { expr, .. } => Self::contains_aggregate(expr),
+            Expr::Function { args, .. } => args.iter().any(|a| Self::contains_aggregate(a)),
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
+                operand.as_ref().map_or(false, |o| Self::contains_aggregate(o))
+                    || when_then
+                        .iter()
+                        .any(|(w, t)| Self::contains_aggregate(w) || Self::contains_aggregate(t))
+                    || else_expr
+                        .as_ref()
+                        .map_or(false, |e| Self::contains_aggregate(e))
+            }
+            Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => Self::contains_aggregate(expr),
+            Expr::InList { expr, list, .. } => {
+                Self::contains_aggregate(expr) || list.iter().any(|e| Self::contains_aggregate(e))
+            }
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                Self::contains_aggregate(expr)
+                    || Self::contains_aggregate(low)
+                    || Self::contains_aggregate(high)
+            }
+            _ => false,
+        }
+    }
+
     pub fn new(
         input: Rc<dyn ExecutionPlan>,
         group_by: Vec<Expr>,
         aggregates: Vec<(Expr, Option<String>)>,
         having: Option<Expr>,
     ) -> Result<Self> {
+        use yachtsql_core::error::Error;
+
+        for (agg_expr, _) in &aggregates {
+            if let Expr::Aggregate { filter, .. } = agg_expr {
+                if let Some(filter_expr) = filter {
+                    if Self::contains_aggregate(filter_expr) {
+                        return Err(Error::InvalidQuery(
+                            "FILTER clause cannot contain aggregate functions".to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+
         let mut fields = Vec::new();
 
         let input_schema = input.schema();
@@ -83,9 +133,26 @@ impl AggregateExec {
         row_idx: usize,
     ) -> Result<Value> {
         match agg_expr {
-            Expr::Aggregate { args, .. } => {
+            Expr::Aggregate { name, args, filter, .. } => {
+                if let Some(filter_expr) = filter {
+                    let filter_result = self.evaluate_expr(filter_expr, batch, row_idx)?;
+                    if filter_result.as_bool() != Some(true) {
+                        return Ok(Value::null());
+                    }
+                }
                 if args.is_empty() {
                     Ok(Value::int64(1))
+                } else if args.len() >= 2
+                    && matches!(
+                        name.as_str(),
+                        "CORR" | "COVAR_POP" | "COVAR_SAMP" | "REGR_SLOPE" | "REGR_INTERCEPT"
+                    )
+                {
+                    let mut values = Vec::with_capacity(args.len());
+                    for arg in args {
+                        values.push(self.evaluate_expr(arg, batch, row_idx)?);
+                    }
+                    Ok(Value::array(values))
                 } else {
                     self.evaluate_expr(&args[0], batch, row_idx)
                 }
@@ -171,7 +238,7 @@ impl AggregateExec {
                             Self::infer_expr_type(&inner_expr, schema).unwrap_or(DataType::String);
                         DataType::Array(Box::new(inner_type))
                     }
-                    CastDataType::Custom(name) => DataType::Custom(name.clone()),
+                    CastDataType::Custom(name, _) => DataType::Custom(name.clone()),
                 })
             }
             Expr::BinaryOp { left, op, right } => {
@@ -217,6 +284,21 @@ impl AggregateExec {
                     "COALESCE" => args.iter().find_map(|a| Self::infer_expr_type(a, schema)),
                     _ => None,
                 }
+            }
+            Expr::Case {
+                when_then,
+                else_expr,
+                ..
+            } => {
+                for (_, then_expr) in when_then {
+                    if let Some(t) = Self::infer_expr_type(then_expr, schema) {
+                        return Some(t);
+                    }
+                }
+                if let Some(else_e) = else_expr {
+                    return Self::infer_expr_type(else_e, schema);
+                }
+                None
             }
             _ => None,
         }
@@ -289,7 +371,12 @@ impl AggregateExec {
 
     pub(crate) fn expr_to_field_name(expr: &Expr) -> Option<String> {
         match expr {
-            Expr::Aggregate { name, args, .. } => {
+            Expr::Aggregate {
+                name,
+                args,
+                distinct,
+                ..
+            } => {
                 let first_is_wildcard = args.first().is_some_and(|e| matches!(e, Expr::Wildcard));
                 let arg_str = if args.is_empty() || first_is_wildcard {
                     "*".to_string()
@@ -298,7 +385,11 @@ impl AggregateExec {
                 } else {
                     "...".to_string()
                 };
-                Some(format!("{}({})", name.as_str(), arg_str))
+                if *distinct {
+                    Some(format!("{}(DISTINCT {})", name.as_str(), arg_str))
+                } else {
+                    Some(format!("{}({})", name.as_str(), arg_str))
+                }
             }
             Expr::Column { name, .. } => Some(name.clone()),
             Expr::Literal(lit) => Some(format!("{:?}", lit)),
@@ -454,9 +545,28 @@ impl AggregateExec {
             let values: Vec<&Value> = agg_input_rows.iter().map(|row| &row[agg_idx]).collect();
 
             let agg_result = match &self.aggregates[agg_idx].0 {
-                Expr::Aggregate { name, args, .. } => match name.as_str() {
+                Expr::Aggregate {
+                    name,
+                    args,
+                    distinct,
+                    ..
+                } => match name.as_str() {
                     "COUNT" => {
-                        let count = values.iter().filter(|v| !v.is_null()).count();
+                        if *distinct {
+                            let mut unique_values = std::collections::HashSet::new();
+                            for val in &values {
+                                if !val.is_null() {
+                                    unique_values.insert(format!("{:?}", *val));
+                                }
+                            }
+                            Value::int64(unique_values.len() as i64)
+                        } else {
+                            let count = values.iter().filter(|v| !v.is_null()).count();
+                            Value::int64(count as i64)
+                        }
+                    }
+                    "COUNTIF" => {
+                        let count = values.iter().filter(|v| v.as_bool() == Some(true)).count();
                         Value::int64(count as i64)
                     }
                     "SUM" => {
@@ -820,7 +930,19 @@ impl AggregateExec {
                     "ARRAY_AGG" => {
                         let array_values: Vec<Value> =
                             values.iter().map(|v| (*v).clone()).collect();
-                        Value::array(array_values)
+                        if *distinct {
+                            let mut unique_strs = std::collections::HashSet::new();
+                            let mut unique_values = Vec::new();
+                            for val in array_values {
+                                let str_repr = format!("{:?}", val);
+                                if unique_strs.insert(str_repr) {
+                                    unique_values.push(val);
+                                }
+                            }
+                            Value::array(unique_values)
+                        } else {
+                            Value::array(array_values)
+                        }
                     }
                     "STRING_AGG" => {
                         let delimiter = if args.len() >= 2 {
@@ -849,6 +971,114 @@ impl AggregateExec {
                             Value::null()
                         } else {
                             Value::string(string_values.join(&delimiter))
+                        }
+                    }
+                    "CORR" => {
+                        let mut count = 0usize;
+                        let mut mean_x = 0.0f64;
+                        let mut mean_y = 0.0f64;
+                        let mut m2_x = 0.0f64;
+                        let mut m2_y = 0.0f64;
+                        let mut coproduct = 0.0f64;
+
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(x), Some(y)) = (arr[0].as_f64(), arr[1].as_f64()) {
+                                        count += 1;
+                                        let n = count as f64;
+                                        let delta_x = x - mean_x;
+                                        let delta_y = y - mean_y;
+                                        mean_x += delta_x / n;
+                                        mean_y += delta_y / n;
+                                        let delta_x2 = x - mean_x;
+                                        let delta_y2 = y - mean_y;
+                                        m2_x += delta_x * delta_x2;
+                                        m2_y += delta_y * delta_y2;
+                                        coproduct += delta_x * delta_y2;
+                                    }
+                                }
+                            }
+                        }
+
+                        if count < 2 {
+                            Value::null()
+                        } else {
+                            let var_x = m2_x / count as f64;
+                            let var_y = m2_y / count as f64;
+                            if var_x == 0.0 || var_y == 0.0 {
+                                Value::null()
+                            } else {
+                                let corr = coproduct / (count as f64 * var_x.sqrt() * var_y.sqrt());
+                                Value::float64(corr)
+                            }
+                        }
+                    }
+                    "COVAR_POP" => {
+                        let mut count = 0usize;
+                        let mut mean_x = 0.0f64;
+                        let mut mean_y = 0.0f64;
+                        let mut coproduct = 0.0f64;
+
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(x), Some(y)) = (arr[0].as_f64(), arr[1].as_f64()) {
+                                        count += 1;
+                                        let n = count as f64;
+                                        let delta_x = x - mean_x;
+                                        mean_x += delta_x / n;
+                                        let delta_y = y - mean_y;
+                                        mean_y += delta_y / n;
+                                        let delta_y2 = y - mean_y;
+                                        coproduct += delta_x * delta_y2;
+                                    }
+                                }
+                            }
+                        }
+
+                        if count == 0 {
+                            Value::null()
+                        } else {
+                            Value::float64(coproduct / count as f64)
+                        }
+                    }
+                    "COVAR_SAMP" => {
+                        let mut count = 0usize;
+                        let mut mean_x = 0.0f64;
+                        let mut mean_y = 0.0f64;
+                        let mut coproduct = 0.0f64;
+
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(x), Some(y)) = (arr[0].as_f64(), arr[1].as_f64()) {
+                                        count += 1;
+                                        let n = count as f64;
+                                        let delta_x = x - mean_x;
+                                        mean_x += delta_x / n;
+                                        let delta_y = y - mean_y;
+                                        mean_y += delta_y / n;
+                                        let delta_y2 = y - mean_y;
+                                        coproduct += delta_x * delta_y2;
+                                    }
+                                }
+                            }
+                        }
+
+                        if count < 2 {
+                            Value::null()
+                        } else {
+                            Value::float64(coproduct / (count - 1) as f64)
                         }
                     }
                     _ => Value::null(),
@@ -884,6 +1114,20 @@ impl SortAggregateExec {
         aggregates: Vec<(Expr, Option<String>)>,
         having: Option<Expr>,
     ) -> Result<Self> {
+        use yachtsql_core::error::Error;
+
+        for (agg_expr, _) in &aggregates {
+            if let Expr::Aggregate { filter, .. } = agg_expr {
+                if let Some(filter_expr) = filter {
+                    if AggregateExec::contains_aggregate(filter_expr) {
+                        return Err(Error::InvalidQuery(
+                            "FILTER clause cannot contain aggregate functions".to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+
         let mut fields = Vec::new();
 
         let input_schema = input.schema();
@@ -943,9 +1187,26 @@ impl SortAggregateExec {
         row_idx: usize,
     ) -> Result<Value> {
         match agg_expr {
-            Expr::Aggregate { args, .. } => {
+            Expr::Aggregate { name, args, filter, .. } => {
+                if let Some(filter_expr) = filter {
+                    let filter_result = self.evaluate_expr(filter_expr, batch, row_idx)?;
+                    if filter_result.as_bool() != Some(true) {
+                        return Ok(Value::null());
+                    }
+                }
                 if args.is_empty() {
                     Ok(Value::int64(1))
+                } else if args.len() >= 2
+                    && matches!(
+                        name.as_str(),
+                        "CORR" | "COVAR_POP" | "COVAR_SAMP" | "REGR_SLOPE" | "REGR_INTERCEPT"
+                    )
+                {
+                    let mut values = Vec::with_capacity(args.len());
+                    for arg in args {
+                        values.push(self.evaluate_expr(arg, batch, row_idx)?);
+                    }
+                    Ok(Value::array(values))
                 } else {
                     self.evaluate_expr(&args[0], batch, row_idx)
                 }
@@ -980,9 +1241,28 @@ impl SortAggregateExec {
             let values: Vec<&Value> = agg_input_rows.iter().map(|row| &row[agg_idx]).collect();
 
             let agg_result = match &self.aggregates[agg_idx].0 {
-                Expr::Aggregate { name, args, .. } => match name.as_str() {
+                Expr::Aggregate {
+                    name,
+                    args,
+                    distinct,
+                    ..
+                } => match name.as_str() {
                     "COUNT" => {
-                        let count = values.iter().filter(|v| !v.is_null()).count();
+                        if *distinct {
+                            let mut unique_values = std::collections::HashSet::new();
+                            for val in &values {
+                                if !val.is_null() {
+                                    unique_values.insert(format!("{:?}", *val));
+                                }
+                            }
+                            Value::int64(unique_values.len() as i64)
+                        } else {
+                            let count = values.iter().filter(|v| !v.is_null()).count();
+                            Value::int64(count as i64)
+                        }
+                    }
+                    "COUNTIF" => {
+                        let count = values.iter().filter(|v| v.as_bool() == Some(true)).count();
                         Value::int64(count as i64)
                     }
                     "SUM" => {
@@ -1115,7 +1395,19 @@ impl SortAggregateExec {
                     "ARRAY_AGG" => {
                         let array_values: Vec<Value> =
                             values.iter().map(|v| (*v).clone()).collect();
-                        Value::array(array_values)
+                        if *distinct {
+                            let mut unique_strs = std::collections::HashSet::new();
+                            let mut unique_values = Vec::new();
+                            for val in array_values {
+                                let str_repr = format!("{:?}", val);
+                                if unique_strs.insert(str_repr) {
+                                    unique_values.push(val);
+                                }
+                            }
+                            Value::array(unique_values)
+                        } else {
+                            Value::array(array_values)
+                        }
                     }
                     "STRING_AGG" => {
                         let delimiter = if args.len() >= 2 {
@@ -1142,6 +1434,114 @@ impl SortAggregateExec {
                             Value::null()
                         } else {
                             Value::string(string_values.join(&delimiter))
+                        }
+                    }
+                    "CORR" => {
+                        let mut count = 0usize;
+                        let mut mean_x = 0.0f64;
+                        let mut mean_y = 0.0f64;
+                        let mut m2_x = 0.0f64;
+                        let mut m2_y = 0.0f64;
+                        let mut coproduct = 0.0f64;
+
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(x), Some(y)) = (arr[0].as_f64(), arr[1].as_f64()) {
+                                        count += 1;
+                                        let n = count as f64;
+                                        let delta_x = x - mean_x;
+                                        let delta_y = y - mean_y;
+                                        mean_x += delta_x / n;
+                                        mean_y += delta_y / n;
+                                        let delta_x2 = x - mean_x;
+                                        let delta_y2 = y - mean_y;
+                                        m2_x += delta_x * delta_x2;
+                                        m2_y += delta_y * delta_y2;
+                                        coproduct += delta_x * delta_y2;
+                                    }
+                                }
+                            }
+                        }
+
+                        if count < 2 {
+                            Value::null()
+                        } else {
+                            let var_x = m2_x / count as f64;
+                            let var_y = m2_y / count as f64;
+                            if var_x == 0.0 || var_y == 0.0 {
+                                Value::null()
+                            } else {
+                                let corr = coproduct / (count as f64 * var_x.sqrt() * var_y.sqrt());
+                                Value::float64(corr)
+                            }
+                        }
+                    }
+                    "COVAR_POP" => {
+                        let mut count = 0usize;
+                        let mut mean_x = 0.0f64;
+                        let mut mean_y = 0.0f64;
+                        let mut coproduct = 0.0f64;
+
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(x), Some(y)) = (arr[0].as_f64(), arr[1].as_f64()) {
+                                        count += 1;
+                                        let n = count as f64;
+                                        let delta_x = x - mean_x;
+                                        mean_x += delta_x / n;
+                                        let delta_y = y - mean_y;
+                                        mean_y += delta_y / n;
+                                        let delta_y2 = y - mean_y;
+                                        coproduct += delta_x * delta_y2;
+                                    }
+                                }
+                            }
+                        }
+
+                        if count == 0 {
+                            Value::null()
+                        } else {
+                            Value::float64(coproduct / count as f64)
+                        }
+                    }
+                    "COVAR_SAMP" => {
+                        let mut count = 0usize;
+                        let mut mean_x = 0.0f64;
+                        let mut mean_y = 0.0f64;
+                        let mut coproduct = 0.0f64;
+
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(x), Some(y)) = (arr[0].as_f64(), arr[1].as_f64()) {
+                                        count += 1;
+                                        let n = count as f64;
+                                        let delta_x = x - mean_x;
+                                        mean_x += delta_x / n;
+                                        let delta_y = y - mean_y;
+                                        mean_y += delta_y / n;
+                                        let delta_y2 = y - mean_y;
+                                        coproduct += delta_x * delta_y2;
+                                    }
+                                }
+                            }
+                        }
+
+                        if count < 2 {
+                            Value::null()
+                        } else {
+                            Value::float64(coproduct / (count - 1) as f64)
                         }
                     }
                     _ => Value::null(),

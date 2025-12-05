@@ -148,7 +148,13 @@ impl ProjectionWithExprExec {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
-            CastDataType::Custom(name) => DataType::Custom(name.clone()),
+            CastDataType::Custom(name, struct_fields) => {
+                if struct_fields.is_empty() {
+                    DataType::Custom(name.clone())
+                } else {
+                    DataType::Struct(struct_fields.clone())
+                }
+            }
         }
     }
 
@@ -181,6 +187,8 @@ impl ProjectionWithExprExec {
                 (Some(DataType::Date), Some(DataType::Interval))
                 | (Some(DataType::Interval), Some(DataType::Date)) => Some(DataType::Date),
 
+                (Some(DataType::Interval), Some(DataType::Interval)) => Some(DataType::Interval),
+
                 (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
                     Some(DataType::Numeric(None))
                 }
@@ -205,6 +213,8 @@ impl ProjectionWithExprExec {
 
                 (Some(DataType::Date), Some(DataType::Interval)) => Some(DataType::Date),
 
+                (Some(DataType::Interval), Some(DataType::Interval)) => Some(DataType::Interval),
+
                 (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
                     Some(DataType::Numeric(None))
                 }
@@ -214,7 +224,33 @@ impl ProjectionWithExprExec {
                 (Some(DataType::Int64), Some(DataType::Int64)) => Some(DataType::Int64),
                 _ => None,
             },
-            BinaryOp::Multiply | BinaryOp::Divide | BinaryOp::Modulo => {
+            BinaryOp::Multiply => match (&left_type, &right_type) {
+                (Some(DataType::Interval), Some(DataType::Int64))
+                | (Some(DataType::Interval), Some(DataType::Float64))
+                | (Some(DataType::Int64), Some(DataType::Interval))
+                | (Some(DataType::Float64), Some(DataType::Interval)) => Some(DataType::Interval),
+                (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
+                    Some(DataType::Numeric(None))
+                }
+                (Some(DataType::Float64), _) | (_, Some(DataType::Float64)) => {
+                    Some(DataType::Float64)
+                }
+                (Some(DataType::Int64), Some(DataType::Int64)) => Some(DataType::Int64),
+                _ => None,
+            },
+            BinaryOp::Divide => match (&left_type, &right_type) {
+                (Some(DataType::Interval), Some(DataType::Int64))
+                | (Some(DataType::Interval), Some(DataType::Float64)) => Some(DataType::Interval),
+                (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
+                    Some(DataType::Numeric(None))
+                }
+                (Some(DataType::Float64), _) | (_, Some(DataType::Float64)) => {
+                    Some(DataType::Float64)
+                }
+                (Some(DataType::Int64), Some(DataType::Int64)) => Some(DataType::Int64),
+                _ => None,
+            },
+            BinaryOp::Modulo => {
                 match (left_type, right_type) {
                     (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
                         Some(DataType::Numeric(None))
@@ -234,6 +270,17 @@ impl ProjectionWithExprExec {
             BinaryOp::ArrayContains | BinaryOp::ArrayContainedBy | BinaryOp::ArrayOverlap => {
                 Some(DataType::Bool)
             }
+
+            BinaryOp::Like
+            | BinaryOp::NotLike
+            | BinaryOp::ILike
+            | BinaryOp::NotILike
+            | BinaryOp::SimilarTo
+            | BinaryOp::NotSimilarTo
+            | BinaryOp::RegexMatch
+            | BinaryOp::RegexNotMatch
+            | BinaryOp::RegexMatchI
+            | BinaryOp::RegexNotMatchI => Some(DataType::Bool),
 
             _ => None,
         }
@@ -327,12 +374,40 @@ impl ProjectionWithExprExec {
         match func_name.as_str() {
             "YACHTSQL.IS_FEATURE_ENABLED" => Some(DataType::Bool),
 
-            "ABS" | "CEIL" | "CEILING" | "FLOOR" | "ROUND" | "TRUNC" | "TRUNCATE" | "SQRT"
-            | "EXP" | "LN" | "LOG" | "LOG10" | "SIN" | "COS" | "TAN" | "ASIN" | "ACOS" | "ATAN"
-            | "ATAN2" | "DEGREES" | "RADIANS" | "PI" | "POWER" | "POW" | "MOD" | "RANDOM"
-            | "RAND" | "TO_NUMBER" => Some(DataType::Float64),
+            "ABS" | "CEIL" | "CEILING" | "FLOOR" | "ROUND" | "TRUNC" | "TRUNCATE" | "MOD" => {
+                if !args.is_empty() {
+                    let arg_type = Self::infer_expr_type_with_schema(&args[0], schema);
+                    match arg_type {
+                        Some(DataType::Int64) => Some(DataType::Int64),
+                        Some(DataType::Numeric(p)) => Some(DataType::Numeric(p)),
+                        Some(DataType::MacAddr) => Some(DataType::MacAddr),
+                        Some(DataType::MacAddr8) => Some(DataType::MacAddr8),
+                        _ => Some(DataType::Float64),
+                    }
+                } else {
+                    Some(DataType::Float64)
+                }
+            }
 
             "SIGN" => Some(DataType::Int64),
+
+            "SQRT" | "EXP" | "LN" | "LOG" | "LOG10" | "SIN" | "COS" | "TAN" | "ASIN" | "ACOS"
+            | "ATAN" | "ATAN2" | "DEGREES" | "RADIANS" | "PI" | "POWER" | "POW" | "RANDOM"
+            | "RAND" | "GAMMA" | "LGAMMA" => Some(DataType::Float64),
+
+            "TO_NUMBER" => {
+                if args.len() == 2 {
+                    if let yachtsql_optimizer::Expr::Literal(
+                        yachtsql_optimizer::expr::LiteralValue::String(s),
+                    ) = &args[1]
+                    {
+                        if s.eq_ignore_ascii_case("RN") {
+                            return Some(DataType::Int64);
+                        }
+                    }
+                }
+                Some(DataType::Float64)
+            }
 
             "SAFE_ADD" | "SAFE_SUBTRACT" | "SAFE_MULTIPLY" | "SAFE_DIVIDE" => {
                 if args.len() >= 2 {
@@ -370,9 +445,20 @@ impl ProjectionWithExprExec {
             }
 
             "CONCAT" | "TRIM" | "LTRIM" | "RTRIM" | "REPLACE" | "UPPER" | "LOWER" | "SUBSTR"
-            | "SUBSTRING" | "LEFT" | "RIGHT" | "REVERSE" | "REPEAT" | "LPAD" | "RPAD" | "CHR"
+            | "SUBSTRING" | "LEFT" | "RIGHT" | "REPEAT" | "LPAD" | "RPAD" | "CHR"
             | "INITCAP" | "TO_CHAR" | "TRANSLATE" | "FORMAT" | "QUOTE_IDENT" | "QUOTE_LITERAL"
             | "REGEXP_EXTRACT" | "REGEXP_REPLACE" => Some(DataType::String),
+
+            "REVERSE" => {
+                if !args.is_empty() {
+                    match Self::infer_expr_type_with_schema(&args[0], schema) {
+                        Some(DataType::Bytes) => Some(DataType::Bytes),
+                        _ => Some(DataType::String),
+                    }
+                } else {
+                    Some(DataType::String)
+                }
+            }
 
             "LENGTH" | "CHAR_LENGTH" | "CHARACTER_LENGTH" | "POSITION" | "STRPOS" | "ASCII" => {
                 Some(DataType::Int64)
@@ -382,7 +468,7 @@ impl ProjectionWithExprExec {
 
             "MD5" | "SHA1" | "SHA256" | "SHA512" => Some(DataType::String),
 
-            "FARM_FINGERPRINT" => Some(DataType::Int64),
+            "FARM_FINGERPRINT" | "CRC32" | "CRC32C" => Some(DataType::Int64),
 
             "TO_HEX" => Some(DataType::String),
             "FROM_HEX" => Some(DataType::Bytes),
@@ -414,8 +500,45 @@ impl ProjectionWithExprExec {
             "GENERATE_ARRAY" => Some(DataType::Array(Box::new(DataType::Int64))),
             "GENERATE_DATE_ARRAY" => Some(DataType::Array(Box::new(DataType::Date))),
             "GENERATE_TIMESTAMP_ARRAY" => Some(DataType::Array(Box::new(DataType::Timestamp))),
-            "GENERATE_UUID" => Some(DataType::String),
+            "GENERATE_UUID" | "GEN_RANDOM_UUID" | "UUID_GENERATE_V4" | "UUID_GENERATE_V1"
+            | "UUIDV4" | "UUIDV7" => Some(DataType::String),
             "GENERATE_UUID_ARRAY" => Some(DataType::Array(Box::new(DataType::String))),
+
+            "GEN_RANDOM_BYTES" | "DIGEST" => Some(DataType::Bytes),
+            "ENCODE" => Some(DataType::String),
+
+            "HSTORE_EXISTS"
+            | "HSTORE_EXISTS_ALL"
+            | "HSTORE_EXISTS_ANY"
+            | "HSTORE_CONTAINS"
+            | "HSTORE_CONTAINED_BY"
+            | "HSTORE_DEFINED"
+            | "DEFINED"
+            | "EXIST" => Some(DataType::Bool),
+            "HSTORE_CONCAT"
+            | "HSTORE_DELETE"
+            | "HSTORE_DELETE_KEY"
+            | "HSTORE_DELETE_KEYS"
+            | "HSTORE_DELETE_HSTORE"
+            | "HSTORE_SLICE"
+            | "SLICE"
+            | "DELETE"
+            | "HSTORE" => Some(DataType::Hstore),
+            "HSTORE_AKEYS" | "AKEYS" | "SKEYS" => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+            "HSTORE_AVALS" | "AVALS" | "SVALS" => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+            "HSTORE_TO_JSON" | "HSTORE_TO_JSONB" => Some(DataType::Json),
+            "HSTORE_TO_ARRAY" => Some(DataType::Array(Box::new(DataType::String))),
+            "HSTORE_TO_MATRIX" => {
+                Some(DataType::Array(Box::new(DataType::Array(Box::new(
+                    DataType::String,
+                )))))
+            }
+            "HSTORE_GET" => Some(DataType::String),
+            "HSTORE_GET_VALUES" => Some(DataType::Array(Box::new(DataType::String))),
 
             "ARRAY_REVERSE" | "ARRAY_SORT" | "ARRAY_DISTINCT" | "ARRAY_REPLACE" => {
                 Self::infer_array_type_from_first_arg(args, schema)
@@ -463,7 +586,7 @@ impl ProjectionWithExprExec {
             "COALESCE" => Self::infer_coalesce_type(args, schema),
             "IFNULL" | "NULLIF" => Self::infer_first_arg_type(args, schema),
 
-            "IF" => args
+            "IF" | "IIF" => args
                 .get(1)
                 .and_then(|arg| Self::infer_expr_type_with_schema(arg, schema)),
 
@@ -475,8 +598,17 @@ impl ProjectionWithExprExec {
 
             "JSON_AGG" | "JSON_OBJECT_AGG" => Some(DataType::Json),
 
-            "JSON_EXTRACT" | "JSON_EXTRACT_JSON" | "JSON_ARRAY" | "JSON_OBJECT" | "PARSE_JSON"
-            | "TO_JSON" => Some(DataType::Json),
+            "JSON_EXTRACT" | "JSON_EXTRACT_JSON" => {
+                if let Some(first_arg) = args.first() {
+                    if let Some(arg_type) = Self::infer_expr_type_with_schema(first_arg, schema) {
+                        if matches!(arg_type, DataType::Hstore) {
+                            return Some(DataType::String);
+                        }
+                    }
+                }
+                Some(DataType::Json)
+            }
+            "JSON_ARRAY" | "JSON_OBJECT" | "PARSE_JSON" | "TO_JSON" => Some(DataType::Json),
 
             "TO_JSON_STRING" => Some(DataType::String),
 
@@ -527,7 +659,7 @@ impl ProjectionWithExprExec {
                 Some(DataType::Array(Box::new(DataType::String)))
             }
 
-            "INTERVAL_LITERAL" => None,
+            "INTERVAL_LITERAL" | "INTERVAL_PARSE" => Some(DataType::Interval),
 
             "NET.IP_FROM_STRING"
             | "NET.SAFE_IP_FROM_STRING"
@@ -559,6 +691,15 @@ impl ProjectionWithExprExec {
             "TS_MATCH" => Some(DataType::Bool),
             "TSVECTOR_LENGTH" => Some(DataType::Int64),
 
+            "POINT" => Some(DataType::Point),
+            "BOX" => Some(DataType::PgBox),
+            "CIRCLE" => Some(DataType::Circle),
+
+            "AREA" | "WIDTH" | "HEIGHT" | "DIAGONAL" | "RADIUS" | "DIAMETER" | "CENTER"
+            | "DISTANCE" => Some(DataType::Float64),
+
+            "POINT_X" | "POINT_Y" => Some(DataType::Float64),
+
             _ => None,
         }
     }
@@ -571,7 +712,27 @@ impl ProjectionWithExprExec {
         use yachtsql_optimizer::expr::Expr;
 
         match expr {
-            Expr::Column { name, .. } => schema.field(name).map(|f| f.data_type.clone()),
+            Expr::Column { name, table } => {
+                if schema.field(name).is_some() {
+                    schema.field(name).map(|f| f.data_type.clone())
+                } else if let Some(table_name) = table {
+                    if let Some(field) = schema.field(table_name) {
+                        match &field.data_type {
+                            DataType::Struct(fields) => {
+                                fields.iter()
+                                    .find(|f| f.name.eq_ignore_ascii_case(name))
+                                    .map(|f| f.data_type.clone())
+                            }
+                            DataType::Custom(_) => None,
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
             Expr::Literal(lit) => Self::infer_literal_type(lit),
             Expr::BinaryOp { left, op, right } => {
                 let left_type = Self::infer_expr_type_with_schema(left, schema);
@@ -589,7 +750,8 @@ impl ProjectionWithExprExec {
             Expr::Between { .. }
             | Expr::InList { .. }
             | Expr::TupleInList { .. }
-            | Expr::TupleInSubquery { .. } => Self::infer_comparison_operator_type(),
+            | Expr::TupleInSubquery { .. }
+            | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());
                 for field in fields {
@@ -605,11 +767,31 @@ impl ProjectionWithExprExec {
                 Some(DataType::Struct(struct_fields))
             }
             Expr::StructFieldAccess { expr, field } => {
-                match Self::infer_expr_type_with_schema(expr, schema)? {
-                    DataType::Struct(fields) => fields
-                        .into_iter()
-                        .find(|f| f.name == *field)
-                        .map(|f| f.data_type),
+                let inner_type = Self::infer_expr_type_with_schema(expr, schema);
+                debug_print::debug_eprintln!(
+                    "[type_inference] StructFieldAccess for field '{}', inner type: {:?}",
+                    field,
+                    inner_type
+                );
+                match inner_type? {
+                    DataType::Struct(fields) => {
+                        let field_names: Vec<_> = fields.iter().map(|f| &f.name).collect();
+                        debug_print::debug_eprintln!(
+                            "[type_inference] struct has fields: {:?}",
+                            field_names
+                        );
+                        fields
+                            .into_iter()
+                            .find(|f| f.name.eq_ignore_ascii_case(field))
+                            .map(|f| f.data_type)
+                    }
+                    DataType::Custom(type_name) => {
+                        debug_print::debug_eprintln!(
+                            "[type_inference] Custom type '{}', need to look up fields",
+                            type_name
+                        );
+                        None
+                    }
                     _ => None,
                 }
             }
@@ -634,17 +816,24 @@ impl ProjectionWithExprExec {
                 else_expr,
                 ..
             } => {
-                if let Some(else_e) = else_expr {
-                    if let Some(t) = Self::infer_expr_type_with_schema(else_e, schema) {
-                        return Some(t);
-                    }
-                }
+                let mut types = Vec::new();
                 for (_, then_expr) in when_then {
                     if let Some(t) = Self::infer_expr_type_with_schema(then_expr, schema) {
-                        return Some(t);
+                        types.push(t);
                     }
                 }
-                None
+                if let Some(else_e) = else_expr {
+                    if let Some(t) = Self::infer_expr_type_with_schema(else_e, schema) {
+                        types.push(t);
+                    }
+                }
+                if types.is_empty() {
+                    None
+                } else if types.len() == 1 {
+                    Some(types[0].clone())
+                } else {
+                    yachtsql_core::types::coercion::CoercionRules::find_common_type(&types).ok()
+                }
             }
             _ => None,
         }
@@ -677,7 +866,8 @@ impl ProjectionWithExprExec {
             Expr::Between { .. }
             | Expr::InList { .. }
             | Expr::TupleInList { .. }
-            | Expr::TupleInSubquery { .. } => Self::infer_comparison_operator_type(),
+            | Expr::TupleInSubquery { .. }
+            | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());
                 for field in fields {
@@ -713,17 +903,24 @@ impl ProjectionWithExprExec {
                 else_expr,
                 ..
             } => {
-                if let Some(else_e) = else_expr {
-                    if let Some(t) = Self::infer_expr_type(else_e) {
-                        return Some(t);
-                    }
-                }
+                let mut types = Vec::new();
                 for (_, then_expr) in when_then {
                     if let Some(t) = Self::infer_expr_type(then_expr) {
-                        return Some(t);
+                        types.push(t);
                     }
                 }
-                None
+                if let Some(else_e) = else_expr {
+                    if let Some(t) = Self::infer_expr_type(else_e) {
+                        types.push(t);
+                    }
+                }
+                if types.is_empty() {
+                    None
+                } else if types.len() == 1 {
+                    Some(types[0].clone())
+                } else {
+                    yachtsql_core::types::coercion::CoercionRules::find_common_type(&types).ok()
+                }
             }
             _ => None,
         }

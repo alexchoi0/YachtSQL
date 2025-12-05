@@ -479,7 +479,7 @@ impl CoercionRules {
 
             (DataType::Array(_), DataType::Vector(_)) => Ok(value),
 
-            (DataType::Array(from_elem), DataType::Array(to_elem)) => {
+            (DataType::Array(_from_elem), DataType::Array(to_elem)) => {
                 if let Some(arr) = value.as_array() {
                     let coerced_elements: Result<Vec<Value>> = arr
                         .iter()

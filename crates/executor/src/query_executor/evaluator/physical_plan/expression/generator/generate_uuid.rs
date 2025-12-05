@@ -11,6 +11,35 @@ impl ProjectionWithExprExec {
         Self::validate_zero_args("GENERATE_UUID", args)?;
         crate::functions::generator::generate_uuid()
     }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn eval_generate_uuidv7(
+        args: &[Expr],
+    ) -> Result<Value> {
+        Self::validate_zero_args("UUIDV7", args)?;
+        use std::time::{SystemTime, UNIX_EPOCH};
+        use rand::Rng;
+
+        let timestamp_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let mut rng = rand::thread_rng();
+        let random_a: u16 = rng.r#gen();
+        let random_b: u64 = rng.r#gen();
+
+        let time_high = ((timestamp_ms >> 28) & 0xFFFF_FFFF) as u32;
+        let time_mid = ((timestamp_ms >> 12) & 0xFFFF) as u16;
+        let time_low_and_version = (((timestamp_ms & 0xFFF) as u16) | 0x7000);
+        let clock_seq_and_variant = ((random_a & 0x3FFF) | 0x8000);
+        let node = random_b & 0xFFFF_FFFF_FFFF;
+
+        let uuid_str = format!(
+            "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+            time_high, time_mid, time_low_and_version, clock_seq_and_variant, node
+        );
+        Ok(Value::string(uuid_str))
+    }
 }
 
 #[cfg(test)]

@@ -84,6 +84,10 @@ impl SubqueryScanExec {
 
         Self { subquery, schema }
     }
+
+    pub fn new_with_schema(subquery: Rc<dyn ExecutionPlan>, schema: Schema) -> Self {
+        Self { subquery, schema }
+    }
 }
 
 impl ExecutionPlan for SubqueryScanExec {
@@ -134,6 +138,36 @@ impl ExecutionPlan for EmptyRelationExec {
 
     fn describe(&self) -> String {
         "EmptyRelation".to_string()
+    }
+}
+
+#[derive(Debug)]
+pub struct MaterializedViewScanExec {
+    schema: Schema,
+    data: RecordBatch,
+}
+
+impl MaterializedViewScanExec {
+    pub fn new(schema: Schema, data: RecordBatch) -> Self {
+        Self { schema, data }
+    }
+}
+
+impl ExecutionPlan for MaterializedViewScanExec {
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    fn execute(&self) -> Result<Vec<RecordBatch>> {
+        Ok(vec![self.data.to_column_format()?])
+    }
+
+    fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
+        vec![]
+    }
+
+    fn describe(&self) -> String {
+        "MaterializedViewScan".to_string()
     }
 }
 

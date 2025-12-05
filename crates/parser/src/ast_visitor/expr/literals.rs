@@ -78,6 +78,32 @@ impl LogicalPlanBuilder {
             ast::DataType::Custom(name, _) if Self::object_name_matches(name, "MACADDR8") => {
                 Ok(Expr::Literal(LiteralValue::MacAddr8(value.to_string())))
             }
+            ast::DataType::GeometricType(kind) => {
+                use sqlparser::ast::GeometricTypeKind;
+                match kind {
+                    GeometricTypeKind::Point => {
+                        Ok(Expr::Literal(LiteralValue::Point(value.to_string())))
+                    }
+                    GeometricTypeKind::GeometricBox => {
+                        Ok(Expr::Literal(LiteralValue::PgBox(value.to_string())))
+                    }
+                    GeometricTypeKind::Circle => {
+                        Ok(Expr::Literal(LiteralValue::Circle(value.to_string())))
+                    }
+                    GeometricTypeKind::Line => Err(Error::unsupported_feature(
+                        "LINE geometric type not yet supported",
+                    )),
+                    GeometricTypeKind::LineSegment => Err(Error::unsupported_feature(
+                        "LSEG geometric type not yet supported",
+                    )),
+                    GeometricTypeKind::GeometricPath => Err(Error::unsupported_feature(
+                        "PATH geometric type not yet supported",
+                    )),
+                    GeometricTypeKind::Polygon => Err(Error::unsupported_feature(
+                        "POLYGON geometric type not yet supported",
+                    )),
+                }
+            }
             _ => Err(Error::unsupported_feature(format!(
                 "Typed string with data type {:?} not supported",
                 data_type

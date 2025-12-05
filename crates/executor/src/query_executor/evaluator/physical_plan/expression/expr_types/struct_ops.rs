@@ -27,8 +27,27 @@ impl ProjectionWithExprExec {
         row_idx: usize,
     ) -> Result<Value> {
         let struct_value = Self::evaluate_expr(expr, batch, row_idx)?;
+        debug_print::debug_eprintln!(
+            "[executor::struct_field] accessing field '{}' from value {:?}",
+            field,
+            struct_value
+        );
         if let Some(map) = struct_value.as_struct() {
-            Ok(map.get(field).cloned().unwrap_or(Value::null()))
+            debug_print::debug_eprintln!(
+                "[executor::struct_field] struct has fields: {:?}",
+                map.keys().collect::<Vec<_>>()
+            );
+            if let Some(value) = map.get(field) {
+                Ok(value.clone())
+            } else if let Some((_, value)) = map.iter().find(|(k, _)| k.eq_ignore_ascii_case(field))
+            {
+                Ok(value.clone())
+            } else {
+                Err(Error::invalid_query(format!(
+                    "Struct does not have field '{}'",
+                    field
+                )))
+            }
         } else if struct_value.is_null() {
             Ok(Value::null())
         } else {
@@ -176,8 +195,9 @@ mod tests {
             &batch,
             0,
         );
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Value::null());
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("missing") && err_msg.contains("field"));
     }
 
     #[test]

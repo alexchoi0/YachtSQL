@@ -31,7 +31,7 @@ mod window;
 pub use aggregate::{AggregateExec, SortAggregateExec};
 pub use aggregate_strategy::AggregateStrategy;
 pub use array_join::ArrayJoinExec;
-pub use cte::{CteExec, EmptyRelationExec, SubqueryScanExec};
+pub use cte::{CteExec, EmptyRelationExec, MaterializedViewScanExec, SubqueryScanExec};
 pub use distinct::{DistinctExec, DistinctOnExec};
 pub use index_scan::IndexScanExec;
 pub use join::{
@@ -525,8 +525,11 @@ impl ExecutionPlan for ProjectionWithExprExec {
                         row_idx,
                         occurrence_index,
                         self.dialect,
-                    )?;
-                    output_columns[expr_idx].push(value)?;
+                    );
+                    match value {
+                        Ok(v) => output_columns[expr_idx].push(v)?,
+                        Err(e) => return Err(e),
+                    }
                 }
 
                 CORRELATION_CONTEXT.with(|ctx| {
@@ -1091,7 +1094,7 @@ impl TableValuedFunctionExec {
                             ast::DataType::Numeric(ast::ExactNumberInfo::None)
                         }
                     }
-                    CastDataType::Custom(name) => ast::DataType::Custom(
+                    CastDataType::Custom(name, _) => ast::DataType::Custom(
                         ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
                             name.clone(),
                         ))]),

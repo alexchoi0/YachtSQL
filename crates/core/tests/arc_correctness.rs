@@ -168,15 +168,15 @@ fn test_clone_across_threads() {
 
 #[test]
 fn test_concurrent_cloning() {
-    use std::rc::Rc as StdArc;
+    use std::sync::Arc;
     use std::thread;
 
-    let value = StdRc::new(Value::string("concurrent".repeat(100)));
+    let value = Arc::new(Value::string("concurrent".repeat(100)));
 
     let mut handles = vec![];
 
     for _ in 0..10 {
-        let v = StdRc::clone(&value);
+        let v = Arc::clone(&value);
         let handle = thread::spawn(move || {
             let mut clones = Vec::new();
             for _ in 0..100 {

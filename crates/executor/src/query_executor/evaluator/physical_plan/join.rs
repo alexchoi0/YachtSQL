@@ -76,9 +76,17 @@ impl HashJoinExec {
                     .collect::<Vec<_>>()
             };
 
+            let mut has_null_key = false;
             for expr in exprs {
                 let value = self.evaluate_expr(expr, batch, row_idx)?;
+                if value.is_null() {
+                    has_null_key = true;
+                }
                 join_key.push(value);
+            }
+
+            if has_null_key {
+                continue;
             }
 
             let key_bytes = serialize_key(&join_key);
@@ -95,29 +103,7 @@ impl HashJoinExec {
     }
 
     fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
-        match expr {
-            Expr::Column { name, table } => {
-                let col_idx = if let Some(table_alias) = table {
-                    batch
-                        .schema()
-                        .fields()
-                        .iter()
-                        .position(|f| {
-                            f.source_table.as_deref() == Some(table_alias.as_str())
-                                && &f.name == name
-                        })
-                        .or_else(|| batch.schema().fields().iter().position(|f| &f.name == name))
-                } else {
-                    batch.schema().fields().iter().position(|f| &f.name == name)
-                };
-
-                let col_idx = col_idx.ok_or_else(|| Error::column_not_found(name.clone()))?;
-                batch.expect_columns()[col_idx].get(row_idx)
-            }
-            _ => Err(Error::unsupported_feature(
-                "Complex expressions in JOIN not yet fully supported".to_string(),
-            )),
-        }
+        super::ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
 
     fn build_result_batch(&self, result_rows: &[Vec<Value>]) -> Result<Vec<RecordBatch>> {
@@ -150,8 +136,18 @@ impl ExecutionPlan for HashJoinExec {
     }
 
     fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches = self.left.execute()?;
-        let right_batches = self.right.execute()?;
+        let left_batches: Vec<RecordBatch> = self
+            .left
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
+        let right_batches: Vec<RecordBatch> = self
+            .right
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
 
         if left_batches.is_empty() || right_batches.is_empty() {
             match self.join_type {
@@ -194,18 +190,38 @@ impl ExecutionPlan for HashJoinExec {
 
             for row_idx in 0..num_rows {
                 let mut join_key = Vec::new();
+                let mut has_null_key = false;
                 for (left_expr, _) in &self.on_conditions {
                     let value = self.evaluate_expr(left_expr, left_batch, row_idx)?;
+                    if value.is_null() {
+                        has_null_key = true;
+                    }
                     join_key.push(value);
                 }
-
-                let key_bytes = serialize_key(&join_key);
 
                 let mut left_row = Vec::new();
                 for col in left_batch.expect_columns() {
                     left_row.push(col.get(row_idx)?);
                 }
 
+                if has_null_key {
+                    match self.join_type {
+                        JoinType::Semi => {}
+                        JoinType::Anti => {
+                            result_rows.push(left_row);
+                        }
+                        JoinType::Left | JoinType::Full => {
+                            let mut combined_row = left_row;
+                            let right_null_cols = self.right.schema().fields().len();
+                            combined_row.extend(vec![Value::null(); right_null_cols]);
+                            result_rows.push(combined_row);
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+
+                let key_bytes = serialize_key(&join_key);
                 let has_match = right_hash_table.get(&key_bytes).is_some();
 
                 match self.join_type {
@@ -326,8 +342,18 @@ impl ExecutionPlan for NestedLoopJoinExec {
     }
 
     fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches = self.left.execute()?;
-        let right_batches = self.right.execute()?;
+        let left_batches: Vec<RecordBatch> = self
+            .left
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
+        let right_batches: Vec<RecordBatch> = self
+            .right
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
 
         if left_batches.is_empty() || right_batches.is_empty() {
             return Ok(vec![RecordBatch::empty(self.schema.clone())]);
@@ -819,7 +845,12 @@ impl ExecutionPlan for LateralJoinExec {
     }
 
     fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches = self.left.execute()?;
+        let left_batches: Vec<RecordBatch> = self
+            .left
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
 
         if left_batches.is_empty() {
             return Ok(vec![RecordBatch::empty(self.schema.clone())]);
@@ -977,29 +1008,7 @@ impl MergeJoinExec {
     }
 
     fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
-        match expr {
-            Expr::Column { name, table } => {
-                let col_idx = if let Some(table_alias) = table {
-                    batch
-                        .schema()
-                        .fields()
-                        .iter()
-                        .position(|f| {
-                            f.source_table.as_deref() == Some(table_alias.as_str())
-                                && &f.name == name
-                        })
-                        .or_else(|| batch.schema().fields().iter().position(|f| &f.name == name))
-                } else {
-                    batch.schema().fields().iter().position(|f| &f.name == name)
-                };
-
-                let col_idx = col_idx.ok_or_else(|| Error::column_not_found(name.clone()))?;
-                batch.expect_columns()[col_idx].get(row_idx)
-            }
-            _ => Err(Error::unsupported_feature(
-                "Complex expressions in JOIN not yet fully supported".to_string(),
-            )),
-        }
+        super::ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
 
     fn compare_keys(&self, left_key: &[Value], right_key: &[Value]) -> std::cmp::Ordering {
@@ -1050,8 +1059,18 @@ impl ExecutionPlan for MergeJoinExec {
     }
 
     fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches = self.left.execute()?;
-        let right_batches = self.right.execute()?;
+        let left_batches: Vec<RecordBatch> = self
+            .left
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
+        let right_batches: Vec<RecordBatch> = self
+            .right
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
 
         let left_rows: Vec<(Vec<Value>, Vec<Value>)> = left_batches
             .iter()
@@ -1285,6 +1304,15 @@ fn compare_join_values(a: &Value, b: &Value) -> std::cmp::Ordering {
     if let (Some(x), Some(y)) = (a.as_timestamp(), b.as_timestamp()) {
         return x.cmp(&y);
     }
+    if let (Some(x_struct), Some(y_struct)) = (a.as_struct(), b.as_struct()) {
+        for (x_val, y_val) in x_struct.values().zip(y_struct.values()) {
+            let cmp = compare_join_values(x_val, y_val);
+            if cmp != std::cmp::Ordering::Equal {
+                return cmp;
+            }
+        }
+        return x_struct.len().cmp(&y_struct.len());
+    }
     std::cmp::Ordering::Equal
 }
 
@@ -1438,7 +1466,12 @@ impl ExecutionPlan for IndexNestedLoopJoinExec {
     }
 
     fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches = self.left.execute()?;
+        let left_batches: Vec<RecordBatch> = self
+            .left
+            .execute()?
+            .into_iter()
+            .map(|b| b.to_column_format())
+            .collect::<Result<Vec<_>>>()?;
 
         let mut result_rows: Vec<Vec<Value>> = Vec::new();
         let right_null_cols = self.right_schema.fields().len();

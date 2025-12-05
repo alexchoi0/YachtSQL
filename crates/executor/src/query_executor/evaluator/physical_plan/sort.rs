@@ -266,6 +266,15 @@ fn compare_values(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
     if let (Some(x), Some(y)) = (a.as_timestamp(), b.as_timestamp()) {
         return Ok(x.cmp(&y));
     }
+    if let (Some(x_struct), Some(y_struct)) = (a.as_struct(), b.as_struct()) {
+        for (x_val, y_val) in x_struct.values().zip(y_struct.values()) {
+            let cmp = compare_values(x_val, y_val)?;
+            if cmp != std::cmp::Ordering::Equal {
+                return Ok(cmp);
+            }
+        }
+        return Ok(x_struct.len().cmp(&y_struct.len()));
+    }
     Ok(std::cmp::Ordering::Equal)
 }
 

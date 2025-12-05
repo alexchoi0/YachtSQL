@@ -125,6 +125,11 @@ pub enum Expr {
     Excluded {
         column: String,
     },
+    IsDistinctFrom {
+        left: Box<Expr>,
+        right: Box<Expr>,
+        negated: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -180,7 +185,7 @@ pub enum CastDataType {
     Hstore,
     MacAddr,
     MacAddr8,
-    Custom(String),
+    Custom(String, Vec<yachtsql_core::types::StructField>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -428,6 +433,9 @@ impl Expr {
             }
             Expr::StructFieldAccess { expr, .. } => expr.contains_subquery(),
             Expr::Tuple(exprs) => exprs.iter().any(|e| e.contains_subquery()),
+            Expr::IsDistinctFrom { left, right, .. } => {
+                left.contains_subquery() || right.contains_subquery()
+            }
 
             Expr::Column { .. }
             | Expr::Literal(_)

@@ -30,7 +30,12 @@ pub enum FunctionName {
     Var,
     Median,
     PercentileCont,
+    PercentileDisc,
     Mode,
+    Corr,
+    CovarPop,
+    CovarSamp,
+    CountIf,
 
     ApproxCountDistinct,
     ApproxDistinct,
@@ -279,7 +284,12 @@ impl FunctionName {
             "VAR" => Self::Var,
             "MEDIAN" => Self::Median,
             "PERCENTILE_CONT" => Self::PercentileCont,
+            "PERCENTILE_DISC" => Self::PercentileDisc,
             "MODE" => Self::Mode,
+            "CORR" => Self::Corr,
+            "COVAR_POP" => Self::CovarPop,
+            "COVAR_SAMP" => Self::CovarSamp,
+            "COUNTIF" => Self::CountIf,
 
             "APPROX_COUNT_DISTINCT" => Self::ApproxCountDistinct,
             "APPROX_DISTINCT" => Self::ApproxDistinct,
@@ -528,7 +538,12 @@ impl FunctionName {
             Self::Var => "VAR",
             Self::Median => "MEDIAN",
             Self::PercentileCont => "PERCENTILE_CONT",
+            Self::PercentileDisc => "PERCENTILE_DISC",
             Self::Mode => "MODE",
+            Self::Corr => "CORR",
+            Self::CovarPop => "COVAR_POP",
+            Self::CovarSamp => "COVAR_SAMP",
+            Self::CountIf => "COUNTIF",
 
             Self::ApproxCountDistinct => "APPROX_COUNT_DISTINCT",
             Self::ApproxDistinct => "APPROX_DISTINCT",
@@ -776,7 +791,12 @@ impl FunctionName {
                 | Self::Var
                 | Self::Median
                 | Self::PercentileCont
+                | Self::PercentileDisc
                 | Self::Mode
+                | Self::Corr
+                | Self::CovarPop
+                | Self::CovarSamp
+                | Self::CountIf
                 | Self::ApproxCountDistinct
                 | Self::ApproxDistinct
                 | Self::ApproxQuantiles

@@ -294,12 +294,14 @@ impl LogicalPlanBuilder {
             }
             SqlDataType::Custom(type_name, _) => {
                 let name = type_name.to_string();
-                return Ok(CastDataType::Custom(name));
+                return Ok(CastDataType::Custom(name, Vec::new()));
             }
             _ => {}
         }
 
-        if data_type_str.contains("INT64") || data_type_str.starts_with("INT") {
+        if data_type_str.contains("INTERVAL") {
+            Ok(CastDataType::Interval)
+        } else if data_type_str.contains("INT64") || data_type_str.starts_with("INT") {
             Ok(CastDataType::Int64)
         } else if data_type_str.contains("FLOAT64")
             || data_type_str.starts_with("FLOAT")

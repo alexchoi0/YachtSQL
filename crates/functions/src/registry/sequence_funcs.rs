@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use yachtsql_core::error::Error;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_core::types::DataType;
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;

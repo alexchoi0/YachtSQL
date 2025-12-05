@@ -138,8 +138,21 @@ impl LogicalPlanBuilder {
                         "Custom data type not supported: {}",
                         type_name
                     ))),
-
-                    _ => Ok(DataType::Custom(type_name)),
+                }
+            }
+            ast::DataType::GeometricType(kind) => {
+                use sqlparser::ast::GeometricTypeKind;
+                match kind {
+                    GeometricTypeKind::Point => Ok(DataType::Point),
+                    GeometricTypeKind::GeometricBox => Ok(DataType::PgBox),
+                    GeometricTypeKind::Circle => Ok(DataType::Circle),
+                    GeometricTypeKind::Line
+                    | GeometricTypeKind::LineSegment
+                    | GeometricTypeKind::GeometricPath
+                    | GeometricTypeKind::Polygon => Err(Error::unsupported_feature(format!(
+                        "Geometric type {:?} not yet supported",
+                        kind
+                    ))),
                 }
             }
             _ => Err(Error::unsupported_feature(format!(

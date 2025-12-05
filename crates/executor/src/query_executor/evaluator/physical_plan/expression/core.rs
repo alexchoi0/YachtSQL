@@ -56,13 +56,54 @@ impl ProjectionWithExprExec {
         dialect: crate::DialectType,
     ) -> Result<Value> {
         match expr {
-            Expr::Column { name, table: _ } => {
-                let col_idx =
-                    Self::find_column_by_occurrence(batch.schema(), name, occurrence_index)?;
-                let column = batch
-                    .column(col_idx)
-                    .ok_or_else(|| Error::column_not_found(name.clone()))?;
-                column.get(row_idx)
+            Expr::Column { name, table } => {
+                if let Some(table_name) = table {
+                    if batch.schema().field_index(name).is_some() {
+                        let col_idx =
+                            Self::find_column_by_occurrence(batch.schema(), name, occurrence_index)?;
+                        let column = batch
+                            .column(col_idx)
+                            .ok_or_else(|| Error::column_not_found(name.clone()))?;
+                        column.get(row_idx)
+                    } else if let Some(col_idx) = batch.schema().field_index(table_name) {
+                        let field = &batch.schema().fields()[col_idx];
+                        if matches!(field.data_type, yachtsql_core::types::DataType::Struct(_) | yachtsql_core::types::DataType::Custom(_)) {
+                            let struct_value = batch
+                                .column(col_idx)
+                                .ok_or_else(|| Error::column_not_found(table_name.clone()))?
+                                .get(row_idx)?;
+                            if let Some(map) = struct_value.as_struct() {
+                                if let Some(value) = map.get(name) {
+                                    Ok(value.clone())
+                                } else if let Some((_, value)) = map.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)) {
+                                    Ok(value.clone())
+                                } else {
+                                    Err(Error::column_not_found(format!("{}.{}", table_name, name)))
+                                }
+                            } else if struct_value.is_null() {
+                                Ok(Value::null())
+                            } else {
+                                Err(Error::column_not_found(name.clone()))
+                            }
+                        } else {
+                            Err(Error::column_not_found(name.clone()))
+                        }
+                    } else {
+                        let col_idx =
+                            Self::find_column_by_occurrence(batch.schema(), name, occurrence_index)?;
+                        let column = batch
+                            .column(col_idx)
+                            .ok_or_else(|| Error::column_not_found(name.clone()))?;
+                        column.get(row_idx)
+                    }
+                } else {
+                    let col_idx =
+                        Self::find_column_by_occurrence(batch.schema(), name, occurrence_index)?;
+                    let column = batch
+                        .column(col_idx)
+                        .ok_or_else(|| Error::column_not_found(name.clone()))?;
+                    column.get(row_idx)
+                }
             }
             _ => Self::evaluate_expr_internal(expr, batch, row_idx, dialect),
         }
@@ -79,7 +120,40 @@ impl ProjectionWithExprExec {
         _dialect: crate::DialectType,
     ) -> Result<Value> {
         match expr {
-            Expr::Column { name, table: _ } => Self::evaluate_column(name, batch, row_idx),
+            Expr::Column { name, table } => {
+                if let Some(table_name) = table {
+                    if batch.schema().field_index(name).is_some() {
+                        Self::evaluate_column(name, batch, row_idx)
+                    } else if let Some(col_idx) = batch.schema().field_index(table_name) {
+                        let field = &batch.schema().fields()[col_idx];
+                        if matches!(field.data_type, yachtsql_core::types::DataType::Struct(_) | yachtsql_core::types::DataType::Custom(_)) {
+                            let struct_value = batch
+                                .column(col_idx)
+                                .ok_or_else(|| Error::column_not_found(table_name.clone()))?
+                                .get(row_idx)?;
+                            if let Some(map) = struct_value.as_struct() {
+                                if let Some(value) = map.get(name) {
+                                    Ok(value.clone())
+                                } else if let Some((_, value)) = map.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)) {
+                                    Ok(value.clone())
+                                } else {
+                                    Err(Error::column_not_found(format!("{}.{}", table_name, name)))
+                                }
+                            } else if struct_value.is_null() {
+                                Ok(Value::null())
+                            } else {
+                                Err(Error::column_not_found(name.clone()))
+                            }
+                        } else {
+                            Err(Error::column_not_found(name.clone()))
+                        }
+                    } else {
+                        Self::evaluate_column(name, batch, row_idx)
+                    }
+                } else {
+                    Self::evaluate_column(name, batch, row_idx)
+                }
+            }
 
             Expr::Literal(lit) => Self::evaluate_literal(lit, batch, row_idx),
 
@@ -91,7 +165,9 @@ impl ProjectionWithExprExec {
                 _ => {
                     let left_val = Self::evaluate_expr(left, batch, row_idx)?;
                     let right_val = Self::evaluate_expr(right, batch, row_idx)?;
-                    Self::evaluate_binary_op(&left_val, op, &right_val)
+                    let enum_labels = Self::get_enum_labels_for_expr(left, batch.schema())
+                        .or_else(|| Self::get_enum_labels_for_expr(right, batch.schema()));
+                    Self::evaluate_binary_op_with_enum(&left_val, op, &right_val, enum_labels.as_deref())
                 }
             },
 
@@ -192,6 +268,7 @@ impl ProjectionWithExprExec {
                 let val = Self::evaluate_expr(expr, batch, row_idx)?;
                 let low_val = Self::evaluate_expr(low, batch, row_idx)?;
                 let high_val = Self::evaluate_expr(high, batch, row_idx)?;
+                let enum_labels = Self::get_enum_labels_for_expr(expr, batch.schema());
 
                 let result = if val.is_null() || low_val.is_null() || high_val.is_null() {
                     Value::null()
@@ -206,7 +283,18 @@ impl ProjectionWithExprExec {
                 } else if let (Some(v), Some(l), Some(h)) =
                     (val.as_str(), low_val.as_str(), high_val.as_str())
                 {
-                    Value::bool_val(v >= l && v <= h)
+                    if let Some(labels) = &enum_labels {
+                        let v_pos = labels.iter().position(|lbl| lbl == v);
+                        let l_pos = labels.iter().position(|lbl| lbl == l);
+                        let h_pos = labels.iter().position(|lbl| lbl == h);
+                        if let (Some(v_idx), Some(l_idx), Some(h_idx)) = (v_pos, l_pos, h_pos) {
+                            Value::bool_val(v_idx >= l_idx && v_idx <= h_idx)
+                        } else {
+                            Value::bool_val(v >= l && v <= h)
+                        }
+                    } else {
+                        Value::bool_val(v >= l && v <= h)
+                    }
                 } else if let (Some(v), Some(l), Some(h)) =
                     (val.as_date(), low_val.as_date(), high_val.as_date())
                 {
@@ -310,6 +398,23 @@ impl ProjectionWithExprExec {
                 right,
             } => Self::evaluate_all_op_expr(left, compare_op, right, batch, row_idx),
 
+            Expr::IsDistinctFrom {
+                left,
+                right,
+                negated,
+            } => {
+                let left_val = Self::evaluate_expr(left, batch, row_idx)?;
+                let right_val = Self::evaluate_expr(right, batch, row_idx)?;
+
+                let is_distinct = Self::values_are_distinct(&left_val, &right_val);
+
+                Ok(Value::bool_val(if *negated {
+                    !is_distinct
+                } else {
+                    is_distinct
+                }))
+            }
+
             _ => Err(Error::unsupported_feature(format!(
                 "Expression evaluation not yet implemented for: {:?}",
                 expr
@@ -358,6 +463,7 @@ impl ProjectionWithExprExec {
                 | "FORMAT"
                 | "QUOTE_IDENT"
                 | "QUOTE_LITERAL"
+                | "CASEFOLD"
         ) {
             return Self::evaluate_string_function(func_name, args, batch, row_idx);
         }
@@ -418,6 +524,8 @@ impl ProjectionWithExprExec {
                 | "SAFE_ADD"
                 | "SAFE_SUBTRACT"
                 | "SAFE_NEGATE"
+                | "GAMMA"
+                | "LGAMMA"
         ) {
             return Self::evaluate_math_function(func_name, args, batch, row_idx);
         }
@@ -446,6 +554,7 @@ impl ProjectionWithExprExec {
                 | "DATE"
                 | "TIMESTAMP_DIFF"
                 | "INTERVAL_LITERAL"
+                | "INTERVAL_PARSE"
                 | "YEAR"
                 | "MONTH"
                 | "DAY"
@@ -473,7 +582,18 @@ impl ProjectionWithExprExec {
 
         if matches!(
             func_name,
-            "MD5" | "SHA1" | "SHA256" | "SHA512" | "FARM_FINGERPRINT" | "TO_HEX" | "FROM_HEX"
+            "MD5"
+                | "SHA1"
+                | "SHA256"
+                | "SHA512"
+                | "FARM_FINGERPRINT"
+                | "TO_HEX"
+                | "FROM_HEX"
+                | "GEN_RANDOM_BYTES"
+                | "DIGEST"
+                | "ENCODE"
+                | "CRC32"
+                | "CRC32C"
         ) || func_name.starts_with("NET.")
         {
             return Self::evaluate_crypto_hash_network_function(func_name, args, batch, row_idx);
@@ -493,7 +613,16 @@ impl ProjectionWithExprExec {
             return Self::evaluate_conditional_function(func_name, args, batch, row_idx);
         }
 
-        if matches!(func_name, "GENERATE_UUID" | "GENERATE_UUID_ARRAY") {
+        if matches!(
+            func_name,
+            "GENERATE_UUID"
+                | "GENERATE_UUID_ARRAY"
+                | "GEN_RANDOM_UUID"
+                | "UUID_GENERATE_V4"
+                | "UUID_GENERATE_V1"
+                | "UUIDV4"
+                | "UUIDV7"
+        ) {
             return Self::evaluate_generator_function(func_name, args, batch, row_idx);
         }
 
@@ -501,8 +630,88 @@ impl ProjectionWithExprExec {
             return Self::evaluate_conversion_function(func_name, args, batch, row_idx);
         }
 
+        if matches!(
+            func_name,
+            "POINT"
+                | "BOX"
+                | "CIRCLE"
+                | "AREA"
+                | "CENTER"
+                | "DIAMETER"
+                | "RADIUS"
+                | "WIDTH"
+                | "HEIGHT"
+                | "DISTANCE"
+                | "CONTAINS"
+                | "CONTAINED_BY"
+                | "OVERLAPS"
+        ) {
+            return Self::evaluate_geometric_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            func_name,
+            "TO_TSVECTOR"
+                | "TO_TSQUERY"
+                | "PLAINTO_TSQUERY"
+                | "PHRASETO_TSQUERY"
+                | "WEBSEARCH_TO_TSQUERY"
+                | "TS_MATCH"
+                | "TS_MATCH_VQ"
+                | "TS_MATCH_QV"
+                | "TS_RANK"
+                | "TS_RANK_CD"
+                | "TSVECTOR_CONCAT"
+                | "TS_HEADLINE"
+                | "SETWEIGHT"
+                | "STRIP"
+                | "TSVECTOR_LENGTH"
+                | "NUMNODE"
+                | "QUERYTREE"
+                | "TSQUERY_AND"
+                | "TSQUERY_OR"
+                | "TSQUERY_NOT"
+        ) {
+            return Self::evaluate_fulltext_function(func_name, args, batch, row_idx);
+        }
+
         if func_name.starts_with("YACHTSQL.") {
             return Self::evaluate_system_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            func_name,
+            "HSTORE_EXISTS"
+                | "HSTORE_EXISTS_ALL"
+                | "HSTORE_EXISTS_ANY"
+                | "EXIST"
+                | "HSTORE_CONCAT"
+                | "HSTORE_DELETE"
+                | "HSTORE_DELETE_KEY"
+                | "HSTORE_DELETE_KEYS"
+                | "HSTORE_DELETE_HSTORE"
+                | "DELETE"
+                | "HSTORE_CONTAINS"
+                | "HSTORE_CONTAINED_BY"
+                | "HSTORE_AKEYS"
+                | "AKEYS"
+                | "SKEYS"
+                | "HSTORE_AVALS"
+                | "AVALS"
+                | "SVALS"
+                | "HSTORE_DEFINED"
+                | "DEFINED"
+                | "HSTORE_TO_JSON"
+                | "HSTORE_TO_JSONB"
+                | "HSTORE_TO_ARRAY"
+                | "HSTORE_TO_MATRIX"
+                | "HSTORE_SLICE"
+                | "SLICE"
+                | "HSTORE"
+                | "HSTORE_GET"
+                | "HSTORE_GET_VALUES"
+        ) {
+            return Self::evaluate_hstore_function(func_name, args, batch, row_idx);
         }
 
         Err(Error::unsupported_feature(format!(
@@ -631,6 +840,23 @@ impl ProjectionWithExprExec {
                 "Aggregate function {} not supported in expression context",
                 agg_name
             ))),
+        }
+    }
+
+    pub(super) fn get_enum_labels_for_expr(expr: &Expr, schema: &Schema) -> Option<Vec<String>> {
+        match expr {
+            Expr::Column { name, .. } => {
+                for field in schema.fields() {
+                    if field.name == *name {
+                        if let yachtsql_core::types::DataType::Enum { labels, .. } = &field.data_type
+                        {
+                            return Some(labels.clone());
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
         }
     }
 }

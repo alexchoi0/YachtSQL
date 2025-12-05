@@ -563,6 +563,21 @@ impl DdlExecutor for QueryExecutor {
             }
             SqlDataType::JSON => Ok(DataType::Json),
             SqlDataType::Interval { .. } => Ok(DataType::Interval),
+            SqlDataType::GeometricType(kind) => {
+                use sqlparser::ast::GeometricTypeKind;
+                match kind {
+                    GeometricTypeKind::Point => Ok(DataType::Point),
+                    GeometricTypeKind::GeometricBox => Ok(DataType::PgBox),
+                    GeometricTypeKind::Circle => Ok(DataType::Circle),
+                    GeometricTypeKind::Line
+                    | GeometricTypeKind::LineSegment
+                    | GeometricTypeKind::GeometricPath
+                    | GeometricTypeKind::Polygon => Err(Error::unsupported_feature(format!(
+                        "Geometric type {:?} not yet supported",
+                        kind
+                    ))),
+                }
+            }
             SqlDataType::Custom(name, _) => {
                 let type_name = name
                     .0

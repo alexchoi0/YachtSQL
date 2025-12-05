@@ -1639,66 +1639,6 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
             }
 
-            SqlExpr::Interval(interval) => {
-                use sqlparser::ast::Value as SqlValue;
-                use yachtsql_core::types::Interval as YsqlInterval;
-
-                let interval_str = match interval.value.as_ref() {
-                    SqlExpr::Value(sql_val) => match &sql_val.value {
-                        SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s) => {
-                            s.clone()
-                        }
-                        SqlValue::Number(n, _) => n.clone(),
-                        _ => {
-                            return Err(Error::InvalidQuery(format!(
-                                "Invalid INTERVAL value: {:?}",
-                                interval.value
-                            )));
-                        }
-                    },
-                    _ => {
-                        return Err(Error::InvalidQuery(format!(
-                            "Invalid INTERVAL expression: {:?}",
-                            interval.value
-                        )));
-                    }
-                };
-
-                let value: i64 = interval_str.parse().map_err(|_| {
-                    Error::InvalidQuery(format!("Invalid INTERVAL number: {}", interval_str))
-                })?;
-
-                let unit = interval
-                    .leading_field
-                    .as_ref()
-                    .map(|f| format!("{:?}", f).to_uppercase());
-
-                let (months, days, micros) = match unit.as_deref() {
-                    Some("YEAR") => (value as i32 * 12, 0, 0),
-                    Some("MONTH") => (value as i32, 0, 0),
-                    Some("WEEK") => (0, value as i32 * 7, 0),
-                    Some("DAY") => (0, value as i32, 0),
-                    Some("HOUR") => (0, 0, value * 60 * 60 * 1_000_000),
-                    Some("MINUTE") => (0, 0, value * 60 * 1_000_000),
-                    Some("SECOND") => (0, 0, value * 1_000_000),
-                    Some("MILLISECOND") | Some("MILLISECONDS") => (0, 0, value * 1_000),
-                    Some("MICROSECOND") | Some("MICROSECONDS") => (0, 0, value),
-                    None => (0, 0, value * 1_000_000),
-                    Some(other) => {
-                        return Err(Error::InvalidQuery(format!(
-                            "Unsupported INTERVAL unit: {}",
-                            other
-                        )));
-                    }
-                };
-
-                Ok(Value::interval(YsqlInterval {
-                    months,
-                    days,
-                    micros,
-                }))
-            }
-
             SqlExpr::IsDistinctFrom(left, right) => {
                 let left_val = self.evaluate_expr(left, row)?;
                 let right_val = self.evaluate_expr(right, row)?;
@@ -3275,13 +3215,7 @@ impl<'a> ExpressionEvaluator<'a> {
                             })?;
 
                             let yachtsql_storage::TypeDefinition::Composite(fields) =
-                                &user_type.definition
-                            else {
-                                return Err(Error::InvalidQuery(format!(
-                                    "Type '{}' is not a composite type",
-                                    type_id
-                                )));
-                            };
+                                &user_type.definition;
 
                             if source_struct.len() != fields.len() {
                                 return Err(Error::InvalidQuery(format!(

@@ -148,19 +148,15 @@ impl LogicalPlanBuilder {
     }
 
     pub(super) fn convert_interval(&self, interval: &ast::Interval) -> Result<Expr> {
-        let value_expr = match interval.value.as_ref() {
+        let value_str = match interval.value.as_ref() {
             ast::Expr::Value(ast::ValueWithSpan {
                 value: ast::Value::Number(s, _),
                 ..
-            }) => s
-                .parse::<i64>()
-                .map_err(|_| Error::invalid_query(format!("Invalid interval value: {}", s)))?,
+            }) => s.clone(),
             ast::Expr::Value(ast::ValueWithSpan {
                 value: ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s),
                 ..
-            }) => s
-                .parse::<i64>()
-                .map_err(|_| Error::invalid_query(format!("Invalid interval value: {}", s)))?,
+            }) => s.clone(),
             ast::Expr::UnaryOp {
                 op: ast::UnaryOperator::Minus,
                 expr,
@@ -171,12 +167,7 @@ impl LogicalPlanBuilder {
                         | ast::Value::SingleQuotedString(s)
                         | ast::Value::DoubleQuotedString(s),
                     ..
-                }) => {
-                    let num = s.parse::<i64>().map_err(|_| {
-                        Error::invalid_query(format!("Invalid interval value: {}", s))
-                    })?;
-                    -num
-                }
+                }) => format!("-{}", s),
                 _ => {
                     return Err(Error::unsupported_feature(
                         "Complex interval value expressions not supported".to_string(),
@@ -190,20 +181,13 @@ impl LogicalPlanBuilder {
             }
         };
 
-        let unit = match &interval.leading_field {
-            Some(field) => field.to_string().to_uppercase(),
-            None => {
-                return Err(Error::invalid_query(
-                    "INTERVAL requires a unit (DAY, MONTH, YEAR, etc.)".to_string(),
-                ));
-            }
-        };
+        let unit = interval.leading_field.as_ref().map(|f| f.to_string().to_uppercase());
 
         Ok(Expr::Function {
-            name: yachtsql_ir::FunctionName::Custom("INTERVAL_LITERAL".to_string()),
+            name: yachtsql_ir::FunctionName::Custom("INTERVAL_PARSE".to_string()),
             args: vec![
-                Expr::Literal(LiteralValue::Int64(value_expr)),
-                Expr::Literal(LiteralValue::String(unit)),
+                Expr::Literal(LiteralValue::String(value_str)),
+                Expr::Literal(LiteralValue::String(unit.unwrap_or_default())),
             ],
         })
     }

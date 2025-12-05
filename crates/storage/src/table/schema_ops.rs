@@ -238,8 +238,6 @@ impl TableSchemaOps for Table {
         _set_default: Option<Value>,
         _drop_default: bool,
     ) -> Result<()> {
-        use crate::storage_backend::TableStorage;
-
         if !self.column_map().contains_key(column_name) {
             return Err(Error::invalid_query(format!(
                 "Column '{}' not found",

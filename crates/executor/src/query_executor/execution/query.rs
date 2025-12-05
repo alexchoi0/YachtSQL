@@ -404,10 +404,17 @@ impl QueryExecutor {
         let resource_tracker =
             crate::resource_limits::ResourceTracker::new(self.resource_limits.clone());
 
-        let cte_cleanup = if let Some(ref with_clause) = query.with {
-            Some(self.process_ctes(with_clause)?)
+        let (cte_cleanup, query_for_plan) = if let Some(ref with_clause) = query.with {
+            let cte_names = self.process_ctes(with_clause)?;
+            let mut modified_query = query.as_ref().clone();
+            modified_query.with = None;
+            for cte_name in &cte_names {
+                let cte_table = format!("__cte_{}", cte_name);
+                Self::rename_table_references(&mut modified_query.body, cte_name, &cte_table);
+            }
+            (Some(cte_names), Box::new(modified_query))
         } else {
-            None
+            (None, query.clone())
         };
 
         let sql_hash = crate::sql_normalizer::hash_sql(original_sql, self.dialect());
@@ -425,7 +432,7 @@ impl QueryExecutor {
                 let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
                     .with_storage(Rc::clone(&self.storage))
                     .with_dialect(self.dialect());
-                let logical_plan = plan_builder.query_to_plan(query)?;
+                let logical_plan = plan_builder.query_to_plan(&query_for_plan)?;
 
                 resource_tracker.check_timeout()?;
 
@@ -700,6 +707,15 @@ impl QueryExecutor {
                     _ => Ok(DataType::Custom(type_name)),
                 }
             }
+            SqlDataType::GeometricType(kind) => {
+                use sqlparser::ast::GeometricTypeKind;
+                match kind {
+                    GeometricTypeKind::Point => Ok(DataType::Point),
+                    GeometricTypeKind::GeometricBox => Ok(DataType::PgBox),
+                    GeometricTypeKind::Circle => Ok(DataType::Circle),
+                    _ => Ok(DataType::String),
+                }
+            }
             _ => Ok(DataType::String),
         }
     }
@@ -901,9 +917,26 @@ impl QueryExecutor {
                 let func_name = func.name.to_string().to_uppercase();
                 match func_name.as_str() {
                     "UPPER" | "LOWER" | "CONCAT" | "SUBSTRING" | "SUBSTR" | "TRIM" | "LTRIM"
-                    | "RTRIM" | "REPLACE" | "REVERSE" | "LEFT" | "RIGHT" | "LPAD" | "RPAD"
+                    | "RTRIM" | "REPLACE" | "LEFT" | "RIGHT" | "LPAD" | "RPAD"
                     | "REPEAT" | "FORMAT" | "CHR" | "INITCAP" | "TO_CHAR" | "TO_HEX" | "MD5"
                     | "SHA256" | "SHA512" | "BASE64_ENCODE" | "BASE64_DECODE" => {
+                        Ok(DataType::String)
+                    }
+
+                    "REVERSE" => {
+                        if let sqlparser::ast::FunctionArguments::List(args) = &func.args {
+                            if let Some(first_arg) = args.args.first() {
+                                if let sqlparser::ast::FunctionArg::Unnamed(
+                                    sqlparser::ast::FunctionArgExpr::Expr(arg_expr),
+                                ) = first_arg
+                                {
+                                    let arg_type = Self::infer_expression_type(arg_expr, schema)?;
+                                    if matches!(arg_type, DataType::Bytes) {
+                                        return Ok(DataType::Bytes);
+                                    }
+                                }
+                            }
+                        }
                         Ok(DataType::String)
                     }
 
@@ -946,6 +979,27 @@ impl QueryExecutor {
                             }
                         }
                         Ok(DataType::String)
+                    }
+
+                    "TO_NUMBER" => {
+                        if let sqlparser::ast::FunctionArguments::List(args) = &func.args {
+                            if args.args.len() == 2 {
+                                if let Some(second_arg) = args.args.get(1) {
+                                    if let sqlparser::ast::FunctionArg::Unnamed(
+                                        sqlparser::ast::FunctionArgExpr::Expr(Expr::Value(val)),
+                                    ) = second_arg
+                                    {
+                                        if let sqlparser::ast::Value::SingleQuotedString(s) = &val.value
+                                        {
+                                            if s.eq_ignore_ascii_case("RN") {
+                                                return Ok(DataType::Int64);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Ok(DataType::Float64)
                     }
 
                     "ABS" | "CEIL" | "CEILING" | "FLOOR" | "ROUND" | "TRUNC" | "TRUNCATE"
@@ -5523,8 +5577,14 @@ impl QueryExecutor {
             let (schema, all_rows) = if is_recursive {
                 self.execute_recursive_cte(&cte_name, &cte.query)?
             } else {
-                let cte_query = Statement::Query(cte.query.clone());
-                let cte_result = self.execute_select(&cte_query, "")?;
+                let mut modified_cte_query = (*cte.query).clone();
+                for prev_cte_name in &cte_names[..cte_names.len() - 1] {
+                    let cte_table = format!("__cte_{}", prev_cte_name);
+                    Self::rename_table_references(&mut modified_cte_query.body, prev_cte_name, &cte_table);
+                }
+                let cte_query = Statement::Query(Box::new(modified_cte_query.clone()));
+                let cte_query_sql = cte_query.to_string();
+                let cte_result = self.execute_select(&cte_query, &cte_query_sql)?;
                 let schema = cte_result.schema().clone();
                 let rows = cte_result.rows().unwrap_or_default();
                 (schema, rows)
@@ -5754,7 +5814,13 @@ impl QueryExecutor {
                 pipe_operators: Vec::new(),
             }));
 
-            let recursive_result = self.execute_select(&recursive_query, "")?;
+            let recursive_query_sql = format!("{}_{}", recursive_query.to_string(), iteration);
+            debug_eprintln!(
+                "[executor::query] Executing recursive query: {}",
+                recursive_query_sql
+            );
+
+            let recursive_result = self.execute_select(&recursive_query, &recursive_query_sql)?;
             let new_rows = recursive_result.rows().unwrap_or_default();
 
             debug_eprintln!(

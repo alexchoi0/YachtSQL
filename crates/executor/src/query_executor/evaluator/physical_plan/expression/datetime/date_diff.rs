@@ -11,38 +11,42 @@ impl ProjectionWithExprExec {
         batch: &RecordBatch,
         row_idx: usize,
     ) -> Result<Value> {
-        if args.len() != 3 {
+        if args.len() < 2 || args.len() > 3 {
             return Err(Error::invalid_query(
-                "DATE_DIFF requires exactly 3 arguments (date1, date2, unit)".to_string(),
+                "DATE_DIFF requires 2 or 3 arguments (date1, date2, [unit])".to_string(),
             ));
         }
 
         let date1_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
         let date2_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
 
-        let unit_value = match &args[2] {
-            Expr::Column { name, .. } => {
-                if batch.schema().field(name).is_some() {
-                    Self::evaluate_expr(&args[2], batch, row_idx)?
-                } else {
-                    Value::string(name.clone())
+        let unit_str = if args.len() == 3 {
+            let unit_value = match &args[2] {
+                Expr::Column { name, .. } => {
+                    if batch.schema().field(name).is_some() {
+                        Self::evaluate_expr(&args[2], batch, row_idx)?
+                    } else {
+                        Value::string(name.clone())
+                    }
+                }
+                _ => Self::evaluate_expr(&args[2], batch, row_idx)?,
+            };
+
+            if unit_value.is_null() {
+                return Ok(Value::null());
+            }
+
+            match unit_value.as_str() {
+                Some(s) => s.to_uppercase(),
+                None => {
+                    return Err(Error::TypeMismatch {
+                        expected: "STRING or identifier (unit)".to_string(),
+                        actual: unit_value.data_type().to_string(),
+                    });
                 }
             }
-            _ => Self::evaluate_expr(&args[2], batch, row_idx)?,
-        };
-
-        if unit_value.is_null() {
-            return Ok(Value::null());
-        }
-
-        let unit_str = match unit_value.as_str() {
-            Some(s) => s.to_uppercase(),
-            None => {
-                return Err(Error::TypeMismatch {
-                    expected: "STRING or identifier (unit)".to_string(),
-                    actual: unit_value.data_type().to_string(),
-                });
-            }
+        } else {
+            "DAY".to_string()
         };
 
         if date1_val.is_null() || date2_val.is_null() {
@@ -153,7 +157,7 @@ mod tests {
         let err = ProjectionWithExprExec::eval_date_diff(&[Expr::column("date1")], &batch, 0)
             .expect_err("missing arguments");
         assert_error_contains(&err, "DATE_DIFF");
-        assert_error_contains(&err, "3 arguments");
+        assert_error_contains(&err, "2 or 3 arguments");
     }
 
     #[test]

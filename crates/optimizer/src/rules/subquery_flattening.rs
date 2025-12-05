@@ -38,7 +38,6 @@ impl SubqueryFlattening {
     fn transform_node(&self, node: &PlanNode) -> Result<PlanNode> {
         match node {
             PlanNode::Filter { predicate, input } => {
-                debug_print::debug_eprintln!("[optimizer::subquery_flattening] transform_node Filter predicate: {:?}", predicate);
                 let transformed_input = self.transform_node(input)?;
 
                 if let Some((join_type, subquery_plan, join_condition)) =
@@ -133,13 +132,9 @@ impl SubqueryFlattening {
                     JoinType::Semi
                 };
 
-                debug_print::debug_eprintln!("[optimizer::subquery_flattening] EXISTS plan structure: {:?}", plan);
-
                 if let Some((subquery_plan, join_cond)) = self.extract_correlated_subquery(plan) {
-                    debug_print::debug_eprintln!("[optimizer::subquery_flattening] EXISTS extracted: subquery_plan={:?}, join_cond={:?}", subquery_plan, join_cond);
                     Some((join_type, subquery_plan, join_cond))
                 } else {
-                    debug_print::debug_eprintln!("[optimizer::subquery_flattening] EXISTS extract_correlated_subquery returned None");
                     None
                 }
             }
@@ -206,7 +201,7 @@ impl SubqueryFlattening {
             PlanNode::Limit { input, .. } => self.extract_correlated_subquery(input),
             PlanNode::Distinct { input, .. } => self.extract_correlated_subquery(input),
             PlanNode::Sort { input, .. } => self.extract_correlated_subquery(input),
-            _ => None
+            _ => None,
         }
     }
 
@@ -216,9 +211,15 @@ impl SubqueryFlattening {
         tables
     }
 
-    fn collect_tables_recursive(&self, plan: &PlanNode, tables: &mut std::collections::HashSet<String>) {
+    fn collect_tables_recursive(
+        &self,
+        plan: &PlanNode,
+        tables: &mut std::collections::HashSet<String>,
+    ) {
         match plan {
-            PlanNode::Scan { table_name, alias, .. } => {
+            PlanNode::Scan {
+                table_name, alias, ..
+            } => {
                 if let Some(alias) = alias {
                     tables.insert(alias.clone());
                 }
@@ -239,7 +240,12 @@ impl SubqueryFlattening {
     ) -> (Vec<Expr>, Vec<Expr>) {
         let mut correlation = Vec::new();
         let mut non_correlation = Vec::new();
-        self.split_conditions_recursive(predicate, inner_tables, &mut correlation, &mut non_correlation);
+        self.split_conditions_recursive(
+            predicate,
+            inner_tables,
+            &mut correlation,
+            &mut non_correlation,
+        );
         (correlation, non_correlation)
     }
 
@@ -251,7 +257,11 @@ impl SubqueryFlattening {
         non_correlation: &mut Vec<Expr>,
     ) {
         match expr {
-            Expr::BinaryOp { left, op: BinaryOp::And, right } => {
+            Expr::BinaryOp {
+                left,
+                op: BinaryOp::And,
+                right,
+            } => {
                 self.split_conditions_recursive(left, inner_tables, correlation, non_correlation);
                 self.split_conditions_recursive(right, inner_tables, correlation, non_correlation);
             }
@@ -265,7 +275,11 @@ impl SubqueryFlattening {
         }
     }
 
-    fn references_outer_table(&self, expr: &Expr, inner_tables: &std::collections::HashSet<String>) -> bool {
+    fn references_outer_table(
+        &self,
+        expr: &Expr,
+        inner_tables: &std::collections::HashSet<String>,
+    ) -> bool {
         match expr {
             Expr::Column { table: Some(t), .. } => !inner_tables.contains(t),
             Expr::Column { table: None, .. } => false,
@@ -286,13 +300,14 @@ impl SubqueryFlattening {
         if conditions.len() == 1 {
             return conditions[0].clone();
         }
-        conditions.iter().skip(1).fold(conditions[0].clone(), |acc, cond| {
-            Expr::BinaryOp {
+        conditions
+            .iter()
+            .skip(1)
+            .fold(conditions[0].clone(), |acc, cond| Expr::BinaryOp {
                 left: Box::new(acc),
                 op: BinaryOp::And,
                 right: Box::new(cond.clone()),
-            }
-        })
+            })
     }
 
     fn get_subquery_output_column(&self, subquery: &PlanNode) -> Option<Expr> {
@@ -332,6 +347,17 @@ impl SubqueryFlattening {
                 self.extract_correlation_from_filter(
                     input,
                     aggregate_expr.clone(),
+                    result_alias,
+                    outer_tables,
+                )
+            }
+            PlanNode::Aggregate {
+                aggregates, input, ..
+            } => {
+                let aggregate_expr = aggregates.first()?.clone();
+                self.extract_correlation_from_filter(
+                    input,
+                    aggregate_expr,
                     result_alias,
                     outer_tables,
                 )
@@ -422,14 +448,15 @@ impl SubqueryFlattening {
 
     fn collect_table_aliases(&self, plan: &PlanNode, aliases: &mut Vec<String>) {
         match plan {
-            PlanNode::Scan { table_name, alias, .. } => {
+            PlanNode::Scan {
+                table_name, alias, ..
+            } => {
                 aliases.push(alias.clone().unwrap_or_else(|| table_name.clone()));
             }
             PlanNode::SubqueryScan { alias, .. } => {
                 aliases.push(alias.clone());
             }
-            PlanNode::Join { left, right, .. }
-            | PlanNode::LateralJoin { left, right, .. } => {
+            PlanNode::Join { left, right, .. } | PlanNode::LateralJoin { left, right, .. } => {
                 self.collect_table_aliases(left, aliases);
                 self.collect_table_aliases(right, aliases);
             }
@@ -504,7 +531,7 @@ impl SubqueryFlattening {
                 if idx == subquery_idx {
                     (
                         Expr::Column {
-                            name: "agg_0".to_string(),
+                            name: info.result_alias.clone(),
                             table: Some(agg_alias.clone()),
                         },
                         alias.clone(),
@@ -527,11 +554,43 @@ impl SubqueryFlattening {
             table: Some(info.inner_alias.clone()),
         };
 
-        PlanNode::Aggregate {
-            group_by: vec![group_by_col],
+        let aggregate_node = PlanNode::Aggregate {
+            group_by: vec![group_by_col.clone()],
             aggregates: vec![info.aggregate_expr.clone()],
             input: Box::new(info.subquery_scan.clone()),
             grouping_metadata: None,
+        };
+
+        let agg_output_name = Self::compute_aggregate_field_name(&info.aggregate_expr);
+        let agg_output_ref = Expr::Column {
+            name: agg_output_name,
+            table: None,
+        };
+
+        PlanNode::Projection {
+            expressions: vec![
+                (group_by_col, Some(info.inner_column.clone())),
+                (agg_output_ref, Some(info.result_alias.clone())),
+            ],
+            input: Box::new(aggregate_node),
+        }
+    }
+
+    fn compute_aggregate_field_name(expr: &Expr) -> String {
+        match expr {
+            Expr::Aggregate { name, args, .. } => {
+                let arg_str = if args.is_empty()
+                    || args.first().is_some_and(|e| matches!(e, Expr::Wildcard))
+                {
+                    "*".to_string()
+                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
+                    col_name.clone()
+                } else {
+                    "...".to_string()
+                };
+                format!("{}({})", name.as_str(), arg_str)
+            }
+            _ => "agg_0".to_string(),
         }
     }
 
@@ -590,7 +649,9 @@ impl OptimizationRule for SubqueryFlattening {
             debug_print::debug_eprintln!("[optimizer::subquery_flattening] plan transformed");
             Ok(Some(LogicalPlan::new(transformed)))
         } else {
-            debug_print::debug_eprintln!("[optimizer::subquery_flattening] no transformation applied");
+            debug_print::debug_eprintln!(
+                "[optimizer::subquery_flattening] no transformation applied"
+            );
             Ok(None)
         }
     }

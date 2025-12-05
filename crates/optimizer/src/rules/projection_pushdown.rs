@@ -149,6 +149,10 @@ impl ProjectionPushdown {
             Expr::StructFieldAccess { expr, .. } => {
                 Self::collect_column_references(expr, refs);
             }
+            Expr::IsDistinctFrom { left, right, .. } => {
+                Self::collect_column_references(left, refs);
+                Self::collect_column_references(right, refs);
+            }
         }
     }
 

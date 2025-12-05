@@ -202,63 +202,12 @@ pub fn filter_gt_i64(data: &[i64], threshold: i64) -> Vec<usize> {
 #[cfg(target_arch = "aarch64")]
 pub fn filter_gt_i64_with_nulls(data: &[i64], nulls: &[u8], threshold: i64) -> Vec<usize> {
     assert_eq!(data.len(), nulls.len());
-    if data.is_empty() {
-        return Vec::new();
-    }
-
     let mut indices = Vec::with_capacity(data.len());
-
-    unsafe {
-        let threshold_vec = vdupq_n_s64(threshold);
-        let chunks_data = data.chunks_exact(2);
-        let chunks_nulls = nulls.chunks_exact(2);
-        let remainder_data = chunks_data.remainder();
-        let remainder_nulls = chunks_nulls.remainder();
-        let mut idx = 0;
-
-        for (chunk_data, chunk_nulls) in chunks_data.zip(chunks_nulls) {
-            let v = vld1q_s64(chunk_data.as_ptr());
-
-            let cmp_gt = vcgtq_s64(v, threshold_vec);
-
-            let null0 = if chunk_nulls[0] != 0 {
-                0xFFFFFFFFFFFFFFFF
-            } else {
-                0
-            };
-            let null1 = if chunk_nulls[1] != 0 {
-                0xFFFFFFFFFFFFFFFF
-            } else {
-                0
-            };
-            let null_mask = vld1q_u64([null0, null1].as_ptr());
-
-            let combined = vandq_u64(cmp_gt, null_mask);
-
-            let lane0 = vgetq_lane_u64(combined, 0);
-            let lane1 = vgetq_lane_u64(combined, 1);
-
-            if lane0 != 0 {
-                indices.push(idx);
-            }
-            if lane1 != 0 {
-                indices.push(idx + 1);
-            }
-
-            idx += 2;
-        }
-
-        for (i, (&value, &null_flag)) in remainder_data
-            .iter()
-            .zip(remainder_nulls.iter())
-            .enumerate()
-        {
-            if value > threshold && null_flag != 0 {
-                indices.push(idx + i);
-            }
+    for (i, (&v, &n)) in data.iter().zip(nulls.iter()).enumerate() {
+        if v > threshold && n != 0 {
+            indices.push(i);
         }
     }
-
     indices
 }
 

@@ -11,10 +11,67 @@ impl ProjectionWithExprExec {
         batch: &RecordBatch,
         row_idx: usize,
     ) -> Result<Value> {
-        Self::validate_arg_count("TO_NUMBER", args, 1)?;
+        if args.is_empty() || args.len() > 2 {
+            return Err(crate::error::Error::invalid_query(
+                "TO_NUMBER requires 1 or 2 arguments".to_string(),
+            ));
+        }
+
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+
+        if args.len() == 2 {
+            let format = Self::evaluate_expr(&args[1], batch, row_idx)?;
+            if let Some(fmt) = format.as_str() {
+                if fmt.to_uppercase() == "RN" {
+                    if val.is_null() {
+                        return Ok(Value::null());
+                    }
+                    if let Some(s) = val.as_str() {
+                        return parse_roman_numeral(s).map(Value::int64);
+                    }
+                    return Err(crate::error::Error::TypeMismatch {
+                        expected: "STRING".to_string(),
+                        actual: val.data_type().to_string(),
+                    });
+                }
+            }
+        }
+
         crate::functions::scalar::eval_to_number(&val)
     }
+}
+
+fn parse_roman_numeral(s: &str) -> Result<i64> {
+    let s = s.trim().to_uppercase();
+    let mut total: i64 = 0;
+    let mut prev: i64 = 0;
+
+    for c in s.chars().rev() {
+        let value = match c {
+            'I' => 1,
+            'V' => 5,
+            'X' => 10,
+            'L' => 50,
+            'C' => 100,
+            'D' => 500,
+            'M' => 1000,
+            _ => {
+                return Err(crate::error::Error::invalid_query(format!(
+                    "Invalid Roman numeral character: {}",
+                    c
+                )))
+            }
+        };
+
+        if value < prev {
+            total -= value;
+        } else {
+            total += value;
+        }
+        prev = value;
+    }
+
+    Ok(total)
 }
 
 #[cfg(test)]
@@ -56,6 +113,7 @@ mod tests {
         let err =
             ProjectionWithExprExec::eval_to_number(&[], &batch, 0).expect_err("missing arguments");
         assert_error_contains(&err, "TO_NUMBER");
+        assert_error_contains(&err, "1 or 2 arguments");
     }
 
     #[test]

@@ -153,8 +153,13 @@ impl ComplexityAnalyzer {
                 self.visit_node(input);
             }
 
-            PlanNode::Projection { input, .. } => {
+            PlanNode::Projection { expressions, input } => {
                 self.has_projections = true;
+                for (expr, _) in expressions {
+                    if self.contains_scalar_subquery(expr) {
+                        self.num_subqueries += 1;
+                    }
+                }
                 self.visit_node(input);
             }
 
@@ -252,6 +257,26 @@ impl ComplexityAnalyzer {
         }
 
         self.current_depth -= 1;
+    }
+
+    fn contains_scalar_subquery(&self, expr: &yachtsql_ir::expr::Expr) -> bool {
+        use yachtsql_ir::expr::Expr;
+        match expr {
+            Expr::ScalarSubquery { .. } => true,
+            Expr::BinaryOp { left, right, .. } => {
+                self.contains_scalar_subquery(left) || self.contains_scalar_subquery(right)
+            }
+            Expr::UnaryOp { expr, .. } => self.contains_scalar_subquery(expr),
+            Expr::Case { operand, when_then, else_expr } => {
+                operand.as_ref().map_or(false, |e| self.contains_scalar_subquery(e))
+                    || when_then.iter().any(|(cond, result)| {
+                        self.contains_scalar_subquery(cond) || self.contains_scalar_subquery(result)
+                    })
+                    || else_expr.as_ref().map_or(false, |e| self.contains_scalar_subquery(e))
+            }
+            Expr::Function { args, .. } => args.iter().any(|a| self.contains_scalar_subquery(a)),
+            _ => false,
+        }
     }
 
     fn is_complex_predicate(&mut self, expr: &yachtsql_ir::expr::Expr) -> bool {

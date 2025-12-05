@@ -1,3 +1,4 @@
+use debug_print::debug_eprintln;
 use yachtsql_executor::QueryExecutor;
 use yachtsql_parser::DialectType;
 

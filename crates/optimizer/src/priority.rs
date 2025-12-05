@@ -125,7 +125,8 @@ mod tests {
             "join_reorder",
             "aggregate_pushdown",
             "boolean_simplification",
-            "subquery_flattening",
+            "sort_elimination",
+            "late_materialization",
         ];
 
         for rule in tier2_rules {

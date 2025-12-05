@@ -235,8 +235,93 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
         yachtsql_optimizer::expr::CastDataType::Hstore => DataType::Hstore,
         yachtsql_optimizer::expr::CastDataType::MacAddr => DataType::MacAddr,
         yachtsql_optimizer::expr::CastDataType::MacAddr8 => DataType::MacAddr8,
-        yachtsql_optimizer::expr::CastDataType::Custom(name) => DataType::Custom(name.clone()),
+        yachtsql_optimizer::expr::CastDataType::Custom(name, _) => DataType::Custom(name.clone()),
     }
+}
+
+pub fn format_interval(interval: &yachtsql_core::types::Interval) -> String {
+    let mut parts = Vec::new();
+
+    if interval.months != 0 {
+        let years = interval.months / 12;
+        let months = interval.months % 12;
+        if years != 0 {
+            parts.push(format!("{} year{}", years, if years.abs() != 1 { "s" } else { "" }));
+        }
+        if months != 0 {
+            parts.push(format!("{} mon{}", months, if months.abs() != 1 { "s" } else { "" }));
+        }
+    }
+
+    if interval.days != 0 {
+        parts.push(format!("{} day{}", interval.days, if interval.days.abs() != 1 { "s" } else { "" }));
+    }
+
+    if interval.micros != 0 || parts.is_empty() {
+        let total_seconds = interval.micros.abs() / 1_000_000;
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        let seconds = total_seconds % 60;
+        let micros = interval.micros.abs() % 1_000_000;
+
+        let sign = if interval.micros < 0 && (hours > 0 || minutes > 0 || seconds > 0 || micros > 0) { "-" } else { "" };
+
+        if hours > 0 || minutes > 0 || seconds > 0 || micros > 0 {
+            if micros > 0 {
+                parts.push(format!("{}{}:{:02}:{:02}.{:06}", sign, hours, minutes, seconds, micros));
+            } else {
+                parts.push(format!("{}{}:{:02}:{:02}", sign, hours, minutes, seconds));
+            }
+        } else if parts.is_empty() {
+            parts.push("00:00:00".to_string());
+        }
+    }
+
+    parts.join(" ")
+}
+
+pub fn parse_interval_from_string(s: &str) -> Result<yachtsql_core::types::Interval> {
+    use yachtsql_core::types::Interval;
+
+    let s = s.trim().to_lowercase();
+    let mut months = 0i32;
+    let mut days = 0i32;
+    let mut micros = 0i64;
+
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    let mut i = 0;
+    while i < parts.len() {
+        let value_str = parts[i];
+        let value: i64 = value_str.parse().map_err(|_| {
+            Error::InvalidOperation(format!("Cannot parse '{}' as interval value", value_str))
+        })?;
+
+        if i + 1 < parts.len() {
+            let unit = parts[i + 1];
+            match unit {
+                "year" | "years" => months += (value as i32) * 12,
+                "month" | "months" | "mon" | "mons" => months += value as i32,
+                "day" | "days" => days += value as i32,
+                "hour" | "hours" => micros += value * 3_600_000_000,
+                "minute" | "minutes" | "min" | "mins" => micros += value * 60_000_000,
+                "second" | "seconds" | "sec" | "secs" => micros += value * 1_000_000,
+                _ => {
+                    return Err(Error::InvalidOperation(format!(
+                        "Unknown interval unit: '{}'",
+                        unit
+                    )));
+                }
+            }
+            i += 2;
+        } else {
+            return Err(Error::InvalidOperation(format!(
+                "Interval value '{}' without unit",
+                value_str
+            )));
+        }
+    }
+
+    Ok(Interval::new(months, days, micros))
 }
 
 pub fn apply_interval_to_date(
@@ -548,7 +633,9 @@ pub fn perform_cast(
             }
         }
         CastDataType::String => {
-            if let Some(bytes) = value.as_bytes() {
+            if let Some(s) = value.as_str() {
+                Ok(Value::string(s.to_string()))
+            } else if let Some(bytes) = value.as_bytes() {
                 String::from_utf8(bytes.to_vec())
                     .map(Value::string)
                     .map_err(|_| {
@@ -556,8 +643,39 @@ pub fn perform_cast(
                             "Cannot cast BYTES to STRING: invalid UTF-8 sequence".to_string(),
                         )
                     })
+            } else if let Some(i) = value.as_i64() {
+                Ok(Value::string(i.to_string()))
+            } else if let Some(f) = value.as_f64() {
+                Ok(Value::string(f.to_string()))
+            } else if let Some(b) = value.as_bool() {
+                Ok(Value::string(if b { "true" } else { "false" }.to_string()))
+            } else if let Some(n) = value.as_numeric() {
+                Ok(Value::string(n.normalize().to_string()))
+            } else if let Some(d) = value.as_date() {
+                Ok(Value::string(d.to_string()))
+            } else if let Some(t) = value.as_time() {
+                Ok(Value::string(t.to_string()))
+            } else if let Some(ts) = value.as_timestamp() {
+                Ok(Value::string(ts.to_string()))
+            } else if let Some(dt) = value.as_datetime() {
+                Ok(Value::string(dt.to_string()))
+            } else if let Some(u) = value.as_uuid() {
+                Ok(Value::string(u.to_string()))
+            } else if let Some(j) = value.as_json() {
+                Ok(Value::string(j.to_string()))
+            } else if let Some(p) = value.as_point() {
+                Ok(Value::string(p.to_string()))
+            } else if let Some(b) = value.as_pgbox() {
+                Ok(Value::string(b.to_string()))
+            } else if let Some(c) = value.as_circle() {
+                Ok(Value::string(c.to_string()))
+            } else if let Some(interval) = value.as_interval() {
+                Ok(Value::string(format_interval(interval)))
             } else {
-                Ok(Value::string(format!("{}", value)))
+                Err(Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
             }
         }
         CastDataType::Bool => {
@@ -610,6 +728,8 @@ pub fn perform_cast(
                 Ok(Value::bytes(b.to_vec()))
             } else if let Some(s) = value.as_str() {
                 Ok(Value::bytes(s.as_bytes().to_vec()))
+            } else if let Some(i) = value.as_i64() {
+                Ok(Value::bytes(i.to_be_bytes().to_vec()))
             } else {
                 Err(Error::TypeMismatch {
                     expected: "Bytes".to_string(),
@@ -764,10 +884,7 @@ pub fn perform_cast(
             if let Some(_interval) = value.as_interval() {
                 Ok(value.clone())
             } else if let Some(s) = value.as_str() {
-                Err(Error::InvalidOperation(format!(
-                    "Cannot cast '{}' to INTERVAL (not yet implemented)",
-                    s
-                )))
+                parse_interval_from_string(s).map(Value::interval)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "Interval".to_string(),
@@ -842,9 +959,25 @@ pub fn perform_cast(
                 })
             }
         }
-        CastDataType::Custom(_name) => {
-            if value.as_struct().is_some() {
-                Ok(value.clone())
+        CastDataType::Custom(_name, struct_fields) => {
+            if let Some(struct_val) = value.as_struct() {
+                if struct_fields.is_empty() {
+                    Ok(value.clone())
+                } else {
+                    let old_values: Vec<_> = struct_val.values().cloned().collect();
+                    if old_values.len() != struct_fields.len() {
+                        return Err(Error::TypeMismatch {
+                            expected: format!("Struct with {} fields", struct_fields.len()),
+                            actual: format!("Struct with {} fields", old_values.len()),
+                        });
+                    }
+                    let new_fields: Vec<_> = struct_fields
+                        .iter()
+                        .zip(old_values.into_iter())
+                        .map(|(field, val)| (field.name.clone(), val))
+                        .collect();
+                    Ok(Value::struct_val(new_fields.into_iter().collect()))
+                }
             } else {
                 Err(Error::TypeMismatch {
                     expected: "Composite type".to_string(),

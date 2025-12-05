@@ -18,7 +18,8 @@ impl ProjectionWithExprExec {
             || value.as_bool().is_some()
             || value.is_null()
             || value.as_bytes().is_some()
-            || value.as_array().is_some();
+            || value.as_array().is_some()
+            || value.as_interval().is_some();
 
         if is_basic_type {
             match target_type {
@@ -29,7 +30,12 @@ impl ProjectionWithExprExec {
                 | CastDataType::Bytes
                 | CastDataType::Bool
                 | CastDataType::Json
-                | CastDataType::Array(_) => {
+                | CastDataType::Array(_)
+                | CastDataType::MacAddr
+                | CastDataType::MacAddr8
+                | CastDataType::Hstore
+                | CastDataType::Uuid
+                | CastDataType::Interval => {
                     return crate::query_executor::execution::perform_cast(&value, target_type);
                 }
                 _ => {}
@@ -52,6 +58,15 @@ impl ProjectionWithExprExec {
             }
             if let Some(ts) = value.as_timestamp() {
                 return Ok(Value::string(ts.to_string()));
+            }
+            if let Some(p) = value.as_point() {
+                return Ok(Value::string(p.to_string()));
+            }
+            if let Some(b) = value.as_pgbox() {
+                return Ok(Value::string(b.to_string()));
+            }
+            if let Some(c) = value.as_circle() {
+                return Ok(Value::string(c.to_string()));
             }
         }
 
@@ -137,9 +152,46 @@ impl ProjectionWithExprExec {
             }
         }
 
-        if let CastDataType::Custom(_type_name) = target_type {
-            if value.as_struct().is_some() {
-                return Ok(value);
+        if let CastDataType::Custom(type_name, struct_fields) = target_type {
+            debug_print::debug_eprintln!(
+                "[executor::cast] casting to Custom type '{}' with fields {:?}",
+                type_name,
+                struct_fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+            );
+            if struct_fields.is_empty() {
+                let resolved_type = match type_name.to_uppercase().as_str() {
+                    "HSTORE" => CastDataType::Hstore,
+                    "MACADDR" => CastDataType::MacAddr,
+                    "MACADDR8" => CastDataType::MacAddr8,
+                    "INTERVAL" => CastDataType::Interval,
+                    "UUID" => CastDataType::Uuid,
+                    _ => {
+                        if let Some(s) = value.as_str() {
+                            return Ok(Value::string(s.to_string()));
+                        }
+                        return Ok(value);
+                    }
+                };
+                return crate::query_executor::execution::perform_cast(&value, &resolved_type);
+            }
+            if let Some(struct_val) = value.as_struct() {
+                let old_values: Vec<_> = struct_val.values().cloned().collect();
+                if old_values.len() != struct_fields.len() {
+                    return Err(Error::type_mismatch(
+                        format!("Struct with {} fields", struct_fields.len()),
+                        format!("Struct with {} fields", old_values.len()),
+                    ));
+                }
+                let new_fields: Vec<_> = struct_fields
+                    .iter()
+                    .zip(old_values.into_iter())
+                    .map(|(field, val)| (field.name.clone(), val))
+                    .collect();
+                debug_print::debug_eprintln!(
+                    "[executor::cast] renamed fields to {:?}",
+                    new_fields.iter().map(|(n, _)| n).collect::<Vec<_>>()
+                );
+                return Ok(Value::struct_val(new_fields.into_iter().collect()));
             }
         }
 
@@ -194,5 +246,44 @@ impl ProjectionWithExprExec {
         }
 
         false
+    }
+
+    pub(crate) fn values_are_distinct(
+        a: &crate::types::Value,
+        b: &crate::types::Value,
+    ) -> bool {
+        match (a.is_null(), b.is_null()) {
+            (true, true) => false,
+            (true, false) | (false, true) => true,
+            (false, false) => {
+                if let (Some(a_val), Some(b_val)) = (a.as_bool(), b.as_bool()) {
+                    return a_val != b_val;
+                }
+
+                if let (Some(a_val), Some(b_val)) = (a.as_i64(), b.as_i64()) {
+                    return a_val != b_val;
+                }
+
+                if let (Some(a_val), Some(b_val)) = (a.as_f64(), b.as_f64()) {
+                    return a_val != b_val;
+                }
+
+                if let (Some(a_val), Some(b_val)) = (a.as_str(), b.as_str()) {
+                    return a_val != b_val;
+                }
+
+                if let (Some(a_struct), Some(b_struct)) = (a.as_struct(), b.as_struct()) {
+                    if a_struct.len() != b_struct.len() {
+                        return true;
+                    }
+                    return a_struct
+                        .values()
+                        .zip(b_struct.values())
+                        .any(|(av, bv)| Self::values_are_distinct(av, bv));
+                }
+
+                true
+            }
+        }
     }
 }

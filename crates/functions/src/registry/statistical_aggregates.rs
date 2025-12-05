@@ -46,10 +46,10 @@ use crate::aggregate::json_agg::{
     JsonAggFunction, JsonObjectAggFunction, JsonbAggFunction, JsonbObjectAggFunction,
 };
 use crate::aggregate::postgresql::{
-    ArrayPositionsFunction, ArrayRemoveFunction, FirstValueFunction, LagFunction,
-    LastValueFunction, LeadFunction, ModeFunction as PgModeFunction, NthValueFunction,
-    PercentileContFunction, PercentileDiscFunction, RegrAvgXFunction, RegrAvgYFunction,
-    RegrCountFunction, RegrSxxFunction, RegrSxyFunction, RegrSyyFunction,
+    FirstValueFunction, LagFunction, LastValueFunction, LeadFunction,
+    ModeFunction as PgModeFunction, NthValueFunction, PercentileContFunction,
+    PercentileDiscFunction, RegrAvgXFunction, RegrAvgYFunction, RegrCountFunction,
+    RegrSxxFunction, RegrSxyFunction, RegrSyyFunction,
 };
 use crate::aggregate::statistical::{
     AvgFunction, CorrFunction, CountFunction, CovarPopFunction, CovarSampFunction, MaxFunction,

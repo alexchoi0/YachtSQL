@@ -70,6 +70,8 @@ base64 = "0.22"
 
 # Non-cryptographic hash functions
 farmhash = "1.1"
+crc32fast = "1.4"
+crc32c = "0.6"
 
 # Network operations
 ipnetwork = "0.20"

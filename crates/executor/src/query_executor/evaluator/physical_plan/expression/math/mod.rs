@@ -8,6 +8,7 @@ mod cos;
 mod degrees;
 mod exp;
 mod floor;
+mod gamma;
 mod ln;
 mod log;
 mod log10;
@@ -78,6 +79,9 @@ impl ProjectionWithExprExec {
             "SAFE_ADD" => Self::eval_safe_add(args, batch, row_idx),
             "SAFE_SUBTRACT" => Self::eval_safe_subtract(args, batch, row_idx),
             "SAFE_NEGATE" => Self::eval_safe_negate(args, batch, row_idx),
+
+            "GAMMA" => Self::eval_gamma(args, batch, row_idx),
+            "LGAMMA" => Self::eval_lgamma(args, batch, row_idx),
 
             _ => Err(crate::error::Error::invalid_query(format!(
                 "Unknown mathematical function: {}",

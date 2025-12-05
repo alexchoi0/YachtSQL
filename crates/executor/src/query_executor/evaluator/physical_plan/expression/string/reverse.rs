@@ -23,6 +23,12 @@ impl ProjectionWithExprExec {
             return Ok(Value::string(reversed));
         }
 
+        if let Some(b) = val.as_bytes() {
+            let mut reversed = b.to_vec();
+            reversed.reverse();
+            return Ok(Value::bytes(reversed));
+        }
+
         Err(crate::error::Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: val.data_type().to_string(),

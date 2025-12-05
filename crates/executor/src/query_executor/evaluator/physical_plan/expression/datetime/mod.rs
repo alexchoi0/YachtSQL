@@ -68,6 +68,7 @@ impl ProjectionWithExprExec {
             "DATE" => Self::eval_date_constructor(args, batch, row_idx),
             "TIMESTAMP_DIFF" => Self::eval_timestamp_diff(args, batch, row_idx),
             "INTERVAL_LITERAL" => Self::eval_interval_literal(args, batch, row_idx),
+            "INTERVAL_PARSE" => Self::eval_interval_parse(args, batch, row_idx),
             "YEAR" => Self::eval_year(args, batch, row_idx),
             "MONTH" => Self::eval_month(args, batch, row_idx),
             "DAY" | "DAYOFMONTH" => Self::eval_day(args, batch, row_idx),

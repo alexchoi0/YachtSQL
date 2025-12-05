@@ -2497,8 +2497,6 @@ impl std::hash::Hash for Value {
                         }
                     }
                     TAG_DEFAULT => {}
-
-                    _ => {}
                     TAG_MACADDR | TAG_MACADDR8 => {
                         if let Some(mac) = self.as_macaddr().or_else(|| self.as_macaddr8()) {
                             mac.hash(state);
@@ -3032,14 +3030,12 @@ impl fmt::Display for Value {
                         write!(f, "'")
                     }
                     TAG_DEFAULT => write!(f, "DEFAULT"),
-
-                    0..=127 => unreachable!("inline tags handled above"),
-                    146..=255 => write!(f, "<UNKNOWN_HEAP_TYPE:{}>", tag),
                     TAG_MACADDR | TAG_MACADDR8 => {
                         let mac = &*(heap.ptr as *const MacAddress);
                         write!(f, "{}", mac)
                     }
-                    _ => write!(f, "<UNKNOWN>"),
+                    0..=127 => unreachable!("inline tags handled above"),
+                    _ => write!(f, "<UNKNOWN_HEAP_TYPE:{}>", tag),
                 }
             }
         }

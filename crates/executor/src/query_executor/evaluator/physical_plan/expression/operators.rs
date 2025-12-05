@@ -323,6 +323,372 @@ impl ProjectionWithExprExec {
             }
         }
 
+        if let (Some(l_struct), Some(r_struct)) = (left.as_struct(), right.as_struct()) {
+            return match op {
+                BinaryOp::Equal => {
+                    if l_struct.len() != r_struct.len() {
+                        return Ok(Value::bool_val(false));
+                    }
+                    for (l_val, r_val) in l_struct.values().zip(r_struct.values()) {
+                        let cmp = Self::evaluate_binary_op(l_val, &BinaryOp::Equal, r_val)?;
+                        match cmp.as_bool() {
+                            Some(false) => return Ok(Value::bool_val(false)),
+                            None => return Ok(Value::null()),
+                            _ => {}
+                        }
+                    }
+                    Ok(Value::bool_val(true))
+                }
+                BinaryOp::NotEqual => {
+                    if l_struct.len() != r_struct.len() {
+                        return Ok(Value::bool_val(true));
+                    }
+                    for (l_val, r_val) in l_struct.values().zip(r_struct.values()) {
+                        let cmp = Self::evaluate_binary_op(l_val, &BinaryOp::Equal, r_val)?;
+                        match cmp.as_bool() {
+                            Some(false) => return Ok(Value::bool_val(true)),
+                            None => return Ok(Value::null()),
+                            _ => {}
+                        }
+                    }
+                    Ok(Value::bool_val(false))
+                }
+                BinaryOp::LessThan => {
+                    for (l_val, r_val) in l_struct.values().zip(r_struct.values()) {
+                        let lt = Self::evaluate_binary_op(l_val, &BinaryOp::LessThan, r_val)?;
+                        if let Some(true) = lt.as_bool() {
+                            return Ok(Value::bool_val(true));
+                        }
+                        let eq = Self::evaluate_binary_op(l_val, &BinaryOp::Equal, r_val)?;
+                        match eq.as_bool() {
+                            Some(true) => continue,
+                            None => return Ok(Value::null()),
+                            _ => return Ok(Value::bool_val(false)),
+                        }
+                    }
+                    Ok(Value::bool_val(false))
+                }
+                BinaryOp::LessThanOrEqual => {
+                    for (l_val, r_val) in l_struct.values().zip(r_struct.values()) {
+                        let lt = Self::evaluate_binary_op(l_val, &BinaryOp::LessThan, r_val)?;
+                        if let Some(true) = lt.as_bool() {
+                            return Ok(Value::bool_val(true));
+                        }
+                        let eq = Self::evaluate_binary_op(l_val, &BinaryOp::Equal, r_val)?;
+                        match eq.as_bool() {
+                            Some(true) => continue,
+                            None => return Ok(Value::null()),
+                            _ => return Ok(Value::bool_val(false)),
+                        }
+                    }
+                    Ok(Value::bool_val(true))
+                }
+                BinaryOp::GreaterThan => {
+                    for (l_val, r_val) in l_struct.values().zip(r_struct.values()) {
+                        let gt = Self::evaluate_binary_op(l_val, &BinaryOp::GreaterThan, r_val)?;
+                        if let Some(true) = gt.as_bool() {
+                            return Ok(Value::bool_val(true));
+                        }
+                        let eq = Self::evaluate_binary_op(l_val, &BinaryOp::Equal, r_val)?;
+                        match eq.as_bool() {
+                            Some(true) => continue,
+                            None => return Ok(Value::null()),
+                            _ => return Ok(Value::bool_val(false)),
+                        }
+                    }
+                    Ok(Value::bool_val(false))
+                }
+                BinaryOp::GreaterThanOrEqual => {
+                    for (l_val, r_val) in l_struct.values().zip(r_struct.values()) {
+                        let gt = Self::evaluate_binary_op(l_val, &BinaryOp::GreaterThan, r_val)?;
+                        if let Some(true) = gt.as_bool() {
+                            return Ok(Value::bool_val(true));
+                        }
+                        let eq = Self::evaluate_binary_op(l_val, &BinaryOp::Equal, r_val)?;
+                        match eq.as_bool() {
+                            Some(true) => continue,
+                            None => return Ok(Value::null()),
+                            _ => return Ok(Value::bool_val(false)),
+                        }
+                    }
+                    Ok(Value::bool_val(true))
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for STRUCT",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_interval(), right.as_interval()) {
+            return match op {
+                BinaryOp::Add => yachtsql_functions::interval::interval_add(left, right),
+                BinaryOp::Subtract => yachtsql_functions::interval::interval_subtract(left, right),
+                BinaryOp::Equal => {
+                    let l_micros = Self::interval_to_total_micros(l);
+                    let r_micros = Self::interval_to_total_micros(r);
+                    Ok(Value::bool_val(l_micros == r_micros))
+                }
+                BinaryOp::NotEqual => {
+                    let l_micros = Self::interval_to_total_micros(l);
+                    let r_micros = Self::interval_to_total_micros(r);
+                    Ok(Value::bool_val(l_micros != r_micros))
+                }
+                BinaryOp::LessThan => {
+                    let l_micros = Self::interval_to_total_micros(l);
+                    let r_micros = Self::interval_to_total_micros(r);
+                    Ok(Value::bool_val(l_micros < r_micros))
+                }
+                BinaryOp::LessThanOrEqual => {
+                    let l_micros = Self::interval_to_total_micros(l);
+                    let r_micros = Self::interval_to_total_micros(r);
+                    Ok(Value::bool_val(l_micros <= r_micros))
+                }
+                BinaryOp::GreaterThan => {
+                    let l_micros = Self::interval_to_total_micros(l);
+                    let r_micros = Self::interval_to_total_micros(r);
+                    Ok(Value::bool_val(l_micros > r_micros))
+                }
+                BinaryOp::GreaterThanOrEqual => {
+                    let l_micros = Self::interval_to_total_micros(l);
+                    let r_micros = Self::interval_to_total_micros(r);
+                    Ok(Value::bool_val(l_micros >= r_micros))
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for INTERVAL",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_interval().is_some() && (right.as_i64().is_some() || right.as_f64().is_some()) {
+            let factor = if let Some(i) = right.as_i64() {
+                Value::float64(i as f64)
+            } else {
+                right.clone()
+            };
+            return match op {
+                BinaryOp::Multiply => yachtsql_functions::interval::interval_multiply(left, &factor),
+                BinaryOp::Divide => yachtsql_functions::interval::interval_divide(left, &factor),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for INTERVAL * scalar",
+                    op
+                ))),
+            };
+        }
+
+        if (left.as_i64().is_some() || left.as_f64().is_some()) && right.as_interval().is_some() {
+            let factor = if let Some(i) = left.as_i64() {
+                Value::float64(i as f64)
+            } else {
+                left.clone()
+            };
+            return match op {
+                BinaryOp::Multiply => yachtsql_functions::interval::interval_multiply(right, &factor),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for scalar * INTERVAL",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(ts), Some(interval)) = (left.as_timestamp(), right.as_interval()) {
+            return match op {
+                BinaryOp::Add => Self::add_interval_to_timestamp(ts, interval),
+                BinaryOp::Subtract => Self::subtract_interval_from_timestamp(ts, interval),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for TIMESTAMP +/- INTERVAL",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(interval), Some(ts)) = (left.as_interval(), right.as_timestamp()) {
+            return match op {
+                BinaryOp::Add => Self::add_interval_to_timestamp(ts, interval),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for INTERVAL + TIMESTAMP",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_timestamp(), right.as_timestamp()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for TIMESTAMP",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_datetime(), right.as_datetime()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for DATETIME",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_date(), right.as_date()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for DATE",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_time(), right.as_time()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for TIME",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(_l), Some(_r)) = (left.as_hstore(), right.as_hstore()) {
+            return match op {
+                BinaryOp::Concat => yachtsql_functions::hstore::hstore_concat(left, right),
+                BinaryOp::Subtract => yachtsql_functions::hstore::hstore_delete_hstore(left, right),
+                BinaryOp::ArrayContains => yachtsql_functions::hstore::hstore_contains(left, right),
+                BinaryOp::ArrayContainedBy => {
+                    yachtsql_functions::hstore::hstore_contained_by(left, right)
+                }
+                BinaryOp::Equal => yachtsql_functions::hstore::hstore_equal(left, right),
+                BinaryOp::NotEqual => {
+                    let eq = yachtsql_functions::hstore::hstore_equal(left, right)?;
+                    match eq.as_bool() {
+                        Some(b) => Ok(Value::bool_val(!b)),
+                        None => Ok(Value::null()),
+                    }
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for HSTORE",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_hstore().is_some() && right.as_str().is_some() {
+            return match op {
+                BinaryOp::Subtract => yachtsql_functions::hstore::hstore_delete_key(left, right),
+                BinaryOp::ArrayContains => {
+                    let right_hstore = yachtsql_functions::hstore::hstore_from_text(right)?;
+                    yachtsql_functions::hstore::hstore_contains(left, &right_hstore)
+                }
+                BinaryOp::ArrayContainedBy => {
+                    let right_hstore = yachtsql_functions::hstore::hstore_from_text(right)?;
+                    yachtsql_functions::hstore::hstore_contained_by(left, &right_hstore)
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for HSTORE - STRING",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_hstore().is_some() && right.as_array().is_some() {
+            return match op {
+                BinaryOp::Subtract => yachtsql_functions::hstore::hstore_delete_keys(left, right),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for HSTORE - ARRAY",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_macaddr(), right.as_macaddr()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for MACADDR",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_macaddr8(), right.as_macaddr8()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for MACADDR8",
+                    op
+                ))),
+            };
+        }
+
+        let is_geometric_left = left.as_point().is_some()
+            || left.as_circle().is_some()
+            || matches!(left.data_type(), yachtsql_core::types::DataType::PgBox)
+            || matches!(left.data_type(), yachtsql_core::types::DataType::Point)
+            || matches!(left.data_type(), yachtsql_core::types::DataType::Circle);
+
+        let is_geometric_right = right.as_point().is_some()
+            || right.as_circle().is_some()
+            || matches!(right.data_type(), yachtsql_core::types::DataType::PgBox)
+            || matches!(right.data_type(), yachtsql_core::types::DataType::Point)
+            || matches!(right.data_type(), yachtsql_core::types::DataType::Circle);
+
+        if is_geometric_left || is_geometric_right {
+            return match op {
+                BinaryOp::ArrayContains | BinaryOp::GeometricContains => {
+                    yachtsql_functions::geometric::contains(left, right)
+                }
+                BinaryOp::ArrayContainedBy | BinaryOp::GeometricContainedBy => {
+                    yachtsql_functions::geometric::contained_by(left, right)
+                }
+                BinaryOp::ArrayOverlap | BinaryOp::GeometricOverlap => {
+                    yachtsql_functions::geometric::overlaps(left, right)
+                }
+                BinaryOp::Subtract
+                | BinaryOp::GeometricDistance
+                | BinaryOp::VectorL2Distance => {
+                    yachtsql_functions::geometric::distance(left, right)
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for geometric types",
+                    op
+                ))),
+            };
+        }
+
         match op {
             BinaryOp::VectorL2Distance => {
                 crate::query_executor::execution::evaluate_vector_l2_distance(left, right)
@@ -416,5 +782,105 @@ impl ProjectionWithExprExec {
                 })
             }
         }
+    }
+
+    fn interval_to_total_micros(interval: &yachtsql_core::types::Interval) -> i128 {
+        const MICROS_PER_DAY: i128 = 24 * 60 * 60 * 1_000_000;
+        const MICROS_PER_MONTH: i128 = 30 * MICROS_PER_DAY;
+
+        (interval.months as i128) * MICROS_PER_MONTH
+            + (interval.days as i128) * MICROS_PER_DAY
+            + (interval.micros as i128)
+    }
+
+    fn add_interval_to_timestamp(
+        ts: chrono::DateTime<chrono::Utc>,
+        interval: &yachtsql_core::types::Interval,
+    ) -> Result<Value> {
+        use chrono::{Datelike, Duration, Months, TimeZone, Utc};
+
+        let mut result = ts;
+
+        if interval.months != 0 {
+            if interval.months > 0 {
+                result = result
+                    .checked_add_months(Months::new(interval.months as u32))
+                    .ok_or_else(|| {
+                        crate::error::Error::ExecutionError(
+                            "Timestamp overflow when adding months".to_string(),
+                        )
+                    })?;
+            } else {
+                result = result
+                    .checked_sub_months(Months::new((-interval.months) as u32))
+                    .ok_or_else(|| {
+                        crate::error::Error::ExecutionError(
+                            "Timestamp underflow when subtracting months".to_string(),
+                        )
+                    })?;
+            }
+        }
+
+        if interval.days != 0 {
+            result = result
+                .checked_add_signed(Duration::days(interval.days as i64))
+                .ok_or_else(|| {
+                    crate::error::Error::ExecutionError(
+                        "Timestamp overflow when adding days".to_string(),
+                    )
+                })?;
+        }
+
+        if interval.micros != 0 {
+            result = result
+                .checked_add_signed(Duration::microseconds(interval.micros))
+                .ok_or_else(|| {
+                    crate::error::Error::ExecutionError(
+                        "Timestamp overflow when adding microseconds".to_string(),
+                    )
+                })?;
+        }
+
+        Ok(Value::timestamp(result))
+    }
+
+    fn subtract_interval_from_timestamp(
+        ts: chrono::DateTime<chrono::Utc>,
+        interval: &yachtsql_core::types::Interval,
+    ) -> Result<Value> {
+        let negated = yachtsql_core::types::Interval {
+            months: -interval.months,
+            days: -interval.days,
+            micros: -interval.micros,
+        };
+        Self::add_interval_to_timestamp(ts, &negated)
+    }
+
+    pub(crate) fn evaluate_binary_op_with_enum(
+        left: &crate::types::Value,
+        op: &crate::optimizer::expr::BinaryOp,
+        right: &crate::types::Value,
+        enum_labels: Option<&[String]>,
+    ) -> Result<crate::types::Value> {
+        if let Some(labels) = enum_labels {
+            if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                let l_pos = labels.iter().position(|label| label == l);
+                let r_pos = labels.iter().position(|label| label == r);
+
+                if let (Some(l_idx), Some(r_idx)) = (l_pos, r_pos) {
+                    return match op {
+                        BinaryOp::Equal => Ok(Value::bool_val(l_idx == r_idx)),
+                        BinaryOp::NotEqual => Ok(Value::bool_val(l_idx != r_idx)),
+                        BinaryOp::LessThan => Ok(Value::bool_val(l_idx < r_idx)),
+                        BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l_idx <= r_idx)),
+                        BinaryOp::GreaterThan => Ok(Value::bool_val(l_idx > r_idx)),
+                        BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l_idx >= r_idx)),
+                        _ => Self::evaluate_binary_op(left, op, right),
+                    };
+                }
+            }
+        }
+
+        Self::evaluate_binary_op(left, op, right)
     }
 }

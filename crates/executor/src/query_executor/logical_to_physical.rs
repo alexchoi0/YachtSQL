@@ -8,10 +8,11 @@ use yachtsql_ir::plan::{LogicalPlan, PlanNode};
 use super::evaluator::physical_plan::{
     AggregateExec, AggregateStrategy, ArrayJoinExec, CteExec, DistinctExec, DistinctOnExec,
     EmptyRelationExec, ExceptExec, ExecutionPlan, FilterExec, HashJoinExec, IndexScanExec,
-    IntersectExec, JoinStrategy, LateralJoinExec, LimitExec, MergeExec, MergeJoinExec,
-    NestedLoopJoinExec, PhysicalPlan, PivotAggregateFunction, PivotExec, ProjectionWithExprExec,
-    SampleSize, SamplingMethod, SortAggregateExec, SortExec, SubqueryScanExec, TableSampleExec,
-    TableScanExec, TableValuedFunctionExec, UnionExec, UnnestExec, UnpivotExec, WindowExec,
+    IntersectExec, JoinStrategy, LateralJoinExec, LimitExec, MaterializedViewScanExec, MergeExec,
+    MergeJoinExec, NestedLoopJoinExec, PhysicalPlan, PivotAggregateFunction, PivotExec,
+    ProjectionWithExprExec, SampleSize, SamplingMethod, SortAggregateExec, SortExec,
+    SubqueryScanExec, TableSampleExec, TableScanExec, TableValuedFunctionExec, UnionExec,
+    UnnestExec, UnpivotExec, WindowExec,
 };
 use super::returning::{
     ReturningColumn, ReturningColumnOrigin, ReturningExpressionItem, ReturningSpec,
@@ -25,6 +26,69 @@ pub struct LogicalToPhysicalPlanner {
 }
 
 impl LogicalToPhysicalPlanner {
+    fn validate_expr(expr: &yachtsql_ir::expr::Expr) -> Result<()> {
+        use yachtsql_ir::expr::Expr;
+        use yachtsql_ir::function::FunctionName;
+
+        match expr {
+            Expr::Function { name, args } => {
+                if matches!(name, FunctionName::If | FunctionName::Iif) && args.len() != 3 {
+                    return Err(Error::InvalidOperation(format!(
+                        "{:?} function requires exactly 3 arguments (condition, true_value, false_value), got {}",
+                        name,
+                        args.len()
+                    )));
+                }
+                for arg in args {
+                    Self::validate_expr(arg)?;
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Self::validate_expr(left)?;
+                Self::validate_expr(right)?;
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                Self::validate_expr(inner)?;
+            }
+            Expr::Case { operand, when_then, else_expr } => {
+                if let Some(op) = operand {
+                    Self::validate_expr(op)?;
+                }
+                for (when_expr, then_expr) in when_then {
+                    Self::validate_expr(when_expr)?;
+                    Self::validate_expr(then_expr)?;
+                }
+                if let Some(el) = else_expr {
+                    Self::validate_expr(el)?;
+                }
+            }
+            Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
+                Self::validate_expr(inner)?;
+            }
+            Expr::Aggregate { args, filter, .. } => {
+                for arg in args {
+                    Self::validate_expr(arg)?;
+                }
+                if let Some(f) = filter {
+                    Self::validate_expr(f)?;
+                }
+            }
+            Expr::InList { expr: inner, list, .. } => {
+                Self::validate_expr(inner)?;
+                for item in list {
+                    Self::validate_expr(item)?;
+                }
+            }
+            Expr::Between { expr: inner, low, high, .. } => {
+                Self::validate_expr(inner)?;
+                Self::validate_expr(low)?;
+                Self::validate_expr(high)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn infer_projection_schema(
         &self,
         expressions: &[(yachtsql_ir::expr::Expr, Option<String>)],
@@ -35,6 +99,9 @@ impl LogicalToPhysicalPlanner {
         let mut fields = Vec::with_capacity(expressions.len());
 
         for (idx, (expr, alias)) in expressions.iter().enumerate() {
+            Self::validate_expr(expr)?;
+            Self::validate_column_references(expr, input_schema)?;
+
             let data_type = ProjectionWithExprExec::infer_expr_type_with_schema(expr, input_schema)
                 .unwrap_or(yachtsql_core::types::DataType::String);
 
@@ -51,6 +118,96 @@ impl LogicalToPhysicalPlanner {
         }
 
         Ok(Schema::from_fields(fields))
+    }
+
+    fn validate_column_references(
+        expr: &yachtsql_ir::expr::Expr,
+        schema: &yachtsql_storage::Schema,
+    ) -> Result<()> {
+        use yachtsql_ir::expr::Expr;
+
+        match expr {
+            Expr::Column { name, table } => {
+                if schema.field(name).is_some() {
+                    return Ok(());
+                }
+                if let Some(table_name) = table {
+                    if let Some(field) = schema.field(table_name) {
+                        if let yachtsql_core::types::DataType::Struct(fields) = &field.data_type {
+                            if fields.iter().any(|f| f.name.eq_ignore_ascii_case(name)) {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                Err(Error::ColumnNotFound(name.clone()))
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Self::validate_column_references(left, schema)?;
+                Self::validate_column_references(right, schema)
+            }
+            Expr::UnaryOp { expr: inner, .. } => Self::validate_column_references(inner, schema),
+            Expr::Function { args, .. } => {
+                for arg in args {
+                    Self::validate_column_references(arg, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Aggregate { args, filter, .. } => {
+                for arg in args {
+                    Self::validate_column_references(arg, schema)?;
+                }
+                if let Some(f) = filter {
+                    Self::validate_column_references(f, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
+                Self::validate_column_references(inner, schema)
+            }
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
+                if let Some(op) = operand {
+                    Self::validate_column_references(op, schema)?;
+                }
+                for (when_expr, then_expr) in when_then {
+                    Self::validate_column_references(when_expr, schema)?;
+                    Self::validate_column_references(then_expr, schema)?;
+                }
+                if let Some(el) = else_expr {
+                    Self::validate_column_references(el, schema)?;
+                }
+                Ok(())
+            }
+            Expr::InList { expr: inner, list, .. } => {
+                Self::validate_column_references(inner, schema)?;
+                for item in list {
+                    Self::validate_column_references(item, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Between {
+                expr: inner,
+                low,
+                high,
+                ..
+            } => {
+                Self::validate_column_references(inner, schema)?;
+                Self::validate_column_references(low, schema)?;
+                Self::validate_column_references(high, schema)
+            }
+            Expr::StructFieldAccess { expr: inner, .. } => {
+                Self::validate_column_references(inner, schema)
+            }
+            Expr::ArrayIndex { array, index, .. } => {
+                Self::validate_column_references(array, schema)?;
+                Self::validate_column_references(index, schema)
+            }
+            _ => Ok(()),
+        }
     }
 
     fn collect_table_names(&self, node: &PlanNode) -> std::collections::HashSet<String> {
@@ -111,12 +268,15 @@ impl LogicalToPhysicalPlanner {
                     .as_ref()
                     .is_some_and(|t| left_tables.contains(t));
 
+                let left_resolved = self.resolve_custom_type_fields(left);
+                let right_resolved = self.resolve_custom_type_fields(right);
+
                 if left_is_left_side && !right_is_left_side {
-                    vec![((**left).clone(), (**right).clone())]
+                    vec![(left_resolved, right_resolved)]
                 } else if right_is_left_side && !left_is_left_side {
-                    vec![((**right).clone(), (**left).clone())]
+                    vec![(right_resolved, left_resolved)]
                 } else {
-                    vec![((**left).clone(), (**right).clone())]
+                    vec![(left_resolved, right_resolved)]
                 }
             }
 
@@ -133,6 +293,192 @@ impl LogicalToPhysicalPlanner {
 
             _ => Vec::new(),
         }
+    }
+
+    fn expand_nested_custom_types(
+        &self,
+        fields: &[yachtsql_core::types::StructField],
+    ) -> Vec<yachtsql_core::types::StructField> {
+        use yachtsql_core::types::{DataType, StructField};
+
+        fields
+            .iter()
+            .map(|field| {
+                let expanded_type = self.expand_custom_data_type(&field.data_type);
+                StructField {
+                    name: field.name.clone(),
+                    data_type: expanded_type,
+                }
+            })
+            .collect()
+    }
+
+    fn expand_schema_custom_types(&self, schema: &yachtsql_storage::Schema) -> yachtsql_storage::Schema {
+        use yachtsql_storage::Schema;
+
+        let expanded_fields = schema
+            .fields()
+            .iter()
+            .map(|field| {
+                let mut new_field = field.clone();
+                new_field.data_type = self.expand_custom_data_type(&field.data_type);
+                new_field
+            })
+            .collect();
+
+        Schema::from_fields(expanded_fields)
+    }
+
+    fn expand_custom_data_type(&self, data_type: &yachtsql_core::types::DataType) -> yachtsql_core::types::DataType {
+        use yachtsql_core::types::DataType;
+
+        match data_type {
+            DataType::Custom(type_name) => {
+                let composite_fields_cloned = {
+                    let storage = self.storage.borrow();
+                    storage
+                        .get_dataset("default")
+                        .and_then(|ds| ds.types().get_type(type_name))
+                        .and_then(|udt| udt.definition.as_composite())
+                        .cloned()
+                };
+                if let Some(composite_fields) = composite_fields_cloned {
+                    let expanded_fields = self.expand_nested_custom_types(&composite_fields);
+                    DataType::Struct(expanded_fields)
+                } else {
+                    data_type.clone()
+                }
+            }
+            DataType::Struct(fields) => {
+                DataType::Struct(self.expand_nested_custom_types(fields))
+            }
+            DataType::Array(inner) => {
+                DataType::Array(Box::new(self.expand_custom_data_type(inner)))
+            }
+            _ => data_type.clone(),
+        }
+    }
+
+    fn resolve_custom_type_fields(&self, expr: &yachtsql_ir::expr::Expr) -> yachtsql_ir::expr::Expr {
+        use yachtsql_ir::expr::{CastDataType, Expr};
+
+        match expr {
+            Expr::Cast { expr: inner, data_type } => {
+                debug_print::debug_eprintln!(
+                    "[logical_to_physical::resolve] Cast with data_type={:?}, inner expr type: {}",
+                    data_type,
+                    std::any::type_name::<yachtsql_ir::expr::Expr>()
+                );
+                debug_print::debug_eprintln!(
+                    "[logical_to_physical::resolve] Inner expr: {:?}",
+                    inner
+                );
+                let resolved_inner = self.resolve_custom_type_fields(inner);
+                let resolved_data_type = match data_type {
+                    CastDataType::Custom(name, fields) if fields.is_empty() => {
+                        match name.to_uppercase().as_str() {
+                            "MACADDR" => CastDataType::MacAddr,
+                            "MACADDR8" => CastDataType::MacAddr8,
+                            "HSTORE" => CastDataType::Hstore,
+                            "INTERVAL" => CastDataType::Interval,
+                            "UUID" => CastDataType::Uuid,
+                            _ => {
+                                let composite_fields_cloned = {
+                                    let storage = self.storage.borrow();
+                                    storage
+                                        .get_dataset("default")
+                                        .and_then(|ds| ds.types().get_type(name))
+                                        .and_then(|udt| udt.definition.as_composite())
+                                        .cloned()
+                                };
+                                if let Some(composite_fields) = composite_fields_cloned {
+                                    let expanded_fields = self.expand_nested_custom_types(&composite_fields);
+                                    debug_print::debug_eprintln!(
+                                        "[logical_to_physical::resolve] Resolved type '{}' to fields {:?}",
+                                        name,
+                                        expanded_fields.iter().map(|f| (&f.name, &f.data_type)).collect::<Vec<_>>()
+                                    );
+                                    CastDataType::Custom(name.clone(), expanded_fields)
+                                } else {
+                                    debug_print::debug_eprintln!(
+                                        "[logical_to_physical::resolve] Type '{}' not found in registry",
+                                        name
+                                    );
+                                    data_type.clone()
+                                }
+                            }
+                        }
+                    }
+                    _ => data_type.clone(),
+                };
+                Expr::Cast {
+                    expr: Box::new(resolved_inner),
+                    data_type: resolved_data_type,
+                }
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(self.resolve_custom_type_fields(left)),
+                op: op.clone(),
+                right: Box::new(self.resolve_custom_type_fields(right)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: op.clone(),
+                expr: Box::new(self.resolve_custom_type_fields(inner)),
+            },
+            Expr::Function { name, args } => Expr::Function {
+                name: name.clone(),
+                args: args.iter().map(|a| self.resolve_custom_type_fields(a)).collect(),
+            },
+            Expr::StructFieldAccess { expr: inner, field } => Expr::StructFieldAccess {
+                expr: Box::new(self.resolve_custom_type_fields(inner)),
+                field: field.clone(),
+            },
+            Expr::Tuple(exprs) => {
+                debug_print::debug_eprintln!(
+                    "[logical_to_physical::resolve] Tuple with {} elements",
+                    exprs.len()
+                );
+                Expr::Tuple(exprs.iter().map(|e| self.resolve_custom_type_fields(e)).collect())
+            }
+            Expr::StructLiteral { fields } => {
+                use yachtsql_ir::expr::StructLiteralField;
+                debug_print::debug_eprintln!(
+                    "[logical_to_physical::resolve] StructLiteral with {} fields",
+                    fields.len()
+                );
+                Expr::StructLiteral {
+                    fields: fields
+                        .iter()
+                        .map(|field| StructLiteralField {
+                            name: field.name.clone(),
+                            expr: self.resolve_custom_type_fields(&field.expr),
+                            declared_type: field.declared_type.clone(),
+                        })
+                        .collect(),
+                }
+            }
+            Expr::Case { operand, when_then, else_expr } => Expr::Case {
+                operand: operand.as_ref().map(|o| Box::new(self.resolve_custom_type_fields(o))),
+                when_then: when_then.iter().map(|(w, t)| (self.resolve_custom_type_fields(w), self.resolve_custom_type_fields(t))).collect(),
+                else_expr: else_expr.as_ref().map(|e| Box::new(self.resolve_custom_type_fields(e))),
+            },
+            Expr::IsDistinctFrom { left, right, negated } => Expr::IsDistinctFrom {
+                left: Box::new(self.resolve_custom_type_fields(left)),
+                right: Box::new(self.resolve_custom_type_fields(right)),
+                negated: *negated,
+            },
+            _ => expr.clone(),
+        }
+    }
+
+    fn resolve_custom_type_in_expressions(
+        &self,
+        expressions: &[(yachtsql_ir::expr::Expr, Option<String>)],
+    ) -> Vec<(yachtsql_ir::expr::Expr, Option<String>)> {
+        expressions
+            .iter()
+            .map(|(expr, alias)| (self.resolve_custom_type_fields(expr), alias.clone()))
+            .collect()
     }
 }
 
@@ -163,8 +509,6 @@ impl LogicalToPhysicalPlanner {
                     }
                 }
 
-                let storage = self.storage.borrow_mut();
-
                 let (dataset_name, table_id) = if let Some(dot_pos) = table_name.find('.') {
                     let dataset = &table_name[..dot_pos];
                     let table = &table_name[dot_pos + 1..];
@@ -172,6 +516,79 @@ impl LogicalToPhysicalPlanner {
                 } else {
                     ("default", table_name.as_str())
                 };
+
+                let view_info = {
+                    let storage = self.storage.borrow();
+                    if let Some(dataset) = storage.get_dataset(dataset_name) {
+                        dataset.views().get_view(table_id).map(|v| {
+                            (
+                                v.is_materialized(),
+                                v.sql.clone(),
+                                v.get_materialized_data().map(|d| d.to_vec()),
+                                v.get_materialized_schema().cloned(),
+                            )
+                        })
+                    } else {
+                        None
+                    }
+                };
+
+                if let Some((is_materialized, view_sql, mat_data, mat_schema)) = view_info {
+                    debug_print::debug_eprintln!(
+                        "[executor::logical_to_physical] Expanding view '{}' with SQL: {}",
+                        table_id,
+                        view_sql
+                    );
+
+                    if is_materialized {
+                        if let (Some(schema), Some(rows)) = (mat_schema, mat_data) {
+                            let source_table = alias.as_ref().unwrap_or(table_name);
+                            let schema_with_source = schema.with_source_table(source_table);
+                            let batch =
+                                crate::RecordBatch::from_rows(schema_with_source.clone(), rows)?;
+                            return Ok(Rc::new(MaterializedViewScanExec::new(
+                                schema_with_source,
+                                batch,
+                            )));
+                        }
+                    }
+
+                    let parser = yachtsql_parser::Parser::new();
+                    let stmts = parser.parse_sql(&view_sql).map_err(|e| {
+                        Error::InvalidQuery(format!("Failed to parse view SQL: {}", e))
+                    })?;
+
+                    if stmts.is_empty() {
+                        return Err(Error::InvalidQuery(
+                            "View SQL produced no statements".to_string(),
+                        ));
+                    }
+
+                    let sql_stmt = stmts[0].unwrap_standard();
+                    let query = match sql_stmt {
+                        sqlparser::ast::Statement::Query(q) => q,
+                        _ => {
+                            return Err(Error::InvalidQuery(
+                                "View SQL is not a SELECT statement".to_string(),
+                            ))
+                        }
+                    };
+
+                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
+                        .with_storage(Rc::clone(&self.storage));
+                    let logical_plan = plan_builder.query_to_plan(query)?;
+
+                    let view_exec = self.plan_node_to_exec(logical_plan.root())?;
+                    let source_table = alias.as_ref().unwrap_or(table_name);
+                    let view_schema = view_exec.schema().with_source_table(source_table);
+
+                    return Ok(Rc::new(SubqueryScanExec::new_with_schema(
+                        view_exec,
+                        view_schema,
+                    )));
+                }
+
+                let storage = self.storage.borrow_mut();
 
                 let dataset = storage.get_dataset(dataset_name).ok_or_else(|| {
                     Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_name))
@@ -182,8 +599,10 @@ impl LogicalToPhysicalPlanner {
                 })?;
 
                 let source_table = alias.as_ref().unwrap_or(table_name);
-                let schema = table.schema().with_source_table(source_table);
+                let base_schema = table.schema().with_source_table(source_table);
                 drop(storage);
+
+                let schema = self.expand_schema_custom_types(&base_schema);
 
                 Ok(Rc::new(TableScanExec::new(
                     schema,
@@ -218,8 +637,10 @@ impl LogicalToPhysicalPlanner {
                 })?;
 
                 let source_table = alias.as_ref().unwrap_or(table_name);
-                let schema = table.schema().with_source_table(source_table);
+                let base_schema = table.schema().with_source_table(source_table);
                 drop(storage);
+
+                let schema = self.expand_schema_custom_types(&base_schema);
 
                 Ok(Rc::new(IndexScanExec::new(
                     schema,
@@ -240,12 +661,13 @@ impl LogicalToPhysicalPlanner {
                 let input_exec = self.plan_node_to_exec(input)?;
                 let input_schema = input_exec.schema();
 
-                let output_schema = self.infer_projection_schema(expressions, input_schema)?;
+                let resolved_expressions = self.resolve_custom_type_in_expressions(expressions);
+                let output_schema = self.infer_projection_schema(&resolved_expressions, input_schema)?;
 
                 Ok(Rc::new(ProjectionWithExprExec::new(
                     input_exec,
                     output_schema,
-                    expressions.clone(),
+                    resolved_expressions,
                 )))
             }
 
@@ -793,7 +1215,7 @@ impl LogicalToPhysicalPlanner {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
-            CastDataType::Custom(name) => DataType::Custom(name.clone()),
+            CastDataType::Custom(name, _) => DataType::Custom(name.clone()),
         }
     }
 

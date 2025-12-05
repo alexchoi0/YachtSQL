@@ -58,6 +58,30 @@ impl LogicalPlanBuilder {
                 ast::BinaryOperator::HashLongArrow => {
                     self.make_json_path_array_function("JSON_EXTRACT_PATH_ARRAY_TEXT", left, right)
                 }
+                ast::BinaryOperator::Question => {
+                    let left_expr = self.sql_expr_to_expr(left)?;
+                    let right_expr = self.sql_expr_to_expr(right)?;
+                    Ok(Expr::Function {
+                        name: yachtsql_ir::FunctionName::from_str("HSTORE_EXISTS"),
+                        args: vec![left_expr, right_expr],
+                    })
+                }
+                ast::BinaryOperator::QuestionAnd => {
+                    let left_expr = self.sql_expr_to_expr(left)?;
+                    let right_expr = self.sql_expr_to_expr(right)?;
+                    Ok(Expr::Function {
+                        name: yachtsql_ir::FunctionName::from_str("HSTORE_EXISTS_ALL"),
+                        args: vec![left_expr, right_expr],
+                    })
+                }
+                ast::BinaryOperator::QuestionPipe => {
+                    let left_expr = self.sql_expr_to_expr(left)?;
+                    let right_expr = self.sql_expr_to_expr(right)?;
+                    Ok(Expr::Function {
+                        name: yachtsql_ir::FunctionName::from_str("HSTORE_EXISTS_ANY"),
+                        args: vec![left_expr, right_expr],
+                    })
+                }
                 ast::BinaryOperator::Custom(op_str) => match op_str.as_str() {
                     "#>" => {
                         self.make_json_path_array_function("JSON_EXTRACT_PATH_ARRAY", left, right)
@@ -475,6 +499,26 @@ impl LogicalPlanBuilder {
                     .map(|e| self.sql_expr_to_expr(e))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Expr::Tuple(tuple_exprs))
+            }
+
+            ast::Expr::IsDistinctFrom(left, right) => {
+                let left_expr = self.sql_expr_to_expr(left)?;
+                let right_expr = self.sql_expr_to_expr(right)?;
+                Ok(Expr::IsDistinctFrom {
+                    left: Box::new(left_expr),
+                    right: Box::new(right_expr),
+                    negated: false,
+                })
+            }
+
+            ast::Expr::IsNotDistinctFrom(left, right) => {
+                let left_expr = self.sql_expr_to_expr(left)?;
+                let right_expr = self.sql_expr_to_expr(right)?;
+                Ok(Expr::IsDistinctFrom {
+                    left: Box::new(left_expr),
+                    right: Box::new(right_expr),
+                    negated: true,
+                })
             }
 
             _ => Err(Error::unsupported_feature(format!(

@@ -206,14 +206,10 @@ fn bind_column_reference(
     context: &CorrelationContext,
 ) -> Result<Expr> {
     let qualified = table.as_ref().map(|t| format!("{}.{}", t, name));
-    let value = qualified.as_ref().and_then(|q| context.get(q));
-    let value = value.or_else(|| {
-        if table.is_none() {
-            context.get(&name)
-        } else {
-            None
-        }
-    });
+    let value = qualified
+        .as_ref()
+        .and_then(|q| context.get(q))
+        .or_else(|| context.get(&name));
 
     match value {
         Some(v) => Ok(Expr::Literal(value_to_literal(v))),
