@@ -1,3 +1,5 @@
+//! Core types and error handling for YachtSQL.
+
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 #![warn(rustdoc::broken_intra_doc_links)]

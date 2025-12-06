@@ -1,3 +1,5 @@
+//! SQL function implementations for YachtSQL.
+
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::needless_return)]
 #![allow(clippy::single_match)]
