@@ -1,12 +1,11 @@
 #[path = "helpers.rs"]
 mod helpers;
 
-use core::types::{DataType, Value};
-
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use helpers::*;
 use indexmap::IndexMap;
-use storage::{Field, Row, Schema, StorageLayout, Table};
+use yachtsql::{DataType, Field, Schema, Table, Value};
+use yachtsql_storage::{Row, StorageLayout, TableSchemaOps};
 
 fn create_test_schema() -> Schema {
     Schema::from_fields(vec![
@@ -169,7 +168,7 @@ fn bench_select_filtered(c: &mut Criterion) {
             let filtered = table
                 .filter_rows(|row| {
                     let age = row.get_by_name(table.schema(), "age").cloned();
-                    Ok(matches!(age, Some(Value::int64(a)) if a > 40))
+                    Ok(age.and_then(|v| v.as_i64()).is_some_and(|a| a > 40))
                 })
                 .unwrap();
             black_box(filtered);
@@ -182,7 +181,7 @@ fn bench_select_filtered(c: &mut Criterion) {
             let filtered = table
                 .filter_rows(|row| {
                     let age = row.get_by_name(table.schema(), "age").cloned();
-                    Ok(matches!(age, Some(Value::int64(a)) if a > 40))
+                    Ok(age.and_then(|v| v.as_i64()).is_some_and(|a| a > 40))
                 })
                 .unwrap();
             black_box(filtered);
@@ -263,10 +262,11 @@ fn bench_update_multiple_rows(c: &mut Criterion) {
         b.iter_batched(
             || build_table(StorageLayout::Columnar, size),
             |mut table| {
+                let schema = table.schema().clone();
                 let count = table
                     .update_rows(&updates, |row| {
-                        let id = row.get_by_name(table.schema(), "id").cloned();
-                        Ok(matches!(id, Some(Value::int64(i)) if i % 10 == 0))
+                        let id = row.get_by_name(&schema, "id").cloned();
+                        Ok(id.and_then(|v| v.as_i64()).is_some_and(|i| i % 10 == 0))
                     })
                     .unwrap();
                 black_box(count);
@@ -279,10 +279,11 @@ fn bench_update_multiple_rows(c: &mut Criterion) {
         b.iter_batched(
             || build_table(StorageLayout::Row, size),
             |mut table| {
+                let schema = table.schema().clone();
                 let count = table
                     .update_rows(&updates, |row| {
-                        let id = row.get_by_name(table.schema(), "id").cloned();
-                        Ok(matches!(id, Some(Value::int64(i)) if i % 10 == 0))
+                        let id = row.get_by_name(&schema, "id").cloned();
+                        Ok(id.and_then(|v| v.as_i64()).is_some_and(|i| i % 10 == 0))
                     })
                     .unwrap();
                 black_box(count);
@@ -488,10 +489,11 @@ fn bench_delete_rows(c: &mut Criterion) {
         b.iter_batched(
             || build_table(StorageLayout::Columnar, size),
             |mut table| {
+                let schema = table.schema().clone();
                 let count = table
                     .delete_rows(|row| {
-                        let id = row.get_by_name(table.schema(), "id").cloned();
-                        Ok(matches!(id, Some(Value::int64(i)) if i % 2 == 0))
+                        let id = row.get_by_name(&schema, "id").cloned();
+                        Ok(id.and_then(|v| v.as_i64()).is_some_and(|i| i % 2 == 0))
                     })
                     .unwrap();
                 black_box(count);
@@ -504,10 +506,11 @@ fn bench_delete_rows(c: &mut Criterion) {
         b.iter_batched(
             || build_table(StorageLayout::Row, size),
             |mut table| {
+                let schema = table.schema().clone();
                 let count = table
                     .delete_rows(|row| {
-                        let id = row.get_by_name(table.schema(), "id").cloned();
-                        Ok(matches!(id, Some(Value::int64(i)) if i % 2 == 0))
+                        let id = row.get_by_name(&schema, "id").cloned();
+                        Ok(id.and_then(|v| v.as_i64()).is_some_and(|i| i % 2 == 0))
                     })
                     .unwrap();
                 black_box(count);

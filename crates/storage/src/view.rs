@@ -221,10 +221,10 @@ impl ViewRegistry {
                 return Ok(true);
             }
 
-            if let Some(dep_view) = self.views.get(dep) {
-                if self.view_depends_on(&dep_view.dependencies, view_name, &mut Vec::new())? {
-                    return Ok(true);
-                }
+            if let Some(dep_view) = self.views.get(dep)
+                && self.view_depends_on(&dep_view.dependencies, view_name, &mut Vec::new())?
+            {
+                return Ok(true);
             }
         }
         Ok(false)

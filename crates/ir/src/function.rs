@@ -289,7 +289,7 @@ pub enum FunctionName {
 }
 
 impl FunctionName {
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_uppercase().as_str() {
             "COUNT" => Self::Count,
             "SUM" => Self::Sum,
@@ -1022,12 +1022,12 @@ impl std::fmt::Display for FunctionName {
 
 impl From<&str> for FunctionName {
     fn from(s: &str) -> Self {
-        Self::from_str(s)
+        Self::parse(s)
     }
 }
 
 impl From<String> for FunctionName {
     fn from(s: String) -> Self {
-        Self::from_str(&s)
+        Self::parse(&s)
     }
 }

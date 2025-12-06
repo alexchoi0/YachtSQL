@@ -486,9 +486,12 @@ mod tests {
             .iter()
             .flat_map(|b| {
                 (0..b.num_rows())
-                    .map(|i| match b.expect_columns()[0].get(i).unwrap() {
-                        val => val.as_i64().expect("expected int64"),
-                        _ => panic!("Expected Int64"),
+                    .map(|i| {
+                        b.expect_columns()[0]
+                            .get(i)
+                            .unwrap()
+                            .as_i64()
+                            .expect("expected int64")
                     })
                     .collect::<Vec<_>>()
             })
@@ -498,9 +501,12 @@ mod tests {
             .iter()
             .flat_map(|b| {
                 (0..b.num_rows())
-                    .map(|i| match b.expect_columns()[0].get(i).unwrap() {
-                        val => val.as_i64().expect("expected int64"),
-                        _ => panic!("Expected Int64"),
+                    .map(|i| {
+                        b.expect_columns()[0]
+                            .get(i)
+                            .unwrap()
+                            .as_i64()
+                            .expect("expected int64")
                     })
                     .collect::<Vec<_>>()
             })

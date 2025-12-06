@@ -261,13 +261,10 @@ mod tests {
         let udt = registry.get_type("point").unwrap();
         assert_eq!(udt.name, "point");
 
-        if let TypeDefinition::Composite(fields) = &udt.definition {
-            assert_eq!(fields.len(), 2);
-            assert_eq!(fields[0].name, "x");
-            assert_eq!(fields[1].name, "y");
-        } else {
-            panic!("Expected composite type");
-        }
+        let TypeDefinition::Composite(fields) = &udt.definition;
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].name, "x");
+        assert_eq!(fields[1].name, "y");
     }
 
     #[test]

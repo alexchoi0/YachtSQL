@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_simple_select() {
-        let builder = LogicalPlanBuilder::new();
+        let _builder = LogicalPlanBuilder::new();
         let parser = crate::parser::Parser::new();
         let sql = "SELECT * FROM users";
         let result = parser.parse_sql(sql);
@@ -448,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_select_with_where() {
-        let builder = LogicalPlanBuilder::new();
+        let _builder = LogicalPlanBuilder::new();
         let parser = crate::parser::Parser::new();
         let sql = "SELECT * FROM users WHERE age > 18";
         let result = parser.parse_sql(sql);
@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_select_with_limit() {
-        let builder = LogicalPlanBuilder::new();
+        let _builder = LogicalPlanBuilder::new();
         let parser = crate::parser::Parser::new();
         let sql = "SELECT * FROM users LIMIT 10";
         let result = parser.parse_sql(sql);

@@ -35,9 +35,7 @@ impl Default for ResourceLimitsConfig {
     fn default() -> Self {
         Self {
             max_memory_bytes: Some(1024 * 1024 * 1024),
-
             timeout: Some(Duration::from_secs(60)),
-
             enable_memory_tracking: true,
         }
     }

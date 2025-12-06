@@ -80,7 +80,7 @@ impl LogicalPlanBuilder {
             format!("{}.{}", path, Self::format_json_path_key(&key))
         };
         Ok(Expr::Function {
-            name: yachtsql_ir::FunctionName::from_str(func_name),
+            name: yachtsql_ir::FunctionName::parse(func_name),
             args: vec![json_col, Expr::Literal(LiteralValue::String(full_path))],
         })
     }
@@ -94,7 +94,7 @@ impl LogicalPlanBuilder {
         let json_col = self.sql_expr_to_expr(left)?;
         let path_array = self.sql_expr_to_expr(right)?;
         Ok(Expr::Function {
-            name: yachtsql_ir::FunctionName::from_str(func_name),
+            name: yachtsql_ir::FunctionName::parse(func_name),
             args: vec![json_col, path_array],
         })
     }

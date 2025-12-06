@@ -471,11 +471,11 @@ impl InterestingOrderRule {
     }
 
     fn extract_join_key_ordering(&self, on: &Expr) -> OrderingProperty {
-        let keys = self.extract_equi_join_left_keys(on);
+        let keys = Self::extract_equi_join_left_keys(on);
         OrderingProperty::from_column_names(&keys)
     }
 
-    fn extract_equi_join_left_keys(&self, on: &Expr) -> Vec<String> {
+    fn extract_equi_join_left_keys(on: &Expr) -> Vec<String> {
         match on {
             Expr::BinaryOp {
                 left,
@@ -493,8 +493,8 @@ impl InterestingOrderRule {
                 op: yachtsql_ir::expr::BinaryOp::And,
                 right,
             } => {
-                let mut keys = self.extract_equi_join_left_keys(left);
-                keys.extend(self.extract_equi_join_left_keys(right));
+                let mut keys = Self::extract_equi_join_left_keys(left);
+                keys.extend(Self::extract_equi_join_left_keys(right));
                 keys
             }
             _ => vec![],

@@ -68,17 +68,17 @@ impl TableIndex for BPlusTreeIndex {
     }
 
     fn delete(&mut self, key: &IndexKey, row_index: usize) -> Result<()> {
-        if let Some(indices) = self.tree.get_mut(key) {
-            if let Some(pos) = indices.iter().position(|&idx| idx == row_index) {
-                indices.remove(pos);
-                self.entry_count -= 1;
+        if let Some(indices) = self.tree.get_mut(key)
+            && let Some(pos) = indices.iter().position(|&idx| idx == row_index)
+        {
+            indices.remove(pos);
+            self.entry_count -= 1;
 
-                if indices.is_empty() {
-                    self.tree.remove(key);
-                }
-
-                return Ok(());
+            if indices.is_empty() {
+                self.tree.remove(key);
             }
+
+            return Ok(());
         }
 
         Ok(())

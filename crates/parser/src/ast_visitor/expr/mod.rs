@@ -42,7 +42,7 @@ impl LogicalPlanBuilder {
                         let left_expr = self.sql_expr_to_expr(left)?;
                         let right_expr = self.sql_expr_to_expr(right)?;
                         Ok(Expr::Function {
-                            name: yachtsql_ir::FunctionName::from_str("HSTORE_GET_VALUES"),
+                            name: yachtsql_ir::FunctionName::parse("HSTORE_GET_VALUES"),
                             args: vec![left_expr, right_expr],
                         })
                     } else {
@@ -71,7 +71,7 @@ impl LogicalPlanBuilder {
                     let left_expr = self.sql_expr_to_expr(left)?;
                     let right_expr = self.sql_expr_to_expr(right)?;
                     Ok(Expr::Function {
-                        name: yachtsql_ir::FunctionName::from_str("HSTORE_EXISTS"),
+                        name: yachtsql_ir::FunctionName::parse("HSTORE_EXISTS"),
                         args: vec![left_expr, right_expr],
                     })
                 }
@@ -79,7 +79,7 @@ impl LogicalPlanBuilder {
                     let left_expr = self.sql_expr_to_expr(left)?;
                     let right_expr = self.sql_expr_to_expr(right)?;
                     Ok(Expr::Function {
-                        name: yachtsql_ir::FunctionName::from_str("HSTORE_EXISTS_ALL"),
+                        name: yachtsql_ir::FunctionName::parse("HSTORE_EXISTS_ALL"),
                         args: vec![left_expr, right_expr],
                     })
                 }
@@ -87,7 +87,7 @@ impl LogicalPlanBuilder {
                     let left_expr = self.sql_expr_to_expr(left)?;
                     let right_expr = self.sql_expr_to_expr(right)?;
                     Ok(Expr::Function {
-                        name: yachtsql_ir::FunctionName::from_str("HSTORE_EXISTS_ANY"),
+                        name: yachtsql_ir::FunctionName::parse("HSTORE_EXISTS_ANY"),
                         args: vec![left_expr, right_expr],
                     })
                 }
@@ -135,7 +135,7 @@ impl LogicalPlanBuilder {
 
             ast::Expr::Function(function) => {
                 let name_str = function.name.to_string();
-                let name = yachtsql_ir::FunctionName::from_str(&name_str);
+                let name = yachtsql_ir::FunctionName::parse(&name_str);
                 let (args, has_distinct, order_by_clauses) = match &function.args {
                     ast::FunctionArguments::None => (Vec::new(), false, None),
                     ast::FunctionArguments::Subquery(_) => {
@@ -556,7 +556,7 @@ impl LogicalPlanBuilder {
                 let ts_expr = self.sql_expr_to_expr(timestamp)?;
                 let tz_expr = self.sql_expr_to_expr(time_zone)?;
                 Ok(Expr::Function {
-                    name: yachtsql_ir::FunctionName::from_str("AT_TIME_ZONE"),
+                    name: yachtsql_ir::FunctionName::parse("AT_TIME_ZONE"),
                     args: vec![ts_expr, tz_expr],
                 })
             }

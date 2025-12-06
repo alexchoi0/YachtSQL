@@ -2,13 +2,13 @@
 mod helpers;
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
-use executor::explain::{
+use helpers::*;
+use yachtsql::{DialectType, QueryExecutor};
+use yachtsql_executor::explain::{
     ExplainOptions, MetricValue, ProfilerDisabled, ProfilerEnabled, format_plan,
 };
-use helpers::*;
-use optimizer::expr::Expr;
-use optimizer::plan::PlanNode;
-use yachtsql::{DialectType, QueryExecutor};
+use yachtsql_optimizer::expr::{BinaryOp, Expr, LiteralValue, OrderByExpr};
+use yachtsql_optimizer::plan::PlanNode;
 
 fn bench_explain_statement(c: &mut Criterion) {
     let mut group = c.benchmark_group("explain_statement");
@@ -127,7 +127,7 @@ fn bench_profiler_overhead(c: &mut Criterion) {
 
         b.iter(|| {
             for i in 0..100 {
-                let timer = profiler.start_operator(i);
+                let mut timer = profiler.start_operator(i);
                 black_box(vec![0u8; 1024]);
                 timer.record_batch(10);
             }
@@ -139,7 +139,7 @@ fn bench_profiler_overhead(c: &mut Criterion) {
 
         b.iter(|| {
             for i in 0..100 {
-                let timer = profiler.start_operator(i);
+                let mut timer = profiler.start_operator(i);
                 black_box(vec![0u8; 1024]);
                 timer.record_batch(10);
             }
@@ -151,7 +151,7 @@ fn bench_profiler_overhead(c: &mut Criterion) {
 
         b.iter(|| {
             for i in 0..100 {
-                let timer = profiler.start_operator(i);
+                let mut timer = profiler.start_operator(i);
                 black_box(vec![0u8; 1024]);
                 timer.record_batch(10);
                 timer.record_custom("selectivity".to_string(), MetricValue::Percentage(50.0));
@@ -177,7 +177,7 @@ fn bench_profiler_scalability(c: &mut Criterion) {
                     let profiler = ProfilerEnabled::new();
 
                     for i in 0..num_operators {
-                        let timer = profiler.start_operator(i as usize);
+                        let mut timer = profiler.start_operator(i as usize);
                         black_box(vec![0u8; 128]);
                         timer.record_batch(10);
                     }
@@ -227,8 +227,8 @@ fn bench_plan_formatting(c: &mut Criterion) {
                     name: "value".to_string(),
                     table: None,
                 }),
-                op: optimizer::expr::BinaryOp::GreaterThan,
-                right: Box::new(Expr::Literal(optimizer::expr::LiteralValue::int64(500))),
+                op: BinaryOp::GreaterThan,
+                right: Box::new(Expr::Literal(LiteralValue::Int64(500))),
             },
         };
 
@@ -257,14 +257,14 @@ fn bench_plan_formatting(c: &mut Criterion) {
                     name: "value".to_string(),
                     table: None,
                 }),
-                op: optimizer::expr::BinaryOp::GreaterThan,
-                right: Box::new(Expr::Literal(optimizer::expr::LiteralValue::int64(500))),
+                op: BinaryOp::GreaterThan,
+                right: Box::new(Expr::Literal(LiteralValue::Int64(500))),
             },
         };
 
         let plan = PlanNode::Sort {
             input: Box::new(filter),
-            order_by: vec![optimizer::expr::OrderByExpr {
+            order_by: vec![OrderByExpr {
                 expr: Expr::Column {
                     name: "value".to_string(),
                     table: None,
@@ -295,11 +295,11 @@ fn bench_plan_formatting_with_metrics(c: &mut Criterion) {
 
     let profiler = ProfilerEnabled::new();
     {
-        let timer = profiler.start_operator(0);
+        let mut timer = profiler.start_operator(0);
         timer.record_batch(1000);
     }
     {
-        let timer = profiler.start_operator(1);
+        let mut timer = profiler.start_operator(1);
         timer.record_batch(500);
         timer.record_custom("selectivity".to_string(), MetricValue::Percentage(50.0));
     }
@@ -320,8 +320,8 @@ fn bench_plan_formatting_with_metrics(c: &mut Criterion) {
                     name: "value".to_string(),
                     table: None,
                 }),
-                op: optimizer::expr::BinaryOp::GreaterThan,
-                right: Box::new(Expr::Literal(optimizer::expr::LiteralValue::int64(500))),
+                op: BinaryOp::GreaterThan,
+                right: Box::new(Expr::Literal(LiteralValue::Int64(500))),
             },
         };
 
@@ -350,8 +350,8 @@ fn bench_plan_formatting_with_metrics(c: &mut Criterion) {
                     name: "value".to_string(),
                     table: None,
                 }),
-                op: optimizer::expr::BinaryOp::GreaterThan,
-                right: Box::new(Expr::Literal(optimizer::expr::LiteralValue::int64(500))),
+                op: BinaryOp::GreaterThan,
+                right: Box::new(Expr::Literal(LiteralValue::Int64(500))),
             },
         };
 
@@ -400,7 +400,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
         b.iter(|| {
             let profiler = ProfilerEnabled::new();
             {
-                let timer = profiler.start_operator(0);
+                let mut timer = profiler.start_operator(0);
                 timer.record_batch(1000);
             }
             black_box(profiler.get_metrics(0));
@@ -415,7 +415,7 @@ fn bench_metrics_collection(c: &mut Criterion) {
                 b.iter(|| {
                     let profiler = ProfilerEnabled::new();
                     for i in 0..num_ops {
-                        let timer = profiler.start_operator(i);
+                        let mut timer = profiler.start_operator(i);
                         timer.record_batch(100);
                     }
                     black_box(profiler.get_all_metrics());
@@ -435,7 +435,7 @@ fn bench_custom_metrics(c: &mut Criterion) {
         let profiler = ProfilerEnabled::new();
 
         b.iter(|| {
-            let timer = profiler.start_operator(0);
+            let mut timer = profiler.start_operator(0);
             timer.record_batch(100);
         });
     });
@@ -444,7 +444,7 @@ fn bench_custom_metrics(c: &mut Criterion) {
         let profiler = ProfilerEnabled::new();
 
         b.iter(|| {
-            let timer = profiler.start_operator(0);
+            let mut timer = profiler.start_operator(0);
             timer.record_batch(100);
             timer.record_custom("selectivity".to_string(), MetricValue::Percentage(75.0));
         });
@@ -458,7 +458,7 @@ fn bench_custom_metrics(c: &mut Criterion) {
                 let profiler = ProfilerEnabled::new();
 
                 b.iter(|| {
-                    let timer = profiler.start_operator(0);
+                    let mut timer = profiler.start_operator(0);
                     timer.record_batch(100);
                     for i in 0..num_metrics {
                         timer

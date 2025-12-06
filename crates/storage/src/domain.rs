@@ -165,9 +165,7 @@ impl DomainRegistry {
     }
 
     pub fn drop_domain(&mut self, name: &str, if_exists: bool) -> Result<()> {
-        if self.domains.shift_remove(name).is_some() {
-            Ok(())
-        } else if if_exists {
+        if self.domains.shift_remove(name).is_some() || if_exists {
             Ok(())
         } else {
             Err(Error::invalid_query(format!(

@@ -207,10 +207,10 @@ impl ExtensionRegistry {
     pub fn function_available(&self, func_name: &str) -> bool {
         let func_upper = func_name.to_uppercase();
         for name in &self.installed {
-            if let Some(ext) = self.available.get(name) {
-                if ext.functions.iter().any(|f| f.to_uppercase() == func_upper) {
-                    return true;
-                }
+            if let Some(ext) = self.available.get(name)
+                && ext.functions.iter().any(|f| f.to_uppercase() == func_upper)
+            {
+                return true;
             }
         }
         false
@@ -219,10 +219,10 @@ impl ExtensionRegistry {
     pub fn function_provider(&self, func_name: &str) -> Option<&str> {
         let func_upper = func_name.to_uppercase();
         for name in &self.installed {
-            if let Some(ext) = self.available.get(name) {
-                if ext.functions.iter().any(|f| f.to_uppercase() == func_upper) {
-                    return Some(&ext.name);
-                }
+            if let Some(ext) = self.available.get(name)
+                && ext.functions.iter().any(|f| f.to_uppercase() == func_upper)
+            {
+                return Some(&ext.name);
             }
         }
         None

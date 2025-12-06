@@ -135,10 +135,13 @@ impl FilterReorder {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use yachtsql_ir::expr::{BinaryOp, LiteralValue};
 
+    #[allow(unused_imports)]
     use super::*;
 
+    #[allow(dead_code)]
     fn column_eq(col: &str, val: i64) -> Expr {
         Expr::BinaryOp {
             left: Box::new(Expr::Column {
@@ -150,6 +153,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     fn expensive_function() -> Expr {
         Expr::Function {
             name: yachtsql_ir::FunctionName::Custom("expensive_udf".to_string()),

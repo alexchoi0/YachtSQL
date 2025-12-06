@@ -628,7 +628,7 @@ mod tests {
     #[test]
     fn test_foreign_key_enforcer_creation() {
         let enforcer = ForeignKeyEnforcer::new();
-        assert!(std::mem::size_of_val(&enforcer) >= 0);
+        let _ = &enforcer;
     }
 
     #[test]

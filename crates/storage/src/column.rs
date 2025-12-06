@@ -403,12 +403,12 @@ impl Column {
                     nulls.push(true);
                     Ok(())
                 } else if let Some(n) = value.as_numeric() {
-                    if n.fract().is_zero() {
-                        if let Ok(v) = i64::try_from(n) {
-                            data.push(v);
-                            nulls.push(true);
-                            return Ok(());
-                        }
+                    if n.fract().is_zero()
+                        && let Ok(v) = i64::try_from(n)
+                    {
+                        data.push(v);
+                        nulls.push(true);
+                        return Ok(());
                     }
                     Err(Error::invalid_query(format!(
                         "Cannot convert NUMERIC {} to INT64",

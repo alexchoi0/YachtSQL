@@ -49,11 +49,22 @@ use yachtsql_storage::{Schema, SharedTransactionState};
 
 use self::session::SessionState;
 use self::transaction::SessionTransactionController;
+use crate::catalog_adapter::SnapshotCatalog;
 use crate::RecordBatch;
 
 fn create_default_optimizer() -> yachtsql_optimizer::Optimizer {
     yachtsql_optimizer::Optimizer::new()
         .with_rule(Box::new(IndexSelectionRule::disabled()))
+        .with_rule(Box::new(SubqueryFlattening::new()))
+        .with_rule(Box::new(WindowOptimization::new()))
+        .with_rule(Box::new(UnionOptimization::new()))
+}
+
+fn create_optimizer_with_catalog(
+    catalog: std::sync::Arc<SnapshotCatalog>,
+) -> yachtsql_optimizer::Optimizer {
+    yachtsql_optimizer::Optimizer::new()
+        .with_rule(Box::new(IndexSelectionRule::with_catalog(catalog)))
         .with_rule(Box::new(SubqueryFlattening::new()))
         .with_rule(Box::new(WindowOptimization::new()))
         .with_rule(Box::new(UnionOptimization::new()))
@@ -133,6 +144,18 @@ impl QueryExecutor {
         self.session.dialect()
     }
 
+    pub fn enable_index_selection(&mut self, dataset_name: &str) {
+        let storage = self.storage.borrow();
+        if let Some(dataset) = storage.get_dataset(dataset_name) {
+            let catalog = SnapshotCatalog::from_dataset(dataset).into_arc();
+            self.optimizer = create_optimizer_with_catalog(catalog);
+        }
+    }
+
+    pub fn disable_index_selection(&mut self) {
+        self.optimizer = create_default_optimizer();
+    }
+
     pub fn with_shared_session(existing: &mut QueryExecutor) -> Self {
         let shared_state = existing.ensure_shared_transaction_state();
 
@@ -187,6 +210,24 @@ impl QueryExecutor {
             session_tx: SessionTransactionController::new(),
             resource_limits: crate::resource_limits::ResourceLimitsConfig::default(),
             optimizer: create_default_optimizer(),
+            plan_cache: Rc::new(RefCell::new(crate::plan_cache::PlanCache::new())),
+            memory_pool: None,
+            query_registry: None,
+        }
+    }
+
+    pub fn new_without_optimizer() -> Self {
+        let storage = Rc::new(RefCell::new(yachtsql_storage::Storage::new()));
+        let session = SessionState::new(DialectType::PostgreSQL);
+
+        Self {
+            storage,
+            transaction_manager: Rc::new(RefCell::new(yachtsql_storage::TransactionManager::new())),
+            temporary_storage: Rc::new(RefCell::new(yachtsql_storage::TempStorage::new())),
+            session,
+            session_tx: SessionTransactionController::new(),
+            resource_limits: crate::resource_limits::ResourceLimitsConfig::default(),
+            optimizer: yachtsql_optimizer::Optimizer::disabled(),
             plan_cache: Rc::new(RefCell::new(crate::plan_cache::PlanCache::new())),
             memory_pool: None,
             query_registry: None,

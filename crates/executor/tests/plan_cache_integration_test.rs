@@ -5,7 +5,7 @@ use yachtsql_parser::DialectType;
 
 #[test]
 fn test_cache_basic_access() {
-    let mut cache = PlanCache::new();
+    let cache = PlanCache::new();
 
     let stats = cache.stats();
     assert_eq!(stats.entry_count, 0);

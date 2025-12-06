@@ -39,6 +39,7 @@ pub mod correlation;
 pub mod record_batch;
 
 pub mod ast_cache;
+pub mod catalog_adapter;
 pub mod plan_cache;
 pub mod sql_normalizer;
 

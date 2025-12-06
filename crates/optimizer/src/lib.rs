@@ -3,6 +3,7 @@
 #![warn(rustdoc::broken_intra_doc_links)]
 #![allow(missing_docs)]
 
+pub mod catalog;
 pub mod classifier;
 pub mod cost_model;
 pub mod grouping_sets;
@@ -28,6 +29,7 @@ pub use rule::{OptimizationRule, RuleApplication};
 pub use statistics::{ColumnStatistics, Histogram, StatisticsRegistry, TableStatistics};
 pub use telemetry::{OptimizerTelemetry, RuleStats};
 pub use visitor::{PlanRewriter, PlanVisitor};
+pub use catalog::{CatalogRef, EmptyCatalog, IndexCatalog, IndexInfo, IndexType};
 use yachtsql_core::error::Result;
 pub use yachtsql_ir::expr::{BinaryOp, Expr, OrderByExpr, UnaryOp};
 pub use yachtsql_ir::plan::{LogicalPlan, PlanNode};
@@ -131,6 +133,19 @@ impl Optimizer {
             optimizer.inner = optimizer.inner.configure_phase(phase, config);
         }
 
+        optimizer
+    }
+
+    pub fn disabled() -> Self {
+        let mut optimizer = Self {
+            inner: MultiPhaseOptimizer::new(),
+            phase_configs: BTreeMap::new(),
+        };
+        for phase in Phase::all() {
+            let config = PhaseConfig::default().with_max_iterations(0);
+            optimizer.phase_configs.insert(phase, config);
+            optimizer.inner = optimizer.inner.configure_phase(phase, config);
+        }
         optimizer
     }
 
