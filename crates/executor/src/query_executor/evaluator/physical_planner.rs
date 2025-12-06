@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use yachtsql_core::error::{Error, Result};
-use yachtsql_optimizer::plan::PlanNode;
 use yachtsql_optimizer::LogicalPlan;
+use yachtsql_optimizer::plan::PlanNode;
 use yachtsql_storage::{Field, Schema};
 
 use super::physical_plan::{

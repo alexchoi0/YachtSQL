@@ -6,11 +6,7 @@ use super::super::super::ProjectionWithExprExec;
 use crate::RecordBatch;
 
 impl ProjectionWithExprExec {
-    pub(super) fn eval_crc32(
-        args: &[Expr],
-        batch: &RecordBatch,
-        row_idx: usize,
-    ) -> Result<Value> {
+    pub(super) fn eval_crc32(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query("CRC32 requires exactly 1 argument"));
         }
@@ -34,11 +30,7 @@ impl ProjectionWithExprExec {
         Ok(Value::int64(checksum as i64))
     }
 
-    pub(super) fn eval_crc32c(
-        args: &[Expr],
-        batch: &RecordBatch,
-        row_idx: usize,
-    ) -> Result<Value> {
+    pub(super) fn eval_crc32c(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query("CRC32C requires exactly 1 argument"));
         }

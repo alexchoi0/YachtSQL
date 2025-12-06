@@ -521,10 +521,7 @@ impl QueryExecutor {
                 format!("{}()", func.name)
             }
             Expr::BinaryOp { .. } => "expr".to_string(),
-            _ => panic!(
-                "expr_to_column_name: unhandled expression type: {:?}",
-                expr
-            ),
+            _ => panic!("expr_to_column_name: unhandled expression type: {:?}", expr),
         }
     }
 
@@ -923,11 +920,9 @@ impl QueryExecutor {
                 let func_name = func.name.to_string().to_uppercase();
                 match func_name.as_str() {
                     "UPPER" | "LOWER" | "CONCAT" | "SUBSTRING" | "SUBSTR" | "TRIM" | "LTRIM"
-                    | "RTRIM" | "REPLACE" | "LEFT" | "RIGHT" | "LPAD" | "RPAD"
-                    | "REPEAT" | "FORMAT" | "CHR" | "INITCAP" | "TO_CHAR" | "TO_HEX" | "MD5"
-                    | "SHA256" | "SHA512" | "BASE64_ENCODE" | "BASE64_DECODE" => {
-                        Ok(DataType::String)
-                    }
+                    | "RTRIM" | "REPLACE" | "LEFT" | "RIGHT" | "LPAD" | "RPAD" | "REPEAT"
+                    | "FORMAT" | "CHR" | "INITCAP" | "TO_CHAR" | "TO_HEX" | "MD5" | "SHA256"
+                    | "SHA512" | "BASE64_ENCODE" | "BASE64_DECODE" => Ok(DataType::String),
 
                     "REVERSE" => {
                         if let sqlparser::ast::FunctionArguments::List(args) = &func.args {
@@ -995,7 +990,8 @@ impl QueryExecutor {
                                         sqlparser::ast::FunctionArgExpr::Expr(Expr::Value(val)),
                                     ) = second_arg
                                     {
-                                        if let sqlparser::ast::Value::SingleQuotedString(s) = &val.value
+                                        if let sqlparser::ast::Value::SingleQuotedString(s) =
+                                            &val.value
                                         {
                                             if s.eq_ignore_ascii_case("RN") {
                                                 return Ok(DataType::Int64);
@@ -3375,7 +3371,10 @@ impl QueryExecutor {
                     return Err(Error::ColumnNotFound(col_name.clone()));
                 }
             } else {
-                (SortSpec::Expression(Box::new(order_expr.expr.clone())), None)
+                (
+                    SortSpec::Expression(Box::new(order_expr.expr.clone())),
+                    None,
+                )
             };
 
             let is_ascending = order_expr.options.asc.unwrap_or(true);
@@ -4077,7 +4076,9 @@ impl QueryExecutor {
             {
                 let agg_key = self.aggregate_function_to_column_name(func)?;
 
-                if let std::collections::hash_map::Entry::Vacant(e) = having_agg_indices.entry(agg_key) {
+                if let std::collections::hash_map::Entry::Vacant(e) =
+                    having_agg_indices.entry(agg_key)
+                {
                     if let Some(agg_spec) = AggregateSpec::from_expr(expr, func_registry)? {
                         let idx = aggregate_specs.len();
                         aggregate_specs.push(agg_spec);
@@ -5589,7 +5590,11 @@ impl QueryExecutor {
                 let mut modified_cte_query = (*cte.query).clone();
                 for prev_cte_name in &cte_names[..cte_names.len() - 1] {
                     let cte_table = format!("__cte_{}", prev_cte_name);
-                    Self::rename_table_references(&mut modified_cte_query.body, prev_cte_name, &cte_table);
+                    Self::rename_table_references(
+                        &mut modified_cte_query.body,
+                        prev_cte_name,
+                        &cte_table,
+                    );
                 }
                 let cte_query = Statement::Query(Box::new(modified_cte_query.clone()));
                 let cte_query_sql = cte_query.to_string();

@@ -458,7 +458,9 @@ impl ProjectionWithExprExec {
                 right.clone()
             };
             return match op {
-                BinaryOp::Multiply => yachtsql_functions::interval::interval_multiply(left, &factor),
+                BinaryOp::Multiply => {
+                    yachtsql_functions::interval::interval_multiply(left, &factor)
+                }
                 BinaryOp::Divide => yachtsql_functions::interval::interval_divide(left, &factor),
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for INTERVAL * scalar",
@@ -474,7 +476,9 @@ impl ProjectionWithExprExec {
                 left.clone()
             };
             return match op {
-                BinaryOp::Multiply => yachtsql_functions::interval::interval_multiply(right, &factor),
+                BinaryOp::Multiply => {
+                    yachtsql_functions::interval::interval_multiply(right, &factor)
+                }
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for scalar * INTERVAL",
                     op
@@ -674,9 +678,7 @@ impl ProjectionWithExprExec {
                 BinaryOp::ArrayOverlap | BinaryOp::GeometricOverlap => {
                     yachtsql_functions::geometric::overlaps(left, right)
                 }
-                BinaryOp::Subtract
-                | BinaryOp::GeometricDistance
-                | BinaryOp::VectorL2Distance => {
+                BinaryOp::Subtract | BinaryOp::GeometricDistance | BinaryOp::VectorL2Distance => {
                     yachtsql_functions::geometric::distance(left, right)
                 }
                 _ => Err(crate::error::Error::unsupported_feature(format!(

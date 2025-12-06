@@ -198,7 +198,12 @@ impl ProjectionWithExprExec {
                     let right_val = Self::evaluate_expr(right, batch, row_idx)?;
                     let enum_labels = Self::get_enum_labels_for_expr(left, batch.schema())
                         .or_else(|| Self::get_enum_labels_for_expr(right, batch.schema()));
-                    Self::evaluate_binary_op_with_enum(&left_val, op, &right_val, enum_labels.as_deref())
+                    Self::evaluate_binary_op_with_enum(
+                        &left_val,
+                        op,
+                        &right_val,
+                        enum_labels.as_deref(),
+                    )
                 }
             },
 
@@ -700,7 +705,9 @@ impl ProjectionWithExprExec {
             return Self::evaluate_generator_function(func_name, args, batch, row_idx);
         }
 
-        if matches!(name, FunctionName::ToChar) || matches!(name, FunctionName::Custom(s) if s == "TO_NUMBER") {
+        if matches!(name, FunctionName::ToChar)
+            || matches!(name, FunctionName::Custom(s) if s == "TO_NUMBER")
+        {
             return Self::evaluate_conversion_function(func_name, args, batch, row_idx);
         }
 
@@ -1004,7 +1011,8 @@ impl ProjectionWithExprExec {
             Expr::Column { name, .. } => {
                 for field in schema.fields() {
                     if field.name == *name {
-                        if let yachtsql_core::types::DataType::Enum { labels, .. } = &field.data_type
+                        if let yachtsql_core::types::DataType::Enum { labels, .. } =
+                            &field.data_type
                         {
                             return Some(labels.clone());
                         }

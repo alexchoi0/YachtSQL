@@ -138,10 +138,7 @@ fn format_schema(schema: &Schema) -> String {
 }
 
 pub fn build_batch(schema: Schema, values: Vec<Vec<Value>>) -> RecordBatch {
-    let rows = values
-        .into_iter()
-        .map(Row::from_values)
-        .collect();
+    let rows = values.into_iter().map(Row::from_values).collect();
     RecordBatch::from_rows(schema, rows).expect("Failed to build RecordBatch")
 }
 

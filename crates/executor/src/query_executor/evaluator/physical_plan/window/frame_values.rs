@@ -95,9 +95,7 @@ impl WindowExec {
                 let max_peer_idx = current_peer_group.iter().max().copied().unwrap_or(row_idx);
                 indices
                     .iter()
-                    .take_while(|&&idx| {
-                        idx <= max_peer_idx || current_peer_group.contains(&idx)
-                    })
+                    .take_while(|&&idx| idx <= max_peer_idx || current_peer_group.contains(&idx))
                     .filter(|&&idx| !excluded_indices.contains(&idx))
                     .copied()
                     .collect()
@@ -206,9 +204,7 @@ impl WindowExec {
                 let max_peer_idx = current_peer_group.iter().max().copied().unwrap_or(row_idx);
                 indices
                     .iter()
-                    .take_while(|&&idx| {
-                        idx <= max_peer_idx || current_peer_group.contains(&idx)
-                    })
+                    .take_while(|&&idx| idx <= max_peer_idx || current_peer_group.contains(&idx))
                     .filter(|&&idx| !excluded_indices.contains(&idx))
                     .copied()
                     .collect()

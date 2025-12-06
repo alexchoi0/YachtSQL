@@ -232,7 +232,9 @@ pub fn provided_ordering(node: &PlanNode, child_ordering: &OrderingProperty) -> 
             let projected_columns: Vec<String> = expressions
                 .iter()
                 .filter_map(|(expr, alias)| match expr {
-                    Expr::Column { name, .. } => Some(alias.clone().unwrap_or_else(|| name.clone())),
+                    Expr::Column { name, .. } => {
+                        Some(alias.clone().unwrap_or_else(|| name.clone()))
+                    }
                     _ => alias.clone(),
                 })
                 .collect();
@@ -350,7 +352,9 @@ fn extract_equi_join_keys(on: &Expr) -> Option<Vec<String>> {
             right,
         } => {
             if let (
-                Expr::Column { name: left_name, .. },
+                Expr::Column {
+                    name: left_name, ..
+                },
                 Expr::Column {
                     name: right_name, ..
                 },
@@ -423,10 +427,8 @@ mod tests {
 
     #[test]
     fn test_ordering_property_satisfies_exact_match() {
-        let provided =
-            OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
-        let required =
-            OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
+        let provided = OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
+        let required = OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
         assert!(provided.satisfies(&required));
     }
 
@@ -436,15 +438,13 @@ mod tests {
             SortColumn::new("a".to_string(), true),
             SortColumn::new("b".to_string(), true),
         ]);
-        let required =
-            OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
+        let required = OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
         assert!(provided.satisfies(&required));
     }
 
     #[test]
     fn test_ordering_property_not_satisfies_longer_required() {
-        let provided =
-            OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
+        let provided = OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
         let required = OrderingProperty::new(vec![
             SortColumn::new("a".to_string(), true),
             SortColumn::new("b".to_string(), true),
@@ -454,10 +454,8 @@ mod tests {
 
     #[test]
     fn test_ordering_property_not_satisfies_different_direction() {
-        let provided =
-            OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
-        let required =
-            OrderingProperty::new(vec![SortColumn::new("a".to_string(), false)]);
+        let provided = OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
+        let required = OrderingProperty::new(vec![SortColumn::new("a".to_string(), false)]);
         assert!(!provided.satisfies(&required));
     }
 
@@ -536,12 +534,9 @@ mod tests {
             true,
         )]));
 
-        let provided_a =
-            OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
-        let provided_b =
-            OrderingProperty::new(vec![SortColumn::new("b".to_string(), true)]);
-        let provided_c =
-            OrderingProperty::new(vec![SortColumn::new("c".to_string(), true)]);
+        let provided_a = OrderingProperty::new(vec![SortColumn::new("a".to_string(), true)]);
+        let provided_b = OrderingProperty::new(vec![SortColumn::new("b".to_string(), true)]);
+        let provided_c = OrderingProperty::new(vec![SortColumn::new("c".to_string(), true)]);
 
         assert!(req.any_satisfied_by(&provided_a));
         assert!(req.any_satisfied_by(&provided_b));

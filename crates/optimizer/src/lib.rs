@@ -25,7 +25,7 @@ pub use classifier::{ComplexityLevel, QueryComplexity};
 pub use cost_model::{AggregateStrategy, Cost, CostModel, JoinStrategy, TableStats};
 pub use ordering::{OrderingProperty, OrderingRequirement, SortColumn};
 pub use phase::{Phase, PhaseBuilder, PhaseConfig, PhasedRule, StorageType};
-pub use priority::{rule_priority, rule_tier, RuleTier};
+pub use priority::{RuleTier, rule_priority, rule_tier};
 pub use rule::{OptimizationRule, RuleApplication};
 pub use statistics::{ColumnStatistics, Histogram, StatisticsRegistry, TableStatistics};
 pub use telemetry::{OptimizerTelemetry, RuleStats};

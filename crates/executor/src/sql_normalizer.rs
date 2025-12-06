@@ -3,10 +3,7 @@ use std::hash::{Hash, Hasher};
 use yachtsql_parser::DialectType;
 
 pub fn normalize_sql(sql: &str) -> String {
-    let normalized_whitespace: String = sql
-        .split_whitespace()
-        .collect::<Vec<&str>>()
-        .join(" ");
+    let normalized_whitespace: String = sql.split_whitespace().collect::<Vec<&str>>().join(" ");
 
     let mut result = String::with_capacity(normalized_whitespace.len());
     let mut in_single_quote = false;

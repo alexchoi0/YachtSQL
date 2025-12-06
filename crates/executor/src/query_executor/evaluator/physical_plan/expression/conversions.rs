@@ -249,10 +249,7 @@ impl ProjectionWithExprExec {
         false
     }
 
-    pub(crate) fn values_are_distinct(
-        a: &crate::types::Value,
-        b: &crate::types::Value,
-    ) -> bool {
+    pub(crate) fn values_are_distinct(a: &crate::types::Value, b: &crate::types::Value) -> bool {
         match (a.is_null(), b.is_null()) {
             (true, true) => false,
             (true, false) | (false, true) => true,

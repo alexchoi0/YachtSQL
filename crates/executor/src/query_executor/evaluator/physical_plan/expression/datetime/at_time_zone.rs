@@ -135,12 +135,10 @@ impl ProjectionWithExprExec {
             )));
         };
 
-        let naive_local = DateTime::from_timestamp(
-            naive_ts.timestamp(),
-            naive_ts.timestamp_subsec_nanos(),
-        )
-        .map(|dt| dt.naive_utc())
-        .unwrap_or_else(|| naive_ts.naive_utc());
+        let naive_local =
+            DateTime::from_timestamp(naive_ts.timestamp(), naive_ts.timestamp_subsec_nanos())
+                .map(|dt| dt.naive_utc())
+                .unwrap_or_else(|| naive_ts.naive_utc());
 
         let local_dt = match tz.from_local_datetime(&naive_local) {
             chrono::LocalResult::Single(dt) => dt,

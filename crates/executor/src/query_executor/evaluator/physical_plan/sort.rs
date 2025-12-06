@@ -157,7 +157,12 @@ impl SortExec {
                 Ok(())
             }
             Expr::StructFieldAccess { expr, .. } => Self::validate_expr_columns(expr, schema),
-            Expr::WindowFunction { args, partition_by, order_by, .. } => {
+            Expr::WindowFunction {
+                args,
+                partition_by,
+                order_by,
+                ..
+            } => {
                 for arg in args {
                     Self::validate_expr_columns(arg, schema)?;
                 }

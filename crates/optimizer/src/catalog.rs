@@ -64,20 +64,14 @@ pub trait IndexCatalog: Send + Sync {
             .find(|idx| idx.is_single_column() && idx.columns[0] == column_name)
     }
 
-    fn find_covering_index(
-        &self,
-        table_name: &str,
-        columns: &[String],
-    ) -> Option<IndexInfo> {
+    fn find_covering_index(&self, table_name: &str, columns: &[String]) -> Option<IndexInfo> {
         if columns.is_empty() {
             return None;
         }
 
         self.get_indexes_for_table(table_name)
             .into_iter()
-            .filter(|idx| {
-                columns.iter().all(|col| idx.columns.contains(col))
-            })
+            .filter(|idx| columns.iter().all(|col| idx.columns.contains(col)))
             .min_by_key(|idx| idx.columns.len())
     }
 }
@@ -99,8 +93,9 @@ pub type CatalogRef = Arc<dyn IndexCatalog>;
 
 #[cfg(test)]
 pub mod mock {
-    use super::*;
     use std::collections::HashMap;
+
+    use super::*;
 
     pub struct MockCatalog {
         indexes: HashMap<String, IndexInfo>,
@@ -239,10 +234,8 @@ mod tests {
         assert!(idx.is_some());
         assert_eq!(idx.unwrap().index_name, "idx_user_id");
 
-        let idx = catalog.find_covering_index(
-            "orders",
-            &["user_id".to_string(), "order_date".to_string()],
-        );
+        let idx = catalog
+            .find_covering_index("orders", &["user_id".to_string(), "order_date".to_string()]);
         assert!(idx.is_some());
         assert_eq!(idx.unwrap().index_name, "idx_composite");
     }

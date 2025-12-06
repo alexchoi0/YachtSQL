@@ -102,25 +102,25 @@ impl JoinReorder {
                 } = left.as_ref()
                     && Self::can_reorder_joins(left_join_type, join_type)
                 {
-                        let _card_ll = Self::estimate_cardinality(ll);
-                        let card_lr = Self::estimate_cardinality(lr);
-                        let card_right = Self::estimate_cardinality(right);
+                    let _card_ll = Self::estimate_cardinality(ll);
+                    let card_lr = Self::estimate_cardinality(lr);
+                    let card_right = Self::estimate_cardinality(right);
 
-                        if card_lr > card_right {
-                            let new_left = PlanNode::Join {
-                                left: ll.clone(),
-                                right: right.clone(),
-                                on: on.clone(),
-                                join_type: *join_type,
-                            };
+                    if card_lr > card_right {
+                        let new_left = PlanNode::Join {
+                            left: ll.clone(),
+                            right: right.clone(),
+                            on: on.clone(),
+                            join_type: *join_type,
+                        };
 
-                            return Some(PlanNode::Join {
-                                left: Box::new(new_left),
-                                right: lr.clone(),
-                                on: left_on.clone(),
-                                join_type: *left_join_type,
-                            });
-                        }
+                        return Some(PlanNode::Join {
+                            left: Box::new(new_left),
+                            right: lr.clone(),
+                            on: left_on.clone(),
+                            join_type: *left_join_type,
+                        });
+                    }
                 }
 
                 let left_opt = self.optimize_join_chain(left);

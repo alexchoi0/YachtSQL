@@ -250,18 +250,16 @@ impl ProjectionWithExprExec {
                 (Some(DataType::Int64), Some(DataType::Int64)) => Some(DataType::Int64),
                 _ => None,
             },
-            BinaryOp::Modulo => {
-                match (left_type, right_type) {
-                    (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
-                        Some(DataType::Numeric(None))
-                    }
-                    (Some(DataType::Float64), _) | (_, Some(DataType::Float64)) => {
-                        Some(DataType::Float64)
-                    }
-                    (Some(DataType::Int64), Some(DataType::Int64)) => Some(DataType::Int64),
-                    _ => None,
+            BinaryOp::Modulo => match (left_type, right_type) {
+                (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
+                    Some(DataType::Numeric(None))
                 }
-            }
+                (Some(DataType::Float64), _) | (_, Some(DataType::Float64)) => {
+                    Some(DataType::Float64)
+                }
+                (Some(DataType::Int64), Some(DataType::Int64)) => Some(DataType::Int64),
+                _ => None,
+            },
 
             BinaryOp::VectorL2Distance
             | BinaryOp::VectorInnerProduct
@@ -282,16 +280,12 @@ impl ProjectionWithExprExec {
             | BinaryOp::RegexMatchI
             | BinaryOp::RegexNotMatchI => Some(DataType::Bool),
 
-            BinaryOp::Concat => {
-                match (&left_type, &right_type) {
-                    (Some(DataType::Hstore), Some(DataType::Hstore)) => Some(DataType::Hstore),
-                    (Some(DataType::String), _) | (_, Some(DataType::String)) => {
-                        Some(DataType::String)
-                    }
-                    (Some(DataType::Bytes), Some(DataType::Bytes)) => Some(DataType::Bytes),
-                    _ => left_type.or(right_type),
-                }
-            }
+            BinaryOp::Concat => match (&left_type, &right_type) {
+                (Some(DataType::Hstore), Some(DataType::Hstore)) => Some(DataType::Hstore),
+                (Some(DataType::String), _) | (_, Some(DataType::String)) => Some(DataType::String),
+                (Some(DataType::Bytes), Some(DataType::Bytes)) => Some(DataType::Bytes),
+                _ => left_type.or(right_type),
+            },
 
             _ => None,
         }
@@ -572,9 +566,10 @@ impl ProjectionWithExprExec {
                 Some(DataType::Bool)
             }
 
-            FunctionName::Md5 | FunctionName::Md5Hash | FunctionName::Sha256 | FunctionName::Sha2 => {
-                Some(DataType::String)
-            }
+            FunctionName::Md5
+            | FunctionName::Md5Hash
+            | FunctionName::Sha256
+            | FunctionName::Sha2 => Some(DataType::String),
 
             FunctionName::Custom(s) if s == "SHA1" || s == "SHA512" => Some(DataType::String),
 
@@ -861,7 +856,10 @@ impl ProjectionWithExprExec {
                 Some(DataType::Json)
             }
             FunctionName::Custom(s)
-                if s == "JSON_ARRAY" || s == "JSON_OBJECT" || s == "PARSE_JSON" || s == "TO_JSON" =>
+                if s == "JSON_ARRAY"
+                    || s == "JSON_OBJECT"
+                    || s == "PARSE_JSON"
+                    || s == "TO_JSON" =>
             {
                 Some(DataType::Json)
             }
@@ -934,9 +932,9 @@ impl ProjectionWithExprExec {
                 Some(DataType::Bool)
             }
 
-            FunctionName::ApproxCountDistinct | FunctionName::ApproxDistinct | FunctionName::Ndv => {
-                Some(DataType::Int64)
-            }
+            FunctionName::ApproxCountDistinct
+            | FunctionName::ApproxDistinct
+            | FunctionName::Ndv => Some(DataType::Int64),
             FunctionName::ApproxQuantiles => Some(DataType::Array(Box::new(DataType::Float64))),
             FunctionName::ApproxTopCount | FunctionName::ApproxTopSum => {
                 Some(DataType::Array(Box::new(DataType::String)))
@@ -1042,11 +1040,10 @@ impl ProjectionWithExprExec {
                 } else if let Some(table_name) = table {
                     if let Some(field) = schema.field(table_name) {
                         match &field.data_type {
-                            DataType::Struct(fields) => {
-                                fields.iter()
-                                    .find(|f| f.name.eq_ignore_ascii_case(name))
-                                    .map(|f| f.data_type.clone())
-                            }
+                            DataType::Struct(fields) => fields
+                                .iter()
+                                .find(|f| f.name.eq_ignore_ascii_case(name))
+                                .map(|f| f.data_type.clone()),
                             DataType::Custom(_) => None,
                             _ => None,
                         }

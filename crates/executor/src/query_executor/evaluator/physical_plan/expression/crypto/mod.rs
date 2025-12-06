@@ -107,10 +107,10 @@ impl ProjectionWithExprExec {
 
         let result = match format.to_lowercase().as_str() {
             "hex" => hex::encode(data_bytes),
-            "base64" => base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data_bytes),
-            "escape" => {
-                String::from_utf8_lossy(data_bytes).to_string()
+            "base64" => {
+                base64::Engine::encode(&base64::engine::general_purpose::STANDARD, data_bytes)
             }
+            "escape" => String::from_utf8_lossy(data_bytes).to_string(),
             _ => {
                 return Err(Error::invalid_query(format!(
                     "Unsupported encoding format: {}",
@@ -139,8 +139,10 @@ impl ProjectionWithExprExec {
         let result = match format.to_lowercase().as_str() {
             "hex" => hex::decode(data_str)
                 .map_err(|e| Error::invalid_query(format!("Invalid hex string: {}", e)))?,
-            "base64" => base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data_str)
-                .map_err(|e| Error::invalid_query(format!("Invalid base64 string: {}", e)))?,
+            "base64" => {
+                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data_str)
+                    .map_err(|e| Error::invalid_query(format!("Invalid base64 string: {}", e)))?
+            }
             "escape" => data_str.as_bytes().to_vec(),
             _ => {
                 return Err(Error::invalid_query(format!(

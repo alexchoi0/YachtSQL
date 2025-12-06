@@ -631,7 +631,10 @@ fn test_short_circuit_and() {
         .unwrap();
 
     assert_eq!(result.num_rows(), 1);
-    assert_eq!(result.column(0).unwrap().get(0).unwrap().as_i64().unwrap(), 2);
+    assert_eq!(
+        result.column(0).unwrap().get(0).unwrap().as_i64().unwrap(),
+        2
+    );
 }
 
 fn setup_multi_and(executor: &mut QueryExecutor) {

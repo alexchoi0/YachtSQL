@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use yachtsql_core::error::{Error, Result};
 
-use super::priority::QueryPriority;
 use super::CancellationToken;
+use super::priority::QueryPriority;
 
 pub type QueryId = u64;
 

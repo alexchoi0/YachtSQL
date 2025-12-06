@@ -17,6 +17,7 @@ impl ProjectionWithExprExec {
     ) -> Result<Value> {
         Self::validate_zero_args("UUIDV7", args)?;
         use std::time::{SystemTime, UNIX_EPOCH};
+
         use rand::Rng;
 
         let timestamp_ms = SystemTime::now()

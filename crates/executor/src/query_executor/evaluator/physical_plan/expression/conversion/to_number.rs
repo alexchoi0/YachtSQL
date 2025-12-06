@@ -59,7 +59,7 @@ fn parse_roman_numeral(s: &str) -> Result<i64> {
                 return Err(crate::error::Error::invalid_query(format!(
                     "Invalid Roman numeral character: {}",
                     c
-                )))
+                )));
             }
         };
 

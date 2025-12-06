@@ -850,9 +850,9 @@ impl LogicalPlanBuilder {
             Expr::InList { expr, list, .. } => {
                 self.has_aggregate(expr) || list.iter().any(|item| self.has_aggregate(item))
             }
-            Expr::Between { expr, low, high, .. } => {
-                self.has_aggregate(expr) || self.has_aggregate(low) || self.has_aggregate(high)
-            }
+            Expr::Between {
+                expr, low, high, ..
+            } => self.has_aggregate(expr) || self.has_aggregate(low) || self.has_aggregate(high),
             _ => false,
         }
     }

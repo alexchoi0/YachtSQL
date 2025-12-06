@@ -79,9 +79,10 @@ impl WindowExec {
     ) -> DataType {
         use yachtsql_ir::FunctionName;
         match name {
-            FunctionName::PercentRank | FunctionName::Percentrank | FunctionName::CumeDist | FunctionName::Cumedist => {
-                DataType::Float64
-            }
+            FunctionName::PercentRank
+            | FunctionName::Percentrank
+            | FunctionName::CumeDist
+            | FunctionName::Cumedist => DataType::Float64,
             FunctionName::Avg | FunctionName::Average => {
                 if let Some(first_arg) = args.first()
                     && let Some(input_type) = Self::extract_column_type(first_arg, schema)

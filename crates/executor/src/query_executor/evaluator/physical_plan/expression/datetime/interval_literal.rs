@@ -94,15 +94,21 @@ impl ProjectionWithExprExec {
                 let frac_micros = (value.fract() * Interval::MICROS_PER_DAY as f64) as i64;
                 Ok(Interval::new(0, days, frac_micros))
             }
-            "HOUR" | "HOURS" => {
-                Ok(Interval::new(0, 0, (value * Interval::MICROS_PER_HOUR as f64) as i64))
-            }
-            "MINUTE" | "MINUTES" => {
-                Ok(Interval::new(0, 0, (value * Interval::MICROS_PER_MINUTE as f64) as i64))
-            }
-            "SECOND" | "SECONDS" => {
-                Ok(Interval::new(0, 0, (value * Interval::MICROS_PER_SECOND as f64) as i64))
-            }
+            "HOUR" | "HOURS" => Ok(Interval::new(
+                0,
+                0,
+                (value * Interval::MICROS_PER_HOUR as f64) as i64,
+            )),
+            "MINUTE" | "MINUTES" => Ok(Interval::new(
+                0,
+                0,
+                (value * Interval::MICROS_PER_MINUTE as f64) as i64,
+            )),
+            "SECOND" | "SECONDS" => Ok(Interval::new(
+                0,
+                0,
+                (value * Interval::MICROS_PER_SECOND as f64) as i64,
+            )),
             "WEEK" | "WEEKS" => Ok(Interval::new(0, (value * 7.0) as i32, 0)),
             _ => Err(Error::unsupported_feature(format!(
                 "Unsupported interval unit: {}",

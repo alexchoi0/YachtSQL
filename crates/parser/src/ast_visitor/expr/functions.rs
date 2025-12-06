@@ -183,7 +183,10 @@ impl LogicalPlanBuilder {
             }
         };
 
-        let unit = interval.leading_field.as_ref().map(|f| f.to_string().to_uppercase());
+        let unit = interval
+            .leading_field
+            .as_ref()
+            .map(|f| f.to_string().to_uppercase());
 
         Ok(Expr::Function {
             name: yachtsql_ir::FunctionName::Custom("INTERVAL_PARSE".to_string()),

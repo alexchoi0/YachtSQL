@@ -1,5 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 #[cfg(target_arch = "aarch64")]
 use yachtsql_storage::simd::{
     avg_f64, avg_i64, count_nonzero_i64, filter_eq_i64, filter_gt_f64, filter_gt_i64,
@@ -176,7 +175,9 @@ fn benchmark_count_nonzero(c: &mut Criterion) {
     let mut group = c.benchmark_group("count_nonzero_i64");
 
     for size in [100, 1_000, 10_000, 100_000].iter() {
-        let data: Vec<i64> = (0..*size as i64).map(|i| if i % 5 == 0 { 0 } else { i }).collect();
+        let data: Vec<i64> = (0..*size as i64)
+            .map(|i| if i % 5 == 0 { 0 } else { i })
+            .collect();
 
         #[cfg(target_arch = "aarch64")]
         group.bench_with_input(BenchmarkId::new("simd", size), size, |b, _| {

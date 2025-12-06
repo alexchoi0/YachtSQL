@@ -6,11 +6,7 @@ use super::super::super::ProjectionWithExprExec;
 use crate::RecordBatch;
 
 impl ProjectionWithExprExec {
-    pub(super) fn eval_gamma(
-        args: &[Expr],
-        batch: &RecordBatch,
-        row_idx: usize,
-    ) -> Result<Value> {
+    pub(super) fn eval_gamma(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query("GAMMA requires exactly 1 argument"));
         }
@@ -36,11 +32,7 @@ impl ProjectionWithExprExec {
         Ok(Value::float64(result))
     }
 
-    pub(super) fn eval_lgamma(
-        args: &[Expr],
-        batch: &RecordBatch,
-        row_idx: usize,
-    ) -> Result<Value> {
+    pub(super) fn eval_lgamma(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query("LGAMMA requires exactly 1 argument"));
         }

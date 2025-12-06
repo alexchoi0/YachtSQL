@@ -168,7 +168,7 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
                             let inet_broadcast = InetAddr::new(broadcast);
                             Ok(Value::inet(inet_broadcast))
                         }
-                        None => Ok(args[0].clone())
+                        None => Ok(args[0].clone()),
                     }
                 } else {
                     Err(Error::TypeMismatch {

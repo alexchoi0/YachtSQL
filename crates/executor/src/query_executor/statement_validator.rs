@@ -361,7 +361,9 @@ impl<'a> StatementValidator<'a> {
                     }
                 }
 
-                if Self::is_aggregate_function(&func_name_upper) && context == ValidationContext::Where {
+                if Self::is_aggregate_function(&func_name_upper)
+                    && context == ValidationContext::Where
+                {
                     return Err(Error::InvalidQuery(
                         "Aggregate functions are not allowed in WHERE clause".to_string(),
                     ));

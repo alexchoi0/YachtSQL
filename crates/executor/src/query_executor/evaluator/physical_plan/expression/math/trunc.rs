@@ -52,12 +52,24 @@ impl ProjectionWithExprExec {
             Ok(Value::numeric(d.trunc_with_scale(decimals.max(0) as u32)))
         } else if let Some(mac) = val.as_macaddr() {
             let truncated = yachtsql_core::types::MacAddress::new_macaddr([
-                mac.octets[0], mac.octets[1], mac.octets[2], 0, 0, 0,
+                mac.octets[0],
+                mac.octets[1],
+                mac.octets[2],
+                0,
+                0,
+                0,
             ]);
             Ok(Value::macaddr(truncated))
         } else if let Some(mac8) = val.as_macaddr8() {
             let truncated = yachtsql_core::types::MacAddress::new_macaddr8([
-                mac8.octets[0], mac8.octets[1], mac8.octets[2], mac8.octets[3], 0, 0, 0, 0,
+                mac8.octets[0],
+                mac8.octets[1],
+                mac8.octets[2],
+                mac8.octets[3],
+                0,
+                0,
+                0,
+                0,
             ]);
             Ok(Value::macaddr8(truncated))
         } else {

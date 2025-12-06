@@ -7,7 +7,7 @@ use yachtsql_optimizer::expr::{BinaryOp, Expr, LiteralValue};
 use yachtsql_optimizer::plan::PlanNode;
 
 use super::physical_plan::{
-    CachedSubqueryResult, CORRELATION_CONTEXT, SubqueryExecutor, UNCORRELATED_SUBQUERY_CACHE,
+    CORRELATION_CONTEXT, CachedSubqueryResult, SubqueryExecutor, UNCORRELATED_SUBQUERY_CACHE,
     hash_plan,
 };
 use crate::DialectType;
@@ -717,15 +717,12 @@ impl SubqueryExecutor for SubqueryExecutorImpl {
         if is_uncorrelated {
             let plan_hash = hash_plan(plan);
             let cached = UNCORRELATED_SUBQUERY_CACHE.with(|cache| {
-                cache
-                    .borrow()
-                    .get(&plan_hash)
-                    .map(|result| match result {
-                        CachedSubqueryResult::Scalar(v) => Ok(v.clone()),
-                        _ => Err(Error::InternalError(
-                            "Cache type mismatch for scalar subquery".to_string(),
-                        )),
-                    })
+                cache.borrow().get(&plan_hash).map(|result| match result {
+                    CachedSubqueryResult::Scalar(v) => Ok(v.clone()),
+                    _ => Err(Error::InternalError(
+                        "Cache type mismatch for scalar subquery".to_string(),
+                    )),
+                })
             });
 
             if let Some(result) = cached {

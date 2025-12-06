@@ -310,10 +310,7 @@ impl LogicalToPhysicalPlanner {
             yachtsql_ir::expr::Expr::Cast { expr, .. } => self.get_expr_table(expr),
             yachtsql_ir::expr::Expr::TryCast { expr, .. } => self.get_expr_table(expr),
             yachtsql_ir::expr::Expr::UnaryOp { expr, .. } => self.get_expr_table(expr),
-            _ => panic!(
-                "get_expr_table: unhandled expression type: {:?}",
-                expr
-            ),
+            _ => panic!("get_expr_table: unhandled expression type: {:?}", expr),
         }
     }
 
@@ -707,7 +704,10 @@ impl LogicalToPhysicalPlanner {
                     | FunctionName::Floor
                     | FunctionName::Round
                     | FunctionName::Sign => DataType::Int64,
-                    FunctionName::Coalesce | FunctionName::Nullif | FunctionName::Greatest | FunctionName::Least => {
+                    FunctionName::Coalesce
+                    | FunctionName::Nullif
+                    | FunctionName::Greatest
+                    | FunctionName::Least => {
                         if let Some(first_arg) = args.first() {
                             self.infer_expr_type(first_arg, schema)
                         } else {
@@ -716,17 +716,13 @@ impl LogicalToPhysicalPlanner {
                     }
                     FunctionName::CurrentTime | FunctionName::Localtime => DataType::Time,
                     FunctionName::CurrentDate => DataType::Date,
-                    FunctionName::CurrentTimestamp | FunctionName::Localtimestamp | FunctionName::Now => DataType::Timestamp,
-                    _ => panic!(
-                        "infer_expr_type: unhandled function: {:?}",
-                        name
-                    ),
+                    FunctionName::CurrentTimestamp
+                    | FunctionName::Localtimestamp
+                    | FunctionName::Now => DataType::Timestamp,
+                    _ => panic!("infer_expr_type: unhandled function: {:?}", name),
                 }
             }
-            _ => panic!(
-                "infer_expr_type: unhandled expression type: {:?}",
-                expr
-            ),
+            _ => panic!("infer_expr_type: unhandled expression type: {:?}", expr),
         }
     }
 
@@ -1556,10 +1552,7 @@ impl LogicalToPhysicalPlanner {
                 LiteralValue::MacAddr(_) => DataType::MacAddr,
                 LiteralValue::MacAddr8(_) => DataType::MacAddr8,
             },
-            _ => panic!(
-                "infer_literal_type: unhandled expression type: {:?}",
-                expr
-            ),
+            _ => panic!("infer_literal_type: unhandled expression type: {:?}", expr),
         }
     }
 

@@ -556,7 +556,8 @@ impl ExecutionPlan for ProjectionWithExprExec {
                         *ctx.borrow_mut() = Some(correlation_ctx);
                     });
 
-                    let mut row_values: Vec<yachtsql_core::types::Value> = Vec::with_capacity(self.expressions.len());
+                    let mut row_values: Vec<yachtsql_core::types::Value> =
+                        Vec::with_capacity(self.expressions.len());
                     let mut srf_expansion_count = 1usize;
 
                     for (expr_idx, (expr, _alias)) in self.expressions.iter().enumerate() {
@@ -582,7 +583,8 @@ impl ExecutionPlan for ProjectionWithExprExec {
                     });
 
                     for expansion_idx in 0..srf_expansion_count {
-                        let mut expanded_row: Vec<yachtsql_core::types::Value> = Vec::with_capacity(self.expressions.len());
+                        let mut expanded_row: Vec<yachtsql_core::types::Value> =
+                            Vec::with_capacity(self.expressions.len());
                         for (expr_idx, value) in row_values.iter().enumerate() {
                             if srf_indices.contains(&expr_idx) {
                                 if let Some(arr) = value.as_array() {

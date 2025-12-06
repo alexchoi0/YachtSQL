@@ -54,7 +54,10 @@ fn infer_aggregate_type_with_input_plan(agg_expr: &Expr, input: &PlanNode) -> Op
 
                     Some(DataType::Numeric(None))
                 }
-                FunctionName::Min | FunctionName::Minimum | FunctionName::Max | FunctionName::Maximum => {
+                FunctionName::Min
+                | FunctionName::Minimum
+                | FunctionName::Max
+                | FunctionName::Maximum => {
                     if let Some(arg) = args.first() {
                         if let Some(col_type) = infer_column_type_from_plan(arg, input) {
                             return Some(col_type);
@@ -109,9 +112,7 @@ fn infer_expr_type_basic(expr: &Expr) -> Option<DataType> {
     match expr {
         Expr::Literal(lit) => Some(literal_type(lit)),
         Expr::Function { name, .. } => function_return_type(name),
-        Expr::Aggregate { name, args, .. } => {
-            aggregate_return_type_with_input(name, args.first())
-        }
+        Expr::Aggregate { name, args, .. } => aggregate_return_type_with_input(name, args.first()),
         Expr::Cast { data_type, .. } | Expr::TryCast { data_type, .. } => {
             Some(cast_data_type_to_data_type(data_type))
         }
@@ -283,15 +284,27 @@ pub fn format_interval(interval: &yachtsql_core::types::Interval) -> String {
         let years = interval.months / 12;
         let months = interval.months % 12;
         if years != 0 {
-            parts.push(format!("{} year{}", years, if years.abs() != 1 { "s" } else { "" }));
+            parts.push(format!(
+                "{} year{}",
+                years,
+                if years.abs() != 1 { "s" } else { "" }
+            ));
         }
         if months != 0 {
-            parts.push(format!("{} mon{}", months, if months.abs() != 1 { "s" } else { "" }));
+            parts.push(format!(
+                "{} mon{}",
+                months,
+                if months.abs() != 1 { "s" } else { "" }
+            ));
         }
     }
 
     if interval.days != 0 {
-        parts.push(format!("{} day{}", interval.days, if interval.days.abs() != 1 { "s" } else { "" }));
+        parts.push(format!(
+            "{} day{}",
+            interval.days,
+            if interval.days.abs() != 1 { "s" } else { "" }
+        ));
     }
 
     if interval.micros != 0 || parts.is_empty() {
@@ -301,11 +314,19 @@ pub fn format_interval(interval: &yachtsql_core::types::Interval) -> String {
         let seconds = total_seconds % 60;
         let micros = interval.micros.abs() % 1_000_000;
 
-        let sign = if interval.micros < 0 && (hours > 0 || minutes > 0 || seconds > 0 || micros > 0) { "-" } else { "" };
+        let sign = if interval.micros < 0 && (hours > 0 || minutes > 0 || seconds > 0 || micros > 0)
+        {
+            "-"
+        } else {
+            ""
+        };
 
         if hours > 0 || minutes > 0 || seconds > 0 || micros > 0 {
             if micros > 0 {
-                parts.push(format!("{}{}:{:02}:{:02}.{:06}", sign, hours, minutes, seconds, micros));
+                parts.push(format!(
+                    "{}{}:{:02}:{:02}.{:06}",
+                    sign, hours, minutes, seconds, micros
+                ));
             } else {
                 parts.push(format!("{}{}:{:02}:{:02}", sign, hours, minutes, seconds));
             }

@@ -1,7 +1,7 @@
 use yachtsql_core::error::Result;
 use yachtsql_core::types::Value;
 use yachtsql_functions::fulltext::{
-    self, parse_tsvector, tsquery_to_string, tsvector_to_string, HeadlineOptions, Weight,
+    self, HeadlineOptions, Weight, parse_tsvector, tsquery_to_string, tsvector_to_string,
 };
 use yachtsql_optimizer::expr::Expr;
 
@@ -51,10 +51,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let text = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let text = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let vector = fulltext::to_tsvector(text);
         Ok(Value::string(tsvector_to_string(&vector)))
     }
@@ -69,10 +71,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let text = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let text = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let query = fulltext::to_tsquery(text)?;
         Ok(Value::string(tsquery_to_string(&query)))
     }
@@ -87,10 +91,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let text = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let text = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let query = fulltext::plainto_tsquery(text);
         Ok(Value::string(tsquery_to_string(&query)))
     }
@@ -105,10 +111,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let text = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let text = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let query = fulltext::phraseto_tsquery(text);
         Ok(Value::string(tsquery_to_string(&query)))
     }
@@ -127,10 +135,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let text = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let text = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let query = fulltext::websearch_to_tsquery(text);
         Ok(Value::string(tsquery_to_string(&query)))
     }
@@ -146,20 +156,18 @@ impl ProjectionWithExprExec {
         if vector_val.is_null() || query_val.is_null() {
             return Ok(Value::null());
         }
-        let vector_str =
-            vector_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: vector_val.data_type().to_string(),
-                })?;
-        let query_str =
-            query_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: query_val.data_type().to_string(),
-                })?;
+        let vector_str = vector_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: vector_val.data_type().to_string(),
+            })?;
+        let query_str = query_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: query_val.data_type().to_string(),
+            })?;
         let vector = parse_tsvector(vector_str)?;
         let query = fulltext::to_tsquery(query_str)?;
         Ok(Value::bool_val(query.matches(&vector)))
@@ -176,20 +184,18 @@ impl ProjectionWithExprExec {
         if vector_val.is_null() || query_val.is_null() {
             return Ok(Value::null());
         }
-        let vector_str =
-            vector_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: vector_val.data_type().to_string(),
-                })?;
-        let query_str =
-            query_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: query_val.data_type().to_string(),
-                })?;
+        let vector_str = vector_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: vector_val.data_type().to_string(),
+            })?;
+        let query_str = query_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: query_val.data_type().to_string(),
+            })?;
         let vector = parse_tsvector(vector_str)?;
         let query = fulltext::to_tsquery(query_str)?;
         let score = fulltext::ts_rank(&vector, &query);
@@ -207,20 +213,18 @@ impl ProjectionWithExprExec {
         if vector_val.is_null() || query_val.is_null() {
             return Ok(Value::null());
         }
-        let vector_str =
-            vector_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: vector_val.data_type().to_string(),
-                })?;
-        let query_str =
-            query_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: query_val.data_type().to_string(),
-                })?;
+        let vector_str = vector_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: vector_val.data_type().to_string(),
+            })?;
+        let query_str = query_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: query_val.data_type().to_string(),
+            })?;
         let vector = parse_tsvector(vector_str)?;
         let query = fulltext::to_tsquery(query_str)?;
         let score = fulltext::ts_rank_cd(&vector, &query);
@@ -267,20 +271,18 @@ impl ProjectionWithExprExec {
         if doc_val.is_null() || query_val.is_null() {
             return Ok(Value::null());
         }
-        let document =
-            doc_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: doc_val.data_type().to_string(),
-                })?;
-        let query_str =
-            query_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: query_val.data_type().to_string(),
-                })?;
+        let document = doc_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: doc_val.data_type().to_string(),
+            })?;
+        let query_str = query_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: query_val.data_type().to_string(),
+            })?;
         let query = fulltext::to_tsquery(query_str)?;
         let options = HeadlineOptions::default();
         let headline = fulltext::ts_headline(document, &query, &options);
@@ -298,20 +300,18 @@ impl ProjectionWithExprExec {
         if vector_val.is_null() || weight_val.is_null() {
             return Ok(Value::null());
         }
-        let vector_str =
-            vector_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: vector_val.data_type().to_string(),
-                })?;
-        let weight_str =
-            weight_val
-                .as_str()
-                .ok_or_else(|| crate::error::Error::TypeMismatch {
-                    expected: "STRING".to_string(),
-                    actual: weight_val.data_type().to_string(),
-                })?;
+        let vector_str = vector_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: vector_val.data_type().to_string(),
+            })?;
+        let weight_str = weight_val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: weight_val.data_type().to_string(),
+            })?;
         let weight = weight_str
             .chars()
             .next()
@@ -337,10 +337,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let vector_str = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let vector_str = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let vector = parse_tsvector(vector_str)?;
         let stripped = fulltext::tsvector_strip(&vector);
         Ok(Value::string(tsvector_to_string(&stripped)))
@@ -356,10 +358,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let vector_str = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let vector_str = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let vector = parse_tsvector(vector_str)?;
         Ok(Value::int64(fulltext::tsvector_length(&vector)))
     }
@@ -374,10 +378,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let query_str = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let query_str = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let _query = fulltext::to_tsquery(query_str)?;
         Ok(Value::int64(1))
     }
@@ -392,10 +398,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let query_str = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let query_str = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let query = fulltext::to_tsquery(query_str)?;
         Ok(Value::string(tsquery_to_string(&query)))
     }
@@ -468,10 +476,12 @@ impl ProjectionWithExprExec {
         if val.is_null() {
             return Ok(Value::null());
         }
-        let query_str = val.as_str().ok_or_else(|| crate::error::Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
+        let query_str = val
+            .as_str()
+            .ok_or_else(|| crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            })?;
         let query = fulltext::to_tsquery(query_str)?;
         let result = query.negate();
         Ok(Value::string(tsquery_to_string(&result)))

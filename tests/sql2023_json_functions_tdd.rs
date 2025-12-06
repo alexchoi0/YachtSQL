@@ -374,11 +374,7 @@ fn test_json_object_empty() {
 
     assert_eq!(result.num_rows(), 1);
     let json_str = get_json_string(&result, 0, 0);
-    assert!(
-        json_str == "{}",
-        "Expected empty object, got: {}",
-        json_str
-    );
+    assert!(json_str == "{}", "Expected empty object, got: {}", json_str);
 }
 
 #[test]
@@ -420,11 +416,7 @@ fn test_json_array_empty() {
 
     assert_eq!(result.num_rows(), 1);
     let json_str = get_json_string(&result, 0, 0);
-    assert!(
-        json_str == "[]",
-        "Expected empty array, got: {}",
-        json_str
-    );
+    assert!(json_str == "[]", "Expected empty array, got: {}", json_str);
 }
 
 #[test]

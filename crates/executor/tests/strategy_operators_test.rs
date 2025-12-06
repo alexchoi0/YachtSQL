@@ -112,13 +112,7 @@ fn test_join_strategy_selects_nested_loop_for_non_equi_join() {
 
 #[test]
 fn test_join_strategy_selects_index_when_available() {
-    let strategy = JoinStrategy::select(
-        false,
-        false,
-        true,
-        Some("idx_user_id"),
-        Some(100),
-    );
+    let strategy = JoinStrategy::select(false, false, true, Some("idx_user_id"), Some(100));
     assert!(
         matches!(strategy, JoinStrategy::IndexNestedLoop { .. }),
         "Expected IndexNestedLoop when index is available and outer is small"
@@ -127,8 +121,11 @@ fn test_join_strategy_selects_index_when_available() {
 
 #[test]
 fn test_aggregate_strategy_selects_sort_for_sorted_input() {
-    let strategy =
-        AggregateStrategy::select_with_columns(true, &["category".to_string()], &["category".to_string()]);
+    let strategy = AggregateStrategy::select_with_columns(
+        true,
+        &["category".to_string()],
+        &["category".to_string()],
+    );
     assert!(
         matches!(strategy, AggregateStrategy::Sort),
         "Expected Sort aggregate for sorted input on group-by columns"
@@ -146,8 +143,11 @@ fn test_aggregate_strategy_selects_hash_for_unsorted_input() {
 
 #[test]
 fn test_aggregate_strategy_selects_hash_when_sort_columns_dont_match() {
-    let strategy =
-        AggregateStrategy::select_with_columns(true, &["name".to_string()], &["category".to_string()]);
+    let strategy = AggregateStrategy::select_with_columns(
+        true,
+        &["name".to_string()],
+        &["category".to_string()],
+    );
     assert!(
         matches!(strategy, AggregateStrategy::Hash),
         "Expected Hash aggregate when sort columns don't match group-by columns"
@@ -202,8 +202,7 @@ fn test_merge_join_inner_join() {
     );
 
     let on_conditions = vec![(left_key, right_key)];
-    let merge_join =
-        MergeJoinExec::new(left, right, JoinType::Inner, on_conditions).unwrap();
+    let merge_join = MergeJoinExec::new(left, right, JoinType::Inner, on_conditions).unwrap();
 
     let result = merge_join.execute().unwrap();
     let total_rows: usize = result.iter().map(|b| b.num_rows()).sum();

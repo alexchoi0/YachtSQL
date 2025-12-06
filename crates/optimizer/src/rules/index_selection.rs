@@ -258,10 +258,8 @@ mod tests {
             100_000,
         ));
 
-        let rule = IndexSelectionRule::with_catalog_and_statistics(
-            Arc::new(catalog),
-            Arc::new(stats),
-        );
+        let rule =
+            IndexSelectionRule::with_catalog_and_statistics(Arc::new(catalog), Arc::new(stats));
 
         let plan = create_filter_scan("users", "id", 42);
         let result = rule.optimize(&plan).unwrap();
@@ -307,10 +305,8 @@ mod tests {
             50,
         ));
 
-        let rule = IndexSelectionRule::with_catalog_and_statistics(
-            Arc::new(catalog),
-            Arc::new(stats),
-        );
+        let rule =
+            IndexSelectionRule::with_catalog_and_statistics(Arc::new(catalog), Arc::new(stats));
 
         let plan = create_filter_scan("users", "id", 42);
         let result = rule.optimize(&plan).unwrap();
@@ -370,10 +366,8 @@ mod tests {
             100_000,
         ));
 
-        let rule = IndexSelectionRule::with_catalog_and_statistics(
-            Arc::new(catalog),
-            Arc::new(stats),
-        );
+        let rule =
+            IndexSelectionRule::with_catalog_and_statistics(Arc::new(catalog), Arc::new(stats));
 
         let plan = create_filter_scan("users", "id", 42);
         let result = rule.optimize(&plan).unwrap();

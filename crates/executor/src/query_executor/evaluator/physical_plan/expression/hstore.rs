@@ -23,7 +23,9 @@ impl ProjectionWithExprExec {
             }
             "HSTORE_EXISTS_ALL" => {
                 if args.len() != 2 {
-                    return Err(Error::invalid_query("HSTORE_EXISTS_ALL requires 2 arguments"));
+                    return Err(Error::invalid_query(
+                        "HSTORE_EXISTS_ALL requires 2 arguments",
+                    ));
                 }
                 let hstore = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let keys = Self::evaluate_expr(&args[1], batch, row_idx)?;
@@ -31,7 +33,9 @@ impl ProjectionWithExprExec {
             }
             "HSTORE_EXISTS_ANY" => {
                 if args.len() != 2 {
-                    return Err(Error::invalid_query("HSTORE_EXISTS_ANY requires 2 arguments"));
+                    return Err(Error::invalid_query(
+                        "HSTORE_EXISTS_ANY requires 2 arguments",
+                    ));
                 }
                 let hstore = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let keys = Self::evaluate_expr(&args[1], batch, row_idx)?;
@@ -55,7 +59,9 @@ impl ProjectionWithExprExec {
             }
             "HSTORE_DELETE_KEYS" => {
                 if args.len() != 2 {
-                    return Err(Error::invalid_query("HSTORE_DELETE_KEYS requires 2 arguments"));
+                    return Err(Error::invalid_query(
+                        "HSTORE_DELETE_KEYS requires 2 arguments",
+                    ));
                 }
                 let hstore = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let keys = Self::evaluate_expr(&args[1], batch, row_idx)?;
@@ -172,7 +178,9 @@ impl ProjectionWithExprExec {
             }
             "HSTORE_GET_VALUES" => {
                 if args.len() != 2 {
-                    return Err(Error::invalid_query("HSTORE_GET_VALUES requires 2 arguments"));
+                    return Err(Error::invalid_query(
+                        "HSTORE_GET_VALUES requires 2 arguments",
+                    ));
                 }
                 let hstore = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let keys = Self::evaluate_expr(&args[1], batch, row_idx)?;

@@ -201,10 +201,7 @@ impl SubqueryFlattening {
         tables
     }
 
-    fn collect_tables_recursive(
-        plan: &PlanNode,
-        tables: &mut std::collections::HashSet<String>,
-    ) {
+    fn collect_tables_recursive(plan: &PlanNode, tables: &mut std::collections::HashSet<String>) {
         match plan {
             PlanNode::Scan {
                 table_name, alias, ..
@@ -251,12 +248,7 @@ impl SubqueryFlattening {
                 right,
             } => {
                 Self::split_conditions_recursive(left, inner_tables, correlation, non_correlation);
-                Self::split_conditions_recursive(
-                    right,
-                    inner_tables,
-                    correlation,
-                    non_correlation,
-                );
+                Self::split_conditions_recursive(right, inner_tables, correlation, non_correlation);
             }
             _ => {
                 if Self::references_outer_table(expr, inner_tables) {

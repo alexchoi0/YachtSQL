@@ -1455,9 +1455,7 @@ fn test_correlated_scalar_subquery_without_alias() {
 
     executor.execute_sql("DROP TABLE IF EXISTS orders").unwrap();
     executor
-        .execute_sql(
-            "CREATE TABLE orders (order_id INT64, customer STRING, amount INT64)",
-        )
+        .execute_sql("CREATE TABLE orders (order_id INT64, customer STRING, amount INT64)")
         .unwrap();
     executor
         .execute_sql(
@@ -1501,7 +1499,9 @@ fn test_correlated_scalar_subquery_without_alias() {
 fn test_correlated_exists_employees_with_orders() {
     let mut executor = setup_executor();
 
-    executor.execute_sql("DROP TABLE IF EXISTS employees").unwrap();
+    executor
+        .execute_sql("DROP TABLE IF EXISTS employees")
+        .unwrap();
     executor.execute_sql("DROP TABLE IF EXISTS orders").unwrap();
     executor
         .execute_sql("CREATE TABLE employees (id INT64, name STRING)")
@@ -1534,7 +1534,9 @@ fn test_correlated_exists_employees_with_orders() {
 fn test_correlated_not_exists_employees_without_orders() {
     let mut executor = setup_executor();
 
-    executor.execute_sql("DROP TABLE IF EXISTS employees").unwrap();
+    executor
+        .execute_sql("DROP TABLE IF EXISTS employees")
+        .unwrap();
     executor.execute_sql("DROP TABLE IF EXISTS orders").unwrap();
     executor
         .execute_sql("CREATE TABLE employees (id INT64, name STRING)")
@@ -1566,7 +1568,9 @@ fn test_correlated_not_exists_employees_without_orders() {
 fn test_correlated_exists_with_additional_filter() {
     let mut executor = setup_executor();
 
-    executor.execute_sql("DROP TABLE IF EXISTS customers").unwrap();
+    executor
+        .execute_sql("DROP TABLE IF EXISTS customers")
+        .unwrap();
     executor.execute_sql("DROP TABLE IF EXISTS orders").unwrap();
     executor
         .execute_sql("CREATE TABLE customers (id INT64, name STRING, tier STRING)")
@@ -1599,8 +1603,12 @@ fn test_correlated_exists_with_additional_filter() {
 fn test_correlated_in_subquery_departments() {
     let mut executor = setup_executor();
 
-    executor.execute_sql("DROP TABLE IF EXISTS employees").unwrap();
-    executor.execute_sql("DROP TABLE IF EXISTS departments").unwrap();
+    executor
+        .execute_sql("DROP TABLE IF EXISTS employees")
+        .unwrap();
+    executor
+        .execute_sql("DROP TABLE IF EXISTS departments")
+        .unwrap();
     executor
         .execute_sql("CREATE TABLE employees (id INT64, name STRING, dept_id INT64)")
         .unwrap();
@@ -1611,7 +1619,9 @@ fn test_correlated_in_subquery_departments() {
         .execute_sql("INSERT INTO employees VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Carol', 3)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO departments VALUES (1, 'HR', 1), (2, 'Engineering', 1), (3, 'Sales', 0)")
+        .execute_sql(
+            "INSERT INTO departments VALUES (1, 'HR', 1), (2, 'Engineering', 1), (3, 'Sales', 0)",
+        )
         .unwrap();
 
     let result = executor
@@ -1632,8 +1642,12 @@ fn test_correlated_in_subquery_departments() {
 fn test_correlated_not_in_subquery_departments() {
     let mut executor = setup_executor();
 
-    executor.execute_sql("DROP TABLE IF EXISTS employees").unwrap();
-    executor.execute_sql("DROP TABLE IF EXISTS departments").unwrap();
+    executor
+        .execute_sql("DROP TABLE IF EXISTS employees")
+        .unwrap();
+    executor
+        .execute_sql("DROP TABLE IF EXISTS departments")
+        .unwrap();
     executor
         .execute_sql("CREATE TABLE employees (id INT64, name STRING, dept_id INT64)")
         .unwrap();
@@ -1644,7 +1658,9 @@ fn test_correlated_not_in_subquery_departments() {
         .execute_sql("INSERT INTO employees VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Carol', 3)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO departments VALUES (1, 'HR', 1), (2, 'Engineering', 1), (3, 'Sales', 0)")
+        .execute_sql(
+            "INSERT INTO departments VALUES (1, 'HR', 1), (2, 'Engineering', 1), (3, 'Sales', 0)",
+        )
         .unwrap();
 
     let result = executor

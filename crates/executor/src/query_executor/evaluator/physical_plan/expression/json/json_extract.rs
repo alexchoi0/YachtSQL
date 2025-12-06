@@ -24,7 +24,10 @@ impl ProjectionWithExprExec {
             let key = right_val
                 .as_str()
                 .ok_or_else(|| Error::invalid_query("hstore key must be a string"))?;
-            return yachtsql_functions::hstore::hstore_get(&left_val, &Value::string(key.to_string()));
+            return yachtsql_functions::hstore::hstore_get(
+                &left_val,
+                &Value::string(key.to_string()),
+            );
         }
 
         let path_str = right_val
