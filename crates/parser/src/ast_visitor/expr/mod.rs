@@ -549,6 +549,18 @@ impl LogicalPlanBuilder {
                 })
             }
 
+            ast::Expr::AtTimeZone {
+                timestamp,
+                time_zone,
+            } => {
+                let ts_expr = self.sql_expr_to_expr(timestamp)?;
+                let tz_expr = self.sql_expr_to_expr(time_zone)?;
+                Ok(Expr::Function {
+                    name: yachtsql_ir::FunctionName::from_str("AT_TIME_ZONE"),
+                    args: vec![ts_expr, tz_expr],
+                })
+            }
+
             _ => Err(Error::unsupported_feature(format!(
                 "Expression type not supported: {:?}",
                 expr

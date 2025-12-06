@@ -524,7 +524,10 @@ impl QueryExecutor {
                 format!("{}()", func.name)
             }
             Expr::BinaryOp { .. } => "expr".to_string(),
-            _ => "column".to_string(),
+            _ => panic!(
+                "expr_to_column_name: unhandled expression type: {:?}",
+                expr
+            ),
         }
     }
 
@@ -713,10 +716,16 @@ impl QueryExecutor {
                     GeometricTypeKind::Point => Ok(DataType::Point),
                     GeometricTypeKind::GeometricBox => Ok(DataType::PgBox),
                     GeometricTypeKind::Circle => Ok(DataType::Circle),
-                    _ => Ok(DataType::String),
+                    _ => panic!(
+                        "sql_data_type_to_data_type: unhandled GeometricTypeKind: {:?}",
+                        kind
+                    ),
                 }
             }
-            _ => Ok(DataType::String),
+            _ => panic!(
+                "sql_data_type_to_data_type: unhandled SqlDataType: {:?}",
+                sql_type
+            ),
         }
     }
 
@@ -1132,7 +1141,10 @@ impl QueryExecutor {
             }
 
             Expr::Interval(_) => Ok(DataType::Interval),
-            _ => Ok(DataType::String),
+            _ => panic!(
+                "infer_expression_type: unhandled expression type: {:?}",
+                expr
+            ),
         }
     }
 

@@ -1320,12 +1320,6 @@ impl LogicalPlanBuilder {
             return Ok(LogicalPlan::new(PlanNode::EmptyRelation));
         }
 
-        if from.len() > 1 {
-            return Err(Error::unsupported_feature(
-                "Multiple tables in FROM not yet supported".to_string(),
-            ));
-        }
-
         let table_with_joins = &from[0];
         let mut plan = self.table_factor_to_plan(&table_with_joins.relation)?;
 
@@ -1416,6 +1410,102 @@ impl LogicalPlanBuilder {
                     join_type,
                 })
             };
+        }
+
+        for table_with_joins in from.iter().skip(1) {
+            let right_plan = self.table_factor_to_plan(&table_with_joins.relation)?;
+            plan = LogicalPlan::new(PlanNode::Join {
+                left: plan.root,
+                right: right_plan.root,
+                on: Expr::Literal(LiteralValue::Boolean(true)),
+                join_type: JoinType::Cross,
+            });
+
+            for join in &table_with_joins.joins {
+                let is_lateral = Self::is_lateral_derived_table(&join.relation);
+
+                let right_plan = self.plan_join_relation(&join.relation, &plan)?;
+
+                let join_type = match join.join_operator {
+                    ast::JoinOperator::Join(_) => JoinType::Inner,
+                    ast::JoinOperator::Inner(_) => JoinType::Inner,
+                    ast::JoinOperator::Left(_) => JoinType::Left,
+                    ast::JoinOperator::LeftOuter(_) => JoinType::Left,
+                    ast::JoinOperator::Right(_) => JoinType::Right,
+                    ast::JoinOperator::RightOuter(_) => JoinType::Right,
+                    ast::JoinOperator::FullOuter(_) => JoinType::Full,
+                    ast::JoinOperator::CrossJoin(_) => JoinType::Cross,
+                    ast::JoinOperator::CrossApply => JoinType::Cross,
+                    ast::JoinOperator::OuterApply => JoinType::Left,
+                    _ => {
+                        return Err(Error::unsupported_feature(
+                            "Join type not supported".to_string(),
+                        ));
+                    }
+                };
+
+                let is_apply = matches!(
+                    join.join_operator,
+                    ast::JoinOperator::CrossApply | ast::JoinOperator::OuterApply
+                );
+                let is_lateral = is_lateral || is_apply;
+
+                let on_expr = match &join.join_operator {
+                    ast::JoinOperator::Join(ast::JoinConstraint::On(expr))
+                    | ast::JoinOperator::Inner(ast::JoinConstraint::On(expr))
+                    | ast::JoinOperator::Left(ast::JoinConstraint::On(expr))
+                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::On(expr))
+                    | ast::JoinOperator::Right(ast::JoinConstraint::On(expr))
+                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::On(expr))
+                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::On(expr)) => {
+                        self.sql_expr_to_expr(expr)?
+                    }
+                    ast::JoinOperator::Join(ast::JoinConstraint::Using(cols))
+                    | ast::JoinOperator::Inner(ast::JoinConstraint::Using(cols))
+                    | ast::JoinOperator::Left(ast::JoinConstraint::Using(cols))
+                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Using(cols))
+                    | ast::JoinOperator::Right(ast::JoinConstraint::Using(cols))
+                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(cols))
+                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(cols)) => {
+                        let ident_cols = Self::object_names_to_idents(cols)?;
+                        self.build_using_condition(&ident_cols)?
+                    }
+                    ast::JoinOperator::Join(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::Left(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::LeftOuter(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::Right(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
+                    | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
+                        self.build_natural_join_condition(&plan, &right_plan)?
+                    }
+                    ast::JoinOperator::CrossJoin(_) => Expr::Literal(LiteralValue::Boolean(true)),
+                    ast::JoinOperator::CrossApply | ast::JoinOperator::OuterApply => {
+                        Expr::Literal(LiteralValue::Boolean(true))
+                    }
+                    _ => {
+                        return Err(Error::unsupported_feature(
+                            "Join constraint not supported".to_string(),
+                        ));
+                    }
+                };
+
+                plan = if is_lateral {
+                    LogicalPlan::new(PlanNode::LateralJoin {
+                        left: plan.root,
+                        right: right_plan.root,
+                        on: on_expr,
+                        join_type,
+                    })
+                } else {
+                    LogicalPlan::new(PlanNode::Join {
+                        left: plan.root,
+                        right: right_plan.root,
+                        on: on_expr,
+                        join_type,
+                    })
+                };
+            }
         }
 
         Ok(plan)

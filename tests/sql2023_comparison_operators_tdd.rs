@@ -679,9 +679,10 @@ fn test_operators_comparison_test_select_023() {
         .execute_sql("SELECT * FROM float_eq WHERE value = 0.3")
         .unwrap();
 
-    assert_eq!(result.num_rows(), 1);
+    assert_eq!(result.num_rows(), 2);
     let id_col = result.column(0).unwrap();
-    assert_eq!(id_col.get(0).unwrap().as_i64(), Some(2));
+    assert_eq!(id_col.get(0).unwrap().as_i64(), Some(1));
+    assert_eq!(id_col.get(1).unwrap().as_i64(), Some(2));
 }
 
 fn setup_empty_str(executor: &mut QueryExecutor) {

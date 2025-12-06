@@ -38,7 +38,6 @@ impl Phase {
 
 pub struct PhasedRule {
     pub rule: Box<dyn OptimizationRule>,
-
     pub phase: Phase,
 }
 
@@ -51,11 +50,8 @@ impl PhasedRule {
 #[derive(Debug, Clone, Copy)]
 pub struct PhaseConfig {
     pub max_iterations: usize,
-
     pub enable_telemetry: bool,
-
     pub time_budget_micros: Option<u64>,
-
     pub storage_type: StorageType,
 }
 

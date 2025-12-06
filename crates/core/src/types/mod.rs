@@ -2684,16 +2684,14 @@ fn parse_timestamp_with_named_timezone(timestamp_str: &str) -> Option<DateTime<U
             return None;
         }
 
-        if let Ok(tz) = potential_tz.parse::<Tz>() {
-            if let Ok(naive) = NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%d %H:%M:%S")
+        if let Ok(tz) = potential_tz.parse::<Tz>()
+            && let Ok(naive) = NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%d %H:%M:%S")
                 .or_else(|_| NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%d %H:%M:%S%.f"))
                 .or_else(|_| NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%dT%H:%M:%S"))
                 .or_else(|_| NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%dT%H:%M:%S%.f"))
-            {
-                if let Some(local_dt) = tz.from_local_datetime(&naive).earliest() {
-                    return Some(local_dt.with_timezone(&Utc));
-                }
-            }
+            && let Some(local_dt) = tz.from_local_datetime(&naive).earliest()
+        {
+            return Some(local_dt.with_timezone(&Utc));
         }
 
         let tz_offset = match potential_tz.to_uppercase().as_str() {
@@ -2709,19 +2707,16 @@ fn parse_timestamp_with_named_timezone(timestamp_str: &str) -> Option<DateTime<U
             _ => None,
         };
 
-        if let Some(offset_seconds) = tz_offset {
-            if let Ok(naive) = NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%d %H:%M:%S")
+        use chrono::FixedOffset;
+        if let Some(offset_seconds) = tz_offset
+            && let Ok(naive) = NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%d %H:%M:%S")
                 .or_else(|_| NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%d %H:%M:%S%.f"))
                 .or_else(|_| NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%dT%H:%M:%S"))
                 .or_else(|_| NaiveDateTime::parse_from_str(datetime_part, "%Y-%m-%dT%H:%M:%S%.f"))
-            {
-                use chrono::FixedOffset;
-                if let Some(fixed_offset) = FixedOffset::east_opt(offset_seconds) {
-                    if let Some(local_dt) = fixed_offset.from_local_datetime(&naive).earliest() {
-                        return Some(local_dt.with_timezone(&Utc));
-                    }
-                }
-            }
+            && let Some(fixed_offset) = FixedOffset::east_opt(offset_seconds)
+            && let Some(local_dt) = fixed_offset.from_local_datetime(&naive).earliest()
+        {
+            return Some(local_dt.with_timezone(&Utc));
         }
     }
 

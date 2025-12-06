@@ -303,24 +303,14 @@ impl ProjectionWithExprExec {
         }
 
         if let (Some(l), Some(r_f64)) = (left.as_numeric(), right.as_f64()) {
-            use rust_decimal::Decimal;
-
-            if let Some(r_dec) = Decimal::from_f64_retain(r_f64) {
-                return crate::query_executor::execution::evaluate_numeric_op(&l, op, &r_dec);
-            } else {
-                let l_f64 = l.to_string().parse::<f64>().unwrap_or(0.0);
-                return Self::float64_arithmetic(op, l_f64, r_f64);
-            }
+            use rust_decimal::prelude::ToPrimitive;
+            let l_f64 = l.to_f64().unwrap_or(0.0);
+            return Self::float64_arithmetic(op, l_f64, r_f64);
         }
         if let (Some(l_f64), Some(r)) = (left.as_f64(), right.as_numeric()) {
-            use rust_decimal::Decimal;
-
-            if let Some(l_dec) = Decimal::from_f64_retain(l_f64) {
-                return crate::query_executor::execution::evaluate_numeric_op(&l_dec, op, &r);
-            } else {
-                let r_f64 = r.to_string().parse::<f64>().unwrap_or(0.0);
-                return Self::float64_arithmetic(op, l_f64, r_f64);
-            }
+            use rust_decimal::prelude::ToPrimitive;
+            let r_f64 = r.to_f64().unwrap_or(0.0);
+            return Self::float64_arithmetic(op, l_f64, r_f64);
         }
 
         if let (Some(l_struct), Some(r_struct)) = (left.as_struct(), right.as_struct()) {
@@ -521,6 +511,13 @@ impl ProjectionWithExprExec {
                 BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
                 BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
                 BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                BinaryOp::Subtract => {
+                    let duration = l.signed_duration_since(r);
+                    let micros = duration.num_microseconds().unwrap_or(0);
+                    Ok(Value::interval(yachtsql_core::types::Interval::new(
+                        0, 0, micros,
+                    )))
+                }
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for TIMESTAMP",
                     op

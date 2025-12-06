@@ -2,13 +2,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use yachtsql_core::error::{Error, Result};
-use yachtsql_optimizer::LogicalPlan;
 use yachtsql_optimizer::plan::PlanNode;
+use yachtsql_optimizer::LogicalPlan;
 use yachtsql_storage::{Field, Schema};
 
 use super::physical_plan::{
     AggregateExec, ArrayJoinExec, CteExec, DistinctExec, DistinctOnExec, EmptyRelationExec,
-    ExceptExec, ExecutionPlan, FilterExec, HashJoinExec, IndexScanExec, IntersectExec, LimitExec,
+    ExceptExec, ExecutionPlan, FilterExec, HashJoinExec, IntersectExec, LimitExec,
     NestedLoopJoinExec, PhysicalPlan, PivotAggregateFunction, PivotExec, SampleSize,
     SamplingMethod, SortExec, SubqueryScanExec, TableSampleExec, TableScanExec, UnionExec,
     UnnestExec, UnpivotExec, WindowExec,
@@ -412,7 +412,9 @@ impl PhysicalPlanner {
         tables: &mut std::collections::HashSet<String>,
     ) {
         match plan {
-            PlanNode::Scan { table_name, alias, .. } => {
+            PlanNode::Scan {
+                table_name, alias, ..
+            } => {
                 if let Some(alias) = alias {
                     tables.insert(alias.clone());
                 }
@@ -429,7 +431,22 @@ impl PhysicalPlanner {
     fn get_expr_table(&self, expr: &yachtsql_optimizer::expr::Expr) -> Option<String> {
         match expr {
             yachtsql_optimizer::expr::Expr::Column { table, .. } => table.clone(),
-            _ => None,
+            yachtsql_optimizer::expr::Expr::BinaryOp { left, op: _, right } => {
+                let left_table = self.get_expr_table(left);
+                let right_table = self.get_expr_table(right);
+                match (&left_table, &right_table) {
+                    (Some(l), Some(r)) if l != r => panic!(
+                        "get_expr_table: BinaryOp references columns from different tables: {} and {}",
+                        l, r
+                    ),
+                    (Some(_), _) => left_table,
+                    (_, Some(_)) => right_table,
+                    (None, None) => panic!(
+                        "get_expr_table: BinaryOp has no column references (both sides are literals)"
+                    ),
+                }
+            }
+            _ => panic!("get_expr_table: unhandled expression type: {:?}", expr),
         }
     }
 
@@ -450,9 +467,8 @@ impl PhysicalPlanner {
                     let left_table = self.get_expr_table(left);
                     let right_table = self.get_expr_table(right);
 
-                    let left_is_left_side = left_table
-                        .as_ref()
-                        .is_some_and(|t| left_tables.contains(t));
+                    let left_is_left_side =
+                        left_table.as_ref().is_some_and(|t| left_tables.contains(t));
                     let right_is_left_side = right_table
                         .as_ref()
                         .is_some_and(|t| left_tables.contains(t));

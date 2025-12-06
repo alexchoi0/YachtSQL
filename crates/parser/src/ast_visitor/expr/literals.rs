@@ -49,6 +49,12 @@ impl LogicalPlanBuilder {
                 Ok(Expr::Literal(LiteralValue::Date(value.to_string())))
             }
             ast::DataType::Timestamp(_, _) => {
+                if yachtsql_core::types::parse_timestamp_to_utc(value).is_none() {
+                    return Err(Error::invalid_query(format!(
+                        "Invalid timestamp format: '{}'",
+                        value
+                    )));
+                }
                 Ok(Expr::Literal(LiteralValue::Timestamp(value.to_string())))
             }
             ast::DataType::Uuid => Ok(Expr::Literal(LiteralValue::Uuid(value.to_string()))),

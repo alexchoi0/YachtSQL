@@ -2145,6 +2145,22 @@ impl<'a> ExpressionEvaluator<'a> {
             return Ok(yachtsql_core::float_utils::float_cmp(&a, &(b as f64)));
         }
 
+        if let (Some(a), Some(b)) = (left.as_f64(), right.as_numeric()) {
+            use rust_decimal::prelude::ToPrimitive;
+            let b_f64 = b.to_f64().unwrap_or(0.0);
+            return Ok(yachtsql_core::float_utils::float_cmp(&a, &b_f64));
+        }
+
+        if let (Some(a), Some(b)) = (left.as_numeric(), right.as_f64()) {
+            use rust_decimal::prelude::ToPrimitive;
+            let a_f64 = a.to_f64().unwrap_or(0.0);
+            return Ok(yachtsql_core::float_utils::float_cmp(&a_f64, &b));
+        }
+
+        if let (Some(a), Some(b)) = (left.as_numeric(), right.as_numeric()) {
+            return Ok(a.cmp(&b));
+        }
+
         if let (Some(a), Some(b)) = (left.as_str(), right.as_str()) {
             if let Some(labels) = enum_labels {
                 let a_pos = labels.iter().position(|l| l == a);

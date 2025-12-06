@@ -1,8 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
-use debug_print::debug_eprintln;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::Value;
+use yachtsql_ir::expr::LiteralValue;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -15,16 +15,11 @@ impl ProjectionWithExprExec {
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("AT_TIME_ZONE", args, 2)?;
-        debug_eprintln!("[datetime::at_time_zone] args[0] = {:?}", &args[0]);
-        debug_eprintln!("[datetime::at_time_zone] args[1] = {:?}", &args[1]);
+
+        let is_plain = Self::is_plain_timestamp_expr(&args[0]);
+
         let ts_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
         let tz_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
-
-        debug_eprintln!(
-            "[datetime::at_time_zone] ts_val = {:?}, tz_val = {:?}",
-            ts_val,
-            tz_val
-        );
 
         if ts_val.is_null() || tz_val.is_null() {
             return Ok(Value::null());
@@ -40,7 +35,48 @@ impl ProjectionWithExprExec {
             actual: tz_val.data_type().to_string(),
         })?;
 
-        Self::apply_at_time_zone_impl(utc_dt, tz_str)
+        if is_plain {
+            Self::interpret_as_timezone_impl(utc_dt, tz_str)
+        } else {
+            Self::apply_at_time_zone_impl(utc_dt, tz_str)
+        }
+    }
+
+    fn is_plain_timestamp_expr(expr: &Expr) -> bool {
+        match expr {
+            Expr::Literal(LiteralValue::Timestamp(s)) => !Self::has_timezone_info(s),
+            Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => {
+                Self::is_plain_timestamp_expr(expr)
+            }
+            Expr::Function { name, args } => {
+                let fn_name = name.as_str().to_uppercase();
+                match fn_name.as_str() {
+                    "AT_TIME_ZONE" => false,
+                    _ => args.first().is_some_and(Self::is_plain_timestamp_expr),
+                }
+            }
+            _ => false,
+        }
+    }
+
+    fn has_timezone_info(ts_str: &str) -> bool {
+        let s = ts_str.trim();
+        if s.ends_with('Z') || s.ends_with("UTC") || s.ends_with("GMT") {
+            return true;
+        }
+        if let Some(pos) = s.rfind(|c| c == '+' || c == '-') {
+            let suffix = &s[pos + 1..];
+            if suffix.chars().all(|c| c.is_ascii_digit() || c == ':') && !suffix.is_empty() {
+                return true;
+            }
+        }
+        if let Some(last_space) = s.rfind(' ') {
+            let potential_tz = &s[last_space + 1..];
+            if potential_tz.parse::<Tz>().is_ok() {
+                return true;
+            }
+        }
+        false
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_at_time_zone_plain(

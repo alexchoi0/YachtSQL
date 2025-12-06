@@ -484,12 +484,6 @@ fn test_self_join_consecutive_rows() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("DROP TABLE IF EXISTS metrics_today")
-        .unwrap();
-    executor
-        .execute_sql("DROP TABLE IF EXISTS metrics_tomorrow")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE metrics_today (today_day INT64, metric_value INT64)")
         .unwrap();
     executor
@@ -506,7 +500,10 @@ fn test_self_join_consecutive_rows() {
 
     let result = executor
         .execute_sql(
-            "SELECT m1.today_day AS day_num, m1.metric_value AS today_val, m2.tomorrow_value AS tomorrow_val
+            "SELECT
+                    m1.today_day AS day_num,
+                    m1.metric_value AS today_val,
+                    m2.tomorrow_value AS tomorrow_val
              FROM metrics_today m1
              JOIN metrics_tomorrow m2 ON m2.tomorrow_day = m1.today_day + 1
              ORDER BY day_num",

@@ -19,7 +19,8 @@ impl ProjectionWithExprExec {
             || value.is_null()
             || value.as_bytes().is_some()
             || value.as_array().is_some()
-            || value.as_interval().is_some();
+            || value.as_interval().is_some()
+            || value.as_json().is_some();
 
         if is_basic_type {
             match target_type {

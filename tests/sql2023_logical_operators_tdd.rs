@@ -237,9 +237,6 @@ fn test_not_null() {
 
 fn setup_bool_test(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS bool_test")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE bool_test (id INT64, active BOOL)")
         .unwrap();
     executor
@@ -268,9 +265,6 @@ fn test_not_column_where() {
 }
 
 fn setup_not_cmp(executor: &mut QueryExecutor) {
-    executor
-        .execute_sql("DROP TABLE IF EXISTS not_cmp")
-        .unwrap();
     executor
         .execute_sql("CREATE TABLE not_cmp (id INT64, value INT64)")
         .unwrap();
@@ -302,9 +296,6 @@ fn test_not_comparison_where() {
 
 fn setup_double_not(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS double_not")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE double_not (id INT64, value INT64)")
         .unwrap();
     executor
@@ -335,9 +326,6 @@ fn test_double_not() {
 
 fn setup_not_null_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS not_null")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE not_null (id INT64, value BOOL)")
         .unwrap();
     executor
@@ -366,9 +354,6 @@ fn test_not_with_null_values() {
 }
 
 fn setup_not_is_null(executor: &mut QueryExecutor) {
-    executor
-        .execute_sql("DROP TABLE IF EXISTS not_is_null")
-        .unwrap();
     executor
         .execute_sql("CREATE TABLE not_is_null (id INT64, value INT64)")
         .unwrap();
@@ -399,9 +384,6 @@ fn test_not_is_null() {
 }
 
 fn setup_and_test(executor: &mut QueryExecutor) {
-    executor
-        .execute_sql("DROP TABLE IF EXISTS and_test")
-        .unwrap();
     executor
         .execute_sql("CREATE TABLE and_test (id INT64, a BOOL, b BOOL)")
         .unwrap();
@@ -434,9 +416,6 @@ fn test_and_columns_where() {
 }
 
 fn setup_or_test(executor: &mut QueryExecutor) {
-    executor
-        .execute_sql("DROP TABLE IF EXISTS or_test")
-        .unwrap();
     executor
         .execute_sql("CREATE TABLE or_test (id INT64, a BOOL, b BOOL)")
         .unwrap();
@@ -472,9 +451,6 @@ fn test_or_columns_where() {
 
 fn setup_and_null(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS and_null")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE and_null (id INT64, a BOOL, b BOOL)")
         .unwrap();
     executor
@@ -507,9 +483,6 @@ fn test_and_with_null_columns() {
 
 fn setup_or_null(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS or_null")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE or_null (id INT64, a BOOL, b BOOL)")
         .unwrap();
     executor
@@ -541,9 +514,6 @@ fn test_or_with_null_columns() {
 }
 
 fn setup_demorgan_and(executor: &mut QueryExecutor) {
-    executor
-        .execute_sql("DROP TABLE IF EXISTS demorgan_and")
-        .unwrap();
     executor
         .execute_sql("CREATE TABLE demorgan_and (id INT64, a BOOL, b BOOL)")
         .unwrap();
@@ -579,9 +549,6 @@ fn test_demorgan_not_and() {
 
 fn setup_demorgan_or(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS demorgan_or")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE demorgan_or (id INT64, a BOOL, b BOOL)")
         .unwrap();
     executor
@@ -614,9 +581,6 @@ fn test_demorgan_not_or() {
 
 fn setup_complex_bool(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS complex_bool")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE complex_bool (id INT64, a BOOL, b BOOL, c BOOL)")
         .unwrap();
     executor
@@ -647,9 +611,6 @@ fn test_complex_and_or() {
 
 fn setup_short_circuit(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("DROP TABLE IF EXISTS short_circuit")
-        .unwrap();
-    executor
         .execute_sql("CREATE TABLE short_circuit (id INT64, value INT64)")
         .unwrap();
     executor
@@ -666,16 +627,14 @@ fn test_short_circuit_and() {
     setup_short_circuit(&mut executor);
 
     let result = executor
-        .execute_sql("SELECT id FROM short_circuit WHERE value = 0 AND (100 / value) > 0")
+        .execute_sql("SELECT id FROM short_circuit WHERE value <> 0 AND (100 / value) > 0")
         .unwrap();
 
-    assert_eq!(result.num_rows(), 0);
+    assert_eq!(result.num_rows(), 1);
+    assert_eq!(result.column(0).unwrap().get(0).unwrap().as_i64().unwrap(), 2);
 }
 
 fn setup_multi_and(executor: &mut QueryExecutor) {
-    executor
-        .execute_sql("DROP TABLE IF EXISTS multi_and")
-        .unwrap();
     executor
         .execute_sql("CREATE TABLE multi_and (id INT64, age INT64, salary INT64, active BOOL)")
         .unwrap();

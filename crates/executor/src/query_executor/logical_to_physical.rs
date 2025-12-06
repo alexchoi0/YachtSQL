@@ -50,7 +50,11 @@ impl LogicalToPhysicalPlanner {
             Expr::UnaryOp { expr: inner, .. } => {
                 Self::validate_expr(inner)?;
             }
-            Expr::Case { operand, when_then, else_expr } => {
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
                 if let Some(op) = operand {
                     Self::validate_expr(op)?;
                 }
@@ -73,13 +77,20 @@ impl LogicalToPhysicalPlanner {
                     Self::validate_expr(f)?;
                 }
             }
-            Expr::InList { expr: inner, list, .. } => {
+            Expr::InList {
+                expr: inner, list, ..
+            } => {
                 Self::validate_expr(inner)?;
                 for item in list {
                     Self::validate_expr(item)?;
                 }
             }
-            Expr::Between { expr: inner, low, high, .. } => {
+            Expr::Between {
+                expr: inner,
+                low,
+                high,
+                ..
+            } => {
                 Self::validate_expr(inner)?;
                 Self::validate_expr(low)?;
                 Self::validate_expr(high)?;
@@ -204,7 +215,9 @@ impl LogicalToPhysicalPlanner {
                 }
                 Ok(())
             }
-            Expr::InList { expr: inner, list, .. } => {
+            Expr::InList {
+                expr: inner, list, ..
+            } => {
                 Self::validate_column_references(inner, schema)?;
                 for item in list {
                     Self::validate_column_references(item, schema)?;
@@ -263,7 +276,44 @@ impl LogicalToPhysicalPlanner {
     fn get_expr_table(&self, expr: &yachtsql_ir::expr::Expr) -> Option<String> {
         match expr {
             yachtsql_ir::expr::Expr::Column { table, .. } => table.clone(),
-            _ => None,
+            yachtsql_ir::expr::Expr::BinaryOp { left, op: _, right } => {
+                let left_table = self.get_expr_table(left);
+                let right_table = self.get_expr_table(right);
+                match (&left_table, &right_table) {
+                    (Some(l), Some(r)) if l != r => panic!(
+                        "get_expr_table: BinaryOp references columns from different tables: {} and {}",
+                        l, r
+                    ),
+                    (Some(_), _) => left_table,
+                    (_, Some(_)) => right_table,
+                    (None, None) => None,
+                }
+            }
+            yachtsql_ir::expr::Expr::Function { args, .. } => {
+                let mut found_table: Option<String> = None;
+                for arg in args {
+                    let arg_table = self.get_expr_table(arg);
+                    match (&found_table, &arg_table) {
+                        (Some(t1), Some(t2)) if t1 != t2 => panic!(
+                            "get_expr_table: Function references columns from different tables: {} and {}",
+                            t1, t2
+                        ),
+                        (None, Some(_)) => found_table = arg_table,
+                        _ => {}
+                    }
+                }
+                found_table
+            }
+            yachtsql_ir::expr::Expr::Literal(_) => None,
+            yachtsql_ir::expr::Expr::StructLiteral { .. } => None,
+            yachtsql_ir::expr::Expr::Tuple(_) => None,
+            yachtsql_ir::expr::Expr::Cast { expr, .. } => self.get_expr_table(expr),
+            yachtsql_ir::expr::Expr::TryCast { expr, .. } => self.get_expr_table(expr),
+            yachtsql_ir::expr::Expr::UnaryOp { expr, .. } => self.get_expr_table(expr),
+            _ => panic!(
+                "get_expr_table: unhandled expression type: {:?}",
+                expr
+            ),
         }
     }
 
@@ -283,9 +333,8 @@ impl LogicalToPhysicalPlanner {
                 let left_table = self.get_expr_table(left);
                 let right_table = self.get_expr_table(right);
 
-                let left_is_left_side = left_table
-                    .as_ref()
-                    .is_some_and(|t| left_tables.contains(t));
+                let left_is_left_side =
+                    left_table.as_ref().is_some_and(|t| left_tables.contains(t));
                 let right_is_left_side = right_table
                     .as_ref()
                     .is_some_and(|t| left_tables.contains(t));
@@ -321,7 +370,7 @@ impl LogicalToPhysicalPlanner {
         &self,
         fields: &[yachtsql_core::types::StructField],
     ) -> Vec<yachtsql_core::types::StructField> {
-        use yachtsql_core::types::{DataType, StructField};
+        use yachtsql_core::types::StructField;
 
         fields
             .iter()
@@ -335,7 +384,10 @@ impl LogicalToPhysicalPlanner {
             .collect()
     }
 
-    fn expand_schema_custom_types(&self, schema: &yachtsql_storage::Schema) -> yachtsql_storage::Schema {
+    fn expand_schema_custom_types(
+        &self,
+        schema: &yachtsql_storage::Schema,
+    ) -> yachtsql_storage::Schema {
         use yachtsql_storage::Schema;
 
         let expanded_fields = schema
@@ -351,7 +403,10 @@ impl LogicalToPhysicalPlanner {
         Schema::from_fields(expanded_fields)
     }
 
-    fn expand_custom_data_type(&self, data_type: &yachtsql_core::types::DataType) -> yachtsql_core::types::DataType {
+    fn expand_custom_data_type(
+        &self,
+        data_type: &yachtsql_core::types::DataType,
+    ) -> yachtsql_core::types::DataType {
         use yachtsql_core::types::DataType;
 
         match data_type {
@@ -371,9 +426,7 @@ impl LogicalToPhysicalPlanner {
                     data_type.clone()
                 }
             }
-            DataType::Struct(fields) => {
-                DataType::Struct(self.expand_nested_custom_types(fields))
-            }
+            DataType::Struct(fields) => DataType::Struct(self.expand_nested_custom_types(fields)),
             DataType::Array(inner) => {
                 DataType::Array(Box::new(self.expand_custom_data_type(inner)))
             }
@@ -381,11 +434,17 @@ impl LogicalToPhysicalPlanner {
         }
     }
 
-    fn resolve_custom_type_fields(&self, expr: &yachtsql_ir::expr::Expr) -> yachtsql_ir::expr::Expr {
+    fn resolve_custom_type_fields(
+        &self,
+        expr: &yachtsql_ir::expr::Expr,
+    ) -> yachtsql_ir::expr::Expr {
         use yachtsql_ir::expr::{CastDataType, Expr};
 
         match expr {
-            Expr::Cast { expr: inner, data_type } => {
+            Expr::Cast {
+                expr: inner,
+                data_type,
+            } => {
                 debug_print::debug_eprintln!(
                     "[logical_to_physical::resolve] Cast with data_type={:?}, inner expr type: {}",
                     data_type,
@@ -414,11 +473,15 @@ impl LogicalToPhysicalPlanner {
                                         .cloned()
                                 };
                                 if let Some(composite_fields) = composite_fields_cloned {
-                                    let expanded_fields = self.expand_nested_custom_types(&composite_fields);
+                                    let expanded_fields =
+                                        self.expand_nested_custom_types(&composite_fields);
                                     debug_print::debug_eprintln!(
                                         "[logical_to_physical::resolve] Resolved type '{}' to fields {:?}",
                                         name,
-                                        expanded_fields.iter().map(|f| (&f.name, &f.data_type)).collect::<Vec<_>>()
+                                        expanded_fields
+                                            .iter()
+                                            .map(|f| (&f.name, &f.data_type))
+                                            .collect::<Vec<_>>()
                                     );
                                     CastDataType::Custom(name.clone(), expanded_fields)
                                 } else {
@@ -449,7 +512,10 @@ impl LogicalToPhysicalPlanner {
             },
             Expr::Function { name, args } => Expr::Function {
                 name: name.clone(),
-                args: args.iter().map(|a| self.resolve_custom_type_fields(a)).collect(),
+                args: args
+                    .iter()
+                    .map(|a| self.resolve_custom_type_fields(a))
+                    .collect(),
             },
             Expr::StructFieldAccess { expr: inner, field } => Expr::StructFieldAccess {
                 expr: Box::new(self.resolve_custom_type_fields(inner)),
@@ -460,7 +526,12 @@ impl LogicalToPhysicalPlanner {
                     "[logical_to_physical::resolve] Tuple with {} elements",
                     exprs.len()
                 );
-                Expr::Tuple(exprs.iter().map(|e| self.resolve_custom_type_fields(e)).collect())
+                Expr::Tuple(
+                    exprs
+                        .iter()
+                        .map(|e| self.resolve_custom_type_fields(e))
+                        .collect(),
+                )
             }
             Expr::StructLiteral { fields } => {
                 use yachtsql_ir::expr::StructLiteralField;
@@ -479,12 +550,32 @@ impl LogicalToPhysicalPlanner {
                         .collect(),
                 }
             }
-            Expr::Case { operand, when_then, else_expr } => Expr::Case {
-                operand: operand.as_ref().map(|o| Box::new(self.resolve_custom_type_fields(o))),
-                when_then: when_then.iter().map(|(w, t)| (self.resolve_custom_type_fields(w), self.resolve_custom_type_fields(t))).collect(),
-                else_expr: else_expr.as_ref().map(|e| Box::new(self.resolve_custom_type_fields(e))),
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => Expr::Case {
+                operand: operand
+                    .as_ref()
+                    .map(|o| Box::new(self.resolve_custom_type_fields(o))),
+                when_then: when_then
+                    .iter()
+                    .map(|(w, t)| {
+                        (
+                            self.resolve_custom_type_fields(w),
+                            self.resolve_custom_type_fields(t),
+                        )
+                    })
+                    .collect(),
+                else_expr: else_expr
+                    .as_ref()
+                    .map(|e| Box::new(self.resolve_custom_type_fields(e))),
             },
-            Expr::IsDistinctFrom { left, right, negated } => Expr::IsDistinctFrom {
+            Expr::IsDistinctFrom {
+                left,
+                right,
+                negated,
+            } => Expr::IsDistinctFrom {
                 left: Box::new(self.resolve_custom_type_fields(left)),
                 right: Box::new(self.resolve_custom_type_fields(right)),
                 negated: *negated,
@@ -509,7 +600,6 @@ impl LogicalToPhysicalPlanner {
         left_schema: &yachtsql_storage::Schema,
         right_schema: &yachtsql_storage::Schema,
     ) -> Result<()> {
-        use yachtsql_core::types::DataType;
         use yachtsql_ir::expr::{BinaryOp, Expr};
 
         let combined_schema = {
@@ -556,7 +646,9 @@ impl LogicalToPhysicalPlanner {
                 for field in schema.fields() {
                     if let Some(tbl) = table {
                         if let Some(source) = &field.source_table {
-                            if source.eq_ignore_ascii_case(tbl) && field.name.eq_ignore_ascii_case(name) {
+                            if source.eq_ignore_ascii_case(tbl)
+                                && field.name.eq_ignore_ascii_case(name)
+                            {
                                 return field.data_type.clone();
                             }
                         }
@@ -568,7 +660,73 @@ impl LogicalToPhysicalPlanner {
                 DataType::String
             }
             Expr::Literal(lit) => self.infer_literal_type(&Expr::Literal(lit.clone())),
-            _ => DataType::String,
+            Expr::Cast { data_type, .. } | Expr::TryCast { data_type, .. } => {
+                self.cast_data_type_to_data_type(data_type)
+            }
+            Expr::Tuple(exprs) => {
+                let fields: Vec<_> = exprs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| yachtsql_core::types::StructField {
+                        name: format!("f{}", i + 1),
+                        data_type: self.infer_expr_type(e, schema),
+                    })
+                    .collect();
+                DataType::Struct(fields)
+            }
+            Expr::StructLiteral { fields } => {
+                let struct_fields: Vec<_> = fields
+                    .iter()
+                    .map(|f| yachtsql_core::types::StructField {
+                        name: f.name.clone(),
+                        data_type: self.infer_expr_type(&f.expr, schema),
+                    })
+                    .collect();
+                DataType::Struct(struct_fields)
+            }
+            Expr::BinaryOp { left, .. } => self.infer_expr_type(left, schema),
+            Expr::Function { name, args } => {
+                use yachtsql_ir::function::FunctionName;
+                match name {
+                    FunctionName::Substring
+                    | FunctionName::Upper
+                    | FunctionName::Lower
+                    | FunctionName::Trim
+                    | FunctionName::Ltrim
+                    | FunctionName::Rtrim
+                    | FunctionName::Concat
+                    | FunctionName::Replace
+                    | FunctionName::Reverse
+                    | FunctionName::Left
+                    | FunctionName::Right => DataType::String,
+                    FunctionName::Position
+                    | FunctionName::Length
+                    | FunctionName::CharLength
+                    | FunctionName::Abs
+                    | FunctionName::Ceil
+                    | FunctionName::Floor
+                    | FunctionName::Round
+                    | FunctionName::Sign => DataType::Int64,
+                    FunctionName::Coalesce | FunctionName::Nullif | FunctionName::Greatest | FunctionName::Least => {
+                        if let Some(first_arg) = args.first() {
+                            self.infer_expr_type(first_arg, schema)
+                        } else {
+                            DataType::String
+                        }
+                    }
+                    FunctionName::CurrentTime | FunctionName::Localtime => DataType::Time,
+                    FunctionName::CurrentDate => DataType::Date,
+                    FunctionName::CurrentTimestamp | FunctionName::Localtimestamp | FunctionName::Now => DataType::Timestamp,
+                    _ => panic!(
+                        "infer_expr_type: unhandled function: {:?}",
+                        name
+                    ),
+                }
+            }
+            _ => panic!(
+                "infer_expr_type: unhandled expression type: {:?}",
+                expr
+            ),
         }
     }
 
@@ -586,9 +744,7 @@ impl LogicalToPhysicalPlanner {
         let is_numeric = |t: &DataType| {
             matches!(
                 t,
-                DataType::Int64
-                    | DataType::Float64
-                    | DataType::Numeric(_)
+                DataType::Int64 | DataType::Float64 | DataType::Numeric(_)
             )
         };
 
@@ -597,9 +753,8 @@ impl LogicalToPhysicalPlanner {
         }
 
         let is_string = |t: &DataType| matches!(t, DataType::String);
-        let is_date_like = |t: &DataType| {
-            matches!(t, DataType::Date | DataType::DateTime | DataType::Timestamp)
-        };
+        let is_date_like =
+            |t: &DataType| matches!(t, DataType::Date | DataType::DateTime | DataType::Timestamp);
 
         if is_string(left) && is_string(right) {
             return true;
@@ -607,6 +762,18 @@ impl LogicalToPhysicalPlanner {
 
         if is_date_like(left) && is_date_like(right) {
             return true;
+        }
+
+        if let (DataType::Struct(left_fields), DataType::Struct(right_fields)) = (left, right) {
+            if left_fields.is_empty() || right_fields.is_empty() {
+                return true;
+            }
+            if left_fields.len() == right_fields.len() {
+                return left_fields
+                    .iter()
+                    .zip(right_fields.iter())
+                    .all(|(l, r)| self.types_are_compatible(&l.data_type, &r.data_type));
+            }
         }
 
         false
@@ -701,7 +868,7 @@ impl LogicalToPhysicalPlanner {
                         _ => {
                             return Err(Error::InvalidQuery(
                                 "View SQL is not a SELECT statement".to_string(),
-                            ))
+                            ));
                         }
                     };
 
@@ -793,7 +960,8 @@ impl LogicalToPhysicalPlanner {
                 let input_schema = input_exec.schema();
 
                 let resolved_expressions = self.resolve_custom_type_in_expressions(expressions);
-                let output_schema = self.infer_projection_schema(&resolved_expressions, input_schema)?;
+                let output_schema =
+                    self.infer_projection_schema(&resolved_expressions, input_schema)?;
 
                 Ok(Rc::new(ProjectionWithExprExec::new(
                     input_exec,
@@ -824,31 +992,22 @@ impl LogicalToPhysicalPlanner {
                 let right_sorted = right_stats.is_sorted;
                 let left_rows = left_stats.num_rows;
 
-                let strategy = JoinStrategy::select(
-                    left_sorted,
-                    right_sorted,
-                    is_equi_join,
-                    None,
-                    left_rows,
-                );
+                let strategy =
+                    JoinStrategy::select(left_sorted, right_sorted, is_equi_join, None, left_rows);
 
                 match strategy {
-                    JoinStrategy::Merge => {
-                        Ok(Rc::new(MergeJoinExec::new(
-                            left_exec,
-                            right_exec,
-                            join_type.clone(),
-                            join_conditions,
-                        )?))
-                    }
-                    JoinStrategy::NestedLoop => {
-                        Ok(Rc::new(NestedLoopJoinExec::new(
-                            left_exec,
-                            right_exec,
-                            join_type.clone(),
-                            Some(on.clone()),
-                        )?))
-                    }
+                    JoinStrategy::Merge => Ok(Rc::new(MergeJoinExec::new(
+                        left_exec,
+                        right_exec,
+                        join_type.clone(),
+                        join_conditions,
+                    )?)),
+                    JoinStrategy::NestedLoop => Ok(Rc::new(NestedLoopJoinExec::new(
+                        left_exec,
+                        right_exec,
+                        join_type.clone(),
+                        Some(on.clone()),
+                    )?)),
                     JoinStrategy::Hash | JoinStrategy::IndexNestedLoop { .. } => {
                         Ok(Rc::new(HashJoinExec::new(
                             left_exec,
@@ -890,10 +1049,8 @@ impl LogicalToPhysicalPlanner {
                 let input_stats = input_exec.statistics();
                 let input_sorted = input_stats.is_sorted;
 
-                let input_sort_columns: Vec<String> = input_stats
-                    .sort_columns
-                    .clone()
-                    .unwrap_or_default();
+                let input_sort_columns: Vec<String> =
+                    input_stats.sort_columns.clone().unwrap_or_default();
 
                 let group_by_columns: Vec<String> = group_by
                     .iter()
@@ -906,8 +1063,11 @@ impl LogicalToPhysicalPlanner {
                     })
                     .collect();
 
-                let strategy =
-                    AggregateStrategy::select_with_columns(input_sorted, &input_sort_columns, &group_by_columns);
+                let strategy = AggregateStrategy::select_with_columns(
+                    input_sorted,
+                    &input_sort_columns,
+                    &group_by_columns,
+                );
 
                 match strategy {
                     AggregateStrategy::Sort => Ok(Rc::new(SortAggregateExec::new(
@@ -1233,7 +1393,10 @@ impl LogicalToPhysicalPlanner {
                 Ok(yachtsql_core::types::DataType::String)
             }
 
-            _ => Ok(yachtsql_core::types::DataType::String),
+            _ => panic!(
+                "infer_returning_expr_type: unhandled expression type: {:?}",
+                expr
+            ),
         }
     }
 
@@ -1322,7 +1485,10 @@ impl LogicalToPhysicalPlanner {
 
             Expr::Cast { data_type, .. } => self.cast_data_type_to_data_type(data_type),
 
-            _ => DataType::Int64,
+            _ => panic!(
+                "infer_aggregate_result_type: unhandled expression type: {:?}",
+                expr
+            ),
         }
     }
 
@@ -1356,7 +1522,7 @@ impl LogicalToPhysicalPlanner {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
-            CastDataType::Custom(name, _) => DataType::Custom(name.clone()),
+            CastDataType::Custom(_, fields) => DataType::Struct(fields.clone()),
         }
     }
 
@@ -1389,7 +1555,10 @@ impl LogicalToPhysicalPlanner {
                 LiteralValue::MacAddr(_) => DataType::MacAddr,
                 LiteralValue::MacAddr8(_) => DataType::MacAddr8,
             },
-            _ => DataType::String,
+            _ => panic!(
+                "infer_literal_type: unhandled expression type: {:?}",
+                expr
+            ),
         }
     }
 

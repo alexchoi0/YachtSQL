@@ -328,10 +328,24 @@ impl NestedLoopJoinExec {
         })
     }
 
-    fn evaluate_predicate(&self, _left_row: &[Value], _right_row: &[Value]) -> Result<bool> {
+    fn evaluate_predicate(&self, left_row: &[Value], right_row: &[Value]) -> Result<bool> {
         match &self.predicate {
             None => Ok(true),
-            Some(_pred) => Ok(true),
+            Some(pred) => {
+                let mut columns = Vec::new();
+                for (idx, field) in self.schema.fields().iter().enumerate() {
+                    let mut col = Column::new(&field.data_type, 1);
+                    if idx < left_row.len() {
+                        col.push(left_row[idx].clone())?;
+                    } else {
+                        col.push(right_row[idx - left_row.len()].clone())?;
+                    }
+                    columns.push(col);
+                }
+                let batch = RecordBatch::new(self.schema.clone(), columns)?;
+                let result = super::ProjectionWithExprExec::evaluate_expr(pred, &batch, 0)?;
+                Ok(result.as_bool().unwrap_or(false))
+            }
         }
     }
 }

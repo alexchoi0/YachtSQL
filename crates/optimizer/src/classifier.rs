@@ -5,23 +5,14 @@ use crate::phase::Phase;
 #[derive(Debug, Clone)]
 pub struct QueryComplexity {
     pub num_tables: usize,
-
     pub num_joins: usize,
-
     pub num_subqueries: usize,
-
     pub num_aggregates: usize,
-
     pub num_windows: usize,
-
     pub has_complex_predicates: bool,
-
     pub has_filters: bool,
-
     pub has_unnecessary_projections: bool,
-
     pub plan_depth: usize,
-
     pub estimated_cost_micros: u64,
 }
 
@@ -91,13 +82,9 @@ impl QueryComplexity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComplexityLevel {
     Trivial,
-
     Low,
-
     Medium,
-
     High,
-
     VeryHigh,
 }
 
@@ -267,12 +254,20 @@ impl ComplexityAnalyzer {
                 self.contains_scalar_subquery(left) || self.contains_scalar_subquery(right)
             }
             Expr::UnaryOp { expr, .. } => self.contains_scalar_subquery(expr),
-            Expr::Case { operand, when_then, else_expr } => {
-                operand.as_ref().map_or(false, |e| self.contains_scalar_subquery(e))
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
+                operand
+                    .as_ref()
+                    .map_or(false, |e| self.contains_scalar_subquery(e))
                     || when_then.iter().any(|(cond, result)| {
                         self.contains_scalar_subquery(cond) || self.contains_scalar_subquery(result)
                     })
-                    || else_expr.as_ref().map_or(false, |e| self.contains_scalar_subquery(e))
+                    || else_expr
+                        .as_ref()
+                        .map_or(false, |e| self.contains_scalar_subquery(e))
             }
             Expr::Function { args, .. } => args.iter().any(|a| self.contains_scalar_subquery(a)),
             _ => false,

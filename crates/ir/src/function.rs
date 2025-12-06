@@ -248,6 +248,43 @@ pub enum FunctionName {
     Last,
     NthValue,
 
+    Uniq,
+    UniqExact,
+    UniqHll12,
+    UniqCombined,
+    UniqCombined64,
+    UniqThetaSketch,
+    UniqArray,
+    Quantile,
+    QuantileExact,
+    QuantileTDigest,
+    QuantileTiming,
+    QuantilesTDigest,
+    QuantilesTiming,
+    ArgMin,
+    ArgMax,
+    GroupArray,
+    GroupArrayMovingAvg,
+    GroupArrayMovingSum,
+    Any,
+    AnyLast,
+    AnyHeavy,
+    TopK,
+    GroupUniqArray,
+    SumWithOverflow,
+    SumMap,
+    MinMap,
+    MaxMap,
+    GroupBitmap,
+    GroupBitmapAnd,
+    GroupBitmapOr,
+    GroupBitmapXor,
+    RankCorr,
+    ExponentialMovingAverage,
+    IntervalLengthSum,
+    Retention,
+    WindowFunnel,
+
     Custom(String),
 }
 
@@ -501,6 +538,75 @@ impl FunctionName {
             "LAST_VALUE" => Self::LastValue,
             "LAST" => Self::Last,
             "NTH_VALUE" => Self::NthValue,
+
+            "UNIQ" => Self::Uniq,
+            "UNIQ_EXACT" => Self::UniqExact,
+            "UNIQEXACT" => Self::UniqExact,
+            "UNIQ_HLL12" => Self::UniqHll12,
+            "UNIQHLL12" => Self::UniqHll12,
+            "UNIQ_COMBINED" => Self::UniqCombined,
+            "UNIQCOMBINED" => Self::UniqCombined,
+            "UNIQ_COMBINED_64" => Self::UniqCombined64,
+            "UNIQCOMBINED64" => Self::UniqCombined64,
+            "UNIQ_THETA_SKETCH" => Self::UniqThetaSketch,
+            "UNIQTHETASKETCH" => Self::UniqThetaSketch,
+            "UNIQ_ARRAY" => Self::UniqArray,
+            "UNIQARRAY" => Self::UniqArray,
+            "QUANTILE" => Self::Quantile,
+            "QUANTILE_EXACT" => Self::QuantileExact,
+            "QUANTILEEXACT" => Self::QuantileExact,
+            "QUANTILE_TDIGEST" => Self::QuantileTDigest,
+            "QUANTILETDIGEST" => Self::QuantileTDigest,
+            "QUANTILE_TIMING" => Self::QuantileTiming,
+            "QUANTILETIMING" => Self::QuantileTiming,
+            "QUANTILES_TDIGEST" => Self::QuantilesTDigest,
+            "QUANTILESTDIGEST" => Self::QuantilesTDigest,
+            "QUANTILES_TIMING" => Self::QuantilesTiming,
+            "QUANTILESTIMING" => Self::QuantilesTiming,
+            "ARG_MIN" => Self::ArgMin,
+            "ARGMIN" => Self::ArgMin,
+            "ARG_MAX" => Self::ArgMax,
+            "ARGMAX" => Self::ArgMax,
+            "GROUP_ARRAY" => Self::GroupArray,
+            "GROUPARRAY" => Self::GroupArray,
+            "GROUP_ARRAY_MOVING_AVG" => Self::GroupArrayMovingAvg,
+            "GROUPARRAYMOVINGAVG" => Self::GroupArrayMovingAvg,
+            "GROUP_ARRAY_MOVING_SUM" => Self::GroupArrayMovingSum,
+            "GROUPARRAYMOVINGSUM" => Self::GroupArrayMovingSum,
+            "ANY" => Self::Any,
+            "ANY_LAST" => Self::AnyLast,
+            "ANYLAST" => Self::AnyLast,
+            "ANY_HEAVY" => Self::AnyHeavy,
+            "ANYHEAVY" => Self::AnyHeavy,
+            "TOP_K" => Self::TopK,
+            "TOPK" => Self::TopK,
+            "GROUP_UNIQ_ARRAY" => Self::GroupUniqArray,
+            "GROUPUNIQARRAY" => Self::GroupUniqArray,
+            "SUM_WITH_OVERFLOW" => Self::SumWithOverflow,
+            "SUMWITHOVERFLOW" => Self::SumWithOverflow,
+            "SUM_MAP" => Self::SumMap,
+            "SUMMAP" => Self::SumMap,
+            "MIN_MAP" => Self::MinMap,
+            "MINMAP" => Self::MinMap,
+            "MAX_MAP" => Self::MaxMap,
+            "MAXMAP" => Self::MaxMap,
+            "GROUP_BITMAP" => Self::GroupBitmap,
+            "GROUPBITMAP" => Self::GroupBitmap,
+            "GROUP_BITMAP_AND" => Self::GroupBitmapAnd,
+            "GROUPBITMAPAND" => Self::GroupBitmapAnd,
+            "GROUP_BITMAP_OR" => Self::GroupBitmapOr,
+            "GROUPBITMAPOR" => Self::GroupBitmapOr,
+            "GROUP_BITMAP_XOR" => Self::GroupBitmapXor,
+            "GROUPBITMAPXOR" => Self::GroupBitmapXor,
+            "RANK_CORR" => Self::RankCorr,
+            "RANKCORR" => Self::RankCorr,
+            "EXPONENTIAL_MOVING_AVERAGE" => Self::ExponentialMovingAverage,
+            "EXPONENTIALMOVINGAVERAGE" => Self::ExponentialMovingAverage,
+            "INTERVAL_LENGTH_SUM" => Self::IntervalLengthSum,
+            "INTERVALLENGTHSUM" => Self::IntervalLengthSum,
+            "RETENTION" => Self::Retention,
+            "WINDOW_FUNNEL" => Self::WindowFunnel,
+            "WINDOWFUNNEL" => Self::WindowFunnel,
 
             _ => Self::Custom(s.to_uppercase()),
         }
@@ -756,6 +862,43 @@ impl FunctionName {
             Self::Last => "LAST",
             Self::NthValue => "NTH_VALUE",
 
+            Self::Uniq => "UNIQ",
+            Self::UniqExact => "UNIQ_EXACT",
+            Self::UniqHll12 => "UNIQ_HLL12",
+            Self::UniqCombined => "UNIQ_COMBINED",
+            Self::UniqCombined64 => "UNIQ_COMBINED_64",
+            Self::UniqThetaSketch => "UNIQ_THETA_SKETCH",
+            Self::UniqArray => "UNIQ_ARRAY",
+            Self::Quantile => "QUANTILE",
+            Self::QuantileExact => "QUANTILE_EXACT",
+            Self::QuantileTDigest => "QUANTILE_TDIGEST",
+            Self::QuantileTiming => "QUANTILE_TIMING",
+            Self::QuantilesTDigest => "QUANTILES_TDIGEST",
+            Self::QuantilesTiming => "QUANTILES_TIMING",
+            Self::ArgMin => "ARG_MIN",
+            Self::ArgMax => "ARG_MAX",
+            Self::GroupArray => "GROUP_ARRAY",
+            Self::GroupArrayMovingAvg => "GROUP_ARRAY_MOVING_AVG",
+            Self::GroupArrayMovingSum => "GROUP_ARRAY_MOVING_SUM",
+            Self::Any => "ANY",
+            Self::AnyLast => "ANY_LAST",
+            Self::AnyHeavy => "ANY_HEAVY",
+            Self::TopK => "TOP_K",
+            Self::GroupUniqArray => "GROUP_UNIQ_ARRAY",
+            Self::SumWithOverflow => "SUM_WITH_OVERFLOW",
+            Self::SumMap => "SUM_MAP",
+            Self::MinMap => "MIN_MAP",
+            Self::MaxMap => "MAX_MAP",
+            Self::GroupBitmap => "GROUP_BITMAP",
+            Self::GroupBitmapAnd => "GROUP_BITMAP_AND",
+            Self::GroupBitmapOr => "GROUP_BITMAP_OR",
+            Self::GroupBitmapXor => "GROUP_BITMAP_XOR",
+            Self::RankCorr => "RANK_CORR",
+            Self::ExponentialMovingAverage => "EXPONENTIAL_MOVING_AVERAGE",
+            Self::IntervalLengthSum => "INTERVAL_LENGTH_SUM",
+            Self::Retention => "RETENTION",
+            Self::WindowFunnel => "WINDOW_FUNNEL",
+
             Self::Custom(name) => name,
         }
     }
@@ -803,6 +946,42 @@ impl FunctionName {
                 | Self::ApproxTopCount
                 | Self::ApproxTopSum
                 | Self::Ndv
+                | Self::Uniq
+                | Self::UniqExact
+                | Self::UniqHll12
+                | Self::UniqCombined
+                | Self::UniqCombined64
+                | Self::UniqThetaSketch
+                | Self::UniqArray
+                | Self::Quantile
+                | Self::QuantileExact
+                | Self::QuantileTDigest
+                | Self::QuantileTiming
+                | Self::QuantilesTDigest
+                | Self::QuantilesTiming
+                | Self::ArgMin
+                | Self::ArgMax
+                | Self::GroupArray
+                | Self::GroupArrayMovingAvg
+                | Self::GroupArrayMovingSum
+                | Self::Any
+                | Self::AnyLast
+                | Self::AnyHeavy
+                | Self::TopK
+                | Self::GroupUniqArray
+                | Self::SumWithOverflow
+                | Self::SumMap
+                | Self::MinMap
+                | Self::MaxMap
+                | Self::GroupBitmap
+                | Self::GroupBitmapAnd
+                | Self::GroupBitmapOr
+                | Self::GroupBitmapXor
+                | Self::RankCorr
+                | Self::ExponentialMovingAverage
+                | Self::IntervalLengthSum
+                | Self::Retention
+                | Self::WindowFunnel
         )
     }
 

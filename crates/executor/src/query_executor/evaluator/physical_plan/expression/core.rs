@@ -122,7 +122,12 @@ impl ProjectionWithExprExec {
         match expr {
             Expr::Column { name, table } => {
                 if let Some(table_name) = table {
-                    if batch.schema().field_index(name).is_some() {
+                    if let Some(col_idx) = batch.schema().field_index_qualified(name, Some(table_name)) {
+                        let col = batch
+                            .column(col_idx)
+                            .ok_or_else(|| Error::column_not_found(format!("{}.{}", table_name, name)))?;
+                        col.get(row_idx)
+                    } else if batch.schema().field_index(name).is_some() {
                         Self::evaluate_column(name, batch, row_idx)
                     } else if let Some(col_idx) = batch.schema().field_index(table_name) {
                         let field = &batch.schema().fields()[col_idx];
@@ -574,6 +579,7 @@ impl ProjectionWithExprExec {
                 | "DAYOFMONTH"
                 | "WEEKDAY"
                 | "LAST_DAY"
+                | "AT_TIME_ZONE"
         ) {
             return Self::evaluate_datetime_function(func_name, args, batch, row_idx);
         }
@@ -840,6 +846,62 @@ impl ProjectionWithExprExec {
                 let non_null_values: Vec<Value> =
                     values.into_iter().filter(|v| !v.is_null()).collect();
                 Ok(Value::array(non_null_values))
+            }
+            "UNIQ" | "UNIQ_EXACT" | "UNIQ_HLL12" | "UNIQ_COMBINED" | "UNIQ_COMBINED_64"
+            | "UNIQ_THETA_SKETCH" => {
+                let mut unique_values = std::collections::HashSet::new();
+                for val in &values {
+                    if !val.is_null() {
+                        let key = format!("{:?}", val);
+                        unique_values.insert(key);
+                    }
+                }
+                Ok(Value::int64(unique_values.len() as i64))
+            }
+            "QUANTILE" | "QUANTILE_EXACT" | "QUANTILE_TIMING" | "QUANTILE_TDIGEST" => {
+                let mut numeric_values: Vec<f64> = values
+                    .iter()
+                    .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                    .collect();
+                if numeric_values.is_empty() {
+                    Ok(Value::null())
+                } else {
+                    numeric_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                    let median_idx = numeric_values.len() / 2;
+                    Ok(Value::float64(numeric_values[median_idx]))
+                }
+            }
+            "GROUP_ARRAY" => {
+                let non_null_values: Vec<Value> =
+                    values.into_iter().filter(|v| !v.is_null()).collect();
+                Ok(Value::array(non_null_values))
+            }
+            "ARG_MIN" | "ARGMIN" => {
+                Ok(Value::null())
+            }
+            "ARG_MAX" | "ARGMAX" => {
+                Ok(Value::null())
+            }
+            "TOP_K" | "TOPK" => {
+                let non_null_values: Vec<Value> =
+                    values.into_iter().filter(|v| !v.is_null()).collect();
+                Ok(Value::array(non_null_values))
+            }
+            "ANY" | "ANY_LAST" | "ANY_HEAVY" => {
+                values.into_iter().find(|v| !v.is_null()).map_or(Ok(Value::null()), Ok)
+            }
+            "GROUP_UNIQ_ARRAY" => {
+                let mut unique_values = std::collections::HashSet::new();
+                let mut result = Vec::new();
+                for val in values {
+                    if !val.is_null() {
+                        let key = format!("{:?}", val);
+                        if unique_values.insert(key) {
+                            result.push(val);
+                        }
+                    }
+                }
+                Ok(Value::array(result))
             }
             _ => Err(Error::unsupported_feature(format!(
                 "Aggregate function {} not supported in expression context",

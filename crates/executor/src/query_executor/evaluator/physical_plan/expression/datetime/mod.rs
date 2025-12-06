@@ -1,4 +1,5 @@
 mod age;
+mod at_time_zone;
 mod current_date;
 mod current_time;
 mod current_timestamp;
@@ -80,6 +81,7 @@ impl ProjectionWithExprExec {
             "DAYOFWEEK" | "WEEKDAY" => Self::eval_dayofweek(args, batch, row_idx),
             "DAYOFYEAR" => Self::eval_dayofyear(args, batch, row_idx),
             "LAST_DAY" => Self::eval_last_day(args, batch, row_idx),
+            "AT_TIME_ZONE" => Self::eval_at_time_zone(args, batch, row_idx),
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown datetime function: {}",
                 name

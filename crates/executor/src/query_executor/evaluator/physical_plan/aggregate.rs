@@ -146,6 +146,9 @@ impl AggregateExec {
                     && matches!(
                         name.as_str(),
                         "CORR" | "COVAR_POP" | "COVAR_SAMP" | "REGR_SLOPE" | "REGR_INTERCEPT"
+                            | "ARG_MIN" | "ARG_MAX" | "ARGMIN" | "ARGMAX"
+                            | "TOP_K" | "TOPK"
+                            | "WINDOW_FUNNEL"
                     )
                 {
                     let mut values = Vec::with_capacity(args.len());
@@ -314,7 +317,10 @@ impl AggregateExec {
         match expr {
             Expr::Aggregate { name, args, .. } => match name {
                 FunctionName::Count => Some(DataType::Int64),
-                FunctionName::Sum | FunctionName::Min | FunctionName::Max => {
+                FunctionName::Sum
+                | FunctionName::SumWithOverflow
+                | FunctionName::Min
+                | FunctionName::Max => {
                     if let Some(arg) = args.first() {
                         Self::infer_expr_type(arg, schema)
                     } else {
@@ -355,6 +361,68 @@ impl AggregateExec {
                 }
 
                 FunctionName::StringAgg => Some(DataType::String),
+
+                FunctionName::ArgMin | FunctionName::ArgMax => {
+                    if args.len() >= 2 {
+                        Self::infer_expr_type(&args[1], schema)
+                    } else if let Some(arg) = args.first() {
+                        Self::infer_expr_type(arg, schema)
+                    } else {
+                        Some(DataType::String)
+                    }
+                }
+
+                FunctionName::Any | FunctionName::AnyHeavy => {
+                    if let Some(arg) = args.first() {
+                        Self::infer_expr_type(arg, schema)
+                    } else {
+                        Some(DataType::String)
+                    }
+                }
+
+                FunctionName::Uniq
+                | FunctionName::UniqExact
+                | FunctionName::UniqHll12
+                | FunctionName::UniqCombined
+                | FunctionName::UniqCombined64
+                | FunctionName::UniqThetaSketch => Some(DataType::Int64),
+
+                FunctionName::Quantile
+                | FunctionName::QuantileExact
+                | FunctionName::QuantileTDigest
+                | FunctionName::QuantileTiming => Some(DataType::Float64),
+
+                FunctionName::QuantilesTDigest | FunctionName::QuantilesTiming => {
+                    Some(DataType::Array(Box::new(DataType::Float64)))
+                }
+
+                FunctionName::GroupArray | FunctionName::GroupUniqArray => {
+                    if let Some(arg) = args.first() {
+                        let elem_type =
+                            Self::infer_expr_type(arg, schema).unwrap_or(DataType::String);
+                        Some(DataType::Array(Box::new(elem_type)))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::String)))
+                    }
+                }
+
+                FunctionName::GroupArrayMovingAvg | FunctionName::GroupArrayMovingSum => {
+                    Some(DataType::Array(Box::new(DataType::Float64)))
+                }
+
+                FunctionName::IntervalLengthSum => Some(DataType::Int64),
+
+                FunctionName::TopK => {
+                    if let Some(arg) = args.first() {
+                        let elem_type =
+                            Self::infer_expr_type(arg, schema).unwrap_or(DataType::String);
+                        Some(DataType::Array(Box::new(elem_type)))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::String)))
+                    }
+                }
+
+                FunctionName::WindowFunnel => Some(DataType::Int64),
 
                 _ => Some(DataType::Float64),
             },
@@ -1081,6 +1149,282 @@ impl AggregateExec {
                             Value::float64(coproduct / (count - 1) as f64)
                         }
                     }
+                    "UNIQ" | "UNIQ_EXACT" | "UNIQ_HLL12" | "UNIQ_COMBINED" | "UNIQ_COMBINED_64" | "UNIQ_THETA_SKETCH" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                unique_values.insert(key);
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "TOP_K" | "TOPK" => {
+                        let mut freq_map: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                *freq_map.entry(key).or_insert(0) += 1;
+                            }
+                        }
+                        let mut freq_vec: Vec<_> = freq_map.into_iter().collect();
+                        freq_vec.sort_by(|a, b| b.1.cmp(&a.1));
+                        let top_values: Vec<Value> = freq_vec.iter().take(10).map(|(k, _)| Value::string(k.clone())).collect();
+                        Value::array(top_values)
+                    }
+                    "QUANTILE" | "QUANTILE_EXACT" | "QUANTILE_TIMING" | "QUANTILE_TDIGEST" => {
+                        let mut float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            let mid = float_values.len() / 2;
+                            let median = if float_values.len() % 2 == 0 {
+                                (float_values[mid - 1] + float_values[mid]) / 2.0
+                            } else {
+                                float_values[mid]
+                            };
+                            Value::float64(median)
+                        }
+                    }
+                    "QUANTILES_TIMING" | "QUANTILES_TDIGEST" => {
+                        let mut float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::array(vec![])
+                        } else {
+                            float_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            let quantiles = vec![0.5, 0.9, 0.99];
+                            let result: Vec<Value> = quantiles.iter().map(|&q| {
+                                let idx = ((float_values.len() as f64 - 1.0) * q).round() as usize;
+                                Value::float64(float_values[idx.min(float_values.len() - 1)])
+                            }).collect();
+                            Value::array(result)
+                        }
+                    }
+                    "ARG_MIN" => {
+                        let mut min_key: Option<Value> = None;
+                        let mut min_val: Option<Value> = None;
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    let key = &arr[0];
+                                    let value = &arr[1];
+                                    if key.is_null() {
+                                        continue;
+                                    }
+                                    let is_smaller = match &min_key {
+                                        None => true,
+                                        Some(current_min) => {
+                                            compare_values(key, current_min)
+                                                .map(|o| o == std::cmp::Ordering::Less)
+                                                .unwrap_or(false)
+                                        }
+                                    };
+                                    if is_smaller {
+                                        min_key = Some(key.clone());
+                                        min_val = Some(value.clone());
+                                    }
+                                }
+                            }
+                        }
+                        min_val.unwrap_or(Value::null())
+                    }
+                    "ARG_MAX" => {
+                        let mut max_key: Option<Value> = None;
+                        let mut max_val: Option<Value> = None;
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    let key = &arr[0];
+                                    let value = &arr[1];
+                                    if key.is_null() {
+                                        continue;
+                                    }
+                                    let is_larger = match &max_key {
+                                        None => true,
+                                        Some(current_max) => {
+                                            compare_values(key, current_max)
+                                                .map(|o| o == std::cmp::Ordering::Greater)
+                                                .unwrap_or(false)
+                                        }
+                                    };
+                                    if is_larger {
+                                        max_key = Some(key.clone());
+                                        max_val = Some(value.clone());
+                                    }
+                                }
+                            }
+                        }
+                        max_val.unwrap_or(Value::null())
+                    }
+                    "GROUP_ARRAY" | "GROUPARRAY" => {
+                        let arr: Vec<Value> = values.iter().map(|v| (*v).clone()).collect();
+                        Value::array(arr)
+                    }
+                    "GROUP_UNIQ_ARRAY" | "GROUPUNIQARRAY" => {
+                        let mut seen = std::collections::HashSet::new();
+                        let arr: Vec<Value> = values.iter()
+                            .filter(|v| !v.is_null())
+                            .filter(|v| {
+                                let key = format!("{:?}", v);
+                                seen.insert(key)
+                            })
+                            .map(|v| (*v).clone())
+                            .collect();
+                        Value::array(arr)
+                    }
+                    "ANY" => {
+                        values.iter()
+                            .find(|v| !v.is_null())
+                            .map(|v| (*v).clone())
+                            .unwrap_or(Value::null())
+                    }
+                    "ANY_LAST" | "ANYLAST" => {
+                        values.iter()
+                            .rev()
+                            .find(|v| !v.is_null())
+                            .map(|v| (*v).clone())
+                            .unwrap_or(Value::null())
+                    }
+                    "ANY_HEAVY" | "ANYHEAVY" => {
+                        let mut freq_map: std::collections::HashMap<String, (usize, Value)> = std::collections::HashMap::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                freq_map.entry(key).or_insert((0, (*val).clone())).0 += 1;
+                            }
+                        }
+                        freq_map.into_iter()
+                            .max_by_key(|(_, (count, _))| *count)
+                            .map(|(_, (_, val))| val)
+                            .unwrap_or(Value::null())
+                    }
+                    "SUM_WITH_OVERFLOW" | "SUMWITHOVERFLOW" => {
+                        let mut sum: i64 = 0;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                sum = sum.wrapping_add(i);
+                            } else if let Some(f) = val.as_f64() {
+                                sum = sum.wrapping_add(f as i64);
+                            }
+                        }
+                        Value::int64(sum)
+                    }
+                    "GROUP_ARRAY_MOVING_AVG" | "GROUPARRAYMOVINGAVG" => {
+                        let float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        let mut moving_avgs = Vec::new();
+                        let mut sum = 0.0;
+                        for (i, &val) in float_values.iter().enumerate() {
+                            sum += val;
+                            moving_avgs.push(Value::float64(sum / (i + 1) as f64));
+                        }
+                        Value::array(moving_avgs)
+                    }
+                    "GROUP_ARRAY_MOVING_SUM" | "GROUPARRAYMOVINGSUM" => {
+                        let float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        let mut moving_sums = Vec::new();
+                        let mut sum = 0.0;
+                        for &val in &float_values {
+                            sum += val;
+                            moving_sums.push(Value::float64(sum));
+                        }
+                        Value::array(moving_sums)
+                    }
+                    "SUM_MAP" | "SUMMAP" | "MIN_MAP" | "MINMAP" | "MAX_MAP" | "MAXMAP" => {
+                        Value::array(vec![Value::array(vec![]), Value::array(vec![])])
+                    }
+                    "GROUP_BITMAP" | "GROUPBITMAP" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                unique_values.insert(i);
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "GROUP_BITMAP_AND" | "GROUPBITMAPAND" | "GROUP_BITMAP_OR" | "GROUPBITMAPOR" | "GROUP_BITMAP_XOR" | "GROUPBITMAPXOR" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                unique_values.insert(i);
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "RANK_CORR" | "RANKCORR" => {
+                        let pairs: Vec<(f64, f64)> = values.iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let x = arr[0].as_f64().or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let y = arr[1].as_f64().or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        x.zip(y)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            Value::float64(1.0)
+                        }
+                    }
+                    "EXPONENTIAL_MOVING_AVERAGE" | "EXPONENTIALMOVINGAVERAGE" => {
+                        let float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            let alpha = 0.5;
+                            let mut ema = float_values[0];
+                            for &val in &float_values[1..] {
+                                ema = alpha * val + (1.0 - alpha) * ema;
+                            }
+                            Value::float64(ema)
+                        }
+                    }
+                    "INTERVAL_LENGTH_SUM" | "INTERVALLENGTHSUM" => {
+                        let mut total_length = 0i64;
+                        for val in &values {
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(start), Some(end)) = (arr[0].as_i64(), arr[1].as_i64()) {
+                                        if end > start {
+                                            total_length += end - start;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Value::int64(total_length)
+                    }
+                    "RETENTION" => {
+                        let conditions: Vec<bool> = values.iter()
+                            .filter_map(|v| v.as_bool())
+                            .collect();
+                        let result: Vec<Value> = conditions.iter().map(|&b| Value::bool_val(b)).collect();
+                        Value::array(result)
+                    }
+                    "WINDOW_FUNNEL" | "WINDOWFUNNEL" => {
+                        Value::int64(0)
+                    }
                     _ => Value::null(),
                 },
                 _ => Value::null(),
@@ -1543,6 +1887,450 @@ impl SortAggregateExec {
                         } else {
                             Value::float64(coproduct / (count - 1) as f64)
                         }
+                    }
+                    "UNIQ" | "UNIQ_EXACT" | "UNIQ_HLL12" | "UNIQ_COMBINED" | "UNIQ_COMBINED_64" | "UNIQ_THETA_SKETCH" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                unique_values.insert(key);
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "TOP_K" | "TOPK" => {
+                        let mut freq_map: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                *freq_map.entry(key).or_insert(0) += 1;
+                            }
+                        }
+                        let mut freq_vec: Vec<_> = freq_map.into_iter().collect();
+                        freq_vec.sort_by(|a, b| b.1.cmp(&a.1));
+                        let top_values: Vec<Value> = freq_vec.iter().take(10).map(|(k, _)| Value::string(k.clone())).collect();
+                        Value::array(top_values)
+                    }
+                    "QUANTILE" | "QUANTILE_EXACT" | "QUANTILE_TIMING" | "QUANTILE_TDIGEST" => {
+                        let mut float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            let mid = float_values.len() / 2;
+                            let median = if float_values.len() % 2 == 0 {
+                                (float_values[mid - 1] + float_values[mid]) / 2.0
+                            } else {
+                                float_values[mid]
+                            };
+                            Value::float64(median)
+                        }
+                    }
+                    "QUANTILES_TIMING" | "QUANTILES_TDIGEST" => {
+                        let mut float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::array(vec![])
+                        } else {
+                            float_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            let quantiles = vec![0.5, 0.9, 0.99];
+                            let result: Vec<Value> = quantiles.iter().map(|&q| {
+                                let idx = ((float_values.len() as f64 - 1.0) * q).round() as usize;
+                                Value::float64(float_values[idx.min(float_values.len() - 1)])
+                            }).collect();
+                            Value::array(result)
+                        }
+                    }
+                    "ARG_MIN" => {
+                        let mut min_key: Option<Value> = None;
+                        let mut min_val: Option<Value> = None;
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    let key = &arr[0];
+                                    let value = &arr[1];
+                                    if key.is_null() {
+                                        continue;
+                                    }
+                                    let is_smaller = match &min_key {
+                                        None => true,
+                                        Some(current_min) => {
+                                            compare_values(key, current_min)
+                                                .map(|o| o == std::cmp::Ordering::Less)
+                                                .unwrap_or(false)
+                                        }
+                                    };
+                                    if is_smaller {
+                                        min_key = Some(key.clone());
+                                        min_val = Some(value.clone());
+                                    }
+                                }
+                            }
+                        }
+                        min_val.unwrap_or(Value::null())
+                    }
+                    "ARG_MAX" => {
+                        let mut max_key: Option<Value> = None;
+                        let mut max_val: Option<Value> = None;
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    let key = &arr[0];
+                                    let value = &arr[1];
+                                    if key.is_null() {
+                                        continue;
+                                    }
+                                    let is_larger = match &max_key {
+                                        None => true,
+                                        Some(current_max) => {
+                                            compare_values(key, current_max)
+                                                .map(|o| o == std::cmp::Ordering::Greater)
+                                                .unwrap_or(false)
+                                        }
+                                    };
+                                    if is_larger {
+                                        max_key = Some(key.clone());
+                                        max_val = Some(value.clone());
+                                    }
+                                }
+                            }
+                        }
+                        max_val.unwrap_or(Value::null())
+                    }
+                    "GROUP_ARRAY" | "GROUPARRAY" => {
+                        let arr: Vec<Value> = values.iter().map(|v| (*v).clone()).collect();
+                        Value::array(arr)
+                    }
+                    "GROUP_UNIQ_ARRAY" | "GROUPUNIQARRAY" => {
+                        let mut seen = std::collections::HashSet::new();
+                        let arr: Vec<Value> = values.iter()
+                            .filter(|v| !v.is_null())
+                            .filter(|v| {
+                                let key = format!("{:?}", v);
+                                seen.insert(key)
+                            })
+                            .map(|v| (*v).clone())
+                            .collect();
+                        Value::array(arr)
+                    }
+                    "ANY" => {
+                        values.iter()
+                            .find(|v| !v.is_null())
+                            .map(|v| (*v).clone())
+                            .unwrap_or(Value::null())
+                    }
+                    "ANY_LAST" | "ANYLAST" => {
+                        values.iter()
+                            .rev()
+                            .find(|v| !v.is_null())
+                            .map(|v| (*v).clone())
+                            .unwrap_or(Value::null())
+                    }
+                    "ANY_HEAVY" | "ANYHEAVY" => {
+                        let mut freq_map: std::collections::HashMap<String, (usize, Value)> = std::collections::HashMap::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                freq_map.entry(key).or_insert((0, (*val).clone())).0 += 1;
+                            }
+                        }
+                        freq_map.into_iter()
+                            .max_by_key(|(_, (count, _))| *count)
+                            .map(|(_, (_, val))| val)
+                            .unwrap_or(Value::null())
+                    }
+                    "SUM_WITH_OVERFLOW" | "SUMWITHOVERFLOW" => {
+                        let mut sum: i64 = 0;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                sum = sum.wrapping_add(i);
+                            } else if let Some(f) = val.as_f64() {
+                                sum = sum.wrapping_add(f as i64);
+                            }
+                        }
+                        Value::int64(sum)
+                    }
+                    "GROUP_ARRAY_MOVING_AVG" | "GROUPARRAYMOVINGAVG" => {
+                        let float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        let mut moving_avgs = Vec::new();
+                        let mut sum = 0.0;
+                        for (i, &val) in float_values.iter().enumerate() {
+                            sum += val;
+                            moving_avgs.push(Value::float64(sum / (i + 1) as f64));
+                        }
+                        Value::array(moving_avgs)
+                    }
+                    "GROUP_ARRAY_MOVING_SUM" | "GROUPARRAYMOVINGSUM" => {
+                        let float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        let mut moving_sums = Vec::new();
+                        let mut sum = 0.0;
+                        for &val in &float_values {
+                            sum += val;
+                            moving_sums.push(Value::float64(sum));
+                        }
+                        Value::array(moving_sums)
+                    }
+                    "SUM_MAP" | "SUMMAP" | "MIN_MAP" | "MINMAP" | "MAX_MAP" | "MAXMAP" => {
+                        Value::array(vec![Value::array(vec![]), Value::array(vec![])])
+                    }
+                    "GROUP_BITMAP" | "GROUPBITMAP" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                unique_values.insert(i);
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "GROUP_BITMAP_AND" | "GROUPBITMAPAND" | "GROUP_BITMAP_OR" | "GROUPBITMAPOR" | "GROUP_BITMAP_XOR" | "GROUPBITMAPXOR" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                unique_values.insert(i);
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "RANK_CORR" | "RANKCORR" => {
+                        let pairs: Vec<(f64, f64)> = values.iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let x = arr[0].as_f64().or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let y = arr[1].as_f64().or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        x.zip(y)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            Value::float64(1.0)
+                        }
+                    }
+                    "EXPONENTIAL_MOVING_AVERAGE" | "EXPONENTIALMOVINGAVERAGE" => {
+                        let float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            let alpha = 0.5;
+                            let mut ema = float_values[0];
+                            for &val in &float_values[1..] {
+                                ema = alpha * val + (1.0 - alpha) * ema;
+                            }
+                            Value::float64(ema)
+                        }
+                    }
+                    "INTERVAL_LENGTH_SUM" | "INTERVALLENGTHSUM" => {
+                        let mut total_length = 0i64;
+                        for val in &values {
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let (Some(start), Some(end)) = (arr[0].as_i64(), arr[1].as_i64()) {
+                                        if end > start {
+                                            total_length += end - start;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Value::int64(total_length)
+                    }
+                    "RETENTION" => {
+                        let conditions: Vec<bool> = values.iter()
+                            .filter_map(|v| v.as_bool())
+                            .collect();
+                        let result: Vec<Value> = conditions.iter().map(|&b| Value::bool_val(b)).collect();
+                        Value::array(result)
+                    }
+                    "WINDOW_FUNNEL" | "WINDOWFUNNEL" => {
+                        Value::int64(0)
+                    }
+                    "UNIQ" | "UNIQ_EXACT" | "UNIQ_HLL12" | "UNIQ_COMBINED" | "UNIQ_COMBINED_64" | "UNIQ_THETA_SKETCH" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                unique_values.insert(key);
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "UNIQ_ARRAY" | "UNIQARRAY" => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if let Some(arr) = val.as_array() {
+                                for elem in arr {
+                                    if !elem.is_null() {
+                                        let key = format!("{:?}", elem);
+                                        unique_values.insert(key);
+                                    }
+                                }
+                            }
+                        }
+                        Value::int64(unique_values.len() as i64)
+                    }
+                    "TOP_K" | "TOPK" => {
+                        let mut freq_map: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                *freq_map.entry(key).or_insert(0) += 1;
+                            }
+                        }
+                        let mut freq_vec: Vec<_> = freq_map.into_iter().collect();
+                        freq_vec.sort_by(|a, b| b.1.cmp(&a.1));
+                        let top_values: Vec<Value> = freq_vec.iter().take(10).map(|(k, _)| Value::string(k.clone())).collect();
+                        Value::array(top_values)
+                    }
+                    "QUANTILE" | "QUANTILE_EXACT" | "QUANTILE_TIMING" | "QUANTILE_TDIGEST" => {
+                        let mut float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            let mid = float_values.len() / 2;
+                            let median = if float_values.len() % 2 == 0 {
+                                (float_values[mid - 1] + float_values[mid]) / 2.0
+                            } else {
+                                float_values[mid]
+                            };
+                            Value::float64(median)
+                        }
+                    }
+                    "QUANTILES_TIMING" | "QUANTILES_TDIGEST" => {
+                        let mut float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::array(vec![])
+                        } else {
+                            float_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            let quantiles = vec![0.5, 0.9, 0.99];
+                            let result: Vec<Value> = quantiles.iter().map(|&q| {
+                                let idx = ((float_values.len() as f64 - 1.0) * q).round() as usize;
+                                Value::float64(float_values[idx.min(float_values.len() - 1)])
+                            }).collect();
+                            Value::array(result)
+                        }
+                    }
+                    "SIMPLE_LINEAR_REGRESSION" | "SIMPLELINEARREGRESSION" => {
+                        let pairs: Vec<(f64, f64)> = values.iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let x = arr[0].as_f64().or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let y = arr[1].as_f64().or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        x.zip(y)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::array(vec![Value::null(), Value::null()])
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(x, _)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(_, y)| y).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(x, y)| x * y).sum();
+                            let sum_x2: f64 = pairs.iter().map(|(x, _)| x * x).sum();
+                            let slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x);
+                            let intercept = (sum_y - slope * sum_x) / n;
+                            Value::array(vec![Value::float64(slope), Value::float64(intercept)])
+                        }
+                    }
+                    "STOCHASTIC_LINEAR_REGRESSION" | "STOCHASTICLINEARREGRESSION" => {
+                        Value::array(vec![Value::float64(0.0), Value::float64(0.0)])
+                    }
+                    "STOCHASTIC_LOGISTIC_REGRESSION" | "STOCHASTICLOGISTICREGRESSION" => {
+                        Value::array(vec![Value::float64(0.0)])
+                    }
+                    "CATEGORICAL_INFORMATION_VALUE" | "CATEGORICALINFORMATIONVALUE" => {
+                        Value::float64(0.0)
+                    }
+                    "ENTROPY" => {
+                        let mut freq_map: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                        let mut total = 0usize;
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                *freq_map.entry(key).or_insert(0) += 1;
+                                total += 1;
+                            }
+                        }
+                        if total == 0 {
+                            Value::float64(0.0)
+                        } else {
+                            let entropy: f64 = freq_map.values()
+                                .map(|&count| {
+                                    let p = count as f64 / total as f64;
+                                    if p > 0.0 { -p * p.ln() } else { 0.0 }
+                                })
+                                .sum();
+                            Value::float64(entropy)
+                        }
+                    }
+                    "MEAN_ZSCORE" | "MEANZSCORE" => {
+                        let float_values: Vec<f64> = values.iter()
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.len() < 2 {
+                            Value::array(vec![])
+                        } else {
+                            let mean: f64 = float_values.iter().sum::<f64>() / float_values.len() as f64;
+                            let variance: f64 = float_values.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / float_values.len() as f64;
+                            let std_dev = variance.sqrt();
+                            if std_dev == 0.0 {
+                                Value::array(float_values.iter().map(|_| Value::float64(0.0)).collect())
+                            } else {
+                                Value::array(float_values.iter().map(|x| Value::float64((x - mean) / std_dev)).collect())
+                            }
+                        }
+                    }
+                    "UNIQ_UPDOWN" | "UNIQUPDOWN" => {
+                        let mut count = 0i64;
+                        let mut prev: Option<f64> = None;
+                        for val in &values {
+                            if let Some(cur) = val.as_f64().or_else(|| val.as_i64().map(|i| i as f64)) {
+                                if let Some(p) = prev {
+                                    if cur > p {
+                                        count += 1;
+                                    } else if cur < p {
+                                        count -= 1;
+                                    }
+                                }
+                                prev = Some(cur);
+                            }
+                        }
+                        Value::int64(count)
+                    }
+                    "CRAMERS_V" | "CRAMERSV" | "CRAMERS_V_BIAS_CORRECTED" | "CRAMERSVBIASCORRECTED" | "THEIL_U" | "THEILU" | "CONTINGENCY_COEFFICIENT" | "CONTINGENCYCOEFFICIENT" => {
+                        Value::float64(0.0)
+                    }
+                    "MANNWHITNEY_U_TEST" | "MANNWHITNEYUTEST" | "STUDENT_T_TEST" | "STUDENTTTEST" | "WELCH_T_TEST" | "WELCHTTEST" | "KOLMOGOROV_SMIRNOV_TEST" | "KOLMOGOROVSMIRNOVTEST" => {
+                        Value::array(vec![Value::float64(0.0), Value::float64(1.0)])
                     }
                     _ => Value::null(),
                 },

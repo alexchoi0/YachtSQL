@@ -36,15 +36,10 @@ impl TableStatistics {
 #[derive(Debug, Clone)]
 pub struct ColumnStatistics {
     pub column_name: String,
-
     pub distinct_count: usize,
-
     pub null_count: usize,
-
     pub min_value: Option<LiteralValue>,
-
     pub max_value: Option<LiteralValue>,
-
     pub histogram: Option<Histogram>,
 }
 
@@ -104,7 +99,6 @@ impl ColumnStatistics {
 #[derive(Debug, Clone)]
 pub struct Histogram {
     pub buckets: Vec<HistogramBucket>,
-
     pub total_count: usize,
 }
 
@@ -237,11 +231,8 @@ impl Histogram {
 #[derive(Debug, Clone)]
 pub struct HistogramBucket {
     pub lower_bound: LiteralValue,
-
     pub upper_bound: LiteralValue,
-
     pub count: usize,
-
     pub distinct_count: usize,
 }
 

@@ -7,9 +7,7 @@ use crate::expr::Expr;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupingMetadata {
     pub grouped_columns: Vec<String>,
-
     pub grouping_set_id: usize,
-
     pub total_sets: usize,
 }
 
@@ -77,11 +75,8 @@ pub enum PlanNode {
 
     LateralJoin {
         left: Box<PlanNode>,
-
         right: Box<PlanNode>,
-
         on: Expr,
-
         join_type: JoinType,
     },
 
@@ -158,9 +153,7 @@ pub enum PlanNode {
     Insert {
         table_name: String,
         columns: Option<Vec<String>>,
-
         values: Option<Vec<Vec<Expr>>>,
-
         source: Option<Box<PlanNode>>,
     },
 
@@ -177,19 +170,14 @@ pub enum PlanNode {
 
     TableValuedFunction {
         function_name: String,
-
         args: Vec<Expr>,
-
         alias: Option<String>,
     },
 
     ArrayJoin {
         input: Box<PlanNode>,
-
         arrays: Vec<(Expr, Option<String>)>,
-
         is_left: bool,
-
         is_unaligned: bool,
     },
 
@@ -393,9 +381,7 @@ pub enum JoinType {
     Right,
     Full,
     Cross,
-
     Semi,
-
     Anti,
 }
 

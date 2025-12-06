@@ -338,6 +338,18 @@ impl Schema {
         self.fields.iter().position(|f| f.name == name)
     }
 
+    pub fn field_index_qualified(&self, name: &str, table: Option<&str>) -> Option<usize> {
+        match table {
+            Some(tbl) => self.fields.iter().position(|f| {
+                f.name == name
+                    && f.source_table
+                        .as_ref()
+                        .is_some_and(|src| src == tbl || src.ends_with(&format!(".{}", tbl)))
+            }),
+            None => self.field_index(name),
+        }
+    }
+
     pub fn field_count(&self) -> usize {
         self.fields.len()
     }

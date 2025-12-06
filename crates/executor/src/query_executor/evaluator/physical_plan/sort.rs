@@ -23,6 +23,10 @@ impl SortExec {
     pub fn new(input: Rc<dyn ExecutionPlan>, sort_exprs: Vec<OrderByExpr>) -> Result<Self> {
         let schema = input.schema().clone();
 
+        for sort_expr in &sort_exprs {
+            Self::validate_expr_columns(&sort_expr.expr, &schema)?;
+        }
+
         let mut enum_labels = Vec::with_capacity(sort_exprs.len());
         for sort_expr in &sort_exprs {
             let labels = Self::get_enum_labels_for_expr(&sort_expr.expr, &schema);
@@ -64,6 +68,155 @@ impl SortExec {
                 None
             }
             _ => None,
+        }
+    }
+
+    fn validate_expr_columns(expr: &Expr, schema: &Schema) -> Result<()> {
+        match expr {
+            Expr::Column { name, table } => {
+                let found = if let Some(t) = table {
+                    schema.field_index_qualified(name, Some(t)).is_some()
+                        || schema.field_index(name).is_some()
+                        || schema.field_index(&format!("{}.{}", t, name)).is_some()
+                } else {
+                    schema.field_index(name).is_some()
+                };
+                if found {
+                    Ok(())
+                } else {
+                    Err(Error::column_not_found(name.clone()))
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Self::validate_expr_columns(left, schema)?;
+                Self::validate_expr_columns(right, schema)
+            }
+            Expr::UnaryOp { expr, .. } => Self::validate_expr_columns(expr, schema),
+            Expr::Function { args, .. } => {
+                for arg in args {
+                    Self::validate_expr_columns(arg, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Aggregate { args, filter, .. } => {
+                for arg in args {
+                    Self::validate_expr_columns(arg, schema)?;
+                }
+                if let Some(f) = filter {
+                    Self::validate_expr_columns(f, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
+                if let Some(op) = operand {
+                    Self::validate_expr_columns(op, schema)?;
+                }
+                for (when_expr, then_expr) in when_then {
+                    Self::validate_expr_columns(when_expr, schema)?;
+                    Self::validate_expr_columns(then_expr, schema)?;
+                }
+                if let Some(el) = else_expr {
+                    Self::validate_expr_columns(el, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Cast { expr, .. } => Self::validate_expr_columns(expr, schema),
+            Expr::TryCast { expr, .. } => Self::validate_expr_columns(expr, schema),
+            Expr::InList { expr, list, .. } => {
+                Self::validate_expr_columns(expr, schema)?;
+                for item in list {
+                    Self::validate_expr_columns(item, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                Self::validate_expr_columns(expr, schema)?;
+                Self::validate_expr_columns(low, schema)?;
+                Self::validate_expr_columns(high, schema)
+            }
+            Expr::Subquery { .. } => Ok(()),
+            Expr::Literal(_) => Ok(()),
+            Expr::Wildcard => Ok(()),
+            Expr::QualifiedWildcard { .. } => Ok(()),
+            Expr::Tuple(exprs) => {
+                for e in exprs {
+                    Self::validate_expr_columns(e, schema)?;
+                }
+                Ok(())
+            }
+            Expr::StructLiteral { fields } => {
+                for field in fields {
+                    Self::validate_expr_columns(&field.expr, schema)?;
+                }
+                Ok(())
+            }
+            Expr::StructFieldAccess { expr, .. } => Self::validate_expr_columns(expr, schema),
+            Expr::WindowFunction { args, partition_by, order_by, .. } => {
+                for arg in args {
+                    Self::validate_expr_columns(arg, schema)?;
+                }
+                for e in partition_by {
+                    Self::validate_expr_columns(e, schema)?;
+                }
+                for ob in order_by {
+                    Self::validate_expr_columns(&ob.expr, schema)?;
+                }
+                Ok(())
+            }
+            Expr::Exists { .. } => Ok(()),
+            Expr::InSubquery { expr, .. } => Self::validate_expr_columns(expr, schema),
+            Expr::TupleInList { tuple, list, .. } => {
+                for e in tuple {
+                    Self::validate_expr_columns(e, schema)?;
+                }
+                for tup in list {
+                    for e in tup {
+                        Self::validate_expr_columns(e, schema)?;
+                    }
+                }
+                Ok(())
+            }
+            Expr::TupleInSubquery { tuple, .. } => {
+                for e in tuple {
+                    Self::validate_expr_columns(e, schema)?;
+                }
+                Ok(())
+            }
+            Expr::ArrayIndex { array, index, .. } => {
+                Self::validate_expr_columns(array, schema)?;
+                Self::validate_expr_columns(index, schema)
+            }
+            Expr::ArraySlice { array, start, end } => {
+                Self::validate_expr_columns(array, schema)?;
+                if let Some(s) = start {
+                    Self::validate_expr_columns(s, schema)?;
+                }
+                if let Some(e) = end {
+                    Self::validate_expr_columns(e, schema)?;
+                }
+                Ok(())
+            }
+            Expr::AnyOp { left, right, .. } => {
+                Self::validate_expr_columns(left, schema)?;
+                Self::validate_expr_columns(right, schema)
+            }
+            Expr::AllOp { left, right, .. } => {
+                Self::validate_expr_columns(left, schema)?;
+                Self::validate_expr_columns(right, schema)
+            }
+            Expr::ScalarSubquery { .. } => Ok(()),
+            Expr::Grouping { .. } => Ok(()),
+            Expr::Excluded { .. } => Ok(()),
+            Expr::IsDistinctFrom { left, right, .. } => {
+                Self::validate_expr_columns(left, schema)?;
+                Self::validate_expr_columns(right, schema)
+            }
         }
     }
 

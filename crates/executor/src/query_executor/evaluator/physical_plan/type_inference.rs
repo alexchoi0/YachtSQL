@@ -491,10 +491,11 @@ impl ProjectionWithExprExec {
             "TIMESTAMP_TRUNC" => Some(DataType::Timestamp),
 
             "PARSE_DATE" | "STR_TO_DATE" => Some(DataType::Date),
-            "PARSE_TIMESTAMP" => Some(DataType::Timestamp),
+            "PARSE_TIMESTAMP" | "AT_TIME_ZONE" => Some(DataType::Timestamp),
 
             "MAKE_DATE" => Some(DataType::Date),
-            "MAKE_TIMESTAMP" | "CURRENT_TIME" => Some(DataType::Timestamp),
+            "MAKE_TIMESTAMP" => Some(DataType::Timestamp),
+            "CURRENT_TIME" | "LOCALTIME" => Some(DataType::Time),
 
             "EXTRACT" | "DATE_PART" | "YEAR" | "MONTH" | "DAY" | "HOUR" | "MINUTE" | "SECOND"
             | "QUARTER" | "WEEK" | "DOW" | "DOY" | "DAYOFWEEK" | "DAYOFYEAR" | "DATE_DIFF"

@@ -4,11 +4,8 @@ use crate::ordering::OrderingProperty;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cost {
     pub rows: usize,
-
     pub cpu: f64,
-
     pub io: f64,
-
     pub memory: usize,
 }
 
@@ -71,9 +68,7 @@ pub struct CostModel {
 #[derive(Debug, Clone, Copy)]
 pub struct TableStats {
     pub row_count: usize,
-
     pub avg_row_size: usize,
-
     pub column_count: usize,
 }
 
@@ -388,7 +383,12 @@ impl CostModel {
         required_ordering: &OrderingProperty,
     ) -> Cost {
         if input_ordering.satisfies(required_ordering) {
-            Cost::new(input_cost.rows, input_cost.cpu, input_cost.io, input_cost.memory)
+            Cost::new(
+                input_cost.rows,
+                input_cost.cpu,
+                input_cost.io,
+                input_cost.memory,
+            )
         } else {
             self.estimate_sort_cost(input_cost)
         }
@@ -501,8 +501,8 @@ impl CostModel {
         let join_ordering = OrderingProperty::from_column_names(&left_cols);
         let right_join_ordering = OrderingProperty::from_column_names(&right_cols);
 
-        let both_sorted =
-            left_ordering.satisfies(&join_ordering) && right_ordering.satisfies(&right_join_ordering);
+        let both_sorted = left_ordering.satisfies(&join_ordering)
+            && right_ordering.satisfies(&right_join_ordering);
 
         if both_sorted {
             return JoinStrategy::MergeJoin;
@@ -532,10 +532,16 @@ impl CostModel {
         }
 
         let sort_cost = self.estimate_sort_cost(input_cost);
-        let hash_agg_cost =
-            self.estimate_aggregate_cost_with_strategy(input_cost, AggregateStrategy::HashAggregate, None);
-        let sort_then_agg_cost = self
-            .estimate_aggregate_cost_with_strategy(&sort_cost, AggregateStrategy::SortAggregate, None);
+        let hash_agg_cost = self.estimate_aggregate_cost_with_strategy(
+            input_cost,
+            AggregateStrategy::HashAggregate,
+            None,
+        );
+        let sort_then_agg_cost = self.estimate_aggregate_cost_with_strategy(
+            &sort_cost,
+            AggregateStrategy::SortAggregate,
+            None,
+        );
 
         if sort_then_agg_cost.total() < hash_agg_cost.total() {
             AggregateStrategy::SortAggregate
@@ -600,8 +606,10 @@ mod tests {
         let left = Cost::new(10000, 1000.0, 5000.0, 100000);
         let right = Cost::new(10000, 1000.0, 5000.0, 100000);
 
-        let hash_cost = model.estimate_join_cost_with_strategy(&left, &right, JoinStrategy::HashJoin);
-        let merge_cost = model.estimate_join_cost_with_strategy(&left, &right, JoinStrategy::MergeJoin);
+        let hash_cost =
+            model.estimate_join_cost_with_strategy(&left, &right, JoinStrategy::HashJoin);
+        let merge_cost =
+            model.estimate_join_cost_with_strategy(&left, &right, JoinStrategy::MergeJoin);
 
         assert!(merge_cost.total() < hash_cost.total());
     }
@@ -617,8 +625,14 @@ mod tests {
         let right_ordering = OrderingProperty::from_column_names(&right_cols);
         let join_keys = vec![("id".to_string(), "user_id".to_string())];
 
-        let strategy =
-            model.choose_join_strategy(&left, &right, &left_ordering, &right_ordering, &join_keys, false);
+        let strategy = model.choose_join_strategy(
+            &left,
+            &right,
+            &left_ordering,
+            &right_ordering,
+            &join_keys,
+            false,
+        );
 
         assert_eq!(strategy, JoinStrategy::MergeJoin);
     }
@@ -631,8 +645,14 @@ mod tests {
         let no_ordering = OrderingProperty::empty();
         let join_keys = vec![("id".to_string(), "user_id".to_string())];
 
-        let strategy =
-            model.choose_join_strategy(&left, &right, &no_ordering, &no_ordering, &join_keys, false);
+        let strategy = model.choose_join_strategy(
+            &left,
+            &right,
+            &no_ordering,
+            &no_ordering,
+            &join_keys,
+            false,
+        );
 
         assert_eq!(strategy, JoinStrategy::HashJoin);
     }
