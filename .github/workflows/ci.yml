@@ -9,6 +9,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
 
 jobs:
   check:
@@ -100,12 +102,30 @@ jobs:
           - yachtsql-dialects-clickhouse
           - yachtsql-test-utils
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android
+          df -h
+
       - uses: actions/checkout@v4
+
+      - name: Install LLD linker
+        run: sudo apt-get update && sudo apt-get install -y lld
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-09-14
+
+      - name: Configure linker
+        run: |
+          mkdir -p .cargo
+          echo '[target.x86_64-unknown-linux-gnu]' >> .cargo/config.toml
+          echo 'linker = "clang"' >> .cargo/config.toml
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> .cargo/config.toml
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -151,12 +171,30 @@ jobs:
     name: Test (ClickHouse dialect)
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android
+          df -h
+
       - uses: actions/checkout@v4
+
+      - name: Install LLD linker
+        run: sudo apt-get update && sudo apt-get install -y lld
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-09-14
+
+      - name: Configure linker
+        run: |
+          mkdir -p .cargo
+          echo '[target.x86_64-unknown-linux-gnu]' >> .cargo/config.toml
+          echo 'linker = "clang"' >> .cargo/config.toml
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> .cargo/config.toml
 
       - name: Cache cargo registry
         uses: actions/cache@v4
