@@ -21,7 +21,7 @@ use super::returning::{
 #[allow(dead_code)]
 pub struct LogicalToPhysicalPlanner {
     storage: Rc<RefCell<yachtsql_storage::Storage>>,
-
+    dialect: crate::DialectType,
     cte_plans: RefCell<HashMap<String, Rc<dyn ExecutionPlan>>>,
 }
 
@@ -780,8 +780,14 @@ impl LogicalToPhysicalPlanner {
     pub fn new(storage: Rc<RefCell<yachtsql_storage::Storage>>) -> Self {
         Self {
             storage,
+            dialect: crate::DialectType::BigQuery,
             cte_plans: RefCell::new(HashMap::new()),
         }
+    }
+
+    pub fn with_dialect(mut self, dialect: crate::DialectType) -> Self {
+        self.dialect = dialect;
+        self
     }
 
     pub fn create_physical_plan(&self, logical_plan: &LogicalPlan) -> Result<PhysicalPlan> {
@@ -958,11 +964,10 @@ impl LogicalToPhysicalPlanner {
                 let output_schema =
                     self.infer_projection_schema(&resolved_expressions, input_schema)?;
 
-                Ok(Rc::new(ProjectionWithExprExec::new(
-                    input_exec,
-                    output_schema,
-                    resolved_expressions,
-                )))
+                Ok(Rc::new(
+                    ProjectionWithExprExec::new(input_exec, output_schema, resolved_expressions)
+                        .with_dialect(self.dialect),
+                ))
             }
 
             PlanNode::Join {

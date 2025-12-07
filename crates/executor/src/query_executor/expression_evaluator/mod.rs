@@ -84,8 +84,8 @@ pub struct ExpressionEvaluator<'a> {
     left_col_count: Option<usize>,
     table_map: HashMap<String, TableSide>,
     type_registry: Option<&'a TypeRegistry>,
-
     owned_type_registry: Option<TypeRegistry>,
+    dialect: crate::DialectType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,7 +104,13 @@ impl<'a> ExpressionEvaluator<'a> {
             table_map: HashMap::new(),
             type_registry: None,
             owned_type_registry: None,
+            dialect: crate::DialectType::BigQuery,
         }
+    }
+
+    pub fn with_dialect(mut self, dialect: crate::DialectType) -> Self {
+        self.dialect = dialect;
+        self
     }
 
     pub fn with_type_registry(mut self, registry: &'a TypeRegistry) -> Self {
@@ -137,6 +143,7 @@ impl<'a> ExpressionEvaluator<'a> {
             table_map,
             type_registry: None,
             owned_type_registry: None,
+            dialect: crate::DialectType::BigQuery,
         }
     }
 
@@ -165,6 +172,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 table_map,
                 type_registry: None,
                 owned_type_registry: None,
+                dialect: crate::DialectType::BigQuery,
             }
         } else {
             Self {
@@ -175,6 +183,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 table_map,
                 type_registry: None,
                 owned_type_registry: None,
+                dialect: crate::DialectType::BigQuery,
             }
         }
     }
@@ -5292,11 +5301,15 @@ impl<'a> ExpressionEvaluator<'a> {
                     )));
                 }
                 let value = self.evaluate_function_arg(&args[0], row)?;
+                let return_hex = matches!(
+                    self.dialect,
+                    crate::DialectType::PostgreSQL | crate::DialectType::ClickHouse
+                );
                 match func_name.as_str() {
-                    "MD5" => yachtsql_functions::scalar::eval_md5(&value, true),
-                    "SHA1" => yachtsql_functions::scalar::eval_sha1(&value, true),
-                    "SHA256" => yachtsql_functions::scalar::eval_sha256(&value, true),
-                    "SHA512" => yachtsql_functions::scalar::eval_sha512(&value, true),
+                    "MD5" => yachtsql_functions::scalar::eval_md5(&value, return_hex),
+                    "SHA1" => yachtsql_functions::scalar::eval_sha1(&value, return_hex),
+                    "SHA256" => yachtsql_functions::scalar::eval_sha256(&value, return_hex),
+                    "SHA512" => yachtsql_functions::scalar::eval_sha512(&value, return_hex),
                     "TO_HEX" => yachtsql_functions::scalar::eval_to_hex(&value),
                     "FROM_HEX" => yachtsql_functions::scalar::eval_from_hex(&value),
                     "TO_BASE64" => yachtsql_functions::scalar::eval_to_base64(&value),

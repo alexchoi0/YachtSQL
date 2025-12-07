@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_md5() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT TO_HEX(MD5('hello'))").unwrap();
@@ -10,7 +9,6 @@ fn test_md5() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sha256() {
     let mut executor = create_executor();
     let result = executor
@@ -20,7 +18,6 @@ fn test_sha256() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sha512() {
     let mut executor = create_executor();
     let result = executor
@@ -30,7 +27,6 @@ fn test_sha512() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_md5_with_column() {
     let mut executor = create_executor();
     executor

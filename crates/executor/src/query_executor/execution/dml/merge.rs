@@ -38,7 +38,8 @@ impl DmlMergeExecutor for QueryExecutor {
 
         let planner = crate::query_executor::logical_to_physical::LogicalToPhysicalPlanner::new(
             Rc::clone(&self.storage),
-        );
+        )
+        .with_dialect(self.dialect());
         let logical_plan_for_conversion =
             yachtsql_ir::plan::LogicalPlan::new(optimized.root().clone());
         let physical_plan = planner.create_physical_plan(&logical_plan_for_conversion)?;

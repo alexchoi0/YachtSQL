@@ -317,7 +317,7 @@ pub fn eval_to_hex(value: &Value) -> Result<Value> {
     }
 
     if let Some(b) = value.as_bytes() {
-        return Ok(Value::string(hex::encode(b).to_uppercase()));
+        return Ok(Value::string(hex::encode(b)));
     }
 
     Err(yachtsql_core::error::Error::TypeMismatch {

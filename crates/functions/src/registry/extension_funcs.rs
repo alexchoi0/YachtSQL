@@ -3,7 +3,7 @@ use std::rc::Rc;
 use yachtsql_core::error::Result;
 use yachtsql_core::types::{DataType, Value};
 
-use crate::scalar::ScalarFunctionImpl;
+use crate::scalar::{self, ScalarFunctionImpl};
 
 pub(super) fn register(registry: &mut super::FunctionRegistry) {
     register_uuid_functions(registry);
@@ -76,6 +76,39 @@ fn register_crypto_functions(registry: &mut super::FunctionRegistry) {
             DataType::Bytes,
             false,
             eval_gen_random_bytes,
+        )),
+    );
+
+    registry.register_scalar(
+        "MD5".to_string(),
+        Rc::new(ScalarFunctionImpl::new(
+            "md5".to_string(),
+            vec![DataType::String],
+            DataType::Bytes,
+            false,
+            eval_md5,
+        )),
+    );
+
+    registry.register_scalar(
+        "SHA256".to_string(),
+        Rc::new(ScalarFunctionImpl::new(
+            "sha256".to_string(),
+            vec![DataType::String],
+            DataType::Bytes,
+            false,
+            eval_sha256,
+        )),
+    );
+
+    registry.register_scalar(
+        "SHA512".to_string(),
+        Rc::new(ScalarFunctionImpl::new(
+            "sha512".to_string(),
+            vec![DataType::String],
+            DataType::Bytes,
+            false,
+            eval_sha512,
         )),
     );
 
@@ -200,6 +233,18 @@ fn eval_uuidv7(_args: &[Value]) -> Result<Value> {
     );
 
     Ok(Value::string(uuid))
+}
+
+fn eval_md5(args: &[Value]) -> Result<Value> {
+    scalar::eval_md5(&args[0], false)
+}
+
+fn eval_sha256(args: &[Value]) -> Result<Value> {
+    scalar::eval_sha256(&args[0], false)
+}
+
+fn eval_sha512(args: &[Value]) -> Result<Value> {
+    scalar::eval_sha512(&args[0], false)
 }
 
 fn eval_gen_random_bytes(args: &[Value]) -> Result<Value> {

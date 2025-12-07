@@ -12,10 +12,20 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
-        let left_val = Self::evaluate_expr(left, batch, row_idx)?;
+        Self::evaluate_and_internal(left, right, batch, row_idx, crate::DialectType::PostgreSQL)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_and_internal(
+        left: &Expr,
+        right: &Expr,
+        batch: &Table,
+        row_idx: usize,
+        dialect: crate::DialectType,
+    ) -> Result<Value> {
+        let left_val = Self::evaluate_expr_internal(left, batch, row_idx, dialect)?;
 
         if left_val.is_null() {
-            let right_val = Self::evaluate_expr(right, batch, row_idx)?;
+            let right_val = Self::evaluate_expr_internal(right, batch, row_idx, dialect)?;
             if let Some(false) = right_val.as_bool() {
                 return Ok(Value::bool_val(false));
             }
@@ -26,7 +36,7 @@ impl ProjectionWithExprExec {
             if !b {
                 return Ok(Value::bool_val(false));
             }
-            return Self::evaluate_expr(right, batch, row_idx);
+            return Self::evaluate_expr_internal(right, batch, row_idx, dialect);
         }
 
         Err(Error::TypeMismatch {
@@ -41,10 +51,20 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
-        let left_val = Self::evaluate_expr(left, batch, row_idx)?;
+        Self::evaluate_or_internal(left, right, batch, row_idx, crate::DialectType::PostgreSQL)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_or_internal(
+        left: &Expr,
+        right: &Expr,
+        batch: &Table,
+        row_idx: usize,
+        dialect: crate::DialectType,
+    ) -> Result<Value> {
+        let left_val = Self::evaluate_expr_internal(left, batch, row_idx, dialect)?;
 
         if left_val.is_null() {
-            let right_val = Self::evaluate_expr(right, batch, row_idx)?;
+            let right_val = Self::evaluate_expr_internal(right, batch, row_idx, dialect)?;
             if let Some(true) = right_val.as_bool() {
                 return Ok(Value::bool_val(true));
             }
@@ -55,7 +75,7 @@ impl ProjectionWithExprExec {
             if b {
                 return Ok(Value::bool_val(true));
             }
-            return Self::evaluate_expr(right, batch, row_idx);
+            return Self::evaluate_expr_internal(right, batch, row_idx, dialect);
         }
 
         Err(Error::TypeMismatch {

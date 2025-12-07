@@ -120,7 +120,7 @@ impl ProjectionWithExprExec {
     }
 
     pub(crate) fn evaluate_expr(expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
-        Self::evaluate_expr_internal(expr, batch, row_idx, crate::DialectType::PostgreSQL)
+        Self::evaluate_expr_internal(expr, batch, row_idx, crate::DialectType::BigQuery)
     }
 
     pub(super) fn evaluate_expr_internal(
@@ -191,11 +191,11 @@ impl ProjectionWithExprExec {
             Expr::Wildcard => Ok(Value::int64(1)),
 
             Expr::BinaryOp { left, op, right } => match op {
-                BinaryOp::And => Self::evaluate_and(left, right, batch, row_idx),
-                BinaryOp::Or => Self::evaluate_or(left, right, batch, row_idx),
+                BinaryOp::And => Self::evaluate_and_internal(left, right, batch, row_idx, _dialect),
+                BinaryOp::Or => Self::evaluate_or_internal(left, right, batch, row_idx, _dialect),
                 _ => {
-                    let left_val = Self::evaluate_expr(left, batch, row_idx)?;
-                    let right_val = Self::evaluate_expr(right, batch, row_idx)?;
+                    let left_val = Self::evaluate_expr_internal(left, batch, row_idx, _dialect)?;
+                    let right_val = Self::evaluate_expr_internal(right, batch, row_idx, _dialect)?;
                     let enum_labels = Self::get_enum_labels_for_expr(left, batch.schema())
                         .or_else(|| Self::get_enum_labels_for_expr(right, batch.schema()));
                     Self::evaluate_binary_op_with_enum(
@@ -211,25 +211,27 @@ impl ProjectionWithExprExec {
                 operand,
                 when_then,
                 else_expr,
-            } => Self::evaluate_case(operand, when_then, else_expr, batch, row_idx),
+            } => Self::evaluate_case_internal(
+                operand, when_then, else_expr, batch, row_idx, _dialect,
+            ),
 
             Expr::Cast { expr, data_type } => {
-                let value = Self::evaluate_expr(expr, batch, row_idx)?;
+                let value = Self::evaluate_expr_internal(expr, batch, row_idx, _dialect)?;
                 Self::cast_value(value, data_type)
             }
 
             Expr::TryCast { expr, data_type } => {
-                let value = Self::evaluate_expr(expr, batch, row_idx)?;
+                let value = Self::evaluate_expr_internal(expr, batch, row_idx, _dialect)?;
                 Ok(Self::try_cast_value(value, data_type))
             }
 
             Expr::UnaryOp { op, expr } => {
-                let operand = Self::evaluate_expr(expr, batch, row_idx)?;
+                let operand = Self::evaluate_expr_internal(expr, batch, row_idx, _dialect)?;
                 Self::evaluate_unary_op(op, &operand)
             }
 
             Expr::Function { name, args } => {
-                Self::evaluate_function_by_category(name, args, batch, row_idx)
+                Self::evaluate_function_by_category(name, args, batch, row_idx, _dialect)
             }
 
             Expr::Aggregate { name, args, .. } => {
@@ -406,6 +408,7 @@ impl ProjectionWithExprExec {
         args: &[Expr],
         batch: &Table,
         row_idx: usize,
+        dialect: crate::DialectType,
     ) -> Result<Value> {
         use yachtsql_ir::FunctionName;
 
@@ -667,7 +670,9 @@ impl ProjectionWithExprExec {
             )
         ) || name.as_str().starts_with("NET.")
         {
-            return Self::evaluate_crypto_hash_network_function(func_name, args, batch, row_idx);
+            return Self::evaluate_crypto_hash_network_function(
+                func_name, args, batch, row_idx, dialect,
+            );
         }
 
         {

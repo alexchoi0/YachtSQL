@@ -147,7 +147,7 @@ impl QueryExecutorTrait for QueryExecutor {
             .get_dataset("default")
             .map(|dataset| dataset.types());
 
-        let mut evaluator = ExpressionEvaluator::new(schema);
+        let mut evaluator = ExpressionEvaluator::new(schema).with_dialect(self.dialect());
         if let Some(tr) = type_registry {
             evaluator = evaluator.with_type_registry(tr);
         }
@@ -449,7 +449,8 @@ impl QueryExecutor {
 
         let planner = crate::query_executor::logical_to_physical::LogicalToPhysicalPlanner::new(
             Rc::clone(&self.storage),
-        );
+        )
+        .with_dialect(self.dialect());
 
         let logical_plan_for_conversion = yachtsql_ir::plan::LogicalPlan::new(optimized_plan);
         let physical_plan = planner.create_physical_plan(&logical_plan_for_conversion)?;

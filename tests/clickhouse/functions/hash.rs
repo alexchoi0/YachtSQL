@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_md5() {
     let mut executor = create_executor();
@@ -9,7 +8,6 @@ fn test_md5() {
     assert_table_eq!(result, [["5d41402abc4b2a76b9719d911017c592"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha1() {
     let mut executor = create_executor();
@@ -17,7 +15,6 @@ fn test_sha1() {
     assert_table_eq!(result, [["aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha256() {
     let mut executor = create_executor();
@@ -28,7 +25,6 @@ fn test_sha256() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha512() {
     let mut executor = create_executor();

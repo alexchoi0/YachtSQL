@@ -11,6 +11,15 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
+        Self::eval_sha256_with_dialect(args, batch, row_idx, crate::DialectType::BigQuery)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn eval_sha256_with_dialect(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+        dialect: crate::DialectType,
+    ) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query(
                 "SHA256 requires exactly 1 argument".to_string(),
@@ -18,8 +27,11 @@ impl ProjectionWithExprExec {
         }
 
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-
-        yachtsql_functions::scalar::eval_sha256(&val, true)
+        let return_hex = matches!(
+            dialect,
+            crate::DialectType::PostgreSQL | crate::DialectType::ClickHouse
+        );
+        yachtsql_functions::scalar::eval_sha256(&val, return_hex)
     }
 }
 
@@ -48,7 +60,7 @@ mod tests {
         let args = vec![Expr::Literal(LiteralValue::String("test".to_string()))];
         let result = ProjectionWithExprExec::eval_sha256(&args, &batch, 0);
         assert!(result.is_ok());
-        assert!(result.unwrap().is_string());
+        assert!(result.unwrap().as_bytes().is_some());
     }
 
     #[test]
@@ -60,7 +72,7 @@ mod tests {
         }];
         let result = ProjectionWithExprExec::eval_sha256(&args, &batch, 0);
         assert!(result.is_ok());
-        assert!(result.unwrap().is_string());
+        assert!(result.unwrap().as_bytes().is_some());
     }
 
     #[test]
