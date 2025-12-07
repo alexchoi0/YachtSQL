@@ -85,6 +85,7 @@ anyhow = "1.0"
 proptest = "1.5"
 criterion = { version = "0.5", features = ["html_reports"] }
 tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "time"] }
+pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
 
 [features]
 # Benchmark configuration features
@@ -96,59 +97,18 @@ bench-large-sample = []
 clickhouse-tests = []
 
 [[bench]]
-name = "basic_operations"
+name = "postgresql"
+path = "benches/postgresql/main.rs"
 harness = false
 
 [[bench]]
-name = "aggregations"
+name = "clickhouse"
+path = "benches/clickhouse/main.rs"
 harness = false
 
 [[bench]]
-name = "joins"
-harness = false
-
-[[bench]]
-name = "functions"
-harness = false
-
-[[bench]]
-name = "complex_queries"
-harness = false
-
-[[bench]]
-name = "data_types"
-harness = false
-
-[[bench]]
-name = "optimizer"
-harness = false
-
-[[bench]]
-name = "scalability"
-harness = false
-
-[[bench]]
-name = "quick"
-harness = false
-
-[[bench]]
-name = "optimizer_comparison"
-harness = false
-
-[[bench]]
-name = "optimizer_comparison_quick"
-harness = false
-
-[[bench]]
-name = "merge"
-harness = false
-
-[[bench]]
-name = "profiling"
-harness = false
-
-[[bench]]
-name = "subquery_caching"
+name = "bigquery"
+path = "benches/bigquery/main.rs"
 harness = false
 
 # Linting configuration
