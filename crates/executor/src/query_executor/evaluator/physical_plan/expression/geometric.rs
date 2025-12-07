@@ -4,13 +4,13 @@ use yachtsql_functions::geometric;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(super) fn evaluate_geometric_function(
         name: &str,
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         match name {
@@ -34,7 +34,7 @@ impl ProjectionWithExprExec {
         }
     }
 
-    fn eval_point_constructor(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_point_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(crate::error::Error::invalid_query(
                 "POINT requires exactly 2 arguments (x, y)",
@@ -45,7 +45,7 @@ impl ProjectionWithExprExec {
         geometric::point_constructor(&x, &y)
     }
 
-    fn eval_box_constructor(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_box_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(crate::error::Error::invalid_query(
                 "BOX requires exactly 2 arguments (point1, point2)",
@@ -56,11 +56,7 @@ impl ProjectionWithExprExec {
         geometric::box_constructor(&p1, &p2)
     }
 
-    fn eval_circle_constructor(
-        args: &[Expr],
-        batch: &RecordBatch,
-        row_idx: usize,
-    ) -> Result<Value> {
+    fn eval_circle_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(crate::error::Error::invalid_query(
                 "CIRCLE requires exactly 2 arguments (center, radius)",
@@ -71,7 +67,7 @@ impl ProjectionWithExprExec {
         geometric::circle_constructor(&center, &radius)
     }
 
-    fn eval_area(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_area(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(crate::error::Error::invalid_query(
                 "AREA requires exactly 1 argument",
@@ -81,7 +77,7 @@ impl ProjectionWithExprExec {
         geometric::area(&shape)
     }
 
-    fn eval_center(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_center(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(crate::error::Error::invalid_query(
                 "CENTER requires exactly 1 argument",
@@ -91,7 +87,7 @@ impl ProjectionWithExprExec {
         geometric::center(&shape)
     }
 
-    fn eval_diameter(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_diameter(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(crate::error::Error::invalid_query(
                 "DIAMETER requires exactly 1 argument",
@@ -101,7 +97,7 @@ impl ProjectionWithExprExec {
         geometric::diameter(&circle)
     }
 
-    fn eval_radius(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_radius(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(crate::error::Error::invalid_query(
                 "RADIUS requires exactly 1 argument",
@@ -111,7 +107,7 @@ impl ProjectionWithExprExec {
         geometric::radius(&circle)
     }
 
-    fn eval_width(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_width(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(crate::error::Error::invalid_query(
                 "WIDTH requires exactly 1 argument",
@@ -121,7 +117,7 @@ impl ProjectionWithExprExec {
         geometric::width(&box_val)
     }
 
-    fn eval_height(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_height(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(crate::error::Error::invalid_query(
                 "HEIGHT requires exactly 1 argument",
@@ -131,7 +127,7 @@ impl ProjectionWithExprExec {
         geometric::height(&box_val)
     }
 
-    fn eval_distance(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_distance(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(crate::error::Error::invalid_query(
                 "DISTANCE requires exactly 2 arguments",
@@ -142,7 +138,7 @@ impl ProjectionWithExprExec {
         geometric::distance(&a, &b)
     }
 
-    fn eval_contains(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_contains(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(crate::error::Error::invalid_query(
                 "CONTAINS requires exactly 2 arguments",
@@ -153,7 +149,7 @@ impl ProjectionWithExprExec {
         geometric::contains(&container, &contained)
     }
 
-    fn eval_contained_by(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_contained_by(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(crate::error::Error::invalid_query(
                 "CONTAINED_BY requires exactly 2 arguments",
@@ -164,7 +160,7 @@ impl ProjectionWithExprExec {
         geometric::contained_by(&inner, &outer)
     }
 
-    fn eval_overlaps(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_overlaps(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(crate::error::Error::invalid_query(
                 "OVERLAPS requires exactly 2 arguments",

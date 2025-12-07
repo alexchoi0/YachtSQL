@@ -3,16 +3,16 @@ use yachtsql_parser::validator::CustomStatement;
 
 use super::super::QueryExecutor;
 use super::create::DdlExecutor;
-use crate::RecordBatch;
+use crate::Table;
 
 pub trait MaterializedViewExecutor {
-    fn execute_refresh_materialized_view(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_refresh_materialized_view(&mut self, stmt: &CustomStatement) -> Result<Table>;
 
-    fn execute_drop_materialized_view(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_drop_materialized_view(&mut self, stmt: &CustomStatement) -> Result<Table>;
 }
 
 impl MaterializedViewExecutor for QueryExecutor {
-    fn execute_refresh_materialized_view(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_refresh_materialized_view(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::RefreshMaterializedView { name, concurrently } = stmt else {
             return Err(Error::InternalError(
                 "Not a REFRESH MATERIALIZED VIEW statement".to_string(),
@@ -63,7 +63,7 @@ impl MaterializedViewExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_drop_materialized_view(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_drop_materialized_view(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::DropMaterializedView {
             name,
             if_exists,

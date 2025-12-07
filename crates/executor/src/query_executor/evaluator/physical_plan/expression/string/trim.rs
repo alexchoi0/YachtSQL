@@ -3,12 +3,12 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_trim(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_min_arg_count("TRIM", args, 1)?;
@@ -17,7 +17,7 @@ impl ProjectionWithExprExec {
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_trim_chars(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("TRIM_CHARS", args, 2)?;
@@ -39,7 +39,7 @@ impl ProjectionWithExprExec {
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_ltrim_chars(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("LTRIM_CHARS", args, 2)?;
@@ -62,7 +62,7 @@ impl ProjectionWithExprExec {
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_rtrim_chars(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("RTRIM_CHARS", args, 2)?;

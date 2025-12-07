@@ -8,7 +8,7 @@ use yachtsql_storage::indexes::IndexKey;
 use yachtsql_storage::{Column, Schema, TableIndexOps};
 
 use super::{ExecutionPlan, ExecutionStatistics};
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct IndexScanExec {
@@ -100,7 +100,7 @@ impl ExecutionPlan for IndexScanExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let index_key = self.extract_index_key(&self.predicate)?;
 
         let storage = self.storage.borrow();
@@ -129,7 +129,7 @@ impl ExecutionPlan for IndexScanExec {
             .collect();
 
         if rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_rows = rows.len();
@@ -151,7 +151,7 @@ impl ExecutionPlan for IndexScanExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {

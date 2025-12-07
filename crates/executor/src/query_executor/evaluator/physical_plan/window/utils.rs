@@ -2,7 +2,7 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::OrderByExpr;
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
     pub(super) fn fill_results_with_null(indices: &[usize], results: &mut [Value]) {
@@ -19,7 +19,7 @@ impl WindowExec {
 
     pub(super) fn evaluate_order_by_values(
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Vec<Value> {
         order_by

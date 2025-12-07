@@ -6,7 +6,7 @@ use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Column, Schema};
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct ArrayJoinExec {
@@ -53,7 +53,7 @@ impl ArrayJoinExec {
         })
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         match expr {
             Expr::Column { name, .. } => {
                 let col_idx = batch
@@ -71,7 +71,7 @@ impl ArrayJoinExec {
         }
     }
 
-    fn extract_arrays(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<Vec<Value>>> {
+    fn extract_arrays(&self, batch: &Table, row_idx: usize) -> Result<Vec<Vec<Value>>> {
         let mut result = Vec::new();
 
         for (expr, _) in &self.arrays {
@@ -94,7 +94,7 @@ impl ArrayJoinExec {
 
     fn generate_aligned_rows(
         &self,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         arrays: Vec<Vec<Value>>,
     ) -> Result<Vec<Vec<Value>>> {
@@ -145,7 +145,7 @@ impl ArrayJoinExec {
 
     fn generate_unaligned_rows(
         &self,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         arrays: Vec<Vec<Value>>,
     ) -> Result<Vec<Vec<Value>>> {
@@ -194,11 +194,11 @@ impl ExecutionPlan for ArrayJoinExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let mut result_batches = Vec::new();
@@ -238,11 +238,11 @@ impl ExecutionPlan for ArrayJoinExec {
                 columns.push(column);
             }
 
-            result_batches.push(RecordBatch::new(self.schema.clone(), columns)?);
+            result_batches.push(Table::new(self.schema.clone(), columns)?);
         }
 
         if result_batches.is_empty() {
-            Ok(vec![RecordBatch::empty(self.schema.clone())])
+            Ok(vec![Table::empty(self.schema.clone())])
         } else {
             Ok(result_batches)
         }
@@ -281,7 +281,7 @@ mod tests {
             &self.schema
         }
 
-        fn execute(&self) -> Result<Vec<RecordBatch>> {
+        fn execute(&self) -> Result<Vec<Table>> {
             let num_rows = self.data.len();
             let num_cols = self.schema.fields().len();
 
@@ -297,7 +297,7 @@ mod tests {
                 columns.push(column);
             }
 
-            Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+            Ok(vec![Table::new(self.schema.clone(), columns)?])
         }
 
         fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {

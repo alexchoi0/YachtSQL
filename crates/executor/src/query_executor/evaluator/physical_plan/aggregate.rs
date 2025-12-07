@@ -7,7 +7,7 @@ use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Column, Field, Schema};
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct AggregateExec {
@@ -114,7 +114,7 @@ impl AggregateExec {
         })
     }
 
-    fn compute_group_key(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<Value>> {
+    fn compute_group_key(&self, batch: &Table, row_idx: usize) -> Result<Vec<Value>> {
         let mut key = Vec::with_capacity(self.group_by.len());
         for expr in &self.group_by {
             let value = self.evaluate_expr(expr, batch, row_idx)?;
@@ -123,7 +123,7 @@ impl AggregateExec {
         Ok(key)
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         use super::ProjectionWithExprExec;
         ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
@@ -131,7 +131,7 @@ impl AggregateExec {
     fn evaluate_aggregate_arg(
         &self,
         agg_expr: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         use yachtsql_ir::FunctionName;
@@ -506,11 +506,11 @@ impl ExecutionPlan for AggregateExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let mut groups: HashMap<Vec<u8>, (Vec<Value>, Vec<Vec<Value>>)> = HashMap::new();
@@ -560,7 +560,7 @@ impl ExecutionPlan for AggregateExec {
                 columns.push(column);
             }
 
-            return Ok(vec![RecordBatch::new(self.schema.clone(), columns)?]);
+            return Ok(vec![Table::new(self.schema.clone(), columns)?]);
         }
 
         let mut result_rows = Vec::new();
@@ -576,7 +576,7 @@ impl ExecutionPlan for AggregateExec {
         }
 
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_output_rows = result_rows.len();
@@ -594,7 +594,7 @@ impl ExecutionPlan for AggregateExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -1586,7 +1586,7 @@ impl SortAggregateExec {
         })
     }
 
-    fn compute_group_key(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<Value>> {
+    fn compute_group_key(&self, batch: &Table, row_idx: usize) -> Result<Vec<Value>> {
         let mut key = Vec::with_capacity(self.group_by.len());
         for expr in &self.group_by {
             let value = self.evaluate_expr(expr, batch, row_idx)?;
@@ -1595,7 +1595,7 @@ impl SortAggregateExec {
         Ok(key)
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         use super::ProjectionWithExprExec;
         ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
@@ -1603,7 +1603,7 @@ impl SortAggregateExec {
     fn evaluate_aggregate_arg(
         &self,
         agg_expr: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         use yachtsql_ir::FunctionName;
@@ -2446,11 +2446,11 @@ impl ExecutionPlan for SortAggregateExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let mut result_rows: Vec<Vec<Value>> = Vec::new();
@@ -2523,11 +2523,11 @@ impl ExecutionPlan for SortAggregateExec {
                 columns.push(column);
             }
 
-            return Ok(vec![RecordBatch::new(self.schema.clone(), columns)?]);
+            return Ok(vec![Table::new(self.schema.clone(), columns)?]);
         }
 
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_output_rows = result_rows.len();
@@ -2545,7 +2545,7 @@ impl ExecutionPlan for SortAggregateExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -2650,7 +2650,7 @@ mod tests {
         col2.push(Value::int64(20)).unwrap();
         col2.push(Value::int64(30)).unwrap();
 
-        let batch = crate::RecordBatch::new(schema.clone(), vec![col1, col2]).unwrap();
+        let batch = crate::Table::new(schema.clone(), vec![col1, col2]).unwrap();
         let input_exec = Rc::new(TableScanExec::new(
             schema.clone(),
             "test".to_string(),

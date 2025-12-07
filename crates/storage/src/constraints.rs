@@ -196,7 +196,14 @@ fn validate_check_constraints(schema: &Schema, row: &Row) -> Result<()> {
 
 pub fn apply_default_values(schema: &Schema, row: &mut Row) -> Result<()> {
     for field in schema.fields() {
-        if row.contains_column(schema, &field.name) {
+        let has_column = row.contains_column(schema, &field.name);
+        let is_explicit_default = has_column
+            && row
+                .get_by_name(schema, &field.name)
+                .map(|v| v.is_default())
+                .unwrap_or(false);
+
+        if has_column && !is_explicit_default {
             continue;
         }
 

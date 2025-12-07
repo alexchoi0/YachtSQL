@@ -1,5 +1,11 @@
+use yachtsql::QueryExecutor;
+use yachtsql_parser::DialectType;
 
+#[path = "../../../../tests/test_helpers.rs"]
+mod test_helpers;
 
-pub use yachtsql_test_utils::*;
+pub use test_helpers::*;
 
-pub mod assertions;
+pub fn create_executor() -> QueryExecutor {
+    QueryExecutor::with_dialect(DialectType::PostgreSQL)
+}

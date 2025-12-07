@@ -4,18 +4,18 @@ use yachtsql_storage::{DomainConstraint, DomainDefinition};
 
 use super::super::QueryExecutor;
 use super::create::DdlExecutor;
-use crate::RecordBatch;
+use crate::Table;
 
 pub trait DomainExecutor {
-    fn execute_create_domain(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_create_domain(&mut self, stmt: &CustomStatement) -> Result<Table>;
 
-    fn execute_alter_domain(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_alter_domain(&mut self, stmt: &CustomStatement) -> Result<Table>;
 
-    fn execute_drop_domain(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_drop_domain(&mut self, stmt: &CustomStatement) -> Result<Table>;
 }
 
 impl DomainExecutor for QueryExecutor {
-    fn execute_create_domain(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_create_domain(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::CreateDomain {
             name,
             base_type,
@@ -62,7 +62,7 @@ impl DomainExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_alter_domain(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_alter_domain(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::AlterDomain { name, action } = stmt else {
             return Err(Error::InternalError(
                 "Not an ALTER DOMAIN statement".to_string(),
@@ -115,7 +115,7 @@ impl DomainExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_drop_domain(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_drop_domain(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::DropDomain {
             if_exists,
             names,

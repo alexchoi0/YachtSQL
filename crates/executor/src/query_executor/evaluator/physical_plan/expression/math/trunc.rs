@@ -3,12 +3,12 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_trunc(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         if args.is_empty() || args.len() > 2 {
@@ -123,11 +123,11 @@ mod tests {
             Field::nullable("val", DataType::Float64),
             Field::nullable("decimals", DataType::Int64),
         ]);
-        let batch = create_batch(schema, vec![vec![Value::float64(3.14159), Value::int64(2)]]);
+        let batch = create_batch(schema, vec![vec![Value::float64(3.12131), Value::int64(2)]]);
         let args = vec![Expr::column("val"), Expr::column("decimals")];
         let result = ProjectionWithExprExec::eval_trunc(&args, &batch, 0).expect("success");
         if let Some(f) = result.as_f64() {
-            assert!((f - 3.14).abs() < 0.001)
+            assert!((f - 3.12).abs() < 0.001)
         } else {
             panic!("Expected Float64")
         }

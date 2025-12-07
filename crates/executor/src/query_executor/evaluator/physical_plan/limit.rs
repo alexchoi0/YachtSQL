@@ -4,7 +4,7 @@ use yachtsql_core::error::Result;
 use yachtsql_storage::Schema;
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct LimitExec {
@@ -39,7 +39,7 @@ impl ExecutionPlan for LimitExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
         let mut output_batches = Vec::new();
         let mut skipped = 0;
@@ -110,11 +110,11 @@ mod tests {
     #[derive(Debug)]
     struct MockDataExec {
         schema: Schema,
-        data: Vec<RecordBatch>,
+        data: Vec<Table>,
     }
 
     impl MockDataExec {
-        fn new(schema: Schema, data: Vec<RecordBatch>) -> Self {
+        fn new(schema: Schema, data: Vec<Table>) -> Self {
             Self { schema, data }
         }
     }
@@ -124,7 +124,7 @@ mod tests {
             &self.schema
         }
 
-        fn execute(&self) -> Result<Vec<RecordBatch>> {
+        fn execute(&self) -> Result<Vec<Table>> {
             Ok(self.data.clone())
         }
 
@@ -137,7 +137,7 @@ mod tests {
         }
     }
 
-    fn create_test_batch(schema: Schema, values: Vec<i64>) -> RecordBatch {
+    fn create_test_batch(schema: Schema, values: Vec<i64>) -> Table {
         let num_rows = values.len();
         let mut column = Column::new(&DataType::Int64, num_rows);
 
@@ -145,7 +145,7 @@ mod tests {
             column.push(Value::int64(value)).unwrap();
         }
 
-        RecordBatch::new(schema, vec![column]).unwrap()
+        Table::new(schema, vec![column]).unwrap()
     }
 
     #[test]

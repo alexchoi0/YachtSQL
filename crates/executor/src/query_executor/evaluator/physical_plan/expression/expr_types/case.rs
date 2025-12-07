@@ -3,14 +3,14 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_case(
         operand: &Option<Box<Expr>>,
         when_then: &[(Expr, Expr)],
         else_expr: &Option<Box<Expr>>,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         if let Some(case_operand) = operand {
@@ -46,7 +46,7 @@ mod tests {
     use super::*;
     use crate::query_executor::evaluator::physical_plan::expression::test_utils::*;
 
-    fn create_test_batch() -> RecordBatch {
+    fn create_test_batch() -> Table {
         create_batch(
             vec![("col1", DataType::Int64), ("col2", DataType::String)],
             vec![

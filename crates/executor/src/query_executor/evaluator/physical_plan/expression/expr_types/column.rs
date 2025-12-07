@@ -2,12 +2,12 @@ use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::Value;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_column(
         name: &str,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let schema = batch.schema();
@@ -28,7 +28,7 @@ mod tests {
     use super::*;
     use crate::query_executor::evaluator::physical_plan::expression::test_utils::*;
 
-    fn create_test_batch() -> RecordBatch {
+    fn create_test_batch() -> Table {
         create_batch(
             vec![
                 ("id", DataType::Int64),

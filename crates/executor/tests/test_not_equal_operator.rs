@@ -4,6 +4,9 @@
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::wildcard_enum_match_arm)]
 
+#[macro_use]
+mod common;
+
 use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
@@ -23,14 +26,7 @@ fn test_not_equal_operator() {
         .execute_sql("SELECT id FROM t WHERE a <> b ORDER BY id")
         .unwrap();
 
-    assert_eq!(result.num_rows(), 1, "Should find 1 row where a <> b");
-    let col = result.column(0).unwrap();
-    let val = col.get(0).unwrap();
-    assert_eq!(
-        val.as_i64().unwrap(),
-        1,
-        "Row with id=1 should match where 10 <> 20"
-    );
+    assert_batch_eq!(result, [[1]]);
 }
 
 #[test]
@@ -50,5 +46,5 @@ fn test_not_equal_with_null() {
         .execute_sql("SELECT id FROM t WHERE val <> 10 ORDER BY id")
         .unwrap();
 
-    assert_eq!(result.num_rows(), 0, "NULL <> value should not match");
+    assert_eq!(result.num_rows(), 0);
 }

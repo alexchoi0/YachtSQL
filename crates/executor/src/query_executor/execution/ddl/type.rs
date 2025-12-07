@@ -6,20 +6,20 @@ use yachtsql_storage::custom_types::EnumType;
 
 use super::super::QueryExecutor;
 use super::create::DdlExecutor;
-use crate::RecordBatch;
+use crate::Table;
 
 pub trait TypeExecutor {
-    fn execute_create_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<RecordBatch>;
+    fn execute_create_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<Table>;
 
-    fn execute_drop_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<RecordBatch>;
+    fn execute_drop_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<Table>;
 
-    fn execute_create_composite_type(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_create_composite_type(&mut self, stmt: &CustomStatement) -> Result<Table>;
 
-    fn execute_drop_composite_type(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_drop_composite_type(&mut self, stmt: &CustomStatement) -> Result<Table>;
 }
 
 impl TypeExecutor for QueryExecutor {
-    fn execute_create_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<RecordBatch> {
+    fn execute_create_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<Table> {
         let sqlparser::ast::Statement::CreateType {
             name,
             representation,
@@ -58,7 +58,7 @@ impl TypeExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_drop_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<RecordBatch> {
+    fn execute_drop_type(&mut self, stmt: &sqlparser::ast::Statement) -> Result<Table> {
         let sqlparser::ast::Statement::Drop {
             object_type,
             if_exists,
@@ -104,7 +104,7 @@ impl TypeExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_create_composite_type(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_create_composite_type(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::CreateType {
             if_not_exists,
             name,
@@ -158,7 +158,7 @@ impl TypeExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_drop_composite_type(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_drop_composite_type(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::DropType {
             if_exists,
             names,

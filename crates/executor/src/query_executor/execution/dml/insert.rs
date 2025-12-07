@@ -8,7 +8,7 @@ use yachtsql_storage::{Row, Schema, TableSchemaOps};
 use super::super::super::QueryExecutor;
 use super::super::DdlExecutor;
 use super::super::query::QueryExecutorTrait;
-use crate::RecordBatch;
+use crate::Table;
 use crate::query_executor::returning::DmlRowContext;
 
 pub trait DmlInsertExecutor {
@@ -16,7 +16,7 @@ pub trait DmlInsertExecutor {
         &mut self,
         stmt: &sqlparser::ast::Statement,
         _original_sql: &str,
-    ) -> Result<RecordBatch>;
+    ) -> Result<Table>;
 
     fn resolve_insert_columns(
         &self,
@@ -39,7 +39,7 @@ impl DmlInsertExecutor for QueryExecutor {
         &mut self,
         stmt: &sqlparser::ast::Statement,
         _original_sql: &str,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         use sqlparser::ast::{SetExpr, Statement};
 
         let Statement::Insert(insert) = stmt else {
@@ -295,8 +295,7 @@ impl DmlInsertExecutor for QueryExecutor {
                 let mut value = self.evaluate_insert_expression(expr)?;
 
                 if let Some(field) = schema.field(column_name) {
-                    let skip_coercion = field.is_identity() && value.is_default();
-                    if !skip_coercion {
+                    if !value.is_default() {
                         value = self.coerce_value_to_data_type(value, &field.data_type)?;
                     }
                 }

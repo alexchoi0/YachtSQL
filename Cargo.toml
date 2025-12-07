@@ -144,10 +144,6 @@ name = "merge"
 harness = false
 
 [[bench]]
-name = "storage_formats"
-harness = false
-
-[[bench]]
 name = "profiling"
 harness = false
 

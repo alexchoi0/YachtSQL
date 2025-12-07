@@ -4,12 +4,12 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_struct_literal(
         fields: &[yachtsql_optimizer::expr::StructLiteralField],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let mut struct_map = IndexMap::new();
@@ -23,7 +23,7 @@ impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_struct_field_access(
         expr: &Expr,
         field: &str,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let struct_value = Self::evaluate_expr(expr, batch, row_idx)?;
@@ -67,7 +67,7 @@ mod tests {
     use super::*;
     use crate::query_executor::evaluator::physical_plan::expression::test_utils::*;
 
-    fn create_test_batch() -> RecordBatch {
+    fn create_test_batch() -> Table {
         create_batch(
             vec![("col1", DataType::Int64)],
             vec![vec![Value::int64(42)], vec![Value::int64(99)]],

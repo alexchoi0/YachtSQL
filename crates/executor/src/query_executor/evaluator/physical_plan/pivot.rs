@@ -7,7 +7,7 @@ use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Column, Field, Schema};
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PivotAggregateFunction {
@@ -192,7 +192,7 @@ impl PivotExec {
         })
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         match expr {
             Expr::Column { name, .. } => {
                 let col_idx = batch
@@ -210,7 +210,7 @@ impl PivotExec {
         }
     }
 
-    fn compute_group_key(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<Value>> {
+    fn compute_group_key(&self, batch: &Table, row_idx: usize) -> Result<Vec<Value>> {
         let mut key = Vec::new();
         for col_name in &self.group_by_columns {
             let col_idx = batch
@@ -230,11 +230,11 @@ impl ExecutionPlan for PivotExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let merged_batch = if input_batches.len() == 1 {
@@ -243,11 +243,11 @@ impl ExecutionPlan for PivotExec {
                 .next()
                 .ok_or_else(|| Error::internal("Expected single batch but found none"))?
         } else {
-            RecordBatch::concat(&input_batches)?
+            Table::concat(&input_batches)?
         };
 
         if merged_batch.num_rows() == 0 {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let pivot_col_idx = merged_batch
@@ -316,7 +316,7 @@ impl ExecutionPlan for PivotExec {
             output_columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), output_columns)?])
+        Ok(vec![Table::new(self.schema.clone(), output_columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -403,11 +403,11 @@ impl ExecutionPlan for UnpivotExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let merged_batch = if input_batches.len() == 1 {
@@ -416,11 +416,11 @@ impl ExecutionPlan for UnpivotExec {
                 .next()
                 .ok_or_else(|| Error::internal("Expected single batch but found none"))?
         } else {
-            RecordBatch::concat(&input_batches)?
+            Table::concat(&input_batches)?
         };
 
         if merged_batch.num_rows() == 0 {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let input_num_rows = merged_batch.num_rows();
@@ -488,7 +488,7 @@ impl ExecutionPlan for UnpivotExec {
         }
         output_columns.push(value_column);
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), output_columns)?])
+        Ok(vec![Table::new(self.schema.clone(), output_columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -516,11 +516,11 @@ mod tests {
     #[derive(Debug)]
     struct MockDataExec {
         schema: Schema,
-        data: Vec<RecordBatch>,
+        data: Vec<Table>,
     }
 
     impl MockDataExec {
-        fn new(schema: Schema, data: Vec<RecordBatch>) -> Self {
+        fn new(schema: Schema, data: Vec<Table>) -> Self {
             Self { schema, data }
         }
     }
@@ -530,7 +530,7 @@ mod tests {
             &self.schema
         }
 
-        fn execute(&self) -> Result<Vec<RecordBatch>> {
+        fn execute(&self) -> Result<Vec<Table>> {
             Ok(self.data.clone())
         }
 
@@ -551,7 +551,7 @@ mod tests {
             Field::required("sales".to_string(), DataType::Int64),
         ]);
 
-        let batch = RecordBatch::from_values(
+        let batch = Table::from_values(
             schema.clone(),
             vec![
                 vec![
@@ -606,7 +606,7 @@ mod tests {
             Field::required("Q3".to_string(), DataType::Int64),
         ]);
 
-        let batch = RecordBatch::from_values(
+        let batch = Table::from_values(
             schema.clone(),
             vec![
                 vec![

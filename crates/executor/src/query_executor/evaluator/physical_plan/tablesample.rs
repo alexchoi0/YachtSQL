@@ -6,7 +6,7 @@ use yachtsql_core::error::{Error, Result};
 use yachtsql_storage::Schema;
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SamplingMethod {
@@ -112,10 +112,10 @@ impl TableSampleExec {
 
     fn sample_bernoulli(
         &self,
-        batches: Vec<RecordBatch>,
+        batches: Vec<Table>,
         probability: f64,
         rng: &mut StdRng,
-    ) -> Result<Vec<RecordBatch>> {
+    ) -> Result<Vec<Table>> {
         use yachtsql_storage::Column;
 
         let mut result_batches = Vec::new();
@@ -144,11 +144,11 @@ impl TableSampleExec {
                 .map(|col| col.gather(&selected_indices))
                 .collect::<Result<Vec<_>>>()?;
 
-            result_batches.push(RecordBatch::new(batch.schema().clone(), sampled_columns)?);
+            result_batches.push(Table::new(batch.schema().clone(), sampled_columns)?);
         }
 
         if result_batches.is_empty() {
-            Ok(vec![RecordBatch::empty(self.schema.clone())])
+            Ok(vec![Table::empty(self.schema.clone())])
         } else {
             Ok(result_batches)
         }
@@ -156,10 +156,10 @@ impl TableSampleExec {
 
     fn sample_system(
         &self,
-        batches: Vec<RecordBatch>,
+        batches: Vec<Table>,
         probability: f64,
         rng: &mut StdRng,
-    ) -> Result<Vec<RecordBatch>> {
+    ) -> Result<Vec<Table>> {
         let mut result_batches = Vec::new();
 
         for batch in batches {
@@ -173,34 +173,29 @@ impl TableSampleExec {
         }
 
         if result_batches.is_empty() {
-            Ok(vec![RecordBatch::empty(self.schema.clone())])
+            Ok(vec![Table::empty(self.schema.clone())])
         } else {
             Ok(result_batches)
         }
     }
 
-    fn sample_n_rows(
-        &self,
-        batches: Vec<RecordBatch>,
-        n: usize,
-        rng: &mut StdRng,
-    ) -> Result<Vec<RecordBatch>> {
+    fn sample_n_rows(&self, batches: Vec<Table>, n: usize, rng: &mut StdRng) -> Result<Vec<Table>> {
         use yachtsql_storage::Column;
 
         let merged_batch = if batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         } else if batches.len() == 1 {
             batches
                 .into_iter()
                 .next()
                 .ok_or_else(|| Error::internal("Expected single batch but found none"))?
         } else {
-            RecordBatch::concat(&batches)?
+            Table::concat(&batches)?
         };
 
         let total_rows = merged_batch.num_rows();
         if total_rows == 0 {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let sample_count = n.min(total_rows);
@@ -222,7 +217,7 @@ impl TableSampleExec {
             .map(|col| col.gather(&selected_indices))
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(vec![RecordBatch::new(
+        Ok(vec![Table::new(
             merged_batch.schema().clone(),
             sampled_columns,
         )?])
@@ -234,11 +229,11 @@ impl ExecutionPlan for TableSampleExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let mut rng = match self.seed {
@@ -298,11 +293,11 @@ mod tests {
     #[derive(Debug)]
     struct MockDataExec {
         schema: Schema,
-        data: Vec<RecordBatch>,
+        data: Vec<Table>,
     }
 
     impl MockDataExec {
-        fn new(schema: Schema, data: Vec<RecordBatch>) -> Self {
+        fn new(schema: Schema, data: Vec<Table>) -> Self {
             Self { schema, data }
         }
     }
@@ -312,7 +307,7 @@ mod tests {
             &self.schema
         }
 
-        fn execute(&self) -> Result<Vec<RecordBatch>> {
+        fn execute(&self) -> Result<Vec<Table>> {
             Ok(self.data.clone())
         }
 
@@ -325,7 +320,7 @@ mod tests {
         }
     }
 
-    fn create_test_batch(schema: Schema, values: Vec<i64>) -> RecordBatch {
+    fn create_test_batch(schema: Schema, values: Vec<i64>) -> Table {
         let num_rows = values.len();
         let mut column = Column::new(&DataType::Int64, num_rows);
 
@@ -333,7 +328,7 @@ mod tests {
             column.push(Value::int64(value)).unwrap();
         }
 
-        RecordBatch::new(schema, vec![column]).unwrap()
+        Table::new(schema, vec![column]).unwrap()
     }
 
     #[test]

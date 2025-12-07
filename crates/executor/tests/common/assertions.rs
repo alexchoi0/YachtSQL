@@ -1,8 +1,8 @@
-use yachtsql::RecordBatch;
+use yachtsql::Table;
 use yachtsql_core::types::Value;
 use yachtsql_storage::{Row, Schema};
 
-pub fn assert_batch_eq(actual: &RecordBatch, expected: &RecordBatch) {
+pub fn assert_batch_eq(actual: &Table, expected: &Table) {
     let mut errors = Vec::new();
 
     let actual_schema = actual.schema();
@@ -137,12 +137,12 @@ fn format_schema(schema: &Schema) -> String {
     s
 }
 
-pub fn build_batch(schema: Schema, values: Vec<Vec<Value>>) -> RecordBatch {
+pub fn build_batch(schema: Schema, values: Vec<Vec<Value>>) -> Table {
     let rows = values.into_iter().map(Row::from_values).collect();
-    RecordBatch::from_rows(schema, rows).expect("Failed to build RecordBatch")
+    Table::from_rows(schema, rows).expect("Failed to build Table")
 }
 
-fn pretty_print_batch(batch: &RecordBatch) -> String {
+fn pretty_print_batch(batch: &Table) -> String {
     let schema = batch.schema();
     let fields = schema.fields();
 
@@ -225,7 +225,7 @@ fn format_value(value: &Value) -> String {
     }
 }
 
-pub fn assert_batch_rows(batch: &RecordBatch, expected_rows: usize) {
+pub fn assert_batch_rows(batch: &Table, expected_rows: usize) {
     assert_eq!(
         batch.num_rows(),
         expected_rows,
@@ -240,7 +240,7 @@ pub fn assert_batch_rows(batch: &RecordBatch, expected_rows: usize) {
 }
 
 #[allow(dead_code)]
-pub fn assert_batch_columns(batch: &RecordBatch, expected_cols: usize) {
+pub fn assert_batch_columns(batch: &Table, expected_cols: usize) {
     assert_eq!(
         batch.num_columns(),
         expected_cols,
@@ -254,7 +254,7 @@ pub fn assert_batch_columns(batch: &RecordBatch, expected_cols: usize) {
     );
 }
 
-pub fn assert_batch_empty(batch: &RecordBatch) {
+pub fn assert_batch_empty(batch: &Table) {
     assert_eq!(
         batch.num_rows(),
         0,
@@ -265,7 +265,7 @@ pub fn assert_batch_empty(batch: &RecordBatch) {
     );
 }
 
-pub fn assert_batch_value(batch: &RecordBatch, row: usize, col: usize, expected: &Value) {
+pub fn assert_batch_value(batch: &Table, row: usize, col: usize, expected: &Value) {
     let rows = batch.rows().expect("Failed to get rows");
     assert!(
         row < rows.len(),

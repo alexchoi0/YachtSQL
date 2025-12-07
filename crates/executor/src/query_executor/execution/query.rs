@@ -19,10 +19,10 @@ use super::super::aggregator::{AggregateSpec, Aggregator};
 use super::super::expression_evaluator::ExpressionEvaluator;
 use super::super::window_functions::{WindowFunction, WindowFunctionType};
 use super::DdlExecutor;
-use crate::RecordBatch;
+use crate::Table;
 
 pub trait QueryExecutorTrait {
-    fn execute_select(&mut self, stmt: &Statement, _original_sql: &str) -> Result<RecordBatch>;
+    fn execute_select(&mut self, stmt: &Statement, _original_sql: &str) -> Result<Table>;
 
     fn scan_table(&self, dataset_id: &str, table_id: &str) -> Result<Vec<Row>>;
 
@@ -39,7 +39,7 @@ pub(crate) trait ScanTableHelper {
 }
 
 impl QueryExecutorTrait for QueryExecutor {
-    fn execute_select(&mut self, stmt: &Statement, original_sql: &str) -> Result<RecordBatch> {
+    fn execute_select(&mut self, stmt: &Statement, original_sql: &str) -> Result<Table> {
         let Statement::Query(query) = stmt else {
             return Err(Error::InternalError("Not a SELECT statement".to_string()));
         };
@@ -397,7 +397,7 @@ impl QueryExecutor {
         &mut self,
         query: &Box<sqlparser::ast::Query>,
         original_sql: &str,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let resource_tracker =
             crate::resource_limits::ResourceTracker::new(self.resource_limits.clone());
 
@@ -468,7 +468,7 @@ impl QueryExecutor {
         resource_tracker.check_timeout()?;
 
         let result = if batches.is_empty() {
-            Ok(RecordBatch::empty(physical_plan.schema().clone()))
+            Ok(Table::empty(physical_plan.schema().clone()))
         } else if batches.len() == 1 {
             Ok(batches.into_iter().next().expect("checked len == 1"))
         } else {
@@ -478,7 +478,7 @@ impl QueryExecutor {
         result
     }
 
-    fn merge_batches(batches: Vec<RecordBatch>) -> Result<RecordBatch> {
+    fn merge_batches(batches: Vec<Table>) -> Result<Table> {
         if batches.is_empty() {
             return Err(Error::InternalError(
                 "Cannot merge empty batches".to_string(),
@@ -507,7 +507,7 @@ impl QueryExecutor {
             columns.push(column);
         }
 
-        RecordBatch::new(schema, columns)
+        Table::new(schema, columns)
     }
 
     fn infer_column_name(&self, expr: &Expr) -> String {
@@ -1145,7 +1145,7 @@ impl QueryExecutor {
         &mut self,
         select: &Select,
         order_by: Option<&OrderBy>,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         if let Some(ref where_clause) = select.selection {
             self.validate_where_clause(where_clause)?;
         }
@@ -1325,7 +1325,7 @@ impl QueryExecutor {
         self.rows_to_record_batch(result_schema, result_rows)
     }
 
-    fn execute_group_by_select(&mut self, select: &Select) -> Result<RecordBatch> {
+    fn execute_group_by_select(&mut self, select: &Select) -> Result<Table> {
         if select.from.is_empty() {
             return Err(Error::InvalidQuery(
                 "GROUP BY requires a FROM clause".to_string(),
@@ -2052,7 +2052,7 @@ impl QueryExecutor {
         select: &Select,
         schema: Schema,
         rows: Vec<Row>,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let is_select_star = select.projection.len() == 1
             && matches!(&select.projection[0], SelectItem::Wildcard(_));
 
@@ -2071,7 +2071,7 @@ impl QueryExecutor {
                 }
             }
 
-            return RecordBatch::new(schema, columns);
+            return Table::new(schema, columns);
         }
 
         let evaluator = ExpressionEvaluator::new(&schema);
@@ -2115,7 +2115,7 @@ impl QueryExecutor {
         }
 
         let result_schema = Schema::from_fields(result_schema_fields);
-        RecordBatch::new(result_schema, result_columns)
+        Table::new(result_schema, result_columns)
     }
 
     #[allow(dead_code)]
@@ -2218,21 +2218,21 @@ impl QueryExecutor {
         }
     }
 
-    fn rows_to_record_batch(&self, schema: Schema, rows: Vec<Row>) -> Result<RecordBatch> {
+    fn rows_to_record_batch(&self, schema: Schema, rows: Vec<Row>) -> Result<Table> {
         if rows.is_empty() {
-            return Ok(RecordBatch::empty(schema));
+            return Ok(Table::empty(schema));
         }
 
         let values: Vec<Vec<Value>> = rows.into_iter().map(|row| row.values().to_vec()).collect();
 
-        RecordBatch::from_values(schema, values)
+        Table::from_values(schema, values)
     }
 
     fn execute_multi_join_query(
         &mut self,
         select: &Select,
         table_with_joins: &TableWithJoins,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let (mut current_schema, mut current_rows) =
             self.get_table_data(&table_with_joins.relation)?;
         let mut current_alias = self.extract_table_alias(&table_with_joins.relation)?;
@@ -2307,7 +2307,7 @@ impl QueryExecutor {
         self.rows_to_record_batch(result_schema, result_rows)
     }
 
-    fn execute_join_query(&mut self, select: &Select) -> Result<RecordBatch> {
+    fn execute_join_query(&mut self, select: &Select) -> Result<Table> {
         let table_with_joins = &select.from[0];
 
         if table_with_joins.joins.is_empty() {
@@ -2785,7 +2785,7 @@ impl QueryExecutor {
         self.finalize_join_result_base(select, joined_schema, joined_rows)
     }
 
-    fn execute_cartesian_product_query(&mut self, select: &Select) -> Result<RecordBatch> {
+    fn execute_cartesian_product_query(&mut self, select: &Select) -> Result<Table> {
         let (schema, rows) = self.execute_cartesian_product_base(select)?;
 
         let filtered_rows = if let Some(ref where_expr) = select.selection {
@@ -2979,7 +2979,7 @@ impl QueryExecutor {
         right_rows: Vec<Row>,
         using_cols: &[sqlparser::ast::ObjectName],
         join_type: JoinType,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let col_names: Vec<String> = using_cols
             .iter()
             .filter_map(|obj_name| {
@@ -3018,7 +3018,7 @@ impl QueryExecutor {
         left_rows: Vec<Row>,
         right_rows: Vec<Row>,
         join_type: JoinType,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let left_col_names: std::collections::HashSet<_> = left_schema
             .fields()
             .iter()
@@ -3142,7 +3142,7 @@ impl QueryExecutor {
         select: &Select,
         joined_schema: Schema,
         joined_rows: Vec<Row>,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let (schema, filtered_rows) =
             self.finalize_join_result_base(select, joined_schema, joined_rows)?;
 
@@ -3154,14 +3154,14 @@ impl QueryExecutor {
 
     fn apply_distinct_order_limit_offset(
         &self,
-        batch: RecordBatch,
+        batch: Table,
         distinct: bool,
         order_by: Option<&OrderBy>,
         limit_clause: Option<&LimitClause>,
         fetch: Option<&Fetch>,
         select_projection: Option<&[SelectItem]>,
         top_clause: Option<&sqlparser::ast::Top>,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let schema = batch.schema().clone();
         let mut rows: Vec<Row> = batch.rows()?;
 
@@ -4264,7 +4264,7 @@ impl QueryExecutor {
         Ok(())
     }
 
-    fn execute_window_select_base(&mut self, select: &Select) -> Result<RecordBatch> {
+    fn execute_window_select_base(&mut self, select: &Select) -> Result<Table> {
         use super::super::window_functions::WindowExecutor;
 
         if select.from.is_empty() {
@@ -4352,11 +4352,7 @@ impl QueryExecutor {
         self.rows_to_record_batch(final_schema, final_rows)
     }
 
-    fn apply_window_projection(
-        &self,
-        batch: RecordBatch,
-        projection: &[SelectItem],
-    ) -> Result<RecordBatch> {
+    fn apply_window_projection(&self, batch: Table, projection: &[SelectItem]) -> Result<Table> {
         let schema = batch.schema();
         let rows = batch.rows()?;
 
@@ -5107,7 +5103,7 @@ impl QueryExecutor {
         Ok(combined_rows)
     }
 
-    fn execute_select_without_from(&mut self, select: &Select) -> Result<RecordBatch> {
+    fn execute_select_without_from(&mut self, select: &Select) -> Result<Table> {
         use crate::query_executor::expression_evaluator::ExpressionEvaluator;
 
         for item in &select.projection {
@@ -5192,7 +5188,7 @@ impl QueryExecutor {
 
                         let rows: Vec<Vec<Value>> = elements.into_iter().map(|v| vec![v]).collect();
 
-                        return RecordBatch::from_values(srf_schema, rows);
+                        return Table::from_values(srf_schema, rows);
                     }
 
                     let data_type = Self::infer_data_type_from_value(&value);
@@ -5215,7 +5211,7 @@ impl QueryExecutor {
 
         let result_schema = Schema::from_fields(projected_fields);
 
-        RecordBatch::from_values(result_schema, vec![result_values])
+        Table::from_values(result_schema, vec![result_values])
     }
 
     fn infer_data_type_from_value(value: &Value) -> DataType {
@@ -5312,7 +5308,7 @@ impl QueryExecutor {
         set_quantifier: &SetQuantifier,
         left: &SetExpr,
         right: &SetExpr,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let left_result = self.execute_set_expr(left)?;
         let right_result = self.execute_set_expr(right)?;
 
@@ -5332,7 +5328,7 @@ impl QueryExecutor {
         Ok(result)
     }
 
-    fn execute_set_expr(&mut self, set_expr: &SetExpr) -> Result<RecordBatch> {
+    fn execute_set_expr(&mut self, set_expr: &SetExpr) -> Result<Table> {
         match set_expr {
             SetExpr::Select(select) => self.execute_simple_select(select.as_ref(), None),
             SetExpr::Query(query) => self.execute_select(&Statement::Query(query.clone()), ""),
@@ -5430,10 +5426,10 @@ impl QueryExecutor {
 
     fn union_results(
         &self,
-        left: RecordBatch,
-        right: RecordBatch,
+        left: Table,
+        right: Table,
         set_quantifier: &SetQuantifier,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let schema = left.schema().clone();
         let mut rows = Vec::new();
 
@@ -5453,10 +5449,10 @@ impl QueryExecutor {
 
     fn intersect_results(
         &self,
-        left: RecordBatch,
-        right: RecordBatch,
+        left: Table,
+        right: Table,
         set_quantifier: &SetQuantifier,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let schema = left.schema().clone();
         let left_rows = left.rows()?;
         let right_rows = right.rows()?;
@@ -5512,10 +5508,10 @@ impl QueryExecutor {
 
     fn except_results(
         &self,
-        left: RecordBatch,
-        right: RecordBatch,
+        left: Table,
+        right: Table,
         set_quantifier: &SetQuantifier,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let schema = left.schema().clone();
         let left_rows = left.rows()?;
         let right_rows = right.rows()?;

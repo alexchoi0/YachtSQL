@@ -4,14 +4,10 @@ use yachtsql_optimizer::expr::{Expr, OrderByExpr};
 use yachtsql_storage::Schema;
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
-    pub(super) fn sort_by_order_by(
-        indices: &mut [usize],
-        order_by: &[OrderByExpr],
-        batch: &RecordBatch,
-    ) {
+    pub(super) fn sort_by_order_by(indices: &mut [usize], order_by: &[OrderByExpr], batch: &Table) {
         use yachtsql_core::types::Value;
 
         if order_by.is_empty() {
@@ -42,7 +38,7 @@ impl WindowExec {
 
     pub(super) fn build_partition_key(
         partition_by: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<String> {
         const PARTITION_SEPARATOR: &str = "|";

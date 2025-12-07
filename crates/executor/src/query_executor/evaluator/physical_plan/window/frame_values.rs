@@ -4,13 +4,13 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::{ExcludeMode, Expr, OrderByExpr};
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
     pub(super) fn compute_first_value(
         indices: &[usize],
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         order_by: &[OrderByExpr],
         exclude: Option<ExcludeMode>,
@@ -31,7 +31,7 @@ impl WindowExec {
     pub(super) fn compute_last_value(
         indices: &[usize],
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         order_by: &[OrderByExpr],
         exclude: Option<ExcludeMode>,
@@ -52,7 +52,7 @@ impl WindowExec {
     pub(super) fn compute_frame_edge_value(
         indices: &[usize],
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         is_first: bool,
         order_by: &[OrderByExpr],
@@ -149,7 +149,7 @@ impl WindowExec {
     pub(super) fn compute_nth_value(
         indices: &[usize],
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         order_by: &[OrderByExpr],
         exclude: Option<ExcludeMode>,
@@ -262,7 +262,7 @@ impl WindowExec {
     pub(super) fn compute_first_value_in_frame(
         frame_indices: &[usize],
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
     ) -> Value {
         if frame_indices.is_empty() {
             return Value::null();
@@ -280,7 +280,7 @@ impl WindowExec {
     pub(super) fn compute_last_value_in_frame(
         frame_indices: &[usize],
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
     ) -> Value {
         if frame_indices.is_empty() {
             return Value::null();

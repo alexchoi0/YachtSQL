@@ -1,3 +1,6 @@
+#[macro_use]
+mod common;
+
 use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
@@ -17,12 +20,5 @@ fn test_simple_multi_column() {
         )
         .expect("recursive CTE");
 
-    println!("Rows returned: {}", result.num_rows());
-    for i in 0..result.num_rows() {
-        let col_a = result.column(0).unwrap().get(i).unwrap();
-        let col_b = result.column(1).unwrap().get(i).unwrap();
-        println!("Row {}: a={:?}, b={:?}", i, col_a, col_b);
-    }
-
-    assert_eq!(result.num_rows(), 5, "Expected 5 rows");
+    assert_batch_eq!(result, [[1, 2], [2, 3], [3, 4], [4, 5], [5, 6],]);
 }

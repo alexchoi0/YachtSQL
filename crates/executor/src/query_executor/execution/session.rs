@@ -7,7 +7,7 @@ use yachtsql_core::error::Error;
 use yachtsql_parser::DialectType;
 use yachtsql_storage::ExtensionRegistry;
 
-use crate::RecordBatch;
+use crate::Table;
 
 const NO_EXCEPTION_DIAGNOSTIC_MESSAGE: &str =
     "No exception diagnostic available; the most recent statement completed successfully";
@@ -154,7 +154,7 @@ impl SessionDiagnostics {
         self.pending_row_count = Some(count);
     }
 
-    pub fn record_success(&mut self, batch: Option<&RecordBatch>, clear_exception: bool) {
+    pub fn record_success(&mut self, batch: Option<&Table>, clear_exception: bool) {
         let mut diag = DiagnosticArea::success();
         let mut applied_row_count = false;
 
@@ -204,7 +204,7 @@ impl SessionDiagnostics {
         }
     }
 
-    fn rows_affected_from_batch(batch: &RecordBatch) -> Option<usize> {
+    fn rows_affected_from_batch(batch: &Table) -> Option<usize> {
         let column = batch.column_by_name("rows_affected")?;
         let value = column.get(0).ok()?;
         if let Some(i) = value.as_i64() {
@@ -284,8 +284,7 @@ mod tests {
             "rows_affected".to_string(),
             DataType::Int64,
         )]);
-        let batch =
-            RecordBatch::from_values(schema, vec![vec![Value::int64(5)]]).expect("batch build");
+        let batch = Table::from_values(schema, vec![vec![Value::int64(5)]]).expect("batch build");
 
         diagnostics.record_success(Some(&batch), false);
         assert_eq!(

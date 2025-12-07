@@ -3,12 +3,12 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_array_concat(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let evaluated_args: Vec<Value> = args
@@ -34,8 +34,8 @@ mod tests {
         ])
     }
 
-    fn build_batch(schema: Schema, rows: Vec<Vec<Value>>) -> RecordBatch {
-        RecordBatch::from_values(schema, rows).expect("record batch")
+    fn build_batch(schema: Schema, rows: Vec<Vec<Value>>) -> Table {
+        Table::from_values(schema, rows).expect("record batch")
     }
 
     #[test]
@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn evaluate_array_concat_handles_zero_arguments() {
         let schema = Schema::new();
-        let batch = RecordBatch::empty(schema);
+        let batch = Table::empty(schema);
         let result =
             ProjectionWithExprExec::evaluate_array_concat(&[], &batch, 0).expect("success");
         assert_eq!(result, Value::array(Vec::new()));

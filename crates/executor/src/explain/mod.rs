@@ -10,11 +10,11 @@ pub use profiler::{
 pub use timing::FastTimestamp;
 use yachtsql_core::error::Result;
 
-use crate::RecordBatch;
+use crate::Table;
 
 pub fn explain_query(
     plan: &yachtsql_optimizer::plan::PlanNode,
     options: ExplainOptions,
-) -> Result<RecordBatch> {
+) -> Result<Table> {
     plan_formatter::format_plan(plan, options)
 }

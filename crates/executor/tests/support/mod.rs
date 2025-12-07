@@ -9,13 +9,13 @@ use yachtsql_storage::Schema;
 use crate::query_executor::evaluator::physical_plan::{
     ExecutionPlan, ExecutionStatistics, ProjectionWithExprExec,
 };
-use crate::{DialectType, RecordBatch};
+use crate::{DialectType, Table};
 
 type ErrorFactory = Rc<dyn Fn() -> Error + Send + Sync>;
 
 pub struct MockPlan {
     schema: Schema,
-    batches: Vec<RecordBatch>,
+    batches: Vec<Table>,
     children: Vec<Rc<dyn ExecutionPlan>>,
     statistics: ExecutionStatistics,
     description: String,
@@ -39,7 +39,7 @@ impl std::fmt::Debug for MockPlan {
 }
 
 impl MockPlan {
-    pub fn new(schema: Schema, batches: Vec<RecordBatch>) -> Self {
+    pub fn new(schema: Schema, batches: Vec<Table>) -> Self {
         Self {
             schema,
             batches,
@@ -84,7 +84,7 @@ impl ExecutionPlan for MockPlan {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         if let Some(factory) = &self.error_factory {
             return Err(factory());
         }
@@ -104,8 +104,8 @@ impl ExecutionPlan for MockPlan {
     }
 }
 
-pub fn record_batch_from_rows(schema: Schema, rows: Vec<Vec<Value>>) -> RecordBatch {
-    RecordBatch::from_values(schema, rows).expect("record batch construction failed")
+pub fn record_batch_from_rows(schema: Schema, rows: Vec<Vec<Value>>) -> Table {
+    Table::from_values(schema, rows).expect("record batch construction failed")
 }
 
 pub fn assert_values_eq(actual: &[Value], expected: &[Value]) {

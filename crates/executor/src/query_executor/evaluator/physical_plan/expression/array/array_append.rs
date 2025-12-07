@@ -3,12 +3,12 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_array_append(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("ARRAY_APPEND", args, 2)?;
@@ -30,8 +30,8 @@ mod tests {
         Schema::from_fields(fields)
     }
 
-    fn build_batch(schema: Schema, rows: Vec<Vec<Value>>) -> RecordBatch {
-        RecordBatch::from_values(schema, rows).expect("record batch should build")
+    fn build_batch(schema: Schema, rows: Vec<Vec<Value>>) -> Table {
+        Table::from_values(schema, rows).expect("record batch should build")
     }
 
     #[test]

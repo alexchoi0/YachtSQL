@@ -6,13 +6,13 @@ use yachtsql_functions::fulltext::{
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(super) fn evaluate_fulltext_function(
         name: &str,
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         match name {
@@ -41,7 +41,7 @@ impl ProjectionWithExprExec {
         }
     }
 
-    fn eval_to_tsvector(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_to_tsvector(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "TO_TSVECTOR requires at least 1 argument",
@@ -61,7 +61,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsvector_to_string(&vector)))
     }
 
-    fn eval_to_tsquery(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_to_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "TO_TSQUERY requires at least 1 argument",
@@ -81,7 +81,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsquery_to_string(&query)))
     }
 
-    fn eval_plainto_tsquery(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_plainto_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "PLAINTO_TSQUERY requires at least 1 argument",
@@ -101,7 +101,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsquery_to_string(&query)))
     }
 
-    fn eval_phraseto_tsquery(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_phraseto_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "PHRASETO_TSQUERY requires at least 1 argument",
@@ -121,11 +121,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsquery_to_string(&query)))
     }
 
-    fn eval_websearch_to_tsquery(
-        args: &[Expr],
-        batch: &RecordBatch,
-        row_idx: usize,
-    ) -> Result<Value> {
+    fn eval_websearch_to_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "WEBSEARCH_TO_TSQUERY requires at least 1 argument",
@@ -145,7 +141,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsquery_to_string(&query)))
     }
 
-    fn eval_ts_match(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_ts_match(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "TS_MATCH requires 2 arguments",
@@ -173,7 +169,7 @@ impl ProjectionWithExprExec {
         Ok(Value::bool_val(query.matches(&vector)))
     }
 
-    fn eval_ts_rank(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_ts_rank(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "TS_RANK requires at least 2 arguments",
@@ -202,7 +198,7 @@ impl ProjectionWithExprExec {
         Ok(Value::float64(score))
     }
 
-    fn eval_ts_rank_cd(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_ts_rank_cd(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "TS_RANK_CD requires at least 2 arguments",
@@ -231,7 +227,7 @@ impl ProjectionWithExprExec {
         Ok(Value::float64(score))
     }
 
-    fn eval_tsvector_concat(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_tsvector_concat(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "TSVECTOR_CONCAT requires 2 arguments",
@@ -260,7 +256,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsvector_to_string(&result)))
     }
 
-    fn eval_ts_headline(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_ts_headline(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "TS_HEADLINE requires at least 2 arguments",
@@ -289,7 +285,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(headline))
     }
 
-    fn eval_setweight(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_setweight(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "SETWEIGHT requires 2 arguments",
@@ -327,7 +323,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsvector_to_string(&weighted)))
     }
 
-    fn eval_strip(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_strip(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "STRIP requires 1 argument",
@@ -348,7 +344,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsvector_to_string(&stripped)))
     }
 
-    fn eval_tsvector_length(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_tsvector_length(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "LENGTH requires 1 argument for tsvector",
@@ -368,7 +364,7 @@ impl ProjectionWithExprExec {
         Ok(Value::int64(fulltext::tsvector_length(&vector)))
     }
 
-    fn eval_numnode(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_numnode(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "NUMNODE requires 1 argument",
@@ -388,7 +384,7 @@ impl ProjectionWithExprExec {
         Ok(Value::int64(1))
     }
 
-    fn eval_querytree(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_querytree(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "QUERYTREE requires 1 argument",
@@ -408,7 +404,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsquery_to_string(&query)))
     }
 
-    fn eval_tsquery_and(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_tsquery_and(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "TSQUERY_AND requires 2 arguments",
@@ -437,7 +433,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsquery_to_string(&result)))
     }
 
-    fn eval_tsquery_or(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_tsquery_or(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() < 2 {
             return Err(crate::error::Error::invalid_query(
                 "TSQUERY_OR requires 2 arguments",
@@ -466,7 +462,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(tsquery_to_string(&result)))
     }
 
-    fn eval_tsquery_not(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_tsquery_not(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(crate::error::Error::invalid_query(
                 "TSQUERY_NOT requires 1 argument",

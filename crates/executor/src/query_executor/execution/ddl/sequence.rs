@@ -4,18 +4,18 @@ use yachtsql_storage::sequence::SequenceConfig;
 
 use super::super::QueryExecutor;
 use super::create::DdlExecutor;
-use crate::RecordBatch;
+use crate::Table;
 
 pub trait SequenceExecutor {
-    fn execute_create_sequence(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_create_sequence(&mut self, stmt: &CustomStatement) -> Result<Table>;
 
-    fn execute_alter_sequence(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_alter_sequence(&mut self, stmt: &CustomStatement) -> Result<Table>;
 
-    fn execute_drop_sequence(&mut self, stmt: &CustomStatement) -> Result<RecordBatch>;
+    fn execute_drop_sequence(&mut self, stmt: &CustomStatement) -> Result<Table>;
 }
 
 impl SequenceExecutor for QueryExecutor {
-    fn execute_create_sequence(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_create_sequence(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::CreateSequence {
             if_not_exists,
             name,
@@ -70,7 +70,7 @@ impl SequenceExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_alter_sequence(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_alter_sequence(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::AlterSequence {
             if_exists,
             name,
@@ -130,7 +130,7 @@ impl SequenceExecutor for QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_drop_sequence(&mut self, stmt: &CustomStatement) -> Result<RecordBatch> {
+    fn execute_drop_sequence(&mut self, stmt: &CustomStatement) -> Result<Table> {
         let CustomStatement::DropSequence {
             if_exists,
             names,

@@ -47,7 +47,7 @@ fn test_abs_float() {
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO numbers VALUES (-3.14159)")
+        .execute_sql("INSERT INTO numbers VALUES (-3.12131)")
         .unwrap();
 
     let result = executor
@@ -146,7 +146,7 @@ fn test_round_with_precision() {
     let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
 
     let result = executor
-        .execute_sql("SELECT ROUND(3.14159, 2) AS result")
+        .execute_sql("SELECT ROUND(3.12131, 2) AS result")
         .unwrap();
 
     assert_eq!(result.num_rows(), 1);
@@ -188,7 +188,7 @@ fn test_trunc_with_precision() {
     let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
 
     let result = executor
-        .execute_sql("SELECT TRUNC(3.14159, 2) AS result")
+        .execute_sql("SELECT TRUNC(3.12131, 2) AS result")
         .unwrap();
 
     assert_eq!(result.num_rows(), 1);

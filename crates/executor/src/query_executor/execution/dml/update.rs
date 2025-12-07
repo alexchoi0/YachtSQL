@@ -8,11 +8,11 @@ use yachtsql_storage::{Row, Schema, TableIndexOps, TableSchemaOps};
 use super::super::super::QueryExecutor;
 use super::super::super::expression_evaluator::ExpressionEvaluator;
 use super::super::DdlExecutor;
-use crate::RecordBatch;
+use crate::Table;
 use crate::query_executor::returning::DmlRowContext;
 
 pub trait DmlUpdateExecutor {
-    fn execute_update(&mut self, stmt: &Statement, _original_sql: &str) -> Result<RecordBatch>;
+    fn execute_update(&mut self, stmt: &Statement, _original_sql: &str) -> Result<Table>;
 
     fn parse_update_assignments(
         &mut self,
@@ -29,7 +29,7 @@ pub trait DmlUpdateExecutor {
 }
 
 impl DmlUpdateExecutor for QueryExecutor {
-    fn execute_update(&mut self, stmt: &Statement, _original_sql: &str) -> Result<RecordBatch> {
+    fn execute_update(&mut self, stmt: &Statement, _original_sql: &str) -> Result<Table> {
         let Statement::Update {
             table,
             assignments,

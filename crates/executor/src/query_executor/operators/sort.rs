@@ -4,7 +4,7 @@ use yachtsql_core::error::Result;
 use yachtsql_core::types::Value;
 use yachtsql_core::types::collation::CollationRegistry;
 
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {
@@ -36,7 +36,7 @@ impl SortOperator {
         Self { sort_keys }
     }
 
-    pub fn execute(&self, input: RecordBatch) -> Result<RecordBatch> {
+    pub fn execute(&self, input: Table) -> Result<Table> {
         if input.num_rows() == 0 {
             return Ok(input);
         }
@@ -103,7 +103,7 @@ impl SortOperator {
             new_columns.push(new_col);
         }
 
-        RecordBatch::new(input.schema().clone(), new_columns)
+        Table::new(input.schema().clone(), new_columns)
     }
 
     pub fn sort_keys(&self) -> &[SortKey] {

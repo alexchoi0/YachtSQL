@@ -41,13 +41,36 @@ enum StorageData {
 }
 
 #[derive(Debug, Clone)]
-pub struct RecordBatch {
+pub struct Table {
     schema: Schema,
     storage: StorageData,
     num_rows: usize,
 }
 
-impl RecordBatch {
+impl PartialEq for Table {
+    fn eq(&self, other: &Self) -> bool {
+        if self.num_rows != other.num_rows || self.schema != other.schema {
+            return false;
+        }
+
+        for row_idx in 0..self.num_rows {
+            let self_row = match self.row(row_idx) {
+                Ok(r) => r,
+                Err(_) => return false,
+            };
+            let other_row = match other.row(row_idx) {
+                Ok(r) => r,
+                Err(_) => return false,
+            };
+            if self_row.values() != other_row.values() {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl Table {
     pub fn new(schema: Schema, columns: Vec<Column>) -> Result<Self> {
         if columns.len() != schema.field_count() {
             return Err(Error::schema_mismatch(format!(
@@ -277,7 +300,7 @@ impl RecordBatch {
         match &self.storage {
             StorageData::Columns(columns) => columns.as_slice(),
             StorageData::Rows(_) => panic!(
-                "Expected column-formatted RecordBatch, but got row format. \
+                "Expected column-formatted Table, but got row format. \
                  Convert to column format first using to_column_format()"
             ),
         }
@@ -419,7 +442,7 @@ impl RecordBatch {
         })
     }
 
-    pub fn concat(batches: &[RecordBatch]) -> Result<Self> {
+    pub fn concat(batches: &[Table]) -> Result<Self> {
         if batches.is_empty() {
             return Err(Error::InvalidOperation(
                 "Cannot concatenate empty batch list".to_string(),
@@ -500,7 +523,7 @@ mod tests {
             Field::nullable("name", DataType::String),
         ]);
 
-        let batch = RecordBatch::empty(schema.clone());
+        let batch = Table::empty(schema.clone());
         assert_eq!(batch.num_rows(), 0);
         assert_eq!(batch.num_columns(), 2);
         assert!(batch.is_empty());
@@ -515,7 +538,7 @@ mod tests {
         column.push(Value::int64(2)).unwrap();
         column.push(Value::int64(3)).unwrap();
 
-        let batch = RecordBatch::new(schema, vec![column]).unwrap();
+        let batch = Table::new(schema, vec![column]).unwrap();
 
         assert_eq!(batch.num_rows(), 3);
         assert_eq!(batch.num_columns(), 1);
@@ -532,7 +555,7 @@ mod tests {
         let mut column = Column::new(&DataType::Int64, 1);
         column.push(Value::int64(1)).unwrap();
 
-        let result = RecordBatch::new(schema, vec![column]);
+        let result = Table::new(schema, vec![column]);
         assert!(result.is_err());
     }
 
@@ -549,7 +572,7 @@ mod tests {
             Row::from_values(vec![Value::int64(3), Value::string("Charlie".to_string())]),
         ];
 
-        let batch = RecordBatch::from_rows(schema.clone(), rows).unwrap();
+        let batch = Table::from_rows(schema.clone(), rows).unwrap();
 
         assert_eq!(batch.num_rows(), 3);
         assert_eq!(batch.num_columns(), 2);
@@ -575,7 +598,7 @@ mod tests {
         name_col.push(Value::string("Bob".to_string())).unwrap();
         name_col.push(Value::string("Charlie".to_string())).unwrap();
 
-        let batch = RecordBatch::new(schema, vec![id_col, name_col]).unwrap();
+        let batch = Table::new(schema, vec![id_col, name_col]).unwrap();
 
         assert_eq!(batch.num_rows(), 3);
         assert_eq!(batch.num_columns(), 2);
@@ -597,7 +620,7 @@ mod tests {
             Row::from_values(vec![Value::int64(3), Value::float64(3.5)]),
         ];
 
-        let row_batch = RecordBatch::from_rows(schema.clone(), rows).unwrap();
+        let row_batch = Table::from_rows(schema.clone(), rows).unwrap();
         assert_eq!(row_batch.storage_format(), StorageFormat::Row);
 
         let col_batch = row_batch.to_column_format().unwrap();
@@ -631,7 +654,7 @@ mod tests {
         val_col.push(Value::float64(2.5)).unwrap();
         val_col.push(Value::float64(3.5)).unwrap();
 
-        let col_batch = RecordBatch::new(schema.clone(), vec![id_col, val_col]).unwrap();
+        let col_batch = Table::new(schema.clone(), vec![id_col, val_col]).unwrap();
         assert_eq!(col_batch.storage_format(), StorageFormat::Column);
 
         let row_batch = col_batch.to_row_format().unwrap();
@@ -663,7 +686,7 @@ mod tests {
         name_col.push(Value::string("Alice".to_string())).unwrap();
         name_col.push(Value::string("Bob".to_string())).unwrap();
 
-        let col_batch = RecordBatch::new(schema.clone(), vec![id_col, name_col]).unwrap();
+        let col_batch = Table::new(schema.clone(), vec![id_col, name_col]).unwrap();
         let row = col_batch.row(1).unwrap();
         assert_eq!(row.values()[0], Value::int64(2));
         assert_eq!(row.values()[1], Value::string("Bob".to_string()));
@@ -672,7 +695,7 @@ mod tests {
             Row::from_values(vec![Value::int64(1), Value::string("Alice".to_string())]),
             Row::from_values(vec![Value::int64(2), Value::string("Bob".to_string())]),
         ];
-        let row_batch = RecordBatch::from_rows(schema, rows).unwrap();
+        let row_batch = Table::from_rows(schema, rows).unwrap();
         let row = row_batch.row(1).unwrap();
         assert_eq!(row.values()[0], Value::int64(2));
         assert_eq!(row.values()[1], Value::string("Bob".to_string()));
@@ -688,7 +711,7 @@ mod tests {
             Row::from_values(vec![Value::int64(3)]),
             Row::from_values(vec![Value::int64(4)]),
         ];
-        let row_batch = RecordBatch::from_rows(schema.clone(), rows).unwrap();
+        let row_batch = Table::from_rows(schema.clone(), rows).unwrap();
         let sliced = row_batch.slice(1, 2).unwrap();
         assert_eq!(sliced.storage_format(), StorageFormat::Row);
         assert_eq!(sliced.num_rows(), 2);
@@ -698,7 +721,7 @@ mod tests {
         col.push(Value::int64(2)).unwrap();
         col.push(Value::int64(3)).unwrap();
         col.push(Value::int64(4)).unwrap();
-        let col_batch = RecordBatch::new(schema, vec![col]).unwrap();
+        let col_batch = Table::new(schema, vec![col]).unwrap();
         let sliced = col_batch.slice(1, 2).unwrap();
         assert_eq!(sliced.storage_format(), StorageFormat::Column);
         assert_eq!(sliced.num_rows(), 2);
@@ -724,7 +747,7 @@ mod tests {
                 Value::int64(25),
             ]),
         ];
-        let row_batch = RecordBatch::from_rows(schema.clone(), rows).unwrap();
+        let row_batch = Table::from_rows(schema.clone(), rows).unwrap();
         let projected = row_batch.project(&[0, 2]).unwrap();
         assert_eq!(projected.storage_format(), StorageFormat::Row);
         assert_eq!(projected.num_columns(), 2);
@@ -741,7 +764,7 @@ mod tests {
         age_col.push(Value::int64(30)).unwrap();
         age_col.push(Value::int64(25)).unwrap();
 
-        let col_batch = RecordBatch::new(schema, vec![id_col, name_col, age_col]).unwrap();
+        let col_batch = Table::new(schema, vec![id_col, name_col, age_col]).unwrap();
         let projected = col_batch.project(&[0, 2]).unwrap();
         assert_eq!(projected.storage_format(), StorageFormat::Column);
         assert_eq!(projected.num_columns(), 2);
@@ -751,7 +774,7 @@ mod tests {
     fn test_concat_row_format() {
         let schema = Schema::from_fields(vec![Field::nullable("id", DataType::Int64)]);
 
-        let batch1 = RecordBatch::from_rows(
+        let batch1 = Table::from_rows(
             schema.clone(),
             vec![
                 Row::from_values(vec![Value::int64(1)]),
@@ -760,7 +783,7 @@ mod tests {
         )
         .unwrap();
 
-        let batch2 = RecordBatch::from_rows(
+        let batch2 = Table::from_rows(
             schema.clone(),
             vec![
                 Row::from_values(vec![Value::int64(3)]),
@@ -769,7 +792,7 @@ mod tests {
         )
         .unwrap();
 
-        let concatenated = RecordBatch::concat(&[batch1, batch2]).unwrap();
+        let concatenated = Table::concat(&[batch1, batch2]).unwrap();
         assert_eq!(concatenated.storage_format(), StorageFormat::Row);
         assert_eq!(concatenated.num_rows(), 4);
     }
@@ -781,14 +804,14 @@ mod tests {
         let mut col1 = Column::new(&DataType::Int64, 2);
         col1.push(Value::int64(1)).unwrap();
         col1.push(Value::int64(2)).unwrap();
-        let batch1 = RecordBatch::new(schema.clone(), vec![col1]).unwrap();
+        let batch1 = Table::new(schema.clone(), vec![col1]).unwrap();
 
         let mut col2 = Column::new(&DataType::Int64, 2);
         col2.push(Value::int64(3)).unwrap();
         col2.push(Value::int64(4)).unwrap();
-        let batch2 = RecordBatch::new(schema, vec![col2]).unwrap();
+        let batch2 = Table::new(schema, vec![col2]).unwrap();
 
-        let concatenated = RecordBatch::concat(&[batch1, batch2]).unwrap();
+        let concatenated = Table::concat(&[batch1, batch2]).unwrap();
         assert_eq!(concatenated.storage_format(), StorageFormat::Column);
         assert_eq!(concatenated.num_rows(), 4);
     }
@@ -797,7 +820,7 @@ mod tests {
     fn test_concat_mixed_formats_fails() {
         let schema = Schema::from_fields(vec![Field::nullable("id", DataType::Int64)]);
 
-        let batch1 = RecordBatch::from_rows(
+        let batch1 = Table::from_rows(
             schema.clone(),
             vec![Row::from_values(vec![Value::int64(1)])],
         )
@@ -805,16 +828,16 @@ mod tests {
 
         let mut col = Column::new(&DataType::Int64, 1);
         col.push(Value::int64(2)).unwrap();
-        let batch2 = RecordBatch::new(schema, vec![col]).unwrap();
+        let batch2 = Table::new(schema, vec![col]).unwrap();
 
-        let result = RecordBatch::concat(&[batch1, batch2]);
+        let result = Table::concat(&[batch1, batch2]);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_empty_rows() {
         let schema = Schema::from_fields(vec![Field::nullable("id", DataType::Int64)]);
-        let batch = RecordBatch::empty_rows(schema);
+        let batch = Table::empty_rows(schema);
         assert_eq!(batch.storage_format(), StorageFormat::Row);
         assert_eq!(batch.num_rows(), 0);
         assert!(batch.is_empty());

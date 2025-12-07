@@ -28,7 +28,7 @@ use yachtsql_storage::Schema;
 use yachtsql_storage::schema::Field;
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 use crate::query_executor::returning::{
     ReturningColumnOrigin, ReturningExpressionItem, ReturningSpec, build_returning_batch_from_rows,
     returning_spec_output_schema,
@@ -93,7 +93,7 @@ impl MergeExec {
 
     fn compute_merge_mutations(
         &self,
-        source_batches: &[RecordBatch],
+        source_batches: &[Table],
         context: &MergeContext,
         capture_returning: bool,
     ) -> Result<MergeMutations> {
@@ -113,7 +113,7 @@ impl MergeExec {
 
     fn process_source_rows(
         &self,
-        source_batches: &[RecordBatch],
+        source_batches: &[Table],
         context: &MergeContext,
         mutations: &mut MergeMutations,
         matched_target_rows: &mut HashSet<usize>,
@@ -243,7 +243,7 @@ impl MergeExec {
         Error::MergeCardinalityViolation { actual }
     }
 
-    fn create_rows_affected_result(count: usize) -> Result<Vec<RecordBatch>> {
+    fn create_rows_affected_result(count: usize) -> Result<Vec<Table>> {
         use yachtsql_storage::Column;
 
         let schema = Schema::from_fields(vec![Field::required("rows_affected", DataType::Int64)]);
@@ -251,7 +251,7 @@ impl MergeExec {
         let mut column = Column::new(&DataType::Int64, 1);
         column.push(Value::int64(count as i64))?;
 
-        Ok(vec![RecordBatch::new(schema, vec![column])?])
+        Ok(vec![Table::new(schema, vec![column])?])
     }
 
     fn is_merge_action_expr(expr: &Expr) -> bool {
@@ -263,7 +263,7 @@ impl MergeExec {
         items: &[ReturningExpressionItem],
         target_schema: &Schema,
         contexts: Vec<MergeReturningRow>,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         if contexts.is_empty() {
             let fields = items
                 .iter()
@@ -277,7 +277,7 @@ impl MergeExec {
                 })
                 .collect();
             let output_schema = Schema::from_fields(fields);
-            return Ok(RecordBatch::empty(output_schema));
+            return Ok(Table::empty(output_schema));
         }
 
         let source_schema = self.source.schema();
@@ -339,7 +339,7 @@ impl MergeExec {
             .collect();
         let output_schema = Schema::from_fields(fields);
 
-        RecordBatch::from_values(output_schema, rows)
+        Table::from_values(output_schema, rows)
     }
 
     fn build_returning_batch_from_columns(
@@ -347,7 +347,7 @@ impl MergeExec {
         target_schema: &Schema,
         source_schema: &Schema,
         contexts: Vec<MergeReturningRow>,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let output_schema =
             returning_spec_output_schema(&self.returning_spec, target_schema, Some(source_schema))?;
 
@@ -358,7 +358,7 @@ impl MergeExec {
         };
 
         if contexts.is_empty() {
-            return Ok(RecordBatch::empty(output_schema));
+            return Ok(Table::empty(output_schema));
         }
 
         let mut rows = Vec::with_capacity(contexts.len());
@@ -442,7 +442,7 @@ impl MergeExec {
             rows.push(values);
         }
 
-        RecordBatch::from_values(output_schema, rows)
+        Table::from_values(output_schema, rows)
     }
 }
 
@@ -451,7 +451,7 @@ impl ExecutionPlan for MergeExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let source_batches = self.source.execute()?;
 
         let mut storage_lock = self.storage.borrow_mut();

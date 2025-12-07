@@ -1,7 +1,7 @@
 use yachtsql_core::error::Result;
 
 use super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(super) fn validate_arg_count(
@@ -41,7 +41,7 @@ impl ProjectionWithExprExec {
         dialect: crate::DialectType,
         func_name: &str,
         args: &[crate::optimizer::expr::Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         eval_fn: F,
     ) -> Result<crate::types::Value>
@@ -59,7 +59,7 @@ impl ProjectionWithExprExec {
         dialect: crate::DialectType,
         func_name: &str,
         args: &[crate::optimizer::expr::Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         eval_fn: F,
     ) -> Result<crate::types::Value>
@@ -88,7 +88,7 @@ impl ProjectionWithExprExec {
     pub(super) fn apply_string_unary<F>(
         _func_name: &str,
         arg: &crate::optimizer::expr::Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         f: F,
     ) -> Result<crate::types::Value>
@@ -113,7 +113,7 @@ impl ProjectionWithExprExec {
 
     pub(super) fn evaluate_args(
         args: &[crate::optimizer::expr::Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Vec<crate::types::Value>> {
         args.iter()
@@ -131,7 +131,7 @@ impl ProjectionWithExprExec {
     pub(super) fn apply_string_int_binary<F>(
         func_name: &str,
         args: &[crate::optimizer::expr::Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         f: F,
     ) -> Result<crate::types::Value>

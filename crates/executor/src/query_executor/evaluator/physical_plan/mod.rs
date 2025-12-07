@@ -8,7 +8,7 @@ use yachtsql_core::types::DataType;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::Schema;
 
-use crate::RecordBatch;
+use crate::Table;
 
 mod aggregate;
 mod aggregate_strategy;
@@ -189,7 +189,7 @@ pub(crate) fn infer_expr_type_for_returning(expr: &Expr, schema: &Schema) -> Opt
 
 pub trait ExecutionPlan: fmt::Debug {
     fn schema(&self) -> &Schema;
-    fn execute(&self) -> Result<Vec<RecordBatch>>;
+    fn execute(&self) -> Result<Vec<Table>>;
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>>;
     fn statistics(&self) -> ExecutionStatistics {
         ExecutionStatistics::default()
@@ -240,7 +240,7 @@ impl PhysicalPlan {
         &self.schema
     }
 
-    pub fn execute(&self) -> Result<Vec<RecordBatch>> {
+    pub fn execute(&self) -> Result<Vec<Table>> {
         self.root.execute()
     }
 
@@ -328,7 +328,7 @@ impl ExecutionPlan for TableScanExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let storage = self.storage.borrow();
 
         let (dataset_name, table_id) = if let Some(dot_pos) = self.table_name.find('.') {
@@ -350,7 +350,7 @@ impl ExecutionPlan for TableScanExec {
         let rows = table.get_all_rows();
 
         if rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         use yachtsql_storage::Column;
@@ -373,7 +373,7 @@ impl ExecutionPlan for TableScanExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -414,7 +414,7 @@ impl ExecutionPlan for ProjectionExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
         let mut output_batches = Vec::with_capacity(input_batches.len());
 
@@ -479,7 +479,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         use yachtsql_storage::Column;
 
         let _registry_guard = Self::enter_feature_registry_context(self.feature_registry.clone());
@@ -493,7 +493,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
 
         for batch in input_batches {
             if batch.is_empty() {
-                output_batches.push(RecordBatch::empty(self.schema.clone()));
+                output_batches.push(Table::empty(self.schema.clone()));
                 continue;
             }
 
@@ -540,7 +540,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
                     });
                 }
 
-                let output_batch = RecordBatch::new(self.schema.clone(), output_columns)?;
+                let output_batch = Table::new(self.schema.clone(), output_columns)?;
                 output_batches.push(output_batch);
             } else {
                 let mut all_rows: Vec<Vec<yachtsql_core::types::Value>> = Vec::new();
@@ -617,7 +617,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
                     }
                 }
 
-                let output_batch = RecordBatch::new(self.schema.clone(), output_columns)?;
+                let output_batch = Table::new(self.schema.clone(), output_columns)?;
                 output_batches.push(output_batch);
             }
         }
@@ -636,14 +636,14 @@ impl ExecutionPlan for ProjectionWithExprExec {
 
 impl ProjectionWithExprExec {
     fn build_correlation_context(
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<crate::CorrelationContext> {
         Self::build_correlation_context_with_aliases(batch, row_idx, &[])
     }
 
     fn build_correlation_context_with_aliases(
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         outer_table_aliases: &[String],
     ) -> Result<crate::CorrelationContext> {
@@ -772,7 +772,7 @@ impl ExecutionPlan for FilterExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         use yachtsql_storage::Column;
 
         let input_batches = self.input.execute()?;
@@ -797,7 +797,7 @@ impl ExecutionPlan for FilterExec {
             }
 
             if passing_rows.is_empty() {
-                output_batches.push(RecordBatch::empty(self.schema.clone()));
+                output_batches.push(Table::empty(self.schema.clone()));
                 continue;
             }
 
@@ -816,7 +816,7 @@ impl ExecutionPlan for FilterExec {
                 output_columns.push(output_column);
             }
 
-            let filtered_batch = RecordBatch::new(self.schema.clone(), output_columns)?;
+            let filtered_batch = Table::new(self.schema.clone(), output_columns)?;
             output_batches.push(filtered_batch);
         }
 
@@ -1051,13 +1051,13 @@ impl ExecutionPlan for UnnestExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
-        use crate::RecordBatch;
+    fn execute(&self) -> Result<Vec<Table>> {
+        use crate::Table;
 
         let elements = self.evaluate_array_expr()?;
 
         if elements.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let mut columns = Vec::new();
@@ -1071,7 +1071,7 @@ impl ExecutionPlan for UnnestExec {
             columns.push(ordinality_column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -1251,7 +1251,7 @@ impl TableValuedFunctionExec {
         }
     }
 
-    fn execute_each(&self, args: &[crate::types::Value]) -> Result<RecordBatch> {
+    fn execute_each(&self, args: &[crate::types::Value]) -> Result<Table> {
         use yachtsql_core::error::Error;
         use yachtsql_storage::Column;
 
@@ -1281,10 +1281,10 @@ impl TableValuedFunctionExec {
             )?;
         }
 
-        RecordBatch::new(self.schema.clone(), vec![key_col, val_col])
+        Table::new(self.schema.clone(), vec![key_col, val_col])
     }
 
-    fn execute_skeys(&self, args: &[crate::types::Value]) -> Result<RecordBatch> {
+    fn execute_skeys(&self, args: &[crate::types::Value]) -> Result<Table> {
         use yachtsql_core::error::Error;
         use yachtsql_storage::Column;
 
@@ -1308,10 +1308,10 @@ impl TableValuedFunctionExec {
             key_col.push(Value::string(k.clone()))?;
         }
 
-        RecordBatch::new(self.schema.clone(), vec![key_col])
+        Table::new(self.schema.clone(), vec![key_col])
     }
 
-    fn execute_svals(&self, args: &[crate::types::Value]) -> Result<RecordBatch> {
+    fn execute_svals(&self, args: &[crate::types::Value]) -> Result<Table> {
         use yachtsql_core::error::Error;
         use yachtsql_storage::Column;
 
@@ -1339,10 +1339,10 @@ impl TableValuedFunctionExec {
             )?;
         }
 
-        RecordBatch::new(self.schema.clone(), vec![val_col])
+        Table::new(self.schema.clone(), vec![val_col])
     }
 
-    fn execute_populate_record(&self, args: &[crate::types::Value]) -> Result<RecordBatch> {
+    fn execute_populate_record(&self, args: &[crate::types::Value]) -> Result<Table> {
         use yachtsql_core::error::Error;
         use yachtsql_storage::Column;
 
@@ -1371,7 +1371,7 @@ impl TableValuedFunctionExec {
             columns.push(col);
         }
 
-        RecordBatch::new(self.schema.clone(), columns)
+        Table::new(self.schema.clone(), columns)
     }
 }
 
@@ -1380,7 +1380,7 @@ impl ExecutionPlan for TableValuedFunctionExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         use yachtsql_core::error::Error;
 
         let args = self.evaluate_args()?;

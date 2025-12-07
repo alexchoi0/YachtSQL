@@ -1,7 +1,7 @@
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_storage::{Field, Schema};
 
-use crate::RecordBatch;
+use crate::Table;
 
 pub trait IntoTestSchema {
     fn into_schema(self) -> Schema;
@@ -35,26 +35,26 @@ impl IntoTestSchema for Vec<Field> {
     }
 }
 
-pub fn create_batch<S>(schema_spec: S, rows: Vec<Vec<Value>>) -> RecordBatch
+pub fn create_batch<S>(schema_spec: S, rows: Vec<Vec<Value>>) -> Table
 where
     S: IntoTestSchema,
 {
     let schema = schema_spec.into_schema();
-    RecordBatch::from_values(schema, rows).expect("Failed to create test batch")
+    Table::from_values(schema, rows).expect("Failed to create test batch")
 }
 
-pub fn create_single_row_batch<S>(schema_spec: S, values: Vec<Value>) -> RecordBatch
+pub fn create_single_row_batch<S>(schema_spec: S, values: Vec<Value>) -> Table
 where
     S: IntoTestSchema,
 {
     create_batch(schema_spec, vec![values])
 }
 
-pub fn create_empty_batch(fields: Vec<(&str, DataType)>) -> RecordBatch {
+pub fn create_empty_batch(fields: Vec<(&str, DataType)>) -> Table {
     let schema_fields: Vec<Field> = fields
         .into_iter()
         .map(|(name, dtype)| Field::nullable(name, dtype))
         .collect();
     let schema = Schema::from_fields(schema_fields);
-    RecordBatch::empty(schema)
+    Table::empty(schema)
 }

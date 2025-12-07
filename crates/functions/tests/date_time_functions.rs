@@ -5,12 +5,12 @@
 #![allow(clippy::wildcard_enum_match_arm)]
 #![allow(clippy::single_match)]
 
-use yachtsql::QueryExecutor;
-use yachtsql_parser::DialectType;
+mod common;
+use common::{create_executor, d};
 
 #[test]
 fn test_current_date() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE data (id INT64)")
@@ -29,7 +29,7 @@ fn test_current_date() {
 
 #[test]
 fn test_current_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE data (id INT64)")
@@ -48,7 +48,7 @@ fn test_current_timestamp() {
 
 #[test]
 fn test_now_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE data (id INT64)")
@@ -67,7 +67,7 @@ fn test_now_function() {
 
 #[test]
 fn test_date_add() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -82,7 +82,7 @@ fn test_date_add() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[d(2024, 1, 22)]]);
         }
         Err(_) => {}
     }
@@ -90,7 +90,7 @@ fn test_date_add() {
 
 #[test]
 fn test_date_sub() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -105,7 +105,7 @@ fn test_date_sub() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[d(2024, 1, 8)]]);
         }
         Err(_) => {}
     }
@@ -113,7 +113,7 @@ fn test_date_sub() {
 
 #[test]
 fn test_date_diff() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (start_date DATE, end_date DATE)")
@@ -128,7 +128,7 @@ fn test_date_diff() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[14]]);
         }
         Err(_) => {}
     }
@@ -136,7 +136,7 @@ fn test_date_diff() {
 
 #[test]
 fn test_extract_year() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -150,7 +150,7 @@ fn test_extract_year() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[2024]]);
         }
         Err(_) => {}
     }
@@ -158,7 +158,7 @@ fn test_extract_year() {
 
 #[test]
 fn test_extract_month() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -172,7 +172,7 @@ fn test_extract_month() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[1]]);
         }
         Err(_) => {}
     }
@@ -180,7 +180,7 @@ fn test_extract_month() {
 
 #[test]
 fn test_extract_day() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -194,7 +194,7 @@ fn test_extract_day() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[15]]);
         }
         Err(_) => {}
     }
@@ -202,7 +202,7 @@ fn test_extract_day() {
 
 #[test]
 fn test_date_part() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -216,7 +216,7 @@ fn test_date_part() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[2024]]);
         }
         Err(_) => {}
     }
@@ -224,7 +224,7 @@ fn test_date_part() {
 
 #[test]
 fn test_date_trunc_month() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -239,7 +239,7 @@ fn test_date_trunc_month() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[d(2024, 1, 1)]]);
         }
         Err(_) => {}
     }
@@ -247,7 +247,7 @@ fn test_date_trunc_month() {
 
 #[test]
 fn test_date_trunc_year() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -262,7 +262,7 @@ fn test_date_trunc_year() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[d(2024, 1, 1)]]);
         }
         Err(_) => {}
     }
@@ -270,7 +270,7 @@ fn test_date_trunc_year() {
 
 #[test]
 fn test_date_format() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -285,7 +285,7 @@ fn test_date_format() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [["2024-01-15"]]);
         }
         Err(_) => {}
     }
@@ -293,7 +293,7 @@ fn test_date_format() {
 
 #[test]
 fn test_to_char() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -308,7 +308,7 @@ fn test_to_char() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [["2024-01-15"]]);
         }
         Err(_) => {}
     }
@@ -316,7 +316,7 @@ fn test_to_char() {
 
 #[test]
 fn test_parse_date() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE strings (date_str STRING)")
@@ -331,7 +331,7 @@ fn test_parse_date() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[d(2024, 1, 15)]]);
         }
         Err(_) => {}
     }
@@ -339,7 +339,7 @@ fn test_parse_date() {
 
 #[test]
 fn test_timestamp_add() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -363,7 +363,7 @@ fn test_timestamp_add() {
 
 #[test]
 fn test_timestamp_diff() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (start_time TIMESTAMP, end_time TIMESTAMP)")
@@ -378,7 +378,7 @@ fn test_timestamp_diff() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[2]]);
         }
         Err(_) => {}
     }
@@ -386,7 +386,7 @@ fn test_timestamp_diff() {
 
 #[test]
 fn test_make_date() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE parts (year INT64, month INT64, day INT64)")
@@ -400,7 +400,7 @@ fn test_make_date() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[d(2024, 1, 15)]]);
         }
         Err(_) => {}
     }
@@ -408,7 +408,7 @@ fn test_make_date() {
 
 #[test]
 fn test_make_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE parts (y INT64, m INT64, d INT64, h INT64, min INT64, s INT64)")
@@ -430,7 +430,7 @@ fn test_make_timestamp() {
 
 #[test]
 fn test_age_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (start_date DATE, end_date DATE)")
@@ -452,7 +452,7 @@ fn test_age_function() {
 
 #[test]
 fn test_interval_arithmetic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -467,7 +467,7 @@ fn test_interval_arithmetic() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[d(2024, 1, 22)]]);
         }
         Err(_) => {}
     }
@@ -475,7 +475,7 @@ fn test_interval_arithmetic() {
 
 #[test]
 fn test_extract_hour_from_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -489,7 +489,7 @@ fn test_extract_hour_from_timestamp() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[14]]);
         }
         Err(_) => {}
     }
@@ -497,7 +497,7 @@ fn test_extract_hour_from_timestamp() {
 
 #[test]
 fn test_extract_minute_from_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -512,7 +512,7 @@ fn test_extract_minute_from_timestamp() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[30]]);
         }
         Err(_) => {}
     }
@@ -520,7 +520,7 @@ fn test_extract_minute_from_timestamp() {
 
 #[test]
 fn test_extract_second_from_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -535,7 +535,7 @@ fn test_extract_second_from_timestamp() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[45]]);
         }
         Err(_) => {}
     }
@@ -543,27 +543,21 @@ fn test_extract_second_from_timestamp() {
 
 #[test]
 fn test_date_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_date DATE)")
         .unwrap();
 
     executor
-        .execute_sql("INSERT INTO events VALUES (DATE '2024-01-15')")
-        .unwrap();
-    executor
-        .execute_sql("INSERT INTO events VALUES (DATE '2024-02-15')")
-        .unwrap();
-    executor
-        .execute_sql("INSERT INTO events VALUES (DATE '2024-03-15')")
+        .execute_sql("INSERT INTO events VALUES (DATE '2024-01-15'), (DATE '2024-02-15'), (DATE '2024-03-15')")
         .unwrap();
 
     let result = executor.execute_sql("SELECT * FROM events WHERE event_date > DATE '2024-01-31'");
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 2);
+            assert_table_eq!(r, [[d(2024, 2, 15)], [d(2024, 3, 15)]]);
         }
         Err(_) => {}
     }
@@ -571,17 +565,14 @@ fn test_date_comparison() {
 
 #[test]
 fn test_timestamp_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
         .unwrap();
 
     executor
-        .execute_sql("INSERT INTO events VALUES (TIMESTAMP '2024-01-15 10:00:00')")
-        .unwrap();
-    executor
-        .execute_sql("INSERT INTO events VALUES (TIMESTAMP '2024-01-15 14:00:00')")
+        .execute_sql("INSERT INTO events VALUES (TIMESTAMP '2024-01-15 10:00:00'), (TIMESTAMP '2024-01-15 14:00:00')")
         .unwrap();
 
     let result = executor
@@ -597,17 +588,14 @@ fn test_timestamp_comparison() {
 
 #[test]
 fn test_date_null_handling() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_date DATE)")
         .unwrap();
 
     executor
-        .execute_sql("INSERT INTO events VALUES (NULL)")
-        .unwrap();
-    executor
-        .execute_sql("INSERT INTO events VALUES (DATE '2024-01-15')")
+        .execute_sql("INSERT INTO events VALUES (NULL), (DATE '2024-01-15')")
         .unwrap();
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -616,7 +604,7 @@ fn test_date_null_handling() {
 
     match result {
         Ok(Ok(r)) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[null]]);
         }
         _ => {}
     }
@@ -624,7 +612,7 @@ fn test_date_null_handling() {
 
 #[test]
 fn test_timezone_conversion() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -647,7 +635,7 @@ fn test_timezone_conversion() {
 
 #[test]
 fn test_extract_day_of_week() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -670,7 +658,7 @@ fn test_extract_day_of_week() {
 
 #[test]
 fn test_extract_day_of_year() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = create_executor();
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -685,7 +673,7 @@ fn test_extract_day_of_year() {
 
     match result {
         Ok(r) => {
-            assert_eq!(r.num_rows(), 1);
+            assert_table_eq!(r, [[15]]);
         }
         Err(_) => {}
     }

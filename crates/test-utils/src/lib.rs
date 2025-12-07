@@ -6,7 +6,7 @@
 #![warn(rustdoc::broken_intra_doc_links)]
 #![allow(missing_docs)]
 
-use yachtsql::{QueryExecutor, RecordBatch, Result, Schema, Value};
+use yachtsql::{QueryExecutor, Result, Schema, Table, Value};
 use yachtsql_parser::DialectType;
 use yachtsql_storage::Row;
 
@@ -14,7 +14,7 @@ pub fn setup_executor() -> QueryExecutor {
     QueryExecutor::with_dialect(DialectType::PostgreSQL)
 }
 
-pub fn assert_batch_empty(batch: &yachtsql::RecordBatch) {
+pub fn assert_batch_empty(batch: &yachtsql::Table) {
     assert_eq!(
         batch.num_rows(),
         0,
@@ -124,7 +124,7 @@ pub fn assert_query_float_eq(executor: &mut QueryExecutor, sql: &str, expected: 
     }
 }
 
-pub fn get_string_value(batch: &yachtsql::RecordBatch, row: usize, col: usize) -> Option<String> {
+pub fn get_string_value(batch: &yachtsql::Table, row: usize, col: usize) -> Option<String> {
     if let Some(column) = batch.column(col)
         && let Ok(value) = column.get(row)
         && let Some(s) = value.as_str()
@@ -218,7 +218,7 @@ pub fn assert_query_error(executor: &mut QueryExecutor, sql: &str, keywords: &[&
     assert_error_contains(executor.execute_sql(sql), keywords);
 }
 
-pub fn assert_row_count(batch: &yachtsql::RecordBatch, expected_count: usize) {
+pub fn assert_row_count(batch: &yachtsql::Table, expected_count: usize) {
     assert_eq!(
         batch.num_rows(),
         expected_count,
@@ -254,7 +254,7 @@ pub fn assert_error_contains_with_context<T>(result: Result<T>, keywords: &[&str
     }
 }
 
-pub fn get_i64(result: &yachtsql::RecordBatch, col: usize, row: usize) -> i64 {
+pub fn get_i64(result: &yachtsql::Table, col: usize, row: usize) -> i64 {
     result
         .column(col)
         .unwrap_or_else(|| panic!("Column {} not found", col))
@@ -264,7 +264,7 @@ pub fn get_i64(result: &yachtsql::RecordBatch, col: usize, row: usize) -> i64 {
         .unwrap_or_else(|| panic!("Value at row {} col {} is not INT64", row, col))
 }
 
-pub fn get_string(result: &yachtsql::RecordBatch, col: usize, row: usize) -> String {
+pub fn get_string(result: &yachtsql::Table, col: usize, row: usize) -> String {
     let value = result
         .column(col)
         .unwrap_or_else(|| panic!("Column {} not found", col))
@@ -286,7 +286,7 @@ pub fn get_string(result: &yachtsql::RecordBatch, col: usize, row: usize) -> Str
     panic!("Expected STRING or BOOL value, got {:?}", value)
 }
 
-pub fn get_f64(result: &yachtsql::RecordBatch, col: usize, row: usize) -> f64 {
+pub fn get_f64(result: &yachtsql::Table, col: usize, row: usize) -> f64 {
     result
         .column(col)
         .unwrap_or_else(|| panic!("Column {} not found", col))
@@ -296,7 +296,7 @@ pub fn get_f64(result: &yachtsql::RecordBatch, col: usize, row: usize) -> f64 {
         .unwrap_or_else(|| panic!("Value at row {} col {} is not FLOAT64", row, col))
 }
 
-pub fn get_bool(result: &yachtsql::RecordBatch, col: usize, row: usize) -> bool {
+pub fn get_bool(result: &yachtsql::Table, col: usize, row: usize) -> bool {
     result
         .column(col)
         .unwrap_or_else(|| panic!("Column {} not found", col))
@@ -306,11 +306,7 @@ pub fn get_bool(result: &yachtsql::RecordBatch, col: usize, row: usize) -> bool 
         .unwrap_or_else(|| panic!("Value at row {} col {} is not BOOL", row, col))
 }
 
-pub fn get_numeric(
-    result: &yachtsql::RecordBatch,
-    col: usize,
-    row: usize,
-) -> rust_decimal::Decimal {
+pub fn get_numeric(result: &yachtsql::Table, col: usize, row: usize) -> rust_decimal::Decimal {
     let value = result
         .column(col)
         .unwrap_or_else(|| panic!("Column {} not found", col))
@@ -331,7 +327,7 @@ pub fn get_numeric(
     )
 }
 
-pub fn assert_numeric_eq(result: &yachtsql::RecordBatch, col: usize, row: usize, expected: &str) {
+pub fn assert_numeric_eq(result: &yachtsql::Table, col: usize, row: usize, expected: &str) {
     use std::str::FromStr;
     let actual = get_numeric(result, col, row);
     let expected_decimal = rust_decimal::Decimal::from_str(expected)
@@ -343,7 +339,7 @@ pub fn assert_numeric_eq(result: &yachtsql::RecordBatch, col: usize, row: usize,
     );
 }
 
-pub fn is_null(result: &yachtsql::RecordBatch, col: usize, row: usize) -> bool {
+pub fn is_null(result: &yachtsql::Table, col: usize, row: usize) -> bool {
     result
         .column(col)
         .unwrap_or_else(|| panic!("Column {} not found", col))
@@ -352,7 +348,7 @@ pub fn is_null(result: &yachtsql::RecordBatch, col: usize, row: usize) -> bool {
         .is_null()
 }
 
-fn find_column_index(result: &yachtsql::RecordBatch, col_name: &str) -> usize {
+fn find_column_index(result: &yachtsql::Table, col_name: &str) -> usize {
     result
         .schema()
         .fields()
@@ -361,27 +357,27 @@ fn find_column_index(result: &yachtsql::RecordBatch, col_name: &str) -> usize {
         .unwrap_or_else(|| panic!("Column '{}' not found in schema", col_name))
 }
 
-pub fn get_i64_by_name(result: &yachtsql::RecordBatch, row: usize, col_name: &str) -> i64 {
+pub fn get_i64_by_name(result: &yachtsql::Table, row: usize, col_name: &str) -> i64 {
     let col = find_column_index(result, col_name);
     get_i64(result, col, row)
 }
 
-pub fn get_string_by_name(result: &yachtsql::RecordBatch, row: usize, col_name: &str) -> String {
+pub fn get_string_by_name(result: &yachtsql::Table, row: usize, col_name: &str) -> String {
     let col = find_column_index(result, col_name);
     get_string(result, col, row)
 }
 
-pub fn get_f64_by_name(result: &yachtsql::RecordBatch, row: usize, col_name: &str) -> f64 {
+pub fn get_f64_by_name(result: &yachtsql::Table, row: usize, col_name: &str) -> f64 {
     let col = find_column_index(result, col_name);
     get_f64(result, col, row)
 }
 
-pub fn get_bool_by_name(result: &yachtsql::RecordBatch, row: usize, col_name: &str) -> bool {
+pub fn get_bool_by_name(result: &yachtsql::Table, row: usize, col_name: &str) -> bool {
     let col = find_column_index(result, col_name);
     get_bool(result, col, row)
 }
 
-pub fn is_null_by_name(result: &yachtsql::RecordBatch, row: usize, col_name: &str) -> bool {
+pub fn is_null_by_name(result: &yachtsql::Table, row: usize, col_name: &str) -> bool {
     let col = find_column_index(result, col_name);
     is_null(result, col, row)
 }
@@ -407,7 +403,7 @@ pub fn assert_error_with_sqlstate<T: std::fmt::Debug>(
 }
 
 pub fn assert_result_equals(
-    result: yachtsql::Result<yachtsql::RecordBatch>,
+    result: yachtsql::Result<yachtsql::Table>,
     expected_rows: usize,
     context: &str,
 ) {
@@ -421,7 +417,7 @@ pub fn assert_result_equals(
     );
 }
 
-pub fn column_strings(batch: &yachtsql::RecordBatch, index: usize) -> Vec<String> {
+pub fn column_strings(batch: &yachtsql::Table, index: usize) -> Vec<String> {
     let column = batch.column(index).expect("missing column");
     (0..batch.num_rows())
         .map(|row| {
@@ -435,7 +431,7 @@ pub fn column_strings(batch: &yachtsql::RecordBatch, index: usize) -> Vec<String
         .collect()
 }
 
-pub fn column_i64(batch: &yachtsql::RecordBatch, index: usize) -> Vec<i64> {
+pub fn column_i64(batch: &yachtsql::Table, index: usize) -> Vec<i64> {
     let column = batch.column(index).expect("missing column");
     (0..batch.num_rows())
         .map(|row| {
@@ -448,7 +444,7 @@ pub fn column_i64(batch: &yachtsql::RecordBatch, index: usize) -> Vec<i64> {
         .collect()
 }
 
-pub fn column_nullable_i64(batch: &yachtsql::RecordBatch, index: usize) -> Vec<Option<i64>> {
+pub fn column_nullable_i64(batch: &yachtsql::Table, index: usize) -> Vec<Option<i64>> {
     let column = batch.column(index).expect("missing column");
     (0..batch.num_rows())
         .map(|row| {
@@ -467,7 +463,7 @@ pub fn column_nullable_i64(batch: &yachtsql::RecordBatch, index: usize) -> Vec<O
         .collect()
 }
 
-pub fn scalar_value(batch: &yachtsql::RecordBatch, index: usize) -> Value {
+pub fn scalar_value(batch: &yachtsql::Table, index: usize) -> Value {
     if batch.num_rows() == 0 {
         Value::null()
     } else {
@@ -485,7 +481,7 @@ pub fn exec_ok(executor: &mut QueryExecutor, sql: &str) {
         .unwrap_or_else(|e| panic!("SQL execution failed for '{}': {}", sql, e));
 }
 
-pub fn query(executor: &mut QueryExecutor, sql: &str) -> yachtsql::RecordBatch {
+pub fn query(executor: &mut QueryExecutor, sql: &str) -> yachtsql::Table {
     executor
         .execute_sql(sql)
         .unwrap_or_else(|e| panic!("Query execution failed for '{}': {}", sql, e))
@@ -509,7 +505,7 @@ pub fn get_rowcount_opt(executor: &mut QueryExecutor) -> Option<i64> {
     }
 }
 
-pub fn get_exception_diag(executor: &mut QueryExecutor, projection: &str) -> yachtsql::RecordBatch {
+pub fn get_exception_diag(executor: &mut QueryExecutor, projection: &str) -> yachtsql::Table {
     executor
         .execute_sql(&format!("GET DIAGNOSTICS EXCEPTION 1 {}", projection))
         .expect("GET DIAGNOSTICS EXCEPTION should succeed")
@@ -520,7 +516,7 @@ pub fn assert_no_exception(executor: &mut QueryExecutor) {
     assert_error_contains(err, &["no exception", "diagnostic"]);
 }
 
-pub fn assert_exception_message_contains(diag: &yachtsql::RecordBatch, fragments: &[&str]) {
+pub fn assert_exception_message_contains(diag: &yachtsql::Table, fragments: &[&str]) {
     let message = get_string_by_name(diag, 0, "message").to_lowercase();
     for fragment in fragments {
         assert!(
@@ -530,9 +526,9 @@ pub fn assert_exception_message_contains(diag: &yachtsql::RecordBatch, fragments
     }
 }
 
-pub fn build_batch(schema: Schema, rows: Vec<Vec<Value>>) -> RecordBatch {
+pub fn build_batch(schema: Schema, rows: Vec<Vec<Value>>) -> Table {
     let row_objs: Vec<Row> = rows.into_iter().map(Row::from_values).collect();
-    RecordBatch::from_rows(schema, row_objs).expect("Failed to build RecordBatch")
+    Table::from_rows(schema, row_objs).expect("Failed to build Table")
 }
 
 fn values_equal(actual: &Value, expected: &Value, epsilon: f64) -> bool {
@@ -550,7 +546,7 @@ fn values_equal(actual: &Value, expected: &Value, epsilon: f64) -> bool {
     actual == expected
 }
 
-pub fn assert_batch_values(actual: &yachtsql::RecordBatch, expected: Vec<Vec<Value>>) {
+pub fn assert_batch_values(actual: &yachtsql::Table, expected: Vec<Vec<Value>>) {
     let expected_rows = expected.len();
     assert_eq!(
         actual.num_rows(),
@@ -658,11 +654,11 @@ fn assert_values_equal(actual: &Value, expected: &Value, row: usize, col: usize)
     }
 }
 
-pub fn assert_batch_eq(actual: &RecordBatch, expected: &RecordBatch) {
+pub fn assert_batch_eq(actual: &Table, expected: &Table) {
     assert_batch_eq_with_epsilon(actual, expected, 1e-10);
 }
 
-pub fn assert_batch_eq_with_epsilon(actual: &RecordBatch, expected: &RecordBatch, epsilon: f64) {
+pub fn assert_batch_eq_with_epsilon(actual: &Table, expected: &Table, epsilon: f64) {
     assert_eq!(
         actual.num_rows(),
         expected.num_rows(),
@@ -707,7 +703,7 @@ pub fn assert_batch_eq_with_epsilon(actual: &RecordBatch, expected: &RecordBatch
     }
 }
 
-pub fn get_value(batch: &yachtsql::RecordBatch, row: usize, col: usize) -> Value {
+pub fn get_value(batch: &yachtsql::Table, row: usize, col: usize) -> Value {
     batch
         .column(col)
         .unwrap_or_else(|| panic!("Column {} not found", col))
@@ -715,7 +711,7 @@ pub fn get_value(batch: &yachtsql::RecordBatch, row: usize, col: usize) -> Value
         .unwrap_or_else(|e| panic!("Failed to get value at row {} col {}: {}", row, col, e))
 }
 
-pub fn assert_scalar(batch: &yachtsql::RecordBatch, expected: Value) {
+pub fn assert_scalar(batch: &yachtsql::Table, expected: Value) {
     assert_eq!(
         batch.num_rows(),
         1,
@@ -731,7 +727,7 @@ pub fn assert_scalar(batch: &yachtsql::RecordBatch, expected: Value) {
     assert_batch_values(batch, vec![vec![expected]]);
 }
 
-pub fn assert_single_row(batch: &yachtsql::RecordBatch, expected: Vec<Value>) {
+pub fn assert_single_row(batch: &yachtsql::Table, expected: Vec<Value>) {
     assert_eq!(
         batch.num_rows(),
         1,
@@ -741,7 +737,7 @@ pub fn assert_single_row(batch: &yachtsql::RecordBatch, expected: Vec<Value>) {
     assert_batch_values(batch, vec![expected]);
 }
 
-pub fn assert_null_at(batch: &yachtsql::RecordBatch, row: usize, col: usize) {
+pub fn assert_null_at(batch: &yachtsql::Table, row: usize, col: usize) {
     let value = get_value(batch, row, col);
     assert!(
         value.is_null(),
@@ -752,7 +748,7 @@ pub fn assert_null_at(batch: &yachtsql::RecordBatch, row: usize, col: usize) {
     );
 }
 
-pub fn assert_value_at(batch: &yachtsql::RecordBatch, row: usize, col: usize, expected: Value) {
+pub fn assert_value_at(batch: &yachtsql::Table, row: usize, col: usize, expected: Value) {
     let actual = get_value(batch, row, col);
     assert_values_equal(&actual, &expected, row, col);
 }

@@ -1,9 +1,8 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use yachtsql::{DialectType, QueryExecutor, RecordBatch};
-
-use std::collections::HashMap;
+use yachtsql::{DialectType, QueryExecutor, Table};
 
 #[derive(Debug, Clone)]
 struct Statement {
@@ -71,7 +70,6 @@ fn is_sql_statement(line: &str) -> bool {
 fn parse_expected_json(lines: &[&str], mut idx: usize) -> (Vec<serde_json::Value>, usize) {
     let mut json_lines = Vec::new();
 
-
     idx += 1;
 
     while idx < lines.len() {
@@ -79,7 +77,6 @@ fn parse_expected_json(lines: &[&str], mut idx: usize) -> (Vec<serde_json::Value
         if !line.trim_start().starts_with("--") {
             break;
         }
-
 
         let stripped = line
             .trim_start_matches("--")
@@ -284,11 +281,10 @@ fn cast_value(value: &yachtsql::Value) -> serde_json::Value {
         return serde_json::Value::String(g.to_string());
     }
 
-
     serde_json::Value::Null
 }
 
-fn result_rows_to_json(result: &RecordBatch) -> Vec<serde_json::Value> {
+fn result_rows_to_json(result: &Table) -> Vec<serde_json::Value> {
     if result.num_columns() == 0 {
         return Vec::new();
     }
@@ -391,7 +387,6 @@ pub fn run_test_case(
                     .as_ref()
                     .is_some_and(|tag| expectations.contains_key(tag)))
         {
-
             return Err("Expected row values for non-query statement".to_string());
         }
     }

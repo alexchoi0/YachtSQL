@@ -3,10 +3,10 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
-    pub(super) fn eval_crc32(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    pub(super) fn eval_crc32(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query("CRC32 requires exactly 1 argument"));
         }
@@ -30,7 +30,7 @@ impl ProjectionWithExprExec {
         Ok(Value::int64(checksum as i64))
     }
 
-    pub(super) fn eval_crc32c(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    pub(super) fn eval_crc32c(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query("CRC32C requires exactly 1 argument"));
         }

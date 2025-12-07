@@ -9,7 +9,7 @@ use yachtsql_optimizer::plan::JoinType;
 use yachtsql_storage::{Column, Schema};
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct HashJoinExec {
@@ -56,7 +56,7 @@ impl HashJoinExec {
 
     fn build_hash_table(
         &self,
-        batch: &RecordBatch,
+        batch: &Table,
         is_left: bool,
     ) -> Result<HashMap<Vec<u8>, Vec<Vec<Value>>>> {
         let mut hash_table: HashMap<Vec<u8>, Vec<Vec<Value>>> = HashMap::new();
@@ -102,13 +102,13 @@ impl HashJoinExec {
         Ok(hash_table)
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         super::ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
 
-    fn build_result_batch(&self, result_rows: &[Vec<Value>]) -> Result<Vec<RecordBatch>> {
+    fn build_result_batch(&self, result_rows: &[Vec<Value>]) -> Result<Vec<Table>> {
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_output_rows = result_rows.len();
@@ -126,7 +126,7 @@ impl HashJoinExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 }
 
@@ -135,14 +135,14 @@ impl ExecutionPlan for HashJoinExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches: Vec<RecordBatch> = self
+    fn execute(&self) -> Result<Vec<Table>> {
+        let left_batches: Vec<Table> = self
             .left
             .execute()?
             .into_iter()
             .map(|b| b.to_column_format())
             .collect::<Result<Vec<_>>>()?;
-        let right_batches: Vec<RecordBatch> = self
+        let right_batches: Vec<Table> = self
             .right
             .execute()?
             .into_iter()
@@ -152,7 +152,7 @@ impl ExecutionPlan for HashJoinExec {
         if left_batches.is_empty() || right_batches.is_empty() {
             match self.join_type {
                 JoinType::Inner | JoinType::Right | JoinType::Semi => {
-                    return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+                    return Ok(vec![Table::empty(self.schema.clone())]);
                 }
                 JoinType::Anti => {
                     if right_batches.is_empty() && !left_batches.is_empty() {
@@ -168,7 +168,7 @@ impl ExecutionPlan for HashJoinExec {
                         }
                         return self.build_result_batch(&result_rows);
                     }
-                    return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+                    return Ok(vec![Table::empty(self.schema.clone())]);
                 }
                 _ => {}
             }
@@ -342,7 +342,7 @@ impl NestedLoopJoinExec {
                     }
                     columns.push(col);
                 }
-                let batch = RecordBatch::new(self.schema.clone(), columns)?;
+                let batch = Table::new(self.schema.clone(), columns)?;
                 let result = super::ProjectionWithExprExec::evaluate_expr(pred, &batch, 0)?;
                 Ok(result.as_bool().unwrap_or(false))
             }
@@ -355,14 +355,14 @@ impl ExecutionPlan for NestedLoopJoinExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches: Vec<RecordBatch> = self
+    fn execute(&self) -> Result<Vec<Table>> {
+        let left_batches: Vec<Table> = self
             .left
             .execute()?
             .into_iter()
             .map(|b| b.to_column_format())
             .collect::<Result<Vec<_>>>()?;
-        let right_batches: Vec<RecordBatch> = self
+        let right_batches: Vec<Table> = self
             .right
             .execute()?
             .into_iter()
@@ -370,7 +370,7 @@ impl ExecutionPlan for NestedLoopJoinExec {
             .collect::<Result<Vec<_>>>()?;
 
         if left_batches.is_empty() || right_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let mut result_rows: Vec<Vec<Value>> = Vec::new();
@@ -410,7 +410,7 @@ impl ExecutionPlan for NestedLoopJoinExec {
         }
 
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_output_rows = result_rows.len();
@@ -428,7 +428,7 @@ impl ExecutionPlan for NestedLoopJoinExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -858,8 +858,8 @@ impl ExecutionPlan for LateralJoinExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches: Vec<RecordBatch> = self
+    fn execute(&self) -> Result<Vec<Table>> {
+        let left_batches: Vec<Table> = self
             .left
             .execute()?
             .into_iter()
@@ -867,7 +867,7 @@ impl ExecutionPlan for LateralJoinExec {
             .collect::<Result<Vec<_>>>()?;
 
         if left_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let left_schema = self.left.schema().clone();
@@ -921,7 +921,7 @@ impl ExecutionPlan for LateralJoinExec {
         let output_schema = Schema::from_fields(output_fields);
 
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(output_schema)]);
+            return Ok(vec![Table::empty(output_schema)]);
         }
 
         let num_output_rows = result_rows.len();
@@ -943,7 +943,7 @@ impl ExecutionPlan for LateralJoinExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(output_schema, columns)?])
+        Ok(vec![Table::new(output_schema, columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -1001,12 +1001,7 @@ impl MergeJoinExec {
         })
     }
 
-    fn extract_join_key(
-        &self,
-        batch: &RecordBatch,
-        row_idx: usize,
-        is_left: bool,
-    ) -> Result<Vec<Value>> {
+    fn extract_join_key(&self, batch: &Table, row_idx: usize, is_left: bool) -> Result<Vec<Value>> {
         let mut key = Vec::new();
         let exprs: Vec<&Expr> = if is_left {
             self.on_conditions.iter().map(|(l, _)| l).collect()
@@ -1021,7 +1016,7 @@ impl MergeJoinExec {
         Ok(key)
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         super::ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
 
@@ -1035,7 +1030,7 @@ impl MergeJoinExec {
         std::cmp::Ordering::Equal
     }
 
-    fn extract_row(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<Value>> {
+    fn extract_row(&self, batch: &Table, row_idx: usize) -> Result<Vec<Value>> {
         let mut row = Vec::new();
         for col in batch.expect_columns() {
             row.push(col.get(row_idx)?);
@@ -1043,9 +1038,9 @@ impl MergeJoinExec {
         Ok(row)
     }
 
-    fn build_result_batch(&self, result_rows: &[Vec<Value>]) -> Result<Vec<RecordBatch>> {
+    fn build_result_batch(&self, result_rows: &[Vec<Value>]) -> Result<Vec<Table>> {
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_output_rows = result_rows.len();
@@ -1063,7 +1058,7 @@ impl MergeJoinExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 }
 
@@ -1072,14 +1067,14 @@ impl ExecutionPlan for MergeJoinExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches: Vec<RecordBatch> = self
+    fn execute(&self) -> Result<Vec<Table>> {
+        let left_batches: Vec<Table> = self
             .left
             .execute()?
             .into_iter()
             .map(|b| b.to_column_format())
             .collect::<Result<Vec<_>>>()?;
-        let right_batches: Vec<RecordBatch> = self
+        let right_batches: Vec<Table> = self
             .right
             .execute()?
             .into_iter()
@@ -1111,7 +1106,7 @@ impl ExecutionPlan for MergeJoinExec {
         if left_rows.is_empty() || right_rows.is_empty() {
             match self.join_type {
                 JoinType::Inner | JoinType::Semi => {
-                    return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+                    return Ok(vec![Table::empty(self.schema.clone())]);
                 }
                 JoinType::Anti => {
                     if right_rows.is_empty() && !left_rows.is_empty() {
@@ -1119,7 +1114,7 @@ impl ExecutionPlan for MergeJoinExec {
                             left_rows.into_iter().map(|(_, row)| row).collect();
                         return self.build_result_batch(&result_rows);
                     }
-                    return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+                    return Ok(vec![Table::empty(self.schema.clone())]);
                 }
                 JoinType::Left => {
                     if right_rows.is_empty() {
@@ -1383,7 +1378,7 @@ impl IndexNestedLoopJoinExec {
         })
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         match expr {
             Expr::Column { name, table } => {
                 let col_idx = if let Some(table_alias) = table {
@@ -1409,7 +1404,7 @@ impl IndexNestedLoopJoinExec {
         }
     }
 
-    fn extract_row(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<Value>> {
+    fn extract_row(&self, batch: &Table, row_idx: usize) -> Result<Vec<Value>> {
         let mut row = Vec::new();
         for col in batch.expect_columns() {
             row.push(col.get(row_idx)?);
@@ -1450,9 +1445,9 @@ impl IndexNestedLoopJoinExec {
         Ok(rows)
     }
 
-    fn build_result_batch(&self, result_rows: &[Vec<Value>]) -> Result<Vec<RecordBatch>> {
+    fn build_result_batch(&self, result_rows: &[Vec<Value>]) -> Result<Vec<Table>> {
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_output_rows = result_rows.len();
@@ -1470,7 +1465,7 @@ impl IndexNestedLoopJoinExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 }
 
@@ -1479,8 +1474,8 @@ impl ExecutionPlan for IndexNestedLoopJoinExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
-        let left_batches: Vec<RecordBatch> = self
+    fn execute(&self) -> Result<Vec<Table>> {
+        let left_batches: Vec<Table> = self
             .left
             .execute()?
             .into_iter()

@@ -3,13 +3,13 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::{BinaryOp, Expr};
 
 use super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_and(
         left: &Expr,
         right: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let left_val = Self::evaluate_expr(left, batch, row_idx)?;
@@ -38,7 +38,7 @@ impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_or(
         left: &Expr,
         right: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let left_val = Self::evaluate_expr(left, batch, row_idx)?;

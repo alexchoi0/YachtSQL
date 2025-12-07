@@ -15,7 +15,6 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::Value;
     use yachtsql_optimizer::expr::Expr;
 
     use super::*;
@@ -25,7 +24,7 @@ mod tests {
     fn returns_pi_constant() {
         let result = ProjectionWithExprExec::eval_pi(&[]).expect("success");
         if let Some(f) = result.as_f64() {
-            assert!((f - 3.14159).abs() < 0.00001)
+            assert!((f - std::f64::consts::PI).abs() < 0.00001)
         } else {
             panic!("Expected Float64")
         }

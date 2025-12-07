@@ -3,12 +3,12 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_format_timestamp(
         _args: &[Expr],
-        _batch: &RecordBatch,
+        _batch: &Table,
         _row_idx: usize,
     ) -> Result<Value> {
         Err(Error::unsupported_feature(

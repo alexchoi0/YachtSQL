@@ -5,7 +5,7 @@ use yachtsql_core::error::Result;
 use yachtsql_storage::Schema;
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct CteExec {
@@ -13,7 +13,7 @@ pub struct CteExec {
     input: Rc<dyn ExecutionPlan>,
     schema: Schema,
     materialized: bool,
-    cached_result: RefCell<Option<Vec<RecordBatch>>>,
+    cached_result: RefCell<Option<Vec<Table>>>,
 }
 
 impl CteExec {
@@ -33,7 +33,7 @@ impl CteExec {
         }
     }
 
-    pub fn execute_cte(&self) -> Result<Vec<RecordBatch>> {
+    pub fn execute_cte(&self) -> Result<Vec<Table>> {
         if self.materialized {
             let mut cache = self.cached_result.borrow_mut();
             if let Some(ref cached) = *cache {
@@ -54,7 +54,7 @@ impl ExecutionPlan for CteExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let _ = self.execute_cte()?;
         self.input.execute()
     }
@@ -95,7 +95,7 @@ impl ExecutionPlan for SubqueryScanExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         self.subquery.execute()
     }
 
@@ -124,9 +124,9 @@ impl ExecutionPlan for EmptyRelationExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let one_empty_row = yachtsql_storage::Row::from_values(vec![]);
-        Ok(vec![RecordBatch::from_rows(
+        Ok(vec![Table::from_rows(
             self.schema.clone(),
             vec![one_empty_row],
         )?])
@@ -144,11 +144,11 @@ impl ExecutionPlan for EmptyRelationExec {
 #[derive(Debug)]
 pub struct MaterializedViewScanExec {
     schema: Schema,
-    data: RecordBatch,
+    data: Table,
 }
 
 impl MaterializedViewScanExec {
-    pub fn new(schema: Schema, data: RecordBatch) -> Self {
+    pub fn new(schema: Schema, data: Table) -> Self {
         Self { schema, data }
     }
 }
@@ -158,7 +158,7 @@ impl ExecutionPlan for MaterializedViewScanExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         Ok(vec![self.data.to_column_format()?])
     }
 

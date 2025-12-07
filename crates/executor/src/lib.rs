@@ -89,7 +89,7 @@ pub use match_recognize::{
 pub use materialized_view_registry::{MaterializedViewMetadata, MaterializedViewRegistry};
 pub use multiset_operations::Multiset;
 pub use query_executor::{ExecutionContext, QueryExecutor};
-pub use record_batch::RecordBatch;
+pub use record_batch::Table;
 pub use resource_limits::{
     CancellationToken, ResourceLimitsConfig, ResourceStats, ResourceTracker,
 };

@@ -5,7 +5,7 @@ use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::Schema;
 
 use super::{ExecutionPlan, ProjectionWithExprExec};
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct DistinctExec {
@@ -26,20 +26,20 @@ impl ExecutionPlan for DistinctExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         use std::collections::HashSet;
 
         let input_batches = self.input.execute()?;
 
         let merged_batch = if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         } else if input_batches.len() == 1 {
             input_batches
                 .into_iter()
                 .next()
                 .expect("checked len() == 1")
         } else {
-            RecordBatch::concat(&input_batches)?
+            Table::concat(&input_batches)?
         };
 
         if merged_batch.is_empty() {
@@ -63,7 +63,7 @@ impl ExecutionPlan for DistinctExec {
         }
 
         if unique_indices.is_empty() {
-            Ok(vec![RecordBatch::empty(self.schema.clone())])
+            Ok(vec![Table::empty(self.schema.clone())])
         } else {
             let distinct_columns: Vec<_> = merged_batch
                 .expect_columns()
@@ -71,7 +71,7 @@ impl ExecutionPlan for DistinctExec {
                 .map(|col| col.gather(&unique_indices))
                 .collect::<Result<Vec<_>>>()?;
 
-            let distinct_batch = RecordBatch::new(self.schema.clone(), distinct_columns)?;
+            let distinct_batch = Table::new(self.schema.clone(), distinct_columns)?;
             Ok(vec![distinct_batch])
         }
     }
@@ -104,7 +104,7 @@ impl DistinctOnExec {
         }
     }
 
-    fn compute_group_key(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<String>> {
+    fn compute_group_key(&self, batch: &Table, row_idx: usize) -> Result<Vec<String>> {
         let mut key = Vec::with_capacity(self.expressions.len());
 
         for expr in &self.expressions {
@@ -121,13 +121,13 @@ impl ExecutionPlan for DistinctOnExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         use std::collections::HashSet;
 
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let merged_batch = if input_batches.len() == 1 {
@@ -136,7 +136,7 @@ impl ExecutionPlan for DistinctOnExec {
                 .next()
                 .expect("checked len() == 1")
         } else {
-            RecordBatch::concat(&input_batches)?
+            Table::concat(&input_batches)?
         };
 
         if merged_batch.num_rows() == 0 {
@@ -155,7 +155,7 @@ impl ExecutionPlan for DistinctOnExec {
         }
 
         if selected_rows.is_empty() {
-            Ok(vec![RecordBatch::empty(self.schema.clone())])
+            Ok(vec![Table::empty(self.schema.clone())])
         } else {
             let output_columns: Vec<_> = merged_batch
                 .expect_columns()
@@ -163,7 +163,7 @@ impl ExecutionPlan for DistinctOnExec {
                 .map(|col| col.gather(&selected_rows))
                 .collect::<Result<Vec<_>>>()?;
 
-            let output_batch = RecordBatch::new(self.schema.clone(), output_columns)?;
+            let output_batch = Table::new(self.schema.clone(), output_columns)?;
             Ok(vec![output_batch])
         }
     }
@@ -189,11 +189,11 @@ mod tests {
     #[derive(Debug)]
     struct MockPlan {
         schema: Schema,
-        batches: Vec<RecordBatch>,
+        batches: Vec<Table>,
     }
 
     impl MockPlan {
-        fn new(schema: Schema, batches: Vec<RecordBatch>) -> Self {
+        fn new(schema: Schema, batches: Vec<Table>) -> Self {
             Self { schema, batches }
         }
     }
@@ -203,7 +203,7 @@ mod tests {
             &self.schema
         }
 
-        fn execute(&self) -> Result<Vec<RecordBatch>> {
+        fn execute(&self) -> Result<Vec<Table>> {
             Ok(self.batches.clone())
         }
 
@@ -224,8 +224,8 @@ mod tests {
         ])
     }
 
-    fn batch_from_rows(schema: &Schema, rows: Vec<Vec<Value>>) -> RecordBatch {
-        RecordBatch::from_values(schema.clone(), rows).expect("batch creation failed")
+    fn batch_from_rows(schema: &Schema, rows: Vec<Vec<Value>>) -> Table {
+        Table::from_values(schema.clone(), rows).expect("batch creation failed")
     }
 
     fn row(id: i64, category: &str, value: i64) -> Vec<Value> {

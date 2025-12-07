@@ -2,7 +2,7 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::OrderByExpr;
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
     pub(super) fn compute_row_number(indices: &[usize], results: &mut [Value]) {
@@ -14,7 +14,7 @@ impl WindowExec {
     pub(super) fn compute_rank(
         indices: &[usize],
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         dense: bool,
     ) {

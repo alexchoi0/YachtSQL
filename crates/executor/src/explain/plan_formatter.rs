@@ -6,7 +6,7 @@ use yachtsql_optimizer::plan::PlanNode;
 use yachtsql_storage::Schema;
 
 use super::profiler::{OperatorId, OperatorMetrics};
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug, Clone)]
 pub struct ExplainOptions {
@@ -32,7 +32,7 @@ impl Default for ExplainOptions {
     }
 }
 
-pub fn format_plan(plan: &PlanNode, options: ExplainOptions) -> Result<RecordBatch> {
+pub fn format_plan(plan: &PlanNode, options: ExplainOptions) -> Result<Table> {
     let mut output = String::new();
 
     if options.analyze && options.profiler_metrics.is_none() {
@@ -52,7 +52,7 @@ pub fn format_plan(plan: &PlanNode, options: ExplainOptions) -> Result<RecordBat
         .map(|line| vec![Value::string(line.to_string())])
         .collect();
 
-    RecordBatch::from_values(schema, lines)
+    Table::from_values(schema, lines)
 }
 
 fn format_node_with_metrics(

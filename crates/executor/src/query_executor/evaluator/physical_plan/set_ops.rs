@@ -5,7 +5,7 @@ use yachtsql_core::error::{Error, Result};
 use yachtsql_storage::{Column, Schema};
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct UnionExec {
@@ -85,7 +85,7 @@ impl ExecutionPlan for UnionExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let left_batches = self.left.execute()?;
         let right_batches = self.right.execute()?;
 
@@ -127,7 +127,7 @@ impl ExecutionPlan for UnionExec {
             }
 
             if distinct_rows.is_empty() {
-                return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+                return Ok(vec![Table::empty(self.schema.clone())]);
             }
 
             let num_rows = distinct_rows.len();
@@ -143,7 +143,7 @@ impl ExecutionPlan for UnionExec {
                 columns.push(column);
             }
 
-            Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+            Ok(vec![Table::new(self.schema.clone(), columns)?])
         }
     }
 
@@ -201,7 +201,7 @@ impl ExecutionPlan for IntersectExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let left_batches = self.left.execute()?;
         let right_batches = self.right.execute()?;
 
@@ -247,7 +247,7 @@ impl ExecutionPlan for IntersectExec {
         }
 
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_rows = result_rows.len();
@@ -263,7 +263,7 @@ impl ExecutionPlan for IntersectExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {
@@ -320,7 +320,7 @@ impl ExecutionPlan for ExceptExec {
         &self.schema
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let left_batches = self.left.execute()?;
         let right_batches = self.right.execute()?;
 
@@ -366,7 +366,7 @@ impl ExecutionPlan for ExceptExec {
         }
 
         if result_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_rows = result_rows.len();
@@ -382,7 +382,7 @@ impl ExecutionPlan for ExceptExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {

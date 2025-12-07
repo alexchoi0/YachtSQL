@@ -10,11 +10,11 @@ use super::super::super::QueryExecutor;
 use super::super::super::expression_evaluator::ExpressionEvaluator;
 use super::super::DdlExecutor;
 use super::super::query::QueryExecutorTrait;
-use crate::RecordBatch;
+use crate::Table;
 use crate::query_executor::returning::DmlRowContext;
 
 pub trait DmlDeleteExecutor {
-    fn execute_delete(&mut self, stmt: &Statement, _original_sql: &str) -> Result<RecordBatch>;
+    fn execute_delete(&mut self, stmt: &Statement, _original_sql: &str) -> Result<Table>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,7 +24,7 @@ enum JoinType {
 }
 
 impl DmlDeleteExecutor for QueryExecutor {
-    fn execute_delete(&mut self, stmt: &Statement, _original_sql: &str) -> Result<RecordBatch> {
+    fn execute_delete(&mut self, stmt: &Statement, _original_sql: &str) -> Result<Table> {
         let Statement::Delete(delete) = stmt else {
             return Err(Error::InternalError("Not a DELETE statement".to_string()));
         };
@@ -55,7 +55,7 @@ impl DmlDeleteExecutor for QueryExecutor {
 }
 
 impl QueryExecutor {
-    fn execute_simple_delete(&mut self, delete: &sqlparser::ast::Delete) -> Result<RecordBatch> {
+    fn execute_simple_delete(&mut self, delete: &sqlparser::ast::Delete) -> Result<Table> {
         let table_name_str = match &delete.from {
             sqlparser::ast::FromTable::WithFromKeyword(tables) => {
                 if let Some(table_with_joins) = tables.first() {
@@ -263,7 +263,7 @@ impl QueryExecutor {
         returning_spec: &crate::query_executor::returning::ReturningSpec,
         rows: &[Row],
         schema: &Schema,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         let contexts: Vec<DmlRowContext> = rows
             .iter()
             .map(|row| DmlRowContext::for_delete(row.values().to_vec()))
@@ -276,7 +276,7 @@ impl QueryExecutor {
         )
     }
 
-    fn execute_delete_with_join(&mut self, delete: &sqlparser::ast::Delete) -> Result<RecordBatch> {
+    fn execute_delete_with_join(&mut self, delete: &sqlparser::ast::Delete) -> Result<Table> {
         let table_with_joins = match &delete.from {
             sqlparser::ast::FromTable::WithFromKeyword(tables) => {
                 tables.first().ok_or_else(|| {
@@ -492,7 +492,7 @@ impl QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_delete_using(&mut self, delete: &sqlparser::ast::Delete) -> Result<RecordBatch> {
+    fn execute_delete_using(&mut self, delete: &sqlparser::ast::Delete) -> Result<Table> {
         let using_tables = delete.using.as_ref().ok_or_else(|| {
             Error::InvalidQuery("USING clause is required for DELETE USING".to_string())
         })?;
@@ -643,10 +643,7 @@ impl QueryExecutor {
         }
     }
 
-    fn execute_multi_table_delete(
-        &mut self,
-        delete: &sqlparser::ast::Delete,
-    ) -> Result<RecordBatch> {
+    fn execute_multi_table_delete(&mut self, delete: &sqlparser::ast::Delete) -> Result<Table> {
         let table_with_joins = match &delete.from {
             sqlparser::ast::FromTable::WithFromKeyword(tables) => {
                 tables.first().ok_or_else(|| {

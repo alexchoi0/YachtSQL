@@ -26,7 +26,7 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 mod day;
 mod dayofweek;
@@ -44,7 +44,7 @@ impl ProjectionWithExprExec {
     pub(super) fn evaluate_datetime_function(
         name: &str,
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         match name {

@@ -2232,7 +2232,7 @@ impl Clone for Value {
                             },
                         }
                     }
-                    TAG_DEFAULT => Self::null(),
+                    TAG_DEFAULT => Self::default_value(),
                     _ => Self::null(),
                 }
             }

@@ -6,12 +6,12 @@ use yachtsql_ir::expr::LiteralValue;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_at_time_zone(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("AT_TIME_ZONE", args, 2)?;
@@ -81,7 +81,7 @@ impl ProjectionWithExprExec {
 
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_at_time_zone_plain(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("AT_TIME_ZONE_PLAIN", args, 2)?;

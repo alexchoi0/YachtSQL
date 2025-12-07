@@ -4,12 +4,12 @@ use yachtsql_ir::expr::LiteralValue;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_interval_literal(
         args: &[Expr],
-        _batch: &RecordBatch,
+        _batch: &Table,
         _row_idx: usize,
     ) -> Result<Value> {
         if args.len() != 2 {
@@ -42,7 +42,7 @@ impl ProjectionWithExprExec {
 
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_interval_parse(
         args: &[Expr],
-        _batch: &RecordBatch,
+        _batch: &Table,
         _row_idx: usize,
     ) -> Result<Value> {
         if args.len() != 2 {

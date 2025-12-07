@@ -3,10 +3,10 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
-    pub(super) fn evaluate_expr(expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    pub(super) fn evaluate_expr(expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         match expr {
             Expr::Column { name, .. } => {
                 let schema = batch.schema();

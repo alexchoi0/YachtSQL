@@ -4,7 +4,7 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::{ExcludeMode, Expr, OrderByExpr};
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
     #[allow(clippy::too_many_arguments)]
@@ -13,7 +13,7 @@ impl WindowExec {
         args: &[Expr],
         indices: &[usize],
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         frame_start_offset: Option<i64>,
         frame_end_offset: Option<i64>,
@@ -66,7 +66,7 @@ impl WindowExec {
         args: &[Expr],
         indices: &[usize],
         peer_groups: &[Vec<usize>],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         frame_start_offset: Option<i64>,
         frame_end_offset: Option<i64>,
@@ -108,7 +108,7 @@ impl WindowExec {
         args: &[Expr],
         indices: &[usize],
         peer_groups: &[Vec<usize>],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         frame_start_offset: Option<i64>,
         frame_end_offset: Option<i64>,
@@ -279,7 +279,7 @@ impl WindowExec {
         func_name: &str,
         args: &[Expr],
         frame_indices: &[usize],
-        batch: &RecordBatch,
+        batch: &Table,
         exclude: Option<ExcludeMode>,
         peer_groups: &[Vec<usize>],
         current_row_idx: usize,

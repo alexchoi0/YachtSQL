@@ -4,7 +4,7 @@ use yachtsql_optimizer::expr::{BinaryOp, Expr};
 use yachtsql_optimizer::plan::PlanNode;
 
 use super::super::{ProjectionWithExprExec, SUBQUERY_EXECUTOR_CONTEXT};
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(super) fn evaluate_scalar_subquery_expr(plan: &PlanNode) -> Result<Value> {
@@ -37,7 +37,7 @@ impl ProjectionWithExprExec {
         expr: &Expr,
         plan: &PlanNode,
         negated: bool,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let executor = SUBQUERY_EXECUTOR_CONTEXT
@@ -59,7 +59,7 @@ impl ProjectionWithExprExec {
         tuple: &[Expr],
         plan: &PlanNode,
         negated: bool,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let executor = SUBQUERY_EXECUTOR_CONTEXT
@@ -86,7 +86,7 @@ impl ProjectionWithExprExec {
         left: &Expr,
         compare_op: &BinaryOp,
         right: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let left_value = Self::evaluate_expr(left, batch, row_idx)?;
@@ -100,7 +100,7 @@ impl ProjectionWithExprExec {
         left: &Expr,
         compare_op: &BinaryOp,
         right: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         let left_value = Self::evaluate_expr(left, batch, row_idx)?;
@@ -110,11 +110,7 @@ impl ProjectionWithExprExec {
         Self::evaluate_quantified_comparison_array(&left_value, compare_op, &right_values, false)
     }
 
-    fn get_quantified_op_values(
-        right: &Expr,
-        batch: &RecordBatch,
-        row_idx: usize,
-    ) -> Result<Vec<Value>> {
+    fn get_quantified_op_values(right: &Expr, batch: &Table, row_idx: usize) -> Result<Vec<Value>> {
         match right {
             Expr::Subquery { plan } => {
                 let executor = SUBQUERY_EXECUTOR_CONTEXT

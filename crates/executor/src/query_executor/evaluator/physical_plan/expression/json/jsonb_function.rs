@@ -3,13 +3,13 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_jsonb_function(
         _name: &str,
         _args: &[Expr],
-        _batch: &RecordBatch,
+        _batch: &Table,
         _row_idx: usize,
     ) -> Result<Value> {
         Err(Error::unsupported_feature(

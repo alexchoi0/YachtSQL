@@ -3,12 +3,12 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_lpad(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::evaluate_pad_internal("LPAD", args, batch, row_idx, true)
@@ -16,7 +16,7 @@ impl ProjectionWithExprExec {
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_rpad(
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         Self::evaluate_pad_internal("RPAD", args, batch, row_idx, false)
@@ -25,7 +25,7 @@ impl ProjectionWithExprExec {
     fn evaluate_pad_internal(
         name: &str,
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         is_lpad: bool,
     ) -> Result<Value> {

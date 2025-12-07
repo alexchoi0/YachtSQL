@@ -39,10 +39,10 @@ impl SubqueryExecutorImpl {
         }
     }
 
-    fn execute_plan(&self, plan: &PlanNode) -> Result<crate::RecordBatch> {
+    fn execute_plan(&self, plan: &PlanNode) -> Result<crate::Table> {
         use yachtsql_storage::Column;
 
-        use crate::RecordBatch;
+        use crate::Table;
 
         match plan {
             PlanNode::Scan {
@@ -79,7 +79,7 @@ impl SubqueryExecutorImpl {
                     columns.push(column);
                 }
 
-                Ok(RecordBatch::new(schema, columns)?)
+                Ok(Table::new(schema, columns)?)
             }
 
             PlanNode::Projection { expressions, input } => {
@@ -117,7 +117,7 @@ impl SubqueryExecutorImpl {
                 }
 
                 let result_schema = yachtsql_storage::Schema::from_fields(result_fields);
-                Ok(RecordBatch::new(result_schema, result_columns)?)
+                Ok(Table::new(result_schema, result_columns)?)
             }
 
             PlanNode::Filter { predicate, input } => {
@@ -136,7 +136,7 @@ impl SubqueryExecutorImpl {
                 }
 
                 if passing_rows.is_empty() {
-                    return Ok(RecordBatch::empty(batch.schema().clone()));
+                    return Ok(Table::empty(batch.schema().clone()));
                 }
 
                 let mut new_columns = Vec::new();
@@ -152,7 +152,7 @@ impl SubqueryExecutorImpl {
                     new_columns.push(new_col);
                 }
 
-                Ok(RecordBatch::new(batch.schema().clone(), new_columns)?)
+                Ok(Table::new(batch.schema().clone(), new_columns)?)
             }
 
             PlanNode::Aggregate {
@@ -183,7 +183,7 @@ impl SubqueryExecutorImpl {
                 }
 
                 let result_schema = yachtsql_storage::Schema::from_fields(result_fields);
-                Ok(RecordBatch::new(result_schema, result_columns)?)
+                Ok(Table::new(result_schema, result_columns)?)
             }
 
             PlanNode::Limit {
@@ -197,7 +197,7 @@ impl SubqueryExecutorImpl {
                 let end = start + limit;
 
                 if start >= batch.num_rows() {
-                    return Ok(RecordBatch::empty(batch.schema().clone()));
+                    return Ok(Table::empty(batch.schema().clone()));
                 }
 
                 let actual_end = end.min(batch.num_rows());
@@ -212,12 +212,12 @@ impl SubqueryExecutorImpl {
                     new_columns.push(new_col);
                 }
 
-                Ok(RecordBatch::new(batch.schema().clone(), new_columns)?)
+                Ok(Table::new(batch.schema().clone(), new_columns)?)
             }
 
             PlanNode::EmptyRelation => {
                 let schema = yachtsql_storage::Schema::from_fields(vec![]);
-                Ok(RecordBatch::empty_with_rows(schema, 1))
+                Ok(Table::empty_with_rows(schema, 1))
             }
 
             _ => Err(Error::UnsupportedFeature(format!(
@@ -230,7 +230,7 @@ impl SubqueryExecutorImpl {
     fn evaluate_predicate(
         &self,
         predicate: &Expr,
-        batch: &crate::RecordBatch,
+        batch: &crate::Table,
         row_idx: usize,
     ) -> Result<Value> {
         match predicate {
@@ -368,7 +368,7 @@ impl SubqueryExecutorImpl {
     fn evaluate_aggregate(
         &self,
         agg_expr: &Expr,
-        batch: &crate::RecordBatch,
+        batch: &crate::Table,
     ) -> Result<(Value, DataType)> {
         match agg_expr {
             Expr::Aggregate {
@@ -465,7 +465,7 @@ impl SubqueryExecutorImpl {
         }
     }
 
-    fn get_column_values(&self, expr: &Expr, batch: &crate::RecordBatch) -> Result<Vec<Value>> {
+    fn get_column_values(&self, expr: &Expr, batch: &crate::Table) -> Result<Vec<Value>> {
         use super::physical_plan::ProjectionWithExprExec;
 
         match expr {

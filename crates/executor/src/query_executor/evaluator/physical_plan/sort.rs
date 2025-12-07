@@ -7,7 +7,7 @@ use yachtsql_optimizer::expr::{Expr, OrderByExpr};
 use yachtsql_storage::{Column, Schema};
 
 use super::ExecutionPlan;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug)]
 pub struct SortExec {
@@ -225,7 +225,7 @@ impl SortExec {
         }
     }
 
-    fn evaluate_sort_key(&self, batch: &RecordBatch, row_idx: usize) -> Result<Vec<Value>> {
+    fn evaluate_sort_key(&self, batch: &Table, row_idx: usize) -> Result<Vec<Value>> {
         let mut key = Vec::with_capacity(self.sort_exprs.len());
         for sort_expr in &self.sort_exprs {
             let value = self.evaluate_expr(&sort_expr.expr, batch, row_idx)?;
@@ -234,7 +234,7 @@ impl SortExec {
         Ok(key)
     }
 
-    fn evaluate_expr(&self, expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         use super::ProjectionWithExprExec;
         ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
@@ -309,11 +309,11 @@ impl ExecutionPlan for SortExec {
         }
     }
 
-    fn execute(&self) -> Result<Vec<RecordBatch>> {
+    fn execute(&self) -> Result<Vec<Table>> {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let mut all_rows: Vec<(Vec<Value>, Vec<Value>)> = Vec::new();
@@ -339,7 +339,7 @@ impl ExecutionPlan for SortExec {
         });
 
         if all_rows.is_empty() {
-            return Ok(vec![RecordBatch::empty(self.schema.clone())]);
+            return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         let num_output_rows = all_rows.len();
@@ -357,7 +357,7 @@ impl ExecutionPlan for SortExec {
             columns.push(column);
         }
 
-        Ok(vec![RecordBatch::new(self.schema.clone(), columns)?])
+        Ok(vec![Table::new(self.schema.clone(), columns)?])
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {

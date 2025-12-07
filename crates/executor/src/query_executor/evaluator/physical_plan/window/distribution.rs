@@ -2,13 +2,13 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::{Expr, OrderByExpr};
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
     pub(super) fn compute_percent_rank(
         indices: &[usize],
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
     ) {
         if indices.len() <= 1 {
@@ -40,7 +40,7 @@ impl WindowExec {
         indices: &[usize],
         start_position: usize,
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
     ) -> usize {
         if start_position >= indices.len() {
             return start_position;
@@ -64,7 +64,7 @@ impl WindowExec {
     pub(super) fn compute_cume_dist(
         indices: &[usize],
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
     ) {
         if indices.is_empty() {

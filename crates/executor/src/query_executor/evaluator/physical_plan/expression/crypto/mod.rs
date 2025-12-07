@@ -15,13 +15,13 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(super) fn evaluate_crypto_hash_network_function(
         name: &str,
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         match name {
@@ -48,7 +48,7 @@ impl ProjectionWithExprExec {
         }
     }
 
-    fn eval_gen_random_bytes(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_gen_random_bytes(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 1 {
             return Err(Error::invalid_query("GEN_RANDOM_BYTES requires 1 argument"));
         }
@@ -67,7 +67,7 @@ impl ProjectionWithExprExec {
         Ok(Value::bytes(bytes))
     }
 
-    fn eval_digest(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_digest(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(Error::invalid_query("DIGEST requires 2 arguments"));
         }
@@ -90,7 +90,7 @@ impl ProjectionWithExprExec {
         }
     }
 
-    fn eval_pgcrypto_encode(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_pgcrypto_encode(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(Error::invalid_query("ENCODE requires 2 arguments"));
         }
@@ -121,7 +121,7 @@ impl ProjectionWithExprExec {
         Ok(Value::string(result))
     }
 
-    fn eval_pgcrypto_decode(args: &[Expr], batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    fn eval_pgcrypto_decode(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.len() != 2 {
             return Err(Error::invalid_query("DECODE requires 2 arguments"));
         }

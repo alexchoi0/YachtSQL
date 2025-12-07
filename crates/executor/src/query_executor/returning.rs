@@ -3,7 +3,7 @@ use yachtsql_core::types::{DataType, Value};
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Row, Schema};
 
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReturningColumnOrigin {
@@ -49,20 +49,20 @@ pub fn build_returning_batch_from_rows(
     spec: &ReturningSpec,
     rows: &[Vec<Value>],
     table_schema: &Schema,
-) -> Result<RecordBatch> {
+) -> Result<Table> {
     match spec {
-        ReturningSpec::None => Ok(RecordBatch::empty(Schema::from_fields(vec![]))),
+        ReturningSpec::None => Ok(Table::empty(Schema::from_fields(vec![]))),
         ReturningSpec::AllColumns => {
             if rows.is_empty() {
-                return Ok(RecordBatch::empty(table_schema.clone()));
+                return Ok(Table::empty(table_schema.clone()));
             }
-            RecordBatch::from_values(table_schema.clone(), rows.to_vec())
+            Table::from_values(table_schema.clone(), rows.to_vec())
         }
         ReturningSpec::Columns(columns) => {
             let output_schema = returning_spec_output_schema(spec, table_schema, None)?;
 
             if rows.is_empty() {
-                return Ok(RecordBatch::empty(output_schema));
+                return Ok(Table::empty(output_schema));
             }
 
             let mut output_rows = Vec::with_capacity(rows.len());
@@ -79,13 +79,13 @@ pub fn build_returning_batch_from_rows(
                 output_rows.push(output_values);
             }
 
-            RecordBatch::from_values(output_schema, output_rows)
+            Table::from_values(output_schema, output_rows)
         }
         ReturningSpec::Expressions(_items) => {
             let output_schema = returning_spec_output_schema(spec, table_schema, None)?;
 
             if rows.is_empty() {
-                return Ok(RecordBatch::empty(output_schema));
+                return Ok(Table::empty(output_schema));
             }
 
             Err(Error::unsupported_feature(
@@ -165,7 +165,7 @@ pub fn build_returning_batch_with_ast_eval<E>(
     rows: &[Vec<Value>],
     table_schema: &Schema,
     evaluator: &E,
-) -> Result<RecordBatch>
+) -> Result<Table>
 where
     E: AstExprEvaluator,
 {
@@ -181,7 +181,7 @@ where
                         )
                     })
                     .collect();
-                return Ok(RecordBatch::empty(Schema::from_fields(fields)));
+                return Ok(Table::empty(Schema::from_fields(fields)));
             }
 
             let mut output_rows = Vec::with_capacity(rows.len());
@@ -222,7 +222,7 @@ where
                 })
                 .collect();
 
-            RecordBatch::from_values(Schema::from_fields(fields), output_rows)
+            Table::from_values(Schema::from_fields(fields), output_rows)
         }
 
         _ => build_returning_batch_from_rows(spec, rows, table_schema),
@@ -414,13 +414,13 @@ pub fn build_returning_batch_with_old_new(
     spec: &ReturningSpec,
     contexts: &[DmlRowContext],
     table_schema: &Schema,
-) -> Result<RecordBatch> {
+) -> Result<Table> {
     match spec {
-        ReturningSpec::None => Ok(RecordBatch::empty(Schema::from_fields(vec![]))),
+        ReturningSpec::None => Ok(Table::empty(Schema::from_fields(vec![]))),
 
         ReturningSpec::AllColumns => {
             if contexts.is_empty() {
-                return Ok(RecordBatch::empty(table_schema.clone()));
+                return Ok(Table::empty(table_schema.clone()));
             }
 
             let rows: Vec<Vec<Value>> = contexts
@@ -433,7 +433,7 @@ pub fn build_returning_batch_with_old_new(
                 })
                 .collect();
 
-            RecordBatch::from_values(table_schema.clone(), rows)
+            Table::from_values(table_schema.clone(), rows)
         }
 
         ReturningSpec::AstItems(items) => {
@@ -447,7 +447,7 @@ pub fn build_returning_batch_with_old_new(
                         )
                     })
                     .collect();
-                return Ok(RecordBatch::empty(Schema::from_fields(fields)));
+                return Ok(Table::empty(Schema::from_fields(fields)));
             }
 
             let evaluator = OldNewExprEvaluator::new(table_schema);
@@ -551,14 +551,14 @@ pub fn build_returning_batch_with_old_new(
                 })
                 .collect();
 
-            RecordBatch::from_values(Schema::from_fields(fields), output_rows)
+            Table::from_values(Schema::from_fields(fields), output_rows)
         }
 
         ReturningSpec::Columns(columns) => {
             let output_schema = returning_spec_output_schema(spec, table_schema, None)?;
 
             if contexts.is_empty() {
-                return Ok(RecordBatch::empty(output_schema));
+                return Ok(Table::empty(output_schema));
             }
 
             let mut output_rows = Vec::with_capacity(contexts.len());
@@ -595,7 +595,7 @@ pub fn build_returning_batch_with_old_new(
                 output_rows.push(output_values);
             }
 
-            RecordBatch::from_values(output_schema, output_rows)
+            Table::from_values(output_schema, output_rows)
         }
 
         _ => {

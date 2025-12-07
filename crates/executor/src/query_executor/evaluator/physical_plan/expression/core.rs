@@ -5,7 +5,7 @@ use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::Schema;
 
 use super::super::ProjectionWithExprExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl ProjectionWithExprExec {
     pub(crate) fn compute_column_occurrence_indices(
@@ -50,7 +50,7 @@ impl ProjectionWithExprExec {
 
     pub(crate) fn evaluate_expr_with_occurrence(
         expr: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         occurrence_index: usize,
         dialect: crate::DialectType,
@@ -107,7 +107,7 @@ impl ProjectionWithExprExec {
     }
 
     fn get_column_by_occurrence(
-        batch: &RecordBatch,
+        batch: &Table,
         name: &str,
         row_idx: usize,
         occurrence_index: usize,
@@ -119,13 +119,13 @@ impl ProjectionWithExprExec {
             .get(row_idx)
     }
 
-    pub(crate) fn evaluate_expr(expr: &Expr, batch: &RecordBatch, row_idx: usize) -> Result<Value> {
+    pub(crate) fn evaluate_expr(expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
         Self::evaluate_expr_internal(expr, batch, row_idx, crate::DialectType::PostgreSQL)
     }
 
     pub(super) fn evaluate_expr_internal(
         expr: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
         _dialect: crate::DialectType,
     ) -> Result<Value> {
@@ -404,7 +404,7 @@ impl ProjectionWithExprExec {
     fn evaluate_function_by_category(
         name: &yachtsql_ir::FunctionName,
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
         use yachtsql_ir::FunctionName;
@@ -816,7 +816,7 @@ impl ProjectionWithExprExec {
     fn compute_aggregate_over_batch(
         agg_name: &yachtsql_ir::FunctionName,
         arg: &Expr,
-        batch: &RecordBatch,
+        batch: &Table,
     ) -> Result<Value> {
         use yachtsql_ir::FunctionName;
 

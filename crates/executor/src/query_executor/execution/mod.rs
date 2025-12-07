@@ -49,7 +49,7 @@ use yachtsql_storage::{Schema, SharedTransactionState};
 
 use self::session::SessionState;
 use self::transaction::SessionTransactionController;
-use crate::RecordBatch;
+use crate::Table;
 use crate::catalog_adapter::SnapshotCatalog;
 
 fn create_default_optimizer() -> yachtsql_optimizer::Optimizer {
@@ -335,8 +335,8 @@ impl QueryExecutor {
         false
     }
 
-    pub(super) fn empty_result() -> Result<RecordBatch> {
-        Ok(RecordBatch::empty(Schema::from_fields(vec![])))
+    pub(super) fn empty_result() -> Result<Table> {
+        Ok(Table::empty(Schema::from_fields(vec![])))
     }
 
     pub fn qualify_table_name(dataset_id: &str, table_id: &str) -> String {
@@ -389,7 +389,7 @@ impl QueryExecutor {
         Ok(())
     }
 
-    pub fn execute_sql(&mut self, sql: &str) -> Result<RecordBatch> {
+    pub fn execute_sql(&mut self, sql: &str) -> Result<Table> {
         use yachtsql_parser::validator::CustomStatement;
         use yachtsql_parser::{Parser, Statement};
 
@@ -620,11 +620,7 @@ impl QueryExecutor {
         }
     }
 
-    fn execute_set_capabilities(
-        &mut self,
-        enable: bool,
-        features: &[String],
-    ) -> Result<RecordBatch> {
+    fn execute_set_capabilities(&mut self, enable: bool, features: &[String]) -> Result<Table> {
         if features.is_empty() {
             return Err(Error::invalid_query(
                 "SET yachtsql.capability requires at least one feature identifier".to_string(),
@@ -682,13 +678,13 @@ impl QueryExecutor {
         Error::unsupported_feature(format!("Capability update failed: {}", err))
     }
 
-    fn execute_set_search_path(&mut self, schemas: &[String]) -> Result<RecordBatch> {
+    fn execute_set_search_path(&mut self, schemas: &[String]) -> Result<Table> {
         self.session.set_search_path(schemas.to_vec());
         self.record_row_count(0);
         Self::empty_result()
     }
 
-    fn execute_show(&mut self, variable: Option<&str>) -> Result<RecordBatch> {
+    fn execute_show(&mut self, variable: Option<&str>) -> Result<Table> {
         let var_name = variable.unwrap_or("all");
 
         match var_name.to_lowercase().as_str() {
@@ -700,7 +696,7 @@ impl QueryExecutor {
                     DataType::String,
                 )]);
                 let rows = vec![vec![Value::string(path_str)]];
-                RecordBatch::from_values(schema, rows)
+                Table::from_values(schema, rows)
             }
             _ => Err(Error::unsupported_feature(format!(
                 "SHOW {} is not supported",
@@ -709,11 +705,7 @@ impl QueryExecutor {
         }
     }
 
-    fn execute_procedure(
-        &mut self,
-        name: &str,
-        args: &[sqlparser::ast::Value],
-    ) -> Result<RecordBatch> {
+    fn execute_procedure(&mut self, name: &str, args: &[sqlparser::ast::Value]) -> Result<Table> {
         match name.to_lowercase().as_str() {
             "enable_feature" => {
                 if args.is_empty() {
@@ -777,7 +769,7 @@ impl QueryExecutor {
         stmt: &sqlparser::ast::Statement,
         analyze: bool,
         verbose: bool,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         use sqlparser::ast::Statement as SqlStatement;
 
         match stmt {
@@ -824,7 +816,7 @@ impl QueryExecutor {
                     }
 
                     let schema = plan_output.schema().clone();
-                    RecordBatch::from_values(schema, combined_rows)
+                    Table::from_values(schema, combined_rows)
                 } else {
                     Ok(plan_output)
                 }
@@ -839,7 +831,7 @@ impl QueryExecutor {
                     "Insert Statement:\n  {}",
                     stmt
                 ))]];
-                RecordBatch::from_values(schema, rows)
+                Table::from_values(schema, rows)
             }
 
             SqlStatement::Update { .. } => {
@@ -851,7 +843,7 @@ impl QueryExecutor {
                     "Update Statement:\n  {}",
                     stmt
                 ))]];
-                RecordBatch::from_values(schema, rows)
+                Table::from_values(schema, rows)
             }
 
             SqlStatement::Delete { .. } => {
@@ -863,7 +855,7 @@ impl QueryExecutor {
                     "Delete Statement:\n  {}",
                     stmt
                 ))]];
-                RecordBatch::from_values(schema, rows)
+                Table::from_values(schema, rows)
             }
 
             _ => {
@@ -872,7 +864,7 @@ impl QueryExecutor {
                     DataType::String,
                 )]);
                 let rows = vec![vec![Value::string(format!("Statement:\n  {}", stmt))]];
-                RecordBatch::from_values(schema, rows)
+                Table::from_values(schema, rows)
             }
         }
     }
@@ -1030,7 +1022,7 @@ impl QueryExecutor {
         Ok(row_count)
     }
 
-    fn execute_copy(&mut self, stmt: &sqlparser::ast::Statement) -> Result<RecordBatch> {
+    fn execute_copy(&mut self, stmt: &sqlparser::ast::Statement) -> Result<Table> {
         use sqlparser::ast::{CopyOption, Statement as SqlStatement};
 
         let (source, to, target, options) = match stmt {
@@ -1091,7 +1083,7 @@ impl QueryExecutor {
         delimiter: char,
         has_header: bool,
         null_string: String,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         use sqlparser::ast::{CopySource, CopyTarget};
         use yachtsql_storage::Row;
 
@@ -1215,7 +1207,7 @@ impl QueryExecutor {
         delimiter: char,
         has_header: bool,
         null_string: String,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Table> {
         use sqlparser::ast::{CopySource, CopyTarget};
 
         let file_path = match target {

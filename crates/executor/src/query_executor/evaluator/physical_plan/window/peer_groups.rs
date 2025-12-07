@@ -4,13 +4,13 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::OrderByExpr;
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 impl WindowExec {
     pub(super) fn build_peer_groups(
         indices: &[usize],
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
     ) -> HashMap<usize, Vec<usize>> {
         let mut order_by_groups: HashMap<String, Vec<usize>> = HashMap::new();
 
@@ -51,7 +51,7 @@ impl WindowExec {
     pub(super) fn detect_peer_groups_ordered(
         indices: &[usize],
         order_by: &[OrderByExpr],
-        batch: &RecordBatch,
+        batch: &Table,
     ) -> Vec<Vec<usize>> {
         if indices.is_empty() {
             return Vec::new();

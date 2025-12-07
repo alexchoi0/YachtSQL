@@ -2,11 +2,11 @@ use yachtsql_core::types::Value;
 use yachtsql_storage::Schema;
 use yachtsql_storage::schema::Field;
 
-use crate::RecordBatch;
+use crate::Table;
 use crate::storage::table::Row;
 
 pub(super) fn extract_source_row(
-    batch: &RecordBatch,
+    batch: &Table,
     row_idx: usize,
     schema: &Schema,
 ) -> yachtsql_core::error::Result<Row> {

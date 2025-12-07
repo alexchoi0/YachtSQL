@@ -2,7 +2,7 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::{Expr, UnaryOp};
 
 use super::WindowExec;
-use crate::RecordBatch;
+use crate::Table;
 
 #[derive(Clone, Copy)]
 pub(super) enum OffsetDirection {
@@ -14,7 +14,7 @@ impl WindowExec {
     pub(super) fn compute_offset_function(
         indices: &[usize],
         args: &[Expr],
-        batch: &RecordBatch,
+        batch: &Table,
         results: &mut [Value],
         direction: OffsetDirection,
         null_treatment: Option<yachtsql_optimizer::expr::NullTreatment>,
@@ -66,7 +66,7 @@ impl WindowExec {
         offset: usize,
         direction: OffsetDirection,
         value_expr: Option<&Expr>,
-        batch: &RecordBatch,
+        batch: &Table,
     ) -> Option<usize> {
         let Some(expr) = value_expr else {
             return None;

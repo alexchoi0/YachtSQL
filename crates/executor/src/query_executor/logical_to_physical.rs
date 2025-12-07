@@ -838,8 +838,7 @@ impl LogicalToPhysicalPlanner {
                         if let (Some(schema), Some(rows)) = (mat_schema, mat_data) {
                             let source_table = alias.as_ref().unwrap_or(table_name);
                             let schema_with_source = schema.with_source_table(source_table);
-                            let batch =
-                                crate::RecordBatch::from_rows(schema_with_source.clone(), rows)?;
+                            let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
                             return Ok(Rc::new(MaterializedViewScanExec::new(
                                 schema_with_source,
                                 batch,

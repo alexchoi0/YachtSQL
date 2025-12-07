@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_executor::RecordBatch;
+use yachtsql_executor::Table;
 use yachtsql_executor::query_executor::evaluator::physical_plan::{
     CteExec, ExceptExec, ExecutionPlan, IntersectExec, SubqueryScanExec, UnionExec,
 };
@@ -9,11 +9,11 @@ use yachtsql_storage::{Column, Schema};
 #[derive(Debug)]
 struct MockDataExec {
     schema: Schema,
-    data: Vec<RecordBatch>,
+    data: Vec<Table>,
 }
 
 impl MockDataExec {
-    fn new(schema: Schema, data: Vec<RecordBatch>) -> Self {
+    fn new(schema: Schema, data: Vec<Table>) -> Self {
         Self { schema, data }
     }
 }
@@ -23,7 +23,7 @@ impl ExecutionPlan for MockDataExec {
         &self.schema
     }
 
-    fn execute(&self) -> yachtsql_core::error::Result<Vec<RecordBatch>> {
+    fn execute(&self) -> yachtsql_core::error::Result<Vec<Table>> {
         Ok(self.data.clone())
     }
 
@@ -36,7 +36,7 @@ impl ExecutionPlan for MockDataExec {
     }
 }
 
-fn create_test_batch(schema: Schema, values: Vec<Vec<yachtsql_core::types::Value>>) -> RecordBatch {
+fn create_test_batch(schema: Schema, values: Vec<Vec<yachtsql_core::types::Value>>) -> Table {
     let num_rows = values.len();
     let num_cols = schema.fields().len();
 
@@ -52,7 +52,7 @@ fn create_test_batch(schema: Schema, values: Vec<Vec<yachtsql_core::types::Value
         columns.push(column);
     }
 
-    RecordBatch::new(schema, columns).unwrap()
+    Table::new(schema, columns).unwrap()
 }
 
 #[test]
@@ -278,7 +278,7 @@ fn test_empty_left_side() {
         yachtsql_core::types::DataType::Int64,
     )]);
 
-    let empty_data = RecordBatch::empty(schema.clone());
+    let empty_data = Table::empty(schema.clone());
     let right_data = create_test_batch(
         schema.clone(),
         vec![vec![yachtsql_core::types::Value::int64(1)]],
