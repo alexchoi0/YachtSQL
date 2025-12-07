@@ -14,7 +14,7 @@ fn test_round() {
 fn test_round_precision() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT round(3.12131, 2)").unwrap();
-    assert_table_eq!(result, [[3.14]]);
+    assert_table_eq!(result, [[3.12]]);
 }
 
 #[test]
@@ -105,7 +105,7 @@ fn test_trunc_negative() {
 fn test_truncate_alias() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT truncate(3.12131, 2)").unwrap();
-    assert_table_eq!(result, [[3.14]]);
+    assert_table_eq!(result, [[3.12]]);
 }
 
 #[ignore = "Implement me!"]

@@ -138,7 +138,7 @@ fn test_round_with_precision() {
     let result = executor
         .execute_sql("SELECT ROUND(3.12131, 2) AS result")
         .unwrap();
-    assert_table_eq!(result, [[n("3.14")]]);
+    assert_table_eq!(result, [[n("3.12")]]);
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn test_trunc_with_precision() {
     let result = executor
         .execute_sql("SELECT TRUNC(3.12131, 2) AS result")
         .unwrap();
-    assert_table_eq!(result, [[n("3.14")]]);
+    assert_table_eq!(result, [[n("3.12")]]);
 }
 
 #[test]

@@ -127,7 +127,7 @@ mod tests {
         let args = vec![Expr::column("val"), Expr::column("decimals")];
         let result = ProjectionWithExprExec::eval_trunc(&args, &batch, 0).expect("success");
         if let Some(f) = result.as_f64() {
-            assert!((f - 3.14).abs() < 0.001)
+            assert!((f - 3.12).abs() < 0.001)
         } else {
             panic!("Expected Float64")
         }
