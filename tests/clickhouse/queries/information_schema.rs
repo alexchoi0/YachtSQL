@@ -289,7 +289,7 @@ fn test_system_parts() {
     // TODO: Replace with proper table! assertion
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PARTITION BY parser support"]
 #[test]
 fn test_system_partitions() {
     let mut executor = create_executor();
@@ -516,7 +516,6 @@ fn test_system_time_zones() {
     assert!(result.num_rows() > 0);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_describe_table() {
     let mut executor = create_executor();
@@ -530,7 +529,6 @@ fn test_describe_table() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_create_table() {
     let mut executor = create_executor();
@@ -546,7 +544,6 @@ fn test_show_create_table() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_tables() {
     let mut executor = create_executor();
@@ -563,7 +560,6 @@ fn test_show_tables() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_columns() {
     let mut executor = create_executor();
@@ -577,7 +573,6 @@ fn test_show_columns() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_exists_table() {
     let mut executor = create_executor();
@@ -589,7 +584,6 @@ fn test_exists_table() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_exists_database() {
     let mut executor = create_executor();

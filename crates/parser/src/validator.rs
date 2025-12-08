@@ -93,6 +93,14 @@ pub enum CustomStatement {
         mode: SetConstraintsMode,
         constraints: SetConstraintsTarget,
     },
+
+    ExistsTable {
+        name: sqlparser::ast::ObjectName,
+    },
+
+    ExistsDatabase {
+        name: sqlparser::ast::ObjectName,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -217,6 +225,7 @@ impl StatementValidator {
                 ..
             } => self.validate_drop_type(names, *cascade, *restrict),
             CustomStatement::SetConstraints { .. } => self.validate_set_constraints(),
+            CustomStatement::ExistsTable { .. } | CustomStatement::ExistsDatabase { .. } => Ok(()),
         }
     }
 

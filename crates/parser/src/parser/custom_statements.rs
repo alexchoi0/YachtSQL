@@ -1054,4 +1054,34 @@ impl CustomStatementParser {
             None => Ok(None),
         }
     }
+
+    pub fn parse_exists_table(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let pattern = vec![
+            TokenPattern::Keyword("EXISTS"),
+            TokenPattern::Keyword("TABLE"),
+            TokenPattern::ObjectName,
+        ];
+
+        Self::match_and_build_custom_statement(tokens, &pattern, |matched| {
+            let name = matched
+                .first_object_name()
+                .ok_or_else(|| Error::parse_error("EXISTS TABLE requires table name"))?;
+            Ok(CustomStatement::ExistsTable { name: name.clone() })
+        })
+    }
+
+    pub fn parse_exists_database(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let pattern = vec![
+            TokenPattern::Keyword("EXISTS"),
+            TokenPattern::Keyword("DATABASE"),
+            TokenPattern::ObjectName,
+        ];
+
+        Self::match_and_build_custom_statement(tokens, &pattern, |matched| {
+            let name = matched
+                .first_object_name()
+                .ok_or_else(|| Error::parse_error("EXISTS DATABASE requires database name"))?;
+            Ok(CustomStatement::ExistsDatabase { name: name.clone() })
+        })
+    }
 }

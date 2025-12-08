@@ -74,6 +74,11 @@ pub enum DdlOperation {
     DropSchema,
 
     CreateFunction,
+
+    CreateDatabase {
+        name: ObjectName,
+        if_not_exists: bool,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +128,24 @@ pub enum UtilityOperation {
     },
     SetSearchPath {
         schemas: Vec<String>,
+    },
+    DescribeTable {
+        table_name: ObjectName,
+    },
+    ShowCreateTable {
+        table_name: ObjectName,
+    },
+    ShowTables {
+        filter: Option<String>,
+    },
+    ShowColumns {
+        table_name: ObjectName,
+    },
+    ExistsTable {
+        table_name: ObjectName,
+    },
+    ExistsDatabase {
+        db_name: ObjectName,
     },
 }
 
@@ -383,6 +406,66 @@ impl Dispatcher {
                         operation: CopyOperation {
                             stmt: Box::new(ast.clone()),
                         },
+                    }),
+
+                    SqlStatement::ExplainTable { table_name, .. } => Ok(StatementJob::Utility {
+                        operation: UtilityOperation::DescribeTable {
+                            table_name: table_name.clone(),
+                        },
+                    }),
+
+                    SqlStatement::ShowCreate {
+                        obj_type: sqlparser::ast::ShowCreateObject::Table,
+                        obj_name,
+                    } => Ok(StatementJob::Utility {
+                        operation: UtilityOperation::ShowCreateTable {
+                            table_name: obj_name.clone(),
+                        },
+                    }),
+
+                    SqlStatement::ShowTables { show_options, .. } => {
+                        let filter_str =
+                            show_options
+                                .filter_position
+                                .as_ref()
+                                .and_then(|fp| match fp {
+                                    sqlparser::ast::ShowStatementFilterPosition::Infix(f)
+                                    | sqlparser::ast::ShowStatementFilterPosition::Suffix(f) => {
+                                        match f {
+                                            sqlparser::ast::ShowStatementFilter::Like(s)
+                                            | sqlparser::ast::ShowStatementFilter::ILike(s) => {
+                                                Some(s.clone())
+                                            }
+                                            _ => None,
+                                        }
+                                    }
+                                });
+                        Ok(StatementJob::Utility {
+                            operation: UtilityOperation::ShowTables { filter: filter_str },
+                        })
+                    }
+
+                    SqlStatement::ShowColumns { show_options, .. } => {
+                        let table_name = show_options
+                            .show_in
+                            .as_ref()
+                            .and_then(|si| si.parent_name.clone())
+                            .unwrap_or_else(|| ObjectName(vec![]));
+                        Ok(StatementJob::Utility {
+                            operation: UtilityOperation::ShowColumns { table_name },
+                        })
+                    }
+
+                    SqlStatement::CreateDatabase {
+                        db_name,
+                        if_not_exists,
+                        ..
+                    } => Ok(StatementJob::DDL {
+                        operation: DdlOperation::CreateDatabase {
+                            name: db_name.clone(),
+                            if_not_exists: *if_not_exists,
+                        },
+                        stmt: Box::new(ast.clone()),
                     }),
 
                     _ => Err(Error::unsupported_feature(format!(

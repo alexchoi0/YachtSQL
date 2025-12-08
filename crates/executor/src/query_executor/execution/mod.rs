@@ -380,6 +380,8 @@ impl QueryExecutor {
                 }
                 CustomStatement::DropType { .. } => self.execute_drop_composite_type(custom_stmt),
                 CustomStatement::SetConstraints { .. } => self.execute_set_constraints(custom_stmt),
+                CustomStatement::ExistsTable { name } => self.execute_exists_table(name),
+                CustomStatement::ExistsDatabase { name } => self.execute_exists_database(name),
                 CustomStatement::AlterTableRestartIdentity { .. }
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
@@ -464,10 +466,18 @@ impl QueryExecutor {
                         Self::empty_result()
                     }
                     DdlOperation::CreateFunction => Self::empty_result(),
-                    _ => Err(Error::unsupported_feature(format!(
-                        "DDL operation {:?} not yet implemented",
-                        operation
-                    ))),
+                    DdlOperation::CreateDatabase {
+                        name,
+                        if_not_exists,
+                    } => {
+                        self.execute_create_database(&name, if_not_exists)?;
+                        Self::empty_result()
+                    }
+                    DdlOperation::CreateSequence
+                    | DdlOperation::AlterSequence
+                    | DdlOperation::DropSequence => {
+                        panic!("Sequence operations should be handled via CustomStatement path")
+                    }
                 };
 
                 if result.is_ok() {
@@ -506,6 +516,24 @@ impl QueryExecutor {
                     self.execute_set_search_path(&schemas)
                 }
                 UtilityOperation::Show { variable } => self.execute_show(variable.as_deref()),
+                UtilityOperation::DescribeTable { table_name } => {
+                    self.execute_describe_table(&table_name)
+                }
+                UtilityOperation::ShowCreateTable { table_name } => {
+                    self.execute_show_create_table(&table_name)
+                }
+                UtilityOperation::ShowTables { filter } => {
+                    self.execute_show_tables(filter.as_deref())
+                }
+                UtilityOperation::ShowColumns { table_name } => {
+                    self.execute_show_columns(&table_name)
+                }
+                UtilityOperation::ExistsTable { table_name } => {
+                    self.execute_exists_table(&table_name)
+                }
+                UtilityOperation::ExistsDatabase { db_name } => {
+                    self.execute_exists_database(&db_name)
+                }
             },
 
             StatementJob::Procedure { name, args } => self.execute_procedure(&name, &args),
@@ -640,6 +668,217 @@ impl QueryExecutor {
                 var_name
             ))),
         }
+    }
+
+    fn execute_describe_table(&mut self, table_name: &sqlparser::ast::ObjectName) -> Result<Table> {
+        let table_str = table_name.to_string();
+        let (dataset_id, table_id) = self.parse_ddl_table_name(&table_str)?;
+
+        let storage = self.storage.borrow();
+        let dataset = storage
+            .get_dataset(&dataset_id)
+            .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
+        let table = dataset
+            .get_table(&table_id)
+            .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
+
+        let schema = Schema::from_fields(vec![
+            yachtsql_storage::Field::required("name".to_string(), DataType::String),
+            yachtsql_storage::Field::required("type".to_string(), DataType::String),
+            yachtsql_storage::Field::required("default_type".to_string(), DataType::String),
+            yachtsql_storage::Field::required("default_expression".to_string(), DataType::String),
+            yachtsql_storage::Field::required("comment".to_string(), DataType::String),
+            yachtsql_storage::Field::required("codec_expression".to_string(), DataType::String),
+            yachtsql_storage::Field::required("ttl_expression".to_string(), DataType::String),
+        ]);
+
+        let mut rows = Vec::new();
+        for field in table.schema().fields() {
+            rows.push(vec![
+                Value::string(field.name.clone()),
+                Value::string(field.data_type.to_string()),
+                Value::string("".to_string()),
+                Value::string(
+                    field
+                        .default_value
+                        .as_ref()
+                        .map(|v| format_default_value(v))
+                        .unwrap_or_default(),
+                ),
+                Value::string(field.description.clone().unwrap_or_default()),
+                Value::string("".to_string()),
+                Value::string("".to_string()),
+            ]);
+        }
+
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_show_create_table(
+        &mut self,
+        table_name: &sqlparser::ast::ObjectName,
+    ) -> Result<Table> {
+        let table_str = table_name.to_string();
+        let (dataset_id, table_id) = self.parse_ddl_table_name(&table_str)?;
+
+        let storage = self.storage.borrow();
+        let dataset = storage
+            .get_dataset(&dataset_id)
+            .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
+        let table = dataset
+            .get_table(&table_id)
+            .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
+
+        let mut columns = Vec::new();
+        for field in table.schema().fields() {
+            columns.push(format!("    {} {}", field.name, field.data_type));
+        }
+
+        let create_stmt = format!(
+            "CREATE TABLE {} (\n{}\n) ENGINE = MergeTree",
+            table_id,
+            columns.join(",\n")
+        );
+
+        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+            "statement".to_string(),
+            DataType::String,
+        )]);
+        let rows = vec![vec![Value::string(create_stmt)]];
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_show_tables(&mut self, filter: Option<&str>) -> Result<Table> {
+        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+            "name".to_string(),
+            DataType::String,
+        )]);
+
+        let mut rows = Vec::new();
+        let storage = self.storage.borrow();
+
+        for dataset_id in storage.list_datasets() {
+            if let Some(dataset) = storage.get_dataset(&dataset_id) {
+                for table_id in dataset.tables().keys() {
+                    let matches = match filter {
+                        Some(pattern) => {
+                            let regex_pattern = pattern.replace('%', ".*").replace('_', ".");
+                            regex::Regex::new(&format!("^{}$", regex_pattern))
+                                .map(|re| re.is_match(table_id))
+                                .unwrap_or(false)
+                        }
+                        None => true,
+                    };
+                    if matches {
+                        rows.push(vec![Value::string(table_id.clone())]);
+                    }
+                }
+            }
+        }
+
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_show_columns(&mut self, table_name: &sqlparser::ast::ObjectName) -> Result<Table> {
+        let table_str = table_name.to_string();
+        let (dataset_id, table_id) = self.parse_ddl_table_name(&table_str)?;
+
+        let storage = self.storage.borrow();
+        let dataset = storage
+            .get_dataset(&dataset_id)
+            .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
+        let table = dataset
+            .get_table(&table_id)
+            .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
+
+        let schema = Schema::from_fields(vec![
+            yachtsql_storage::Field::required("field".to_string(), DataType::String),
+            yachtsql_storage::Field::required("type".to_string(), DataType::String),
+            yachtsql_storage::Field::required("null".to_string(), DataType::String),
+            yachtsql_storage::Field::required("key".to_string(), DataType::String),
+            yachtsql_storage::Field::required("default".to_string(), DataType::String),
+            yachtsql_storage::Field::required("extra".to_string(), DataType::String),
+        ]);
+
+        let mut rows = Vec::new();
+        for field in table.schema().fields() {
+            let is_nullable = matches!(field.mode, yachtsql_storage::FieldMode::Nullable);
+            rows.push(vec![
+                Value::string(field.name.clone()),
+                Value::string(field.data_type.to_string()),
+                Value::string(if is_nullable { "YES" } else { "NO" }.to_string()),
+                Value::string("".to_string()),
+                Value::string(
+                    field
+                        .default_value
+                        .as_ref()
+                        .map(|v| format_default_value(v))
+                        .unwrap_or_default(),
+                ),
+                Value::string("".to_string()),
+            ]);
+        }
+
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_exists_table(&mut self, table_name: &sqlparser::ast::ObjectName) -> Result<Table> {
+        let table_str = table_name.to_string();
+        let (dataset_id, table_id) = self.parse_ddl_table_name(&table_str)?;
+
+        let storage = self.storage.borrow();
+        let exists = storage
+            .get_dataset(&dataset_id)
+            .and_then(|d| d.get_table(&table_id))
+            .is_some();
+
+        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+            "result".to_string(),
+            DataType::Int64,
+        )]);
+        let rows = vec![vec![Value::int64(if exists { 1 } else { 0 })]];
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_exists_database(&mut self, db_name: &sqlparser::ast::ObjectName) -> Result<Table> {
+        let db_str = db_name.to_string();
+
+        let storage = self.storage.borrow();
+        let exists = storage.get_dataset(&db_str).is_some();
+
+        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+            "result".to_string(),
+            DataType::Int64,
+        )]);
+        let rows = vec![vec![Value::int64(if exists { 1 } else { 0 })]];
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_create_database(
+        &mut self,
+        name: &sqlparser::ast::ObjectName,
+        if_not_exists: bool,
+    ) -> Result<()> {
+        let db_id = name.to_string();
+
+        let mut storage = self.storage.borrow_mut();
+
+        if storage.get_dataset(&db_id).is_some() {
+            if if_not_exists {
+                return Ok(());
+            } else {
+                return Err(Error::invalid_query(format!(
+                    "database \"{}\" already exists",
+                    db_id
+                )));
+            }
+        }
+
+        storage
+            .create_dataset(db_id.clone())
+            .map_err(|e| Error::invalid_query(format!("Failed to create database: {}", e)))?;
+
+        Ok(())
     }
 
     fn execute_procedure(&mut self, name: &str, args: &[sqlparser::ast::Value]) -> Result<Table> {
@@ -1440,5 +1679,14 @@ fn derive_output_name_from_expr(expr: &sqlparser::ast::Expr) -> String {
         sqlparser::ast::Expr::Nested(inner) => derive_output_name_from_expr(inner),
         sqlparser::ast::Expr::Cast { .. } => "?column?".to_string(),
         _ => "?column?".to_string(),
+    }
+}
+
+fn format_default_value(default: &yachtsql_storage::DefaultValue) -> String {
+    match default {
+        yachtsql_storage::DefaultValue::Literal(v) => v.to_string(),
+        yachtsql_storage::DefaultValue::CurrentTimestamp => "CURRENT_TIMESTAMP".to_string(),
+        yachtsql_storage::DefaultValue::CurrentDate => "CURRENT_DATE".to_string(),
+        yachtsql_storage::DefaultValue::GenRandomUuid => "gen_random_uuid()".to_string(),
     }
 }
