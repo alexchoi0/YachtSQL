@@ -666,6 +666,13 @@ pub enum FunctionName {
     // Aggregate functions
     RegrSlope,
     RegrIntercept,
+    RegrCount,
+    RegrR2,
+    RegrAvgx,
+    RegrAvgy,
+    RegrSxx,
+    RegrSyy,
+    RegrSxy,
     Entropy,
     MeanZscore,
     UniqUpdown,
@@ -766,7 +773,7 @@ impl FunctionName {
             "CORR" => Self::Corr,
             "COVAR_POP" => Self::CovarPop,
             "COVAR_SAMP" => Self::CovarSamp,
-            "COUNTIF" => Self::CountIf,
+            "COUNTIF" | "COUNT_IF" => Self::CountIf,
 
             "BOOL_AND" => Self::BoolAnd,
             "BOOL_OR" => Self::BoolOr,
@@ -1441,6 +1448,13 @@ impl FunctionName {
             // Aggregate functions
             "REGR_SLOPE" => Self::RegrSlope,
             "REGR_INTERCEPT" => Self::RegrIntercept,
+            "REGR_COUNT" => Self::RegrCount,
+            "REGR_R2" => Self::RegrR2,
+            "REGR_AVGX" => Self::RegrAvgx,
+            "REGR_AVGY" => Self::RegrAvgy,
+            "REGR_SXX" => Self::RegrSxx,
+            "REGR_SYY" => Self::RegrSyy,
+            "REGR_SXY" => Self::RegrSxy,
             "ENTROPY" => Self::Entropy,
             "MEAN_ZSCORE" | "MEANZSCORE" => Self::MeanZscore,
             "UNIQ_UPDOWN" | "UNIQUPDOWN" => Self::UniqUpdown,
@@ -2193,6 +2207,13 @@ impl FunctionName {
             // Aggregate functions
             Self::RegrSlope => "REGR_SLOPE",
             Self::RegrIntercept => "REGR_INTERCEPT",
+            Self::RegrCount => "REGR_COUNT",
+            Self::RegrR2 => "REGR_R2",
+            Self::RegrAvgx => "REGR_AVGX",
+            Self::RegrAvgy => "REGR_AVGY",
+            Self::RegrSxx => "REGR_SXX",
+            Self::RegrSyy => "REGR_SYY",
+            Self::RegrSxy => "REGR_SXY",
             Self::Entropy => "ENTROPY",
             Self::MeanZscore => "MEAN_ZSCORE",
             Self::UniqUpdown => "UNIQ_UPDOWN",
@@ -2359,6 +2380,13 @@ impl FunctionName {
                 | Self::JsonObjectagg
                 | Self::RegrSlope
                 | Self::RegrIntercept
+                | Self::RegrCount
+                | Self::RegrR2
+                | Self::RegrAvgx
+                | Self::RegrAvgy
+                | Self::RegrSxx
+                | Self::RegrSyy
+                | Self::RegrSxy
                 | Self::Entropy
                 | Self::MeanZscore
                 | Self::UniqUpdown
