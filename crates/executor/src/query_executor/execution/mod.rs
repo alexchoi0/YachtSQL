@@ -382,23 +382,6 @@ impl QueryExecutor {
                 CustomStatement::SetConstraints { .. } => self.execute_set_constraints(custom_stmt),
                 CustomStatement::ExistsTable { name } => self.execute_exists_table(name),
                 CustomStatement::ExistsDatabase { name } => self.execute_exists_database(name),
-                CustomStatement::Abort => {
-                    self.execute_rollback_transaction()?;
-                    Self::empty_result()
-                }
-                CustomStatement::BeginTransaction {
-                    isolation_level,
-                    read_only,
-                    deferrable,
-                } => {
-                    self.execute_begin_transaction_with_options(
-                        isolation_level.clone(),
-                        *read_only,
-                        *deferrable,
-                    )?;
-                    Self::empty_result()
-                }
-                CustomStatement::ClickHouseCreateIndex { .. } => Self::empty_result(),
                 CustomStatement::AlterTableRestartIdentity { .. }
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
@@ -490,18 +473,6 @@ impl QueryExecutor {
                         self.execute_create_database(&name, if_not_exists)?;
                         Self::empty_result()
                     }
-
-                    DdlOperation::CreateUser => Self::empty_result(),
-                    DdlOperation::DropUser => Self::empty_result(),
-                    DdlOperation::AlterUser => Self::empty_result(),
-                    DdlOperation::CreateRole => Self::empty_result(),
-                    DdlOperation::DropRole => Self::empty_result(),
-                    DdlOperation::AlterRole => Self::empty_result(),
-                    DdlOperation::Grant => Self::empty_result(),
-                    DdlOperation::Revoke => Self::empty_result(),
-                    DdlOperation::SetRole => Self::empty_result(),
-                    DdlOperation::SetDefaultRole => Self::empty_result(),
-
                     DdlOperation::CreateSequence
                     | DdlOperation::AlterSequence
                     | DdlOperation::DropSequence => {
@@ -516,29 +487,15 @@ impl QueryExecutor {
                 result
             }
 
-            StatementJob::DML { operation, stmt } => {
-                if self.is_transaction_read_only() {
-                    let op_name = match operation {
-                        DmlOperation::Insert => "INSERT",
-                        DmlOperation::Update => "UPDATE",
-                        DmlOperation::Delete => "DELETE",
-                        DmlOperation::Truncate => "TRUNCATE",
-                    };
-                    return Err(Error::InvalidOperation(format!(
-                        "cannot execute {} in a read-only transaction",
-                        op_name
-                    )));
+            StatementJob::DML { operation, stmt } => match operation {
+                DmlOperation::Insert => self.execute_insert(&stmt, sql),
+                DmlOperation::Update => self.execute_update(&stmt, sql),
+                DmlOperation::Delete => self.execute_delete(&stmt, sql),
+                DmlOperation::Truncate => {
+                    let _rows_affected = self.execute_truncate(&stmt)?;
+                    Self::empty_result()
                 }
-                match operation {
-                    DmlOperation::Insert => self.execute_insert(&stmt, sql),
-                    DmlOperation::Update => self.execute_update(&stmt, sql),
-                    DmlOperation::Delete => self.execute_delete(&stmt, sql),
-                    DmlOperation::Truncate => {
-                        let _rows_affected = self.execute_truncate(&stmt)?;
-                        Self::empty_result()
-                    }
-                }
-            }
+            },
 
             StatementJob::Query { stmt } => self.execute_select(&stmt, sql),
 
@@ -577,11 +534,6 @@ impl QueryExecutor {
                 UtilityOperation::ExistsDatabase { db_name } => {
                     self.execute_exists_database(&db_name)
                 }
-                UtilityOperation::ShowUsers => self.execute_show_users(),
-                UtilityOperation::ShowRoles => self.execute_show_roles(),
-                UtilityOperation::ShowGrants { user_name } => {
-                    self.execute_show_grants(user_name.as_deref())
-                }
             },
 
             StatementJob::Procedure { name, args } => self.execute_procedure(&name, &args),
@@ -597,46 +549,14 @@ impl QueryExecutor {
                 self.execute_begin_transaction()
             }
 
-            TxOperation::Commit { chain } => {
+            TxOperation::Commit => {
                 self.require_feature(F782_COMMIT_STATEMENT, "COMMIT statement")?;
-                let characteristics = if chain {
-                    self.get_current_transaction_characteristics()
-                } else {
-                    None
-                };
-                self.execute_commit_transaction()?;
-                if chain {
-                    if let Some(chars) = characteristics {
-                        self.begin_transaction_with_characteristics(
-                            chars,
-                            yachtsql_storage::TransactionScope::Explicit,
-                        )?;
-                    } else {
-                        self.execute_begin_transaction()?;
-                    }
-                }
-                Ok(())
+                self.execute_commit_transaction()
             }
 
-            TxOperation::Rollback { chain } => {
+            TxOperation::Rollback => {
                 self.require_feature(F783_ROLLBACK_STATEMENT, "ROLLBACK statement")?;
-                let characteristics = if chain {
-                    self.get_current_transaction_characteristics()
-                } else {
-                    None
-                };
-                self.execute_rollback_transaction()?;
-                if chain {
-                    if let Some(chars) = characteristics {
-                        self.begin_transaction_with_characteristics(
-                            chars,
-                            yachtsql_storage::TransactionScope::Explicit,
-                        )?;
-                    } else {
-                        self.execute_begin_transaction()?;
-                    }
-                }
-                Ok(())
+                self.execute_rollback_transaction()
             }
 
             TxOperation::Savepoint { name } => {
@@ -662,8 +582,6 @@ impl QueryExecutor {
             TxOperation::SetTransactionIsolation { .. } => Err(Error::unsupported_feature(
                 "SET TRANSACTION ISOLATION LEVEL not yet implemented".to_string(),
             )),
-
-            TxOperation::SetTransaction { modes } => self.execute_set_transaction(modes),
         }
     }
 
@@ -934,30 +852,6 @@ impl QueryExecutor {
         )]);
         let rows = vec![vec![Value::int64(if exists { 1 } else { 0 })]];
         Table::from_values(schema, rows)
-    }
-
-    fn execute_show_users(&mut self) -> Result<Table> {
-        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
-            "name".to_string(),
-            DataType::String,
-        )]);
-        Table::from_values(schema, vec![])
-    }
-
-    fn execute_show_roles(&mut self) -> Result<Table> {
-        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
-            "name".to_string(),
-            DataType::String,
-        )]);
-        Table::from_values(schema, vec![])
-    }
-
-    fn execute_show_grants(&mut self, _user_name: Option<&str>) -> Result<Table> {
-        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
-            "grants".to_string(),
-            DataType::String,
-        )]);
-        Table::from_values(schema, vec![])
     }
 
     fn execute_create_database(

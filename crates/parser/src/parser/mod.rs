@@ -1,10 +1,7 @@
-pub mod clickhouse_extensions;
 mod custom_statements;
 mod helpers;
 mod types;
 
-pub use clickhouse_extensions::ClickHouseIndexType;
-use clickhouse_extensions::ClickHouseParser;
 pub use custom_statements::CustomStatementParser;
 use debug_print::debug_eprintln;
 pub use helpers::ParserHelpers;
@@ -245,26 +242,6 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
-        if self.is_abort(&meaningful_tokens)
-            && let Some(custom_stmt) = CustomStatementParser::parse_abort(&meaningful_tokens)?
-        {
-            return Ok(Some(Statement::Custom(custom_stmt)));
-        }
-
-        if self.is_begin(&meaningful_tokens)
-            && let Some(custom_stmt) =
-                CustomStatementParser::parse_begin_transaction_with_deferrable(&meaningful_tokens)?
-        {
-            return Ok(Some(Statement::Custom(custom_stmt)));
-        }
-
-        if self.dialect_type == DialectType::ClickHouse
-            && ClickHouseParser::is_clickhouse_create_index(&meaningful_tokens)
-            && let Some(custom_stmt) = ClickHouseParser::parse_create_index(&meaningful_tokens)?
-        {
-            return Ok(Some(Statement::Custom(custom_stmt)));
-        }
-
         Ok(None)
     }
 
@@ -410,14 +387,6 @@ impl Parser {
 
     fn is_exists_database(&self, tokens: &[&Token]) -> bool {
         self.matches_keyword_sequence(tokens, &["EXISTS", "DATABASE"])
-    }
-
-    fn is_abort(&self, tokens: &[&Token]) -> bool {
-        self.matches_keyword_sequence(tokens, &["ABORT"])
-    }
-
-    fn is_begin(&self, tokens: &[&Token]) -> bool {
-        self.matches_keyword_sequence(tokens, &["BEGIN"])
     }
 
     fn rewrite_json_item_methods(&self, sql: &str) -> Result<String> {
