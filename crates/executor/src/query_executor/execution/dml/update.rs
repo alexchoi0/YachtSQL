@@ -1,6 +1,6 @@
 use debug_print::debug_eprintln;
 use indexmap::IndexMap;
-use sqlparser::ast::{Assignment, Expr as SqlExpr, Statement};
+use sqlparser::ast::{Assignment, Expr as SqlExpr, Statement, Value as SqlValue};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_storage::{Row, Schema, TableIndexOps, TableSchemaOps};
@@ -8,6 +8,7 @@ use yachtsql_storage::{Row, Schema, TableIndexOps, TableSchemaOps};
 use super::super::super::QueryExecutor;
 use super::super::super::expression_evaluator::ExpressionEvaluator;
 use super::super::DdlExecutor;
+use super::super::query::QueryExecutorTrait;
 use crate::Table;
 use crate::query_executor::returning::DmlRowContext;
 
@@ -110,9 +111,13 @@ impl DmlUpdateExecutor for QueryExecutor {
         let mut changed_row_indices: Vec<usize> = Vec::new();
 
         if let Some(where_expr) = selection {
+            let processed_where = self.preprocess_subqueries_in_update_expr(where_expr)?;
             let evaluator = ExpressionEvaluator::new(&schema);
             for (row_idx, row) in all_rows.iter().enumerate() {
-                if evaluator.evaluate_where(where_expr, &row).unwrap_or(false) {
+                if evaluator
+                    .evaluate_where(&processed_where, &row)
+                    .unwrap_or(false)
+                {
                     let updated_row_map = self.apply_update_to_row_with_exprs(
                         &row,
                         &parsed_assignments_with_exprs,
@@ -689,5 +694,131 @@ impl QueryExecutor {
         }
 
         Ok(())
+    }
+
+    fn preprocess_subqueries_in_update_expr(&mut self, expr: &SqlExpr) -> Result<SqlExpr> {
+        match expr {
+            SqlExpr::Subquery(query) => {
+                let sql = query.to_string();
+                let result = self.execute_sql(&sql)?;
+
+                if result.num_rows() == 0 {
+                    return Ok(SqlExpr::Value(SqlValue::Null.into()));
+                }
+
+                if result.num_rows() > 1 {
+                    return Err(Error::InvalidQuery(
+                        "Scalar subquery returned more than one row".to_string(),
+                    ));
+                }
+
+                if result.num_columns() != 1 {
+                    return Err(Error::InvalidQuery(format!(
+                        "Scalar subquery must return exactly one column, got {}",
+                        result.num_columns()
+                    )));
+                }
+
+                let column = result.column(0).ok_or_else(|| {
+                    Error::InternalError("Subquery result has no column".to_string())
+                })?;
+                let value = column.get(0)?;
+                let sql_value = Self::value_to_sql_value_for_update(&value)?;
+                Ok(SqlExpr::Value(sql_value.into()))
+            }
+
+            SqlExpr::InSubquery {
+                expr: left_expr,
+                subquery,
+                negated,
+            } => {
+                let sql = subquery.to_string();
+                let result = self.execute_sql(&sql)?;
+
+                if result.num_columns() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "IN subquery must return exactly one column".to_string(),
+                    ));
+                }
+
+                let column = result.column(0).ok_or_else(|| {
+                    Error::InternalError("IN subquery result has no column".to_string())
+                })?;
+
+                let mut list_values = Vec::new();
+                for i in 0..result.num_rows() {
+                    let value = column.get(i)?;
+                    let sql_value = Self::value_to_sql_value_for_update(&value)?;
+                    list_values.push(SqlExpr::Value(sql_value.into()));
+                }
+
+                let processed_left = self.preprocess_subqueries_in_update_expr(left_expr)?;
+
+                Ok(SqlExpr::InList {
+                    expr: Box::new(processed_left),
+                    list: list_values,
+                    negated: *negated,
+                })
+            }
+
+            SqlExpr::Exists { subquery, negated } => {
+                let sql = subquery.to_string();
+                let result = self.execute_sql(&sql)?;
+
+                let exists = result.num_rows() > 0;
+                let bool_result = if *negated { !exists } else { exists };
+
+                Ok(SqlExpr::Value(SqlValue::Boolean(bool_result).into()))
+            }
+
+            SqlExpr::BinaryOp { left, op, right } => {
+                let processed_left = self.preprocess_subqueries_in_update_expr(left)?;
+                let processed_right = self.preprocess_subqueries_in_update_expr(right)?;
+                Ok(SqlExpr::BinaryOp {
+                    left: Box::new(processed_left),
+                    op: op.clone(),
+                    right: Box::new(processed_right),
+                })
+            }
+
+            SqlExpr::UnaryOp { op, expr: inner } => {
+                let processed = self.preprocess_subqueries_in_update_expr(inner)?;
+                Ok(SqlExpr::UnaryOp {
+                    op: op.clone(),
+                    expr: Box::new(processed),
+                })
+            }
+
+            SqlExpr::Nested(inner) => {
+                let processed = self.preprocess_subqueries_in_update_expr(inner)?;
+                Ok(SqlExpr::Nested(Box::new(processed)))
+            }
+
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    fn value_to_sql_value_for_update(value: &Value) -> Result<SqlValue> {
+        if value.is_null() {
+            return Ok(SqlValue::Null);
+        }
+
+        if let Some(b) = value.as_bool() {
+            return Ok(SqlValue::Boolean(b));
+        }
+
+        if let Some(i) = value.as_i64() {
+            return Ok(SqlValue::Number(i.to_string(), false));
+        }
+
+        if let Some(f) = value.as_f64() {
+            return Ok(SqlValue::Number(f.to_string(), false));
+        }
+
+        if let Some(s) = value.as_str() {
+            return Ok(SqlValue::SingleQuotedString(s.to_string()));
+        }
+
+        Ok(SqlValue::SingleQuotedString(format!("{:?}", value)))
     }
 }

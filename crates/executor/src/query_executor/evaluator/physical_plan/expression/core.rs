@@ -194,6 +194,17 @@ impl ProjectionWithExprExec {
                 BinaryOp::And => Self::evaluate_and_internal(left, right, batch, row_idx, _dialect),
                 BinaryOp::Or => Self::evaluate_or_internal(left, right, batch, row_idx, _dialect),
                 _ => {
+                    if let (
+                        Expr::Tuple(left_exprs),
+                        Expr::Subquery { plan } | Expr::ScalarSubquery { subquery: plan },
+                    ) = (left.as_ref(), right.as_ref())
+                    {
+                        if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
+                            return Self::evaluate_row_comparison(
+                                left_exprs, op, plan, batch, row_idx,
+                            );
+                        }
+                    }
                     let left_val = Self::evaluate_expr_internal(left, batch, row_idx, _dialect)?;
                     let right_val = Self::evaluate_expr_internal(right, batch, row_idx, _dialect)?;
                     let enum_labels = Self::get_enum_labels_for_expr(left, batch.schema())

@@ -93,7 +93,13 @@ impl SubqueryExecutorImpl {
                 let num_rows = input_batch.num_rows();
 
                 for (expr_idx, (expr, alias)) in expressions.iter().enumerate() {
-                    let field_name = alias.clone().unwrap_or_else(|| format!("col_{}", expr_idx));
+                    let field_name = alias.clone().unwrap_or_else(|| {
+                        if let yachtsql_optimizer::expr::Expr::Column { name, .. } = expr {
+                            name.clone()
+                        } else {
+                            format!("col_{}", expr_idx)
+                        }
+                    });
                     let mut values = Vec::new();
 
                     for row_idx in 0..num_rows {
@@ -140,7 +146,10 @@ impl SubqueryExecutorImpl {
                 }
 
                 if batch.schema().fields().is_empty() {
-                    return Ok(Table::empty_with_rows(batch.schema().clone(), passing_rows.len()));
+                    return Ok(Table::empty_with_rows(
+                        batch.schema().clone(),
+                        passing_rows.len(),
+                    ));
                 }
 
                 let mut new_columns = Vec::new();
@@ -165,25 +174,109 @@ impl SubqueryExecutorImpl {
                 input,
                 grouping_metadata: _,
             } => {
+                use super::physical_plan::ProjectionWithExprExec;
+
                 let batch = self.execute_plan(input)?;
 
-                if !group_by.is_empty() {
-                    return Err(Error::UnsupportedFeature(
-                        "GROUP BY in subquery not yet implemented".to_string(),
-                    ));
+                if group_by.is_empty() {
+                    let mut result_columns = Vec::new();
+                    let mut result_fields = Vec::new();
+
+                    for (agg_idx, agg_expr) in aggregates.iter().enumerate() {
+                        let (agg_value, agg_type) = self.evaluate_aggregate(agg_expr, &batch)?;
+
+                        let field_name = format!("agg_{}", agg_idx);
+                        let mut col = Column::new(&agg_type, 1);
+                        col.push(agg_value)?;
+                        result_columns.push(col);
+                        result_fields.push(yachtsql_storage::Field::nullable(field_name, agg_type));
+                    }
+
+                    let result_schema = yachtsql_storage::Schema::from_fields(result_fields);
+                    return Table::new(result_schema, result_columns);
                 }
 
-                let mut result_columns = Vec::new();
+                let mut groups: std::collections::HashMap<Vec<String>, Vec<usize>> =
+                    std::collections::HashMap::new();
+
+                for row_idx in 0..batch.num_rows() {
+                    let mut key = Vec::with_capacity(group_by.len());
+                    for group_expr in group_by {
+                        let val =
+                            ProjectionWithExprExec::evaluate_expr(group_expr, &batch, row_idx)?;
+                        key.push(format!("{:?}", val));
+                    }
+                    groups.entry(key).or_default().push(row_idx);
+                }
+
+                let num_groups = groups.len();
                 let mut result_fields = Vec::new();
+                let mut result_columns = Vec::new();
+
+                for (gb_idx, group_expr) in group_by.iter().enumerate() {
+                    let field_name = match group_expr {
+                        Expr::Column { name, .. } => name.clone(),
+                        _ => format!("group_{}", gb_idx),
+                    };
+
+                    let first_row = groups
+                        .values()
+                        .next()
+                        .and_then(|rows| rows.first())
+                        .copied();
+                    let data_type = if let Some(row_idx) = first_row {
+                        ProjectionWithExprExec::evaluate_expr(group_expr, &batch, row_idx)?
+                            .data_type()
+                    } else {
+                        DataType::String
+                    };
+
+                    result_fields.push(yachtsql_storage::Field::nullable(
+                        field_name,
+                        data_type.clone(),
+                    ));
+                    result_columns.push(Column::new(&data_type, num_groups));
+                }
 
                 for (agg_idx, agg_expr) in aggregates.iter().enumerate() {
-                    let (agg_value, agg_type) = self.evaluate_aggregate(agg_expr, &batch)?;
+                    let field_name = match agg_expr {
+                        Expr::Aggregate { name, .. } => format!("{:?}", name).to_lowercase(),
+                        _ => format!("agg_{}", agg_idx),
+                    };
 
-                    let field_name = format!("agg_{}", agg_idx);
-                    let mut col = Column::new(&agg_type, 1);
-                    col.push(agg_value)?;
-                    result_columns.push(col);
-                    result_fields.push(yachtsql_storage::Field::nullable(field_name, agg_type));
+                    let first_group_rows = groups.values().next();
+                    let (_, data_type) = if let Some(rows) = first_group_rows {
+                        let group_batch = self.create_group_batch(&batch, rows)?;
+                        self.evaluate_aggregate(agg_expr, &group_batch)?
+                    } else {
+                        (Value::null(), DataType::Int64)
+                    };
+
+                    result_fields.push(yachtsql_storage::Field::nullable(
+                        field_name,
+                        data_type.clone(),
+                    ));
+                    result_columns.push(Column::new(&data_type, num_groups));
+                }
+
+                for (group_idx, (_key, row_indices)) in groups.iter().enumerate() {
+                    let representative_row = row_indices[0];
+
+                    for (gb_idx, group_expr) in group_by.iter().enumerate() {
+                        let val = ProjectionWithExprExec::evaluate_expr(
+                            group_expr,
+                            &batch,
+                            representative_row,
+                        )?;
+                        result_columns[gb_idx].push(val)?;
+                    }
+
+                    let group_batch = self.create_group_batch(&batch, row_indices)?;
+
+                    for (agg_idx, agg_expr) in aggregates.iter().enumerate() {
+                        let (agg_val, _) = self.evaluate_aggregate(agg_expr, &group_batch)?;
+                        result_columns[group_by.len() + agg_idx].push(agg_val)?;
+                    }
                 }
 
                 let result_schema = yachtsql_storage::Schema::from_fields(result_fields);
@@ -432,6 +525,39 @@ impl SubqueryExecutorImpl {
         }
 
         Ordering::Equal
+    }
+
+    fn create_group_batch(
+        &self,
+        batch: &crate::Table,
+        row_indices: &[usize],
+    ) -> Result<crate::Table> {
+        use yachtsql_storage::Column;
+
+        use crate::Table;
+
+        let columns = batch
+            .columns()
+            .ok_or_else(|| Error::InternalError("Expected column-format table".to_string()));
+
+        let columns = match columns {
+            Ok(cols) => cols,
+            Err(_) => {
+                let converted = batch.to_column_format()?;
+                return self.create_group_batch(&converted, row_indices);
+            }
+        };
+
+        let mut new_columns = Vec::new();
+        for col in columns {
+            let mut new_col = Column::new(&col.data_type(), row_indices.len());
+            for &row_idx in row_indices {
+                new_col.push(col.get(row_idx)?)?;
+            }
+            new_columns.push(new_col);
+        }
+
+        Table::new(batch.schema().clone(), new_columns)
     }
 
     fn evaluate_predicate(

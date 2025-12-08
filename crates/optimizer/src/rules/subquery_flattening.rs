@@ -134,11 +134,11 @@ impl SubqueryFlattening {
                 plan,
                 negated,
             } => {
-                let join_type = if *negated {
-                    JoinType::Anti
-                } else {
-                    JoinType::Semi
-                };
+                if *negated {
+                    return None;
+                }
+
+                let join_type = JoinType::Semi;
 
                 match self.get_subquery_output_column(plan) {
                     Some(subquery_output) => {
