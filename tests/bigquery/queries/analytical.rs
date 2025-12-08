@@ -110,7 +110,6 @@ fn test_top_products_by_revenue() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_monthly_revenue_trend() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -133,7 +132,6 @@ fn test_monthly_revenue_trend() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_running_total() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -166,7 +164,6 @@ fn test_running_total() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_moving_average() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -330,7 +327,6 @@ fn test_ntile_quartiles() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lead_lag_analysis() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -472,7 +468,6 @@ fn test_year_over_year_comparison() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cohort_analysis() {
     let mut executor = create_executor();
     executor
@@ -580,7 +575,6 @@ fn test_funnel_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_retention_analysis() {
     let mut executor = create_executor();
     executor
@@ -785,7 +779,6 @@ fn test_time_series_decomposition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sessionization() {
     let mut executor = create_executor();
     executor
@@ -1005,7 +998,6 @@ fn test_growth_rates() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_variance_analysis() {
     let mut executor = create_executor();
     executor

@@ -464,6 +464,10 @@ pub fn calculate_date_diff(date1: NaiveDate, date2: NaiveDate, unit: &str) -> Re
             Ok((months1 - months2) as i64)
         }
         "YEAR" => Ok((date1.year() - date2.year()) as i64),
+        "WEEK" => {
+            let duration = date1.signed_duration_since(date2);
+            Ok(duration.num_weeks())
+        }
         _ => Err(Error::InvalidOperation(format!(
             "Unsupported date diff unit: {}",
             unit

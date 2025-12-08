@@ -259,6 +259,11 @@ impl LogicalPlanBuilder {
             .iter()
             .any(|(expr, _)| self.has_window_function(expr));
 
+        let select_alias_map: HashMap<String, Expr> = projection_exprs
+            .iter()
+            .filter_map(|(expr, alias)| alias.as_ref().map(|a| (a.to_lowercase(), expr.clone())))
+            .collect();
+
         #[allow(clippy::type_complexity)]
         let (
             group_by_exprs,
@@ -282,18 +287,25 @@ impl LogicalPlanBuilder {
                         is_cube |= ext.is_cube;
                         is_grouping_sets |= ext.is_grouping_sets;
                         for col in ext.columns {
-                            all_group_cols.push(self.sql_expr_to_expr(&col)?);
+                            let col_expr =
+                                Self::resolve_group_by_alias(&col, &select_alias_map, self)?;
+                            all_group_cols.push(col_expr);
                         }
 
                         if ext.is_grouping_sets && !ext.explicit_sets.is_empty() {
                             for set in ext.explicit_sets {
-                                let converted_set: Result<Vec<Expr>> =
-                                    set.iter().map(|e| self.sql_expr_to_expr(e)).collect();
+                                let converted_set: Result<Vec<Expr>> = set
+                                    .iter()
+                                    .map(|e| {
+                                        Self::resolve_group_by_alias(e, &select_alias_map, self)
+                                    })
+                                    .collect();
                                 explicit_grouping_sets.push(converted_set?);
                             }
                         }
                     } else {
-                        let col_expr = self.sql_expr_to_expr(ast_expr)?;
+                        let col_expr =
+                            Self::resolve_group_by_alias(ast_expr, &select_alias_map, self)?;
                         all_group_cols.push(col_expr.clone());
                         regular_group_cols.push(col_expr);
                     }
@@ -649,6 +661,20 @@ impl LogicalPlanBuilder {
         }
 
         Ok(plan)
+    }
+
+    fn resolve_group_by_alias(
+        ast_expr: &ast::Expr,
+        select_alias_map: &HashMap<String, Expr>,
+        builder: &LogicalPlanBuilder,
+    ) -> Result<Expr> {
+        if let ast::Expr::Identifier(ident) = ast_expr {
+            let ident_lower = ident.value.to_lowercase();
+            if let Some(aliased_expr) = select_alias_map.get(&ident_lower) {
+                return Ok(aliased_expr.clone());
+            }
+        }
+        builder.sql_expr_to_expr(ast_expr)
     }
 
     fn extract_grouping_extension(

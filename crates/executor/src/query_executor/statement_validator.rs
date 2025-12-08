@@ -126,15 +126,36 @@ impl<'a> StatementValidator<'a> {
         projection: &[SelectItem],
         group_by: &GroupByExpr,
     ) -> Result<()> {
-        let group_by_columns = self.extract_group_by_columns(group_by);
+        let group_by_identifiers = self.extract_group_by_identifiers(group_by);
 
-        if group_by_columns.is_empty() {
+        if group_by_identifiers.is_empty() {
             return Ok(());
         }
 
+        let alias_to_expr = Self::build_alias_map(projection);
+        let mut group_by_columns = HashSet::new();
+        for ident in &group_by_identifiers {
+            let ident_lower = ident.to_lowercase();
+            if let Some(expr) = alias_to_expr.get(&ident_lower) {
+                Self::collect_column_names(expr, &mut group_by_columns);
+            } else {
+                group_by_columns.insert(ident_lower);
+            }
+        }
+        let grouped_aliases: HashSet<String> = group_by_identifiers
+            .iter()
+            .map(|s| s.to_lowercase())
+            .collect();
+
         for item in projection {
             match item {
-                SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                SelectItem::ExprWithAlias { expr, alias } => {
+                    if grouped_aliases.contains(&alias.value.to_lowercase()) {
+                        continue;
+                    }
+                    self.validate_select_expr_against_group_by(expr, &group_by_columns)?;
+                }
+                SelectItem::UnnamedExpr(expr) => {
                     self.validate_select_expr_against_group_by(expr, &group_by_columns)?;
                 }
                 SelectItem::Wildcard(_) | SelectItem::QualifiedWildcard(_, _) => {}
@@ -142,6 +163,68 @@ impl<'a> StatementValidator<'a> {
         }
 
         Ok(())
+    }
+
+    fn build_alias_map(projection: &[SelectItem]) -> std::collections::HashMap<String, &Expr> {
+        let mut map = std::collections::HashMap::new();
+        for item in projection {
+            if let SelectItem::ExprWithAlias { expr, alias } = item {
+                map.insert(alias.value.to_lowercase(), expr);
+            }
+        }
+        map
+    }
+
+    fn extract_group_by_identifiers(&self, group_by: &GroupByExpr) -> Vec<String> {
+        let mut identifiers = Vec::new();
+        match group_by {
+            GroupByExpr::All(_) => {}
+            GroupByExpr::Expressions(exprs, _) => {
+                for expr in exprs {
+                    Self::collect_identifiers(expr, &mut identifiers);
+                }
+            }
+        }
+        identifiers
+    }
+
+    fn collect_identifiers(expr: &Expr, identifiers: &mut Vec<String>) {
+        match expr {
+            Expr::Identifier(ident) => {
+                identifiers.push(ident.value.clone());
+            }
+            Expr::CompoundIdentifier(parts) => {
+                if let Some(last) = parts.last() {
+                    identifiers.push(last.value.clone());
+                }
+            }
+            Expr::Nested(inner) => Self::collect_identifiers(inner, identifiers),
+            Expr::Rollup(sets) | Expr::Cube(sets) => {
+                for set in sets {
+                    for col_expr in set {
+                        Self::collect_identifiers(col_expr, identifiers);
+                    }
+                }
+            }
+            Expr::GroupingSets(sets) => {
+                for set in sets {
+                    for col_expr in set {
+                        Self::collect_identifiers(col_expr, identifiers);
+                    }
+                }
+            }
+            Expr::Function(_)
+            | Expr::BinaryOp { .. }
+            | Expr::UnaryOp { .. }
+            | Expr::Cast { .. } => {
+                let mut cols = HashSet::new();
+                Self::collect_column_names(expr, &mut cols);
+                for col in cols {
+                    identifiers.push(col);
+                }
+            }
+            _ => {}
+        }
     }
 
     fn extract_group_by_columns(&self, group_by: &GroupByExpr) -> HashSet<String> {
