@@ -86,16 +86,6 @@ impl UnionExec {
                 | (DataType::Numeric(_), DataType::Int64)
                 | (DataType::Float64, DataType::Numeric(_))
                 | (DataType::Numeric(_), DataType::Float64)
-                | (DataType::String, DataType::Int64)
-                | (DataType::Int64, DataType::String)
-                | (DataType::String, DataType::Float64)
-                | (DataType::Float64, DataType::String)
-                | (DataType::String, DataType::Date)
-                | (DataType::Date, DataType::String)
-                | (DataType::String, DataType::Timestamp)
-                | (DataType::Timestamp, DataType::String)
-                | (DataType::String, DataType::Time)
-                | (DataType::Time, DataType::String)
         )
     }
 
@@ -111,7 +101,6 @@ impl UnionExec {
 
         match (left, right) {
             (DataType::Unknown, other) | (other, DataType::Unknown) => other.clone(),
-            (DataType::String, other) | (other, DataType::String) => other.clone(),
             (DataType::Float64, DataType::Int64) | (DataType::Int64, DataType::Float64) => {
                 DataType::Float64
             }
