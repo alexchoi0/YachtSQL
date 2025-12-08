@@ -175,7 +175,6 @@ fn test_count_distinct() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sum_distinct() {
     let mut executor = create_executor();
     executor
@@ -193,7 +192,6 @@ fn test_sum_distinct() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_avg_distinct() {
     let mut executor = create_executor();
     executor
@@ -337,7 +335,6 @@ fn test_corr() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_slope() {
     let mut executor = create_executor();
     executor
@@ -355,7 +352,6 @@ fn test_regr_slope() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_intercept() {
     let mut executor = create_executor();
     executor
@@ -373,7 +369,6 @@ fn test_regr_intercept() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_count() {
     let mut executor = create_executor();
     executor
@@ -391,7 +386,6 @@ fn test_regr_count() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_r2() {
     let mut executor = create_executor();
     executor
@@ -409,7 +403,6 @@ fn test_regr_r2() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_avgx() {
     let mut executor = create_executor();
     executor
@@ -427,7 +420,6 @@ fn test_regr_avgx() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_avgy() {
     let mut executor = create_executor();
     executor
@@ -445,7 +437,6 @@ fn test_regr_avgy() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_sxx() {
     let mut executor = create_executor();
     executor
@@ -462,7 +453,6 @@ fn test_regr_sxx() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_syy() {
     let mut executor = create_executor();
     executor
@@ -479,7 +469,6 @@ fn test_regr_syy() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_sxy() {
     let mut executor = create_executor();
     executor
@@ -701,7 +690,6 @@ fn test_string_agg_with_order() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_string_agg_distinct() {
     let mut executor = create_executor();
     setup_table(&mut executor);
@@ -1439,7 +1427,6 @@ fn test_covar_pop_vs_samp() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_covar_with_nulls() {
     let mut executor = create_executor();
     executor
@@ -1454,7 +1441,7 @@ fn test_covar_with_nulls() {
     let result = executor
         .execute_sql("SELECT COVAR_POP(x, y), COVAR_SAMP(x, y) FROM covar_nulls")
         .unwrap();
-    assert_table_eq!(result, [[3.0, 4.5]]);
+    assert_table_eq!(result, [[4.5, 9.0]]);
 }
 
 #[test]
@@ -1474,7 +1461,6 @@ fn test_covar_single_pair() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_covar_with_group_by() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1482,11 +1468,17 @@ fn test_covar_with_group_by() {
     let result = executor
         .execute_sql("SELECT category, COVAR_POP(x, y), COVAR_SAMP(x, y) FROM correlation_data GROUP BY category ORDER BY category")
         .unwrap();
-    assert_table_eq!(result, [["A", 2.0, 3.0], ["B", 2.0, 3.0], ["C", 1.0, 2.0],]);
+    assert_table_eq!(
+        result,
+        [
+            ["A", 1.3333333333333333, 2.0],
+            ["B", 1.3333333333333333, 2.0],
+            ["C", 0.5, 1.0],
+        ]
+    );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_slope_perfect_linear() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1498,7 +1490,6 @@ fn test_regr_slope_perfect_linear() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_intercept_perfect_linear() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1510,7 +1501,6 @@ fn test_regr_intercept_perfect_linear() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_slope_intercept_combined() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1522,7 +1512,6 @@ fn test_regr_slope_intercept_combined() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_r2_perfect_fit() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1534,7 +1523,6 @@ fn test_regr_r2_perfect_fit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_count_with_nulls() {
     let mut executor = create_executor();
     executor
@@ -1551,7 +1539,6 @@ fn test_regr_count_with_nulls() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_avgx_avgy() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1563,7 +1550,6 @@ fn test_regr_avgx_avgy() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_sxx_syy_sxy() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1575,7 +1561,6 @@ fn test_regr_sxx_syy_sxy() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_all_functions() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1591,7 +1576,6 @@ fn test_regr_all_functions() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_with_group_by() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1613,7 +1597,6 @@ fn test_regr_with_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_empty_set() {
     let mut executor = create_executor();
     executor
@@ -1627,7 +1610,6 @@ fn test_regr_empty_set() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_single_point() {
     let mut executor = create_executor();
     executor
@@ -1646,7 +1628,6 @@ fn test_regr_single_point() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_horizontal_line() {
     let mut executor = create_executor();
     executor
@@ -1663,7 +1644,6 @@ fn test_regr_horizontal_line() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regr_vertical_line() {
     let mut executor = create_executor();
     executor

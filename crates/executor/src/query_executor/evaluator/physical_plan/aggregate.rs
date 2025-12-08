@@ -159,6 +159,13 @@ impl AggregateExec {
                             | FunctionName::WindowFunnel
                             | FunctionName::RegrSlope
                             | FunctionName::RegrIntercept
+                            | FunctionName::RegrCount
+                            | FunctionName::RegrR2
+                            | FunctionName::RegrAvgx
+                            | FunctionName::RegrAvgy
+                            | FunctionName::RegrSxx
+                            | FunctionName::RegrSyy
+                            | FunctionName::RegrSxy
                             | FunctionName::JsonObjectAgg
                             | FunctionName::JsonbObjectAgg
                     );
@@ -750,12 +757,29 @@ impl AggregateExec {
                         Value::int64(count as i64)
                     }
                     FunctionName::Sum => {
-                        let has_numeric = values.iter().any(|v| v.as_numeric().is_some());
+                        let values_to_sum: Vec<&Value> = if *distinct {
+                            let mut unique_strs = std::collections::HashSet::new();
+                            values
+                                .iter()
+                                .filter(|v| {
+                                    if v.is_null() {
+                                        return false;
+                                    }
+                                    let key = format!("{:?}", *v);
+                                    unique_strs.insert(key)
+                                })
+                                .copied()
+                                .collect()
+                        } else {
+                            values.to_vec()
+                        };
+
+                        let has_numeric = values_to_sum.iter().any(|v| v.as_numeric().is_some());
 
                         if has_numeric {
                             let mut sum = rust_decimal::Decimal::ZERO;
                             let mut has_values = false;
-                            for val in &values {
+                            for val in &values_to_sum {
                                 if let Some(n) = val.as_numeric() {
                                     sum += n;
                                     has_values = true;
@@ -774,45 +798,64 @@ impl AggregateExec {
                             } else {
                                 Value::null()
                             }
-                        } else if let Some(column) = Self::try_create_column(&values) {
-                            match column {
-                                Column::Int64 { .. } => {
-                                    if let Ok(sum) = column.sum_i64() {
-                                        Value::int64(sum)
-                                    } else {
-                                        Value::null()
-                                    }
-                                }
-                                Column::Float64 { .. } => {
-                                    if let Ok(sum) = column.sum_f64() {
-                                        Value::float64(sum)
-                                    } else {
-                                        Value::null()
-                                    }
-                                }
-                                _ => {
-                                    let mut sum = 0.0;
-                                    let mut has_values = false;
-                                    for val in values {
-                                        if let Some(i) = val.as_i64() {
-                                            sum += i as f64;
-                                            has_values = true;
-                                        } else if let Some(f) = val.as_f64() {
-                                            sum += f;
-                                            has_values = true;
+                        } else if !*distinct {
+                            if let Some(column) = Self::try_create_column(&values) {
+                                match column {
+                                    Column::Int64 { .. } => {
+                                        if let Ok(sum) = column.sum_i64() {
+                                            Value::int64(sum)
+                                        } else {
+                                            Value::null()
                                         }
                                     }
-                                    if has_values {
-                                        Value::float64(sum)
-                                    } else {
-                                        Value::null()
+                                    Column::Float64 { .. } => {
+                                        if let Ok(sum) = column.sum_f64() {
+                                            Value::float64(sum)
+                                        } else {
+                                            Value::null()
+                                        }
                                     }
+                                    _ => {
+                                        let mut sum = 0.0;
+                                        let mut has_values = false;
+                                        for val in values {
+                                            if let Some(i) = val.as_i64() {
+                                                sum += i as f64;
+                                                has_values = true;
+                                            } else if let Some(f) = val.as_f64() {
+                                                sum += f;
+                                                has_values = true;
+                                            }
+                                        }
+                                        if has_values {
+                                            Value::float64(sum)
+                                        } else {
+                                            Value::null()
+                                        }
+                                    }
+                                }
+                            } else {
+                                let mut sum = 0.0;
+                                let mut has_values = false;
+                                for val in values {
+                                    if let Some(i) = val.as_i64() {
+                                        sum += i as f64;
+                                        has_values = true;
+                                    } else if let Some(f) = val.as_f64() {
+                                        sum += f;
+                                        has_values = true;
+                                    }
+                                }
+                                if has_values {
+                                    Value::float64(sum)
+                                } else {
+                                    Value::null()
                                 }
                             }
                         } else {
                             let mut sum = 0.0;
                             let mut has_values = false;
-                            for val in values {
+                            for val in values_to_sum {
                                 if let Some(i) = val.as_i64() {
                                     sum += i as f64;
                                     has_values = true;
@@ -829,12 +872,29 @@ impl AggregateExec {
                         }
                     }
                     FunctionName::Avg => {
-                        let has_numeric = values.iter().any(|v| v.as_numeric().is_some());
+                        let values_to_avg: Vec<&Value> = if *distinct {
+                            let mut unique_strs = std::collections::HashSet::new();
+                            values
+                                .iter()
+                                .filter(|v| {
+                                    if v.is_null() {
+                                        return false;
+                                    }
+                                    let key = format!("{:?}", *v);
+                                    unique_strs.insert(key)
+                                })
+                                .copied()
+                                .collect()
+                        } else {
+                            values.to_vec()
+                        };
+
+                        let has_numeric = values_to_avg.iter().any(|v| v.as_numeric().is_some());
 
                         if has_numeric {
                             let mut sum = rust_decimal::Decimal::ZERO;
                             let mut count = 0u32;
-                            for val in &values {
+                            for val in &values_to_avg {
                                 if let Some(n) = val.as_numeric() {
                                     sum += n;
                                     count += 1;
@@ -854,45 +914,64 @@ impl AggregateExec {
                             } else {
                                 Value::null()
                             }
-                        } else if let Some(column) = Self::try_create_column(&values) {
-                            match column {
-                                Column::Int64 { .. } => {
-                                    if let Ok(Some(avg)) = column.avg_i64() {
-                                        Value::float64(avg)
-                                    } else {
-                                        Value::null()
-                                    }
-                                }
-                                Column::Float64 { .. } => {
-                                    if let Ok(Some(avg)) = column.avg_f64() {
-                                        Value::float64(avg)
-                                    } else {
-                                        Value::null()
-                                    }
-                                }
-                                _ => {
-                                    let mut sum = 0.0;
-                                    let mut count = 0;
-                                    for val in values {
-                                        if let Some(i) = val.as_i64() {
-                                            sum += i as f64;
-                                            count += 1;
-                                        } else if let Some(f) = val.as_f64() {
-                                            sum += f;
-                                            count += 1;
+                        } else if !*distinct {
+                            if let Some(column) = Self::try_create_column(&values) {
+                                match column {
+                                    Column::Int64 { .. } => {
+                                        if let Ok(Some(avg)) = column.avg_i64() {
+                                            Value::float64(avg)
+                                        } else {
+                                            Value::null()
                                         }
                                     }
-                                    if count > 0 {
-                                        Value::float64(sum / count as f64)
-                                    } else {
-                                        Value::null()
+                                    Column::Float64 { .. } => {
+                                        if let Ok(Some(avg)) = column.avg_f64() {
+                                            Value::float64(avg)
+                                        } else {
+                                            Value::null()
+                                        }
                                     }
+                                    _ => {
+                                        let mut sum = 0.0;
+                                        let mut count = 0;
+                                        for val in values {
+                                            if let Some(i) = val.as_i64() {
+                                                sum += i as f64;
+                                                count += 1;
+                                            } else if let Some(f) = val.as_f64() {
+                                                sum += f;
+                                                count += 1;
+                                            }
+                                        }
+                                        if count > 0 {
+                                            Value::float64(sum / count as f64)
+                                        } else {
+                                            Value::null()
+                                        }
+                                    }
+                                }
+                            } else {
+                                let mut sum = 0.0;
+                                let mut count = 0;
+                                for val in values {
+                                    if let Some(i) = val.as_i64() {
+                                        sum += i as f64;
+                                        count += 1;
+                                    } else if let Some(f) = val.as_f64() {
+                                        sum += f;
+                                        count += 1;
+                                    }
+                                }
+                                if count > 0 {
+                                    Value::float64(sum / count as f64)
+                                } else {
+                                    Value::null()
                                 }
                             }
                         } else {
                             let mut sum = 0.0;
                             let mut count = 0;
-                            for val in values {
+                            for val in values_to_avg {
                                 if let Some(i) = val.as_i64() {
                                     sum += i as f64;
                                     count += 1;
@@ -1146,16 +1225,36 @@ impl AggregateExec {
                             String::new()
                         };
 
-                        let string_values: Vec<String> = values
-                            .iter()
-                            .filter_map(|v| {
-                                if v.is_null() {
-                                    None
-                                } else {
-                                    v.as_str().map(|s| s.to_string())
-                                }
-                            })
-                            .collect();
+                        let string_values: Vec<String> = if *distinct {
+                            let mut unique_strs = std::collections::HashSet::new();
+                            values
+                                .iter()
+                                .filter_map(|v| {
+                                    if v.is_null() {
+                                        None
+                                    } else {
+                                        v.as_str().and_then(|s| {
+                                            if unique_strs.insert(s.to_string()) {
+                                                Some(s.to_string())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                    }
+                                })
+                                .collect()
+                        } else {
+                            values
+                                .iter()
+                                .filter_map(|v| {
+                                    if v.is_null() {
+                                        None
+                                    } else {
+                                        v.as_str().map(|s| s.to_string())
+                                    }
+                                })
+                                .collect()
+                        };
 
                         if string_values.is_empty() {
                             Value::null()
@@ -1511,6 +1610,258 @@ impl AggregateExec {
                         }
                         Value::int64(unique_values.len() as i64)
                     }
+                    FunctionName::RegrSlope => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            let numerator = n * sum_xy - sum_x * sum_y;
+                            let denominator = n * sum_xx - sum_x * sum_x;
+                            if denominator.abs() < f64::EPSILON {
+                                Value::null()
+                            } else {
+                                Value::float64(numerator / denominator)
+                            }
+                        }
+                    }
+                    FunctionName::RegrIntercept => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            let denominator = n * sum_xx - sum_x * sum_x;
+                            if denominator.abs() < f64::EPSILON {
+                                Value::null()
+                            } else {
+                                let slope = (n * sum_xy - sum_x * sum_y) / denominator;
+                                let intercept = (sum_y - slope * sum_x) / n;
+                                Value::float64(intercept)
+                            }
+                        }
+                    }
+                    FunctionName::RegrCount => {
+                        let count = values
+                            .iter()
+                            .filter(|v| {
+                                v.as_array().is_some_and(|arr| {
+                                    arr.len() >= 2 && !arr[0].is_null() && !arr[1].is_null()
+                                })
+                            })
+                            .count();
+                        Value::int64(count as i64)
+                    }
+                    FunctionName::RegrR2 => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            let sum_yy: f64 = pairs.iter().map(|(y, _)| y * y).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            let var_x = n * sum_xx - sum_x * sum_x;
+                            let var_y = n * sum_yy - sum_y * sum_y;
+                            if var_x.abs() < f64::EPSILON || var_y.abs() < f64::EPSILON {
+                                Value::null()
+                            } else {
+                                let r =
+                                    (n * sum_xy - sum_x * sum_y) / (var_x.sqrt() * var_y.sqrt());
+                                Value::float64(r * r)
+                            }
+                        }
+                    }
+                    FunctionName::RegrAvgx => {
+                        let xs: Vec<f64> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 && !arr[0].is_null() && !arr[1].is_null() {
+                                        arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64))
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if xs.is_empty() {
+                            Value::null()
+                        } else {
+                            let sum: f64 = xs.iter().sum();
+                            Value::float64(sum / xs.len() as f64)
+                        }
+                    }
+                    FunctionName::RegrAvgy => {
+                        let ys: Vec<f64> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 && !arr[0].is_null() && !arr[1].is_null() {
+                                        arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64))
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if ys.is_empty() {
+                            Value::null()
+                        } else {
+                            let sum: f64 = ys.iter().sum();
+                            Value::float64(sum / ys.len() as f64)
+                        }
+                    }
+                    FunctionName::RegrSxx => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.is_empty() {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            Value::float64(sum_xx - sum_x * sum_x / n)
+                        }
+                    }
+                    FunctionName::RegrSyy => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.is_empty() {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_yy: f64 = pairs.iter().map(|(y, _)| y * y).sum();
+                            Value::float64(sum_yy - sum_y * sum_y / n)
+                        }
+                    }
+                    FunctionName::RegrSxy => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.is_empty() {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            Value::float64(sum_xy - sum_x * sum_y / n)
+                        }
+                    }
                     FunctionName::RankCorr => {
                         let pairs: Vec<(f64, f64)> = values
                             .iter()
@@ -1838,6 +2189,13 @@ impl SortAggregateExec {
                             | FunctionName::WindowFunnel
                             | FunctionName::RegrSlope
                             | FunctionName::RegrIntercept
+                            | FunctionName::RegrCount
+                            | FunctionName::RegrR2
+                            | FunctionName::RegrAvgx
+                            | FunctionName::RegrAvgy
+                            | FunctionName::RegrSxx
+                            | FunctionName::RegrSyy
+                            | FunctionName::RegrSxy
                             | FunctionName::JsonObjectAgg
                             | FunctionName::JsonbObjectAgg
                     );
@@ -1910,11 +2268,28 @@ impl SortAggregateExec {
                         Value::int64(count as i64)
                     }
                     FunctionName::Sum => {
-                        let has_numeric = values.iter().any(|v| v.as_numeric().is_some());
+                        let values_to_sum: Vec<&Value> = if *distinct {
+                            let mut unique_strs = std::collections::HashSet::new();
+                            values
+                                .iter()
+                                .filter(|v| {
+                                    if v.is_null() {
+                                        return false;
+                                    }
+                                    let key = format!("{:?}", *v);
+                                    unique_strs.insert(key)
+                                })
+                                .copied()
+                                .collect()
+                        } else {
+                            values.to_vec()
+                        };
+
+                        let has_numeric = values_to_sum.iter().any(|v| v.as_numeric().is_some());
                         if has_numeric {
                             let mut sum = rust_decimal::Decimal::ZERO;
                             let mut has_values = false;
-                            for val in &values {
+                            for val in &values_to_sum {
                                 if let Some(n) = val.as_numeric() {
                                     sum += n;
                                     has_values = true;
@@ -1936,7 +2311,7 @@ impl SortAggregateExec {
                         } else {
                             let mut sum = 0.0f64;
                             let mut has_values = false;
-                            for val in &values {
+                            for val in &values_to_sum {
                                 if let Some(i) = val.as_i64() {
                                     sum += i as f64;
                                     has_values = true;
@@ -1953,11 +2328,28 @@ impl SortAggregateExec {
                         }
                     }
                     FunctionName::Avg => {
-                        let has_numeric = values.iter().any(|v| v.as_numeric().is_some());
+                        let values_to_avg: Vec<&Value> = if *distinct {
+                            let mut unique_strs = std::collections::HashSet::new();
+                            values
+                                .iter()
+                                .filter(|v| {
+                                    if v.is_null() {
+                                        return false;
+                                    }
+                                    let key = format!("{:?}", *v);
+                                    unique_strs.insert(key)
+                                })
+                                .copied()
+                                .collect()
+                        } else {
+                            values.to_vec()
+                        };
+
+                        let has_numeric = values_to_avg.iter().any(|v| v.as_numeric().is_some());
                         if has_numeric {
                             let mut sum = rust_decimal::Decimal::ZERO;
                             let mut count = 0u32;
-                            for val in &values {
+                            for val in &values_to_avg {
                                 if let Some(n) = val.as_numeric() {
                                     sum += n;
                                     count += 1;
@@ -1979,7 +2371,7 @@ impl SortAggregateExec {
                         } else {
                             let mut sum = 0.0f64;
                             let mut count = 0usize;
-                            for val in &values {
+                            for val in &values_to_avg {
                                 if let Some(i) = val.as_i64() {
                                     sum += i as f64;
                                     count += 1;
@@ -2427,6 +2819,258 @@ impl SortAggregateExec {
                             }
                         }
                         Value::int64(unique_values.len() as i64)
+                    }
+                    FunctionName::RegrSlope => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            let numerator = n * sum_xy - sum_x * sum_y;
+                            let denominator = n * sum_xx - sum_x * sum_x;
+                            if denominator.abs() < f64::EPSILON {
+                                Value::null()
+                            } else {
+                                Value::float64(numerator / denominator)
+                            }
+                        }
+                    }
+                    FunctionName::RegrIntercept => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            let denominator = n * sum_xx - sum_x * sum_x;
+                            if denominator.abs() < f64::EPSILON {
+                                Value::null()
+                            } else {
+                                let slope = (n * sum_xy - sum_x * sum_y) / denominator;
+                                let intercept = (sum_y - slope * sum_x) / n;
+                                Value::float64(intercept)
+                            }
+                        }
+                    }
+                    FunctionName::RegrCount => {
+                        let count = values
+                            .iter()
+                            .filter(|v| {
+                                v.as_array().is_some_and(|arr| {
+                                    arr.len() >= 2 && !arr[0].is_null() && !arr[1].is_null()
+                                })
+                            })
+                            .count();
+                        Value::int64(count as i64)
+                    }
+                    FunctionName::RegrR2 => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.len() < 2 {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            let sum_yy: f64 = pairs.iter().map(|(y, _)| y * y).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            let var_x = n * sum_xx - sum_x * sum_x;
+                            let var_y = n * sum_yy - sum_y * sum_y;
+                            if var_x.abs() < f64::EPSILON || var_y.abs() < f64::EPSILON {
+                                Value::null()
+                            } else {
+                                let r =
+                                    (n * sum_xy - sum_x * sum_y) / (var_x.sqrt() * var_y.sqrt());
+                                Value::float64(r * r)
+                            }
+                        }
+                    }
+                    FunctionName::RegrAvgx => {
+                        let xs: Vec<f64> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 && !arr[0].is_null() && !arr[1].is_null() {
+                                        arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64))
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if xs.is_empty() {
+                            Value::null()
+                        } else {
+                            let sum: f64 = xs.iter().sum();
+                            Value::float64(sum / xs.len() as f64)
+                        }
+                    }
+                    FunctionName::RegrAvgy => {
+                        let ys: Vec<f64> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 && !arr[0].is_null() && !arr[1].is_null() {
+                                        arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64))
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if ys.is_empty() {
+                            Value::null()
+                        } else {
+                            let sum: f64 = ys.iter().sum();
+                            Value::float64(sum / ys.len() as f64)
+                        }
+                    }
+                    FunctionName::RegrSxx => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.is_empty() {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_xx: f64 = pairs.iter().map(|(_, x)| x * x).sum();
+                            Value::float64(sum_xx - sum_x * sum_x / n)
+                        }
+                    }
+                    FunctionName::RegrSyy => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.is_empty() {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_yy: f64 = pairs.iter().map(|(y, _)| y * y).sum();
+                            Value::float64(sum_yy - sum_y * sum_y / n)
+                        }
+                    }
+                    FunctionName::RegrSxy => {
+                        let pairs: Vec<(f64, f64)> = values
+                            .iter()
+                            .filter_map(|v| {
+                                v.as_array().and_then(|arr| {
+                                    if arr.len() >= 2 {
+                                        let y = arr[0]
+                                            .as_f64()
+                                            .or_else(|| arr[0].as_i64().map(|i| i as f64));
+                                        let x = arr[1]
+                                            .as_f64()
+                                            .or_else(|| arr[1].as_i64().map(|i| i as f64));
+                                        y.zip(x)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .collect();
+                        if pairs.is_empty() {
+                            Value::null()
+                        } else {
+                            let n = pairs.len() as f64;
+                            let sum_x: f64 = pairs.iter().map(|(_, x)| x).sum();
+                            let sum_y: f64 = pairs.iter().map(|(y, _)| y).sum();
+                            let sum_xy: f64 = pairs.iter().map(|(y, x)| x * y).sum();
+                            Value::float64(sum_xy - sum_x * sum_y / n)
+                        }
                     }
                     FunctionName::RankCorr => {
                         let pairs: Vec<(f64, f64)> = values
