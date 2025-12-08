@@ -667,6 +667,24 @@ impl LateralJoinExec {
                 Ok(schema)
             }
 
+            PlanNode::Unnest {
+                alias,
+                column_alias,
+                ..
+            } => {
+                let element_name = column_alias
+                    .clone()
+                    .or_else(|| alias.clone())
+                    .unwrap_or_else(|| "value".to_string());
+
+                let mut field =
+                    Field::nullable(element_name, yachtsql_core::types::DataType::String);
+                if let Some(table_alias) = alias {
+                    field = field.with_source_table(table_alias.clone());
+                }
+                Ok(Schema::from_fields(vec![field]))
+            }
+
             _ => Ok(Schema::from_fields(vec![])),
         }
     }
@@ -785,6 +803,50 @@ impl LateralJoinExec {
                     alias: alias.clone(),
                 })
             }
+
+            PlanNode::Aggregate {
+                group_by,
+                aggregates,
+                input,
+                grouping_metadata,
+            } => {
+                let substituted_input =
+                    self.substitute_correlations(input, left_row, left_schema)?;
+                let substituted_group_by: Vec<_> = group_by
+                    .iter()
+                    .map(|expr| self.substitute_expr(expr, left_row, left_schema))
+                    .collect::<Result<Vec<_>>>()?;
+                let substituted_aggregates: Vec<_> = aggregates
+                    .iter()
+                    .map(|expr| self.substitute_expr(expr, left_row, left_schema))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(PlanNode::Aggregate {
+                    group_by: substituted_group_by,
+                    aggregates: substituted_aggregates,
+                    input: Box::new(substituted_input),
+                    grouping_metadata: grouping_metadata.clone(),
+                })
+            }
+
+            PlanNode::Unnest {
+                array_expr,
+                alias,
+                column_alias,
+                with_offset,
+                offset_alias,
+            } => {
+                let substituted_array_expr =
+                    self.substitute_expr(array_expr, left_row, left_schema)?;
+                Ok(PlanNode::Unnest {
+                    array_expr: substituted_array_expr,
+                    alias: alias.clone(),
+                    column_alias: column_alias.clone(),
+                    with_offset: *with_offset,
+                    offset_alias: offset_alias.clone(),
+                })
+            }
+
+            PlanNode::Scan { .. } | PlanNode::Distinct { .. } => Ok(node.clone()),
 
             _ => Ok(node.clone()),
         }

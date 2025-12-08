@@ -1563,24 +1563,26 @@ impl LogicalPlanBuilder {
             return (plan.clone(), None);
         };
 
-        let mut order_by_columns = std::collections::HashSet::new();
+        let mut order_by_columns: Vec<(String, Option<String>)> = Vec::new();
         for sort_expr in sort_exprs {
-            Self::collect_column_names(&sort_expr.expr, &mut order_by_columns);
+            Self::collect_column_refs(&sort_expr.expr, &mut order_by_columns);
         }
 
         let mut projection_output_columns = std::collections::HashSet::new();
         for (expr, alias) in expressions {
             if let Some(alias_name) = alias {
-                projection_output_columns.insert(alias_name.clone());
-            } else if let Expr::Column { name, .. } = expr {
-                projection_output_columns.insert(name.clone());
+                projection_output_columns.insert((alias_name.clone(), None));
+                projection_output_columns.insert((alias_name.clone(), Some(alias_name.clone())));
+            }
+            if let Expr::Column { name, table } = expr {
+                projection_output_columns.insert((name.clone(), table.clone()));
+                projection_output_columns.insert((name.clone(), None));
             }
         }
 
-        let missing_columns: Vec<String> = order_by_columns
-            .iter()
-            .filter(|col| !projection_output_columns.contains(*col))
-            .cloned()
+        let missing_columns: Vec<(String, Option<String>)> = order_by_columns
+            .into_iter()
+            .filter(|col| !projection_output_columns.contains(col))
             .collect();
 
         if missing_columns.is_empty() {
@@ -1590,11 +1592,11 @@ impl LogicalPlanBuilder {
         let original_exprs = expressions.clone();
 
         let mut new_expressions = expressions.clone();
-        for col_name in missing_columns {
+        for (col_name, col_table) in missing_columns {
             new_expressions.push((
                 Expr::Column {
                     name: col_name,
-                    table: None,
+                    table: col_table,
                 },
                 None,
             ));
@@ -1608,25 +1610,28 @@ impl LogicalPlanBuilder {
         (modified_plan, Some(original_exprs))
     }
 
-    fn collect_column_names(expr: &Expr, columns: &mut std::collections::HashSet<String>) {
+    fn collect_column_refs(expr: &Expr, columns: &mut Vec<(String, Option<String>)>) {
         match expr {
-            Expr::Column { name, .. } => {
-                columns.insert(name.clone());
+            Expr::Column { name, table } => {
+                let col_ref = (name.clone(), table.clone());
+                if !columns.contains(&col_ref) {
+                    columns.push(col_ref);
+                }
             }
             Expr::BinaryOp { left, right, .. } => {
-                Self::collect_column_names(left, columns);
-                Self::collect_column_names(right, columns);
+                Self::collect_column_refs(left, columns);
+                Self::collect_column_refs(right, columns);
             }
             Expr::UnaryOp { expr: inner, .. } => {
-                Self::collect_column_names(inner, columns);
+                Self::collect_column_refs(inner, columns);
             }
             Expr::Function { args, .. } | Expr::Aggregate { args, .. } => {
                 for arg in args {
-                    Self::collect_column_names(arg, columns);
+                    Self::collect_column_refs(arg, columns);
                 }
             }
             Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => {
-                Self::collect_column_names(expr, columns);
+                Self::collect_column_refs(expr, columns);
             }
             _ => {}
         }
@@ -2060,6 +2065,9 @@ impl LogicalPlanBuilder {
 
                 let array_expr = self.sql_expr_to_expr(&array_exprs[0])?;
                 let table_alias = alias.as_ref().map(|a| a.name.value.clone());
+                let column_alias = alias
+                    .as_ref()
+                    .and_then(|a| a.columns.first().map(|c| c.name.value.clone()));
                 let offset_alias_name = with_offset_alias.as_ref().map(|a| a.value.clone());
 
                 let has_position_column = *with_offset || *with_ordinality;
@@ -2067,6 +2075,7 @@ impl LogicalPlanBuilder {
                 Ok(LogicalPlan::new(PlanNode::Unnest {
                     array_expr,
                     alias: table_alias,
+                    column_alias,
                     with_offset: has_position_column,
                     offset_alias: offset_alias_name,
                 }))

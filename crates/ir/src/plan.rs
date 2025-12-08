@@ -164,6 +164,7 @@ pub enum PlanNode {
     Unnest {
         array_expr: Expr,
         alias: Option<String>,
+        column_alias: Option<String>,
         with_offset: bool,
         offset_alias: Option<String>,
     },

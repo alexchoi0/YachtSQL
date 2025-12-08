@@ -1,132 +1,92 @@
-# Work Stream 7: Constraint Enforcement on UPDATE
+# Worker 7: LATERAL Subqueries
 
-## Overview
-Implement constraint checking during UPDATE and enhance DELETE constraint enforcement.
+## Objective
+Implement LATERAL subquery support to remove `#[ignore]` tags from `tests/postgresql/queries/lateral.rs`.
 
-## Tests to Enable
-**File:** `tests/postgresql/ddl/constraints.rs`
-- `test_check_constraint_enforcement_on_update`
-- `test_unique_enforcement_on_update`
-- `test_foreign_key_violation_update`
-- `test_foreign_key_on_delete_restrict`
-- `test_foreign_key_on_delete_no_action`
-- `test_foreign_key_on_update_restrict`
+## Test File
+- `tests/postgresql/queries/lateral.rs` (9 ignored tests)
 
-## Constraints to Enforce
+## Features to Implement
 
-### CHECK Constraint on UPDATE
-```sql
-CREATE TABLE t (id INT, age INT CHECK (age >= 0));
-INSERT INTO t VALUES (1, 25);
-UPDATE t SET age = -5 WHERE id = 1;  -- ERROR: violates check constraint
-```
-- Evaluate CHECK expression against new row values
-- Error if constraint violated
+### 1. Basic LATERAL
+- `FROM t1, LATERAL (SELECT * FROM t2 WHERE t2.id = t1.id) sub`
+- Subquery can reference columns from preceding FROM items
 
-### UNIQUE Constraint on UPDATE
-```sql
-CREATE TABLE t (id INT, email TEXT UNIQUE);
-INSERT INTO t VALUES (1, 'a@b.com'), (2, 'c@d.com');
-UPDATE t SET email = 'a@b.com' WHERE id = 2;  -- ERROR: duplicate key
-```
-- Check if new value conflicts with existing rows
-- Exclude the row being updated from check
+### 2. LATERAL with CROSS JOIN
+- `FROM t1 CROSS JOIN LATERAL (subquery referencing t1)`
+- Equivalent to comma syntax
 
-### Foreign Key on UPDATE (child table)
-```sql
-CREATE TABLE parent (id INT PRIMARY KEY);
-CREATE TABLE child (id INT, pid INT REFERENCES parent(id));
-INSERT INTO parent VALUES (1);
-INSERT INTO child VALUES (1, 1);
-UPDATE child SET pid = 999 WHERE id = 1;  -- ERROR: FK violation
-```
-- Verify new foreign key value exists in parent table
+### 3. LATERAL with LEFT JOIN
+- `FROM t1 LEFT JOIN LATERAL (subquery) sub ON TRUE`
+- Preserves left rows even when subquery returns empty
 
-### ON DELETE RESTRICT
-```sql
-CREATE TABLE child (pid INT REFERENCES parent(id) ON DELETE RESTRICT);
-DELETE FROM parent WHERE id = 1;  -- ERROR if child rows exist
-```
-- Prevent delete if any child rows reference this row
-- Check immediately (not at statement end)
+### 4. LATERAL Top-N Per Group
+- Common pattern: get top N rows per group
+- `LATERAL (SELECT * FROM t2 WHERE ... ORDER BY ... LIMIT n)`
 
-### ON DELETE NO ACTION
-```sql
-CREATE TABLE child (pid INT REFERENCES parent(id) ON DELETE NO ACTION);
-DELETE FROM parent WHERE id = 1;  -- ERROR if child rows exist
-```
-- Same as RESTRICT but checked at statement end
-- Allows other triggers/rules to fix the reference first
+### 5. LATERAL with Aggregates
+- `LATERAL (SELECT AVG(x), MAX(y) FROM t2 WHERE t2.fk = t1.pk)`
+- Compute aggregates correlated to outer row
 
-### ON UPDATE RESTRICT
-```sql
-CREATE TABLE child (pid INT REFERENCES parent(id) ON UPDATE RESTRICT);
-UPDATE parent SET id = 2 WHERE id = 1;  -- ERROR if child rows exist
-```
-- Prevent update of referenced column if child rows exist
+### 6. LATERAL with VALUES
+- `FROM (VALUES (1), (2)) AS t(n), LATERAL (SELECT n * 2)`
+- LATERAL referencing VALUES table
+
+### 7. LATERAL with UNNEST
+- `FROM t, LATERAL UNNEST(t.array_col) AS u(elem)`
+- Flatten arrays with row correlation
+
+### 8. LATERAL with GENERATE_SERIES
+- `FROM t, LATERAL GENERATE_SERIES(1, t.n) AS gs(val)`
+- Generate rows based on outer column
+
+### 9. Multiple LATERAL
+- `FROM t1 CROSS JOIN LATERAL (...) a CROSS JOIN LATERAL (...) b`
+- Chained LATERAL references
+
+## Implementation Steps
+
+1. **Parser Changes**
+   - Parse `LATERAL` keyword before subquery in FROM
+   - Mark subquery as lateral in AST
+
+2. **Name Resolution**
+   - For LATERAL subqueries, include preceding FROM items in scope
+   - Allow column references to left-side tables
+
+3. **Logical Plan**
+   - Create `LogicalPlan::Lateral` or mark join as lateral
+   - Track column dependencies across the lateral boundary
+
+4. **Physical Plan / Execution**
+   - For each row from left side:
+     - Bind referenced columns
+     - Execute the lateral subquery
+     - Join results
+   - Handle empty subquery results (for LEFT JOIN LATERAL)
+
+5. **Optimization**
+   - Consider decorrelation strategies
+   - Cache subquery results when possible
 
 ## Key Files to Modify
+- `crates/parser/src/` - LATERAL parsing
+- `crates/executor/src/query_executor/` - Plan nodes and execution
 
-### UPDATE Execution
-- `crates/executor/src/query_executor/execution/dml/update.rs`
-- Before updating each row:
-  1. Evaluate CHECK constraints on new values
-  2. Check UNIQUE constraints (excluding current row)
-  3. Verify FK references exist in parent tables
-
-### DELETE Execution
-- `crates/executor/src/query_executor/execution/dml/delete.rs`
-- Before deleting each row:
-  1. Check for RESTRICT foreign keys referencing this row
-  2. For NO ACTION, defer check to statement end
-
-### Constraint Checking Utilities
-- `crates/storage/src/constraints.rs` or new module
-- `check_constraint(table, row, constraint) -> Result<()>`
-- `check_unique(table, row, columns, exclude_row) -> Result<()>`
-- `check_foreign_key(child_table, row, fk) -> Result<()>`
-- `check_references(parent_table, row, pk_columns) -> Result<()>`
-
-## Implementation Notes
-
-1. **CHECK on UPDATE**
-   - Get constraint expression
-   - Bind new row values to expression variables
-   - Evaluate expression, error if false
-
-2. **UNIQUE on UPDATE**
-   - Query for existing rows with same values
-   - Exclude the row being updated (by primary key or row ID)
-   - Error if any matches found
-
-3. **FK on UPDATE (child)**
-   - Get parent table and referenced columns
-   - Query parent table for matching row
-   - Error if not found
-
-4. **RESTRICT vs NO ACTION**
-   - RESTRICT: check immediately per-row
-   - NO ACTION: collect checks, verify at statement end
-   - In practice, often behave the same
-
-5. **Performance considerations**
-   - May want to batch constraint checks
-   - Index lookups for FK and UNIQUE checks
-
-## Test Commands
+## Testing
 ```bash
-cargo test --test postgresql test_check_constraint_enforcement_on_update
-cargo test --test postgresql test_unique_enforcement_on_update
-cargo test --test postgresql test_foreign_key_violation_update
-cargo test --test postgresql test_foreign_key_on_delete_restrict
-cargo test --test postgresql test_foreign_key_on_delete_no_action
-cargo test --test postgresql test_foreign_key_on_update_restrict
+cargo test --test postgresql queries::lateral
 ```
 
-## Dependencies
-None - extends existing constraint checking (INSERT already has some)
+## Notes
+- Some LATERAL tests already pass (with CTE, JSON_EACH)
+- Key challenge is correlated subquery execution model
+- LATERAL is essentially a "for each" loop in SQL
 
-## Coordination
-- Work Stream 6 (DROP CONSTRAINT) adds `is_valid` flag - check it before enforcing
-- Work Stream 8 (Deferred Constraints) needs these checks to defer
-- Share constraint checking utilities
+## Execution Model
+```
+for each row in left_table:
+    bind outer columns to current row values
+    execute lateral subquery
+    join current row with subquery results
+```

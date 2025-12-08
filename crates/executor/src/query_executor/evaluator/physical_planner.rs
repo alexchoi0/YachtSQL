@@ -77,6 +77,7 @@ impl PhysicalPlanner {
             PlanNode::Unnest {
                 array_expr,
                 alias: _,
+                column_alias: _,
                 with_offset,
                 offset_alias: _,
             } => self.create_unnest(array_expr, *with_offset),
