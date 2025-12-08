@@ -114,7 +114,7 @@ fn test_select_vector() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_l2_distance_operator() {
     let mut executor = create_executor();
     executor
@@ -133,7 +133,7 @@ fn test_l2_distance_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_cosine_distance_operator() {
     let mut executor = create_executor();
     executor
@@ -154,7 +154,7 @@ fn test_cosine_distance_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_inner_product_operator() {
     let mut executor = create_executor();
     executor
@@ -173,7 +173,7 @@ fn test_inner_product_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_l1_distance_operator() {
     let mut executor = create_executor();
     executor
@@ -192,7 +192,7 @@ fn test_l1_distance_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_order_by_l2_distance() {
     let mut executor = create_executor();
     executor
@@ -212,7 +212,7 @@ fn test_order_by_l2_distance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_order_by_cosine_distance() {
     let mut executor = create_executor();
     executor
@@ -232,7 +232,7 @@ fn test_order_by_cosine_distance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_knn_search_limit() {
     let mut executor = create_executor();
     executor
@@ -348,7 +348,7 @@ fn test_hnsw_index_inner_product() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_dimension_function() {
     let mut executor = create_executor();
     executor
@@ -366,7 +366,7 @@ fn test_vector_dimension_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_norm_function() {
     let mut executor = create_executor();
     executor
@@ -384,7 +384,7 @@ fn test_vector_norm_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_l2_distance_function() {
     let mut executor = create_executor();
     executor
@@ -404,7 +404,7 @@ fn test_l2_distance_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_cosine_distance_function() {
     let mut executor = create_executor();
     executor
@@ -424,7 +424,7 @@ fn test_cosine_distance_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_inner_product_function() {
     let mut executor = create_executor();
     executor
@@ -444,7 +444,7 @@ fn test_inner_product_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_l1_distance_function() {
     let mut executor = create_executor();
     executor
@@ -464,7 +464,7 @@ fn test_l1_distance_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_add() {
     let mut executor = create_executor();
     executor
@@ -482,7 +482,7 @@ fn test_vector_add() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_subtract() {
     let mut executor = create_executor();
     executor
@@ -500,7 +500,7 @@ fn test_vector_subtract() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_multiply() {
     let mut executor = create_executor();
     executor
@@ -529,7 +529,7 @@ fn test_vector_cast_from_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_cast_to_array() {
     let mut executor = create_executor();
     executor
@@ -564,7 +564,7 @@ fn test_vector_null_handling() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_average() {
     let mut executor = create_executor();
     executor
@@ -582,7 +582,7 @@ fn test_vector_average() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_sum() {
     let mut executor = create_executor();
     executor
@@ -686,7 +686,7 @@ fn test_jaccard_distance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_with_where_clause() {
     let mut executor = create_executor();
     executor
@@ -707,7 +707,7 @@ fn test_vector_with_where_clause() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_join() {
     let mut executor = create_executor();
     executor
@@ -735,7 +735,7 @@ fn test_vector_join() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_subquery() {
     let mut executor = create_executor();
     executor
@@ -755,7 +755,7 @@ fn test_vector_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_cte() {
     let mut executor = create_executor();
     executor
@@ -797,7 +797,7 @@ fn test_set_hnsw_ef_search() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_in_view() {
     let mut executor = create_executor();
     executor
@@ -818,7 +818,7 @@ fn test_vector_in_view() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_update() {
     let mut executor = create_executor();
     executor
@@ -837,7 +837,7 @@ fn test_vector_update() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_delete() {
     let mut executor = create_executor();
     executor
@@ -858,7 +858,7 @@ fn test_vector_delete() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_normalize() {
     let mut executor = create_executor();
     executor
@@ -877,7 +877,7 @@ fn test_vector_normalize() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_with_group_by() {
     let mut executor = create_executor();
     executor
@@ -897,7 +897,7 @@ fn test_vector_with_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_cosine_similarity() {
     let mut executor = create_executor();
     executor
@@ -998,7 +998,7 @@ fn test_vector_reindex() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_explain_analyze() {
     let mut executor = create_executor();
     executor
@@ -1019,7 +1019,7 @@ fn test_vector_explain_analyze() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_vector_returning() {
     let mut executor = create_executor();
     executor

@@ -258,6 +258,95 @@ pub fn overlaps(geom1: &Value, geom2: &Value) -> Result<Value> {
     )))
 }
 
+pub fn point_add(p1: &Value, p2: &Value) -> Result<Value> {
+    if p1.is_null() || p2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let point1 = p1.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p1.data_type().to_string(),
+    })?;
+
+    let point2 = p2.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p2.data_type().to_string(),
+    })?;
+
+    Ok(Value::point(PgPoint::new(
+        point1.x + point2.x,
+        point1.y + point2.y,
+    )))
+}
+
+pub fn point_subtract(p1: &Value, p2: &Value) -> Result<Value> {
+    if p1.is_null() || p2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let point1 = p1.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p1.data_type().to_string(),
+    })?;
+
+    let point2 = p2.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p2.data_type().to_string(),
+    })?;
+
+    Ok(Value::point(PgPoint::new(
+        point1.x - point2.x,
+        point1.y - point2.y,
+    )))
+}
+
+pub fn point_multiply(p1: &Value, p2: &Value) -> Result<Value> {
+    if p1.is_null() || p2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let point1 = p1.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p1.data_type().to_string(),
+    })?;
+
+    let point2 = p2.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p2.data_type().to_string(),
+    })?;
+
+    let x = point1.x * point2.x - point1.y * point2.y;
+    let y = point1.x * point2.y + point1.y * point2.x;
+
+    Ok(Value::point(PgPoint::new(x, y)))
+}
+
+pub fn point_divide(p1: &Value, p2: &Value) -> Result<Value> {
+    if p1.is_null() || p2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let point1 = p1.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p1.data_type().to_string(),
+    })?;
+
+    let point2 = p2.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p2.data_type().to_string(),
+    })?;
+
+    let denom = point2.x * point2.x + point2.y * point2.y;
+    if denom == 0.0 {
+        return Err(Error::ExecutionError("Division by zero point".to_string()));
+    }
+
+    let x = (point1.x * point2.x + point1.y * point2.y) / denom;
+    let y = (point1.y * point2.x - point1.x * point2.y) / denom;
+
+    Ok(Value::point(PgPoint::new(x, y)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

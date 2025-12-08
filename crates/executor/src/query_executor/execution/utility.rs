@@ -1385,6 +1385,10 @@ pub fn evaluate_vector_cosine_distance(left: &Value, right: &Value) -> Result<Va
 }
 
 fn extract_f64_vector(value: &Value) -> Result<Vec<f64>> {
+    if let Some(vec) = value.as_vector() {
+        return Ok(vec.clone());
+    }
+
     if let Some(arr) = value.as_array() {
         let mut result = Vec::with_capacity(arr.len());
         for elem in arr {
@@ -1399,11 +1403,38 @@ fn extract_f64_vector(value: &Value) -> Result<Vec<f64>> {
                 });
             }
         }
-        Ok(result)
-    } else {
-        Err(Error::TypeMismatch {
-            expected: "Array".to_string(),
-            actual: format!("{:?}", value.data_type()),
-        })
+        return Ok(result);
     }
+
+    if let Some(s) = value.as_str() {
+        return parse_vector_string(s);
+    }
+
+    Err(Error::TypeMismatch {
+        expected: "Vector, Array, or vector string".to_string(),
+        actual: format!("{:?}", value.data_type()),
+    })
+}
+
+fn parse_vector_string(s: &str) -> Result<Vec<f64>> {
+    let trimmed = s.trim();
+    let inner = if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        &trimmed[1..trimmed.len() - 1]
+    } else {
+        trimmed
+    };
+
+    if inner.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let mut result = Vec::new();
+    for part in inner.split(',') {
+        let val: f64 = part.trim().parse().map_err(|_| Error::TypeMismatch {
+            expected: "valid float in vector string".to_string(),
+            actual: part.trim().to_string(),
+        })?;
+        result.push(val);
+    }
+    Ok(result)
 }

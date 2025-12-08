@@ -840,9 +840,19 @@ impl ProjectionWithExprExec {
                 BinaryOp::ArrayOverlap | BinaryOp::GeometricOverlap => {
                     yachtsql_functions::geometric::overlaps(left, right)
                 }
-                BinaryOp::Subtract | BinaryOp::GeometricDistance | BinaryOp::VectorL2Distance => {
+                BinaryOp::GeometricDistance | BinaryOp::VectorL2Distance => {
                     yachtsql_functions::geometric::distance(left, right)
                 }
+                BinaryOp::Add => yachtsql_functions::geometric::point_add(left, right),
+                BinaryOp::Subtract => {
+                    if left.as_point().is_some() && right.as_point().is_some() {
+                        yachtsql_functions::geometric::point_subtract(left, right)
+                    } else {
+                        yachtsql_functions::geometric::distance(left, right)
+                    }
+                }
+                BinaryOp::Multiply => yachtsql_functions::geometric::point_multiply(left, right),
+                BinaryOp::Divide => yachtsql_functions::geometric::point_divide(left, right),
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for geometric types",
                     op

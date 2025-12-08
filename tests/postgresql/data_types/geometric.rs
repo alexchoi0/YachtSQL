@@ -100,7 +100,6 @@ fn test_point_distance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_point_add() {
     let mut executor = create_executor();
     let result = executor
@@ -110,7 +109,6 @@ fn test_point_add() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_point_subtract() {
     let mut executor = create_executor();
     let result = executor
@@ -120,7 +118,6 @@ fn test_point_subtract() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_point_multiply() {
     let mut executor = create_executor();
     let result = executor
@@ -130,7 +127,6 @@ fn test_point_multiply() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_point_divide() {
     let mut executor = create_executor();
     let result = executor
@@ -244,7 +240,6 @@ fn test_area_polygon() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_center_box() {
     let mut executor = create_executor();
     let result = executor
@@ -254,7 +249,6 @@ fn test_center_box() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_center_circle() {
     let mut executor = create_executor();
     let result = executor

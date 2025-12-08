@@ -7,6 +7,60 @@ use yachtsql_storage::{Field, Row, Schema, Storage};
 
 use crate::record_batch::Table;
 
+fn data_type_to_postgres_name(data_type: &DataType) -> String {
+    use yachtsql_core::types::RangeType;
+    match data_type {
+        DataType::Int64 => "BIGINT".to_string(),
+        DataType::Float64 => "DOUBLE PRECISION".to_string(),
+        DataType::String => "TEXT".to_string(),
+        DataType::Bool => "BOOLEAN".to_string(),
+        DataType::Date => "DATE".to_string(),
+        DataType::DateTime => "TIMESTAMP WITHOUT TIME ZONE".to_string(),
+        DataType::Timestamp => "TIMESTAMP WITHOUT TIME ZONE".to_string(),
+        DataType::TimestampTz => "TIMESTAMP WITH TIME ZONE".to_string(),
+        DataType::Time => "TIME WITHOUT TIME ZONE".to_string(),
+        DataType::Interval => "INTERVAL".to_string(),
+        DataType::Numeric(Some((p, s))) => format!("NUMERIC({},{})", p, s),
+        DataType::Numeric(None) => "NUMERIC".to_string(),
+        DataType::BigNumeric => "NUMERIC".to_string(),
+        DataType::Bytes => "BYTEA".to_string(),
+        DataType::Json => "JSON".to_string(),
+        DataType::Hstore => "HSTORE".to_string(),
+        DataType::Uuid => "UUID".to_string(),
+        DataType::Serial => "SERIAL".to_string(),
+        DataType::BigSerial => "BIGSERIAL".to_string(),
+        DataType::Array(inner) => format!("{}[]", data_type_to_postgres_name(inner)),
+        DataType::Map(k, v) => {
+            format!(
+                "MAP({},{})",
+                data_type_to_postgres_name(k),
+                data_type_to_postgres_name(v)
+            )
+        }
+        DataType::Point => "POINT".to_string(),
+        DataType::Circle => "CIRCLE".to_string(),
+        DataType::PgBox => "BOX".to_string(),
+        DataType::Inet => "INET".to_string(),
+        DataType::Cidr => "CIDR".to_string(),
+        DataType::MacAddr => "MACADDR".to_string(),
+        DataType::MacAddr8 => "MACADDR8".to_string(),
+        DataType::Vector(dim) => format!("VECTOR({})", dim),
+        DataType::Range(range_type) => match range_type {
+            RangeType::Int4Range => "INT4RANGE".to_string(),
+            RangeType::Int8Range => "INT8RANGE".to_string(),
+            RangeType::NumRange => "NUMRANGE".to_string(),
+            RangeType::TsRange => "TSRANGE".to_string(),
+            RangeType::TsTzRange => "TSTZRANGE".to_string(),
+            RangeType::DateRange => "DATERANGE".to_string(),
+        },
+        DataType::Geography => "GEOGRAPHY".to_string(),
+        DataType::Unknown => "UNKNOWN".to_string(),
+        DataType::Struct(_) => "RECORD".to_string(),
+        DataType::Enum { type_name, .. } => type_name.clone(),
+        DataType::Custom(name) => name.clone(),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InformationSchemaTable {
     Tables,
@@ -151,7 +205,7 @@ impl InformationSchemaProvider {
                             Value::int64((position + 1) as i64),
                             default_value,
                             Value::string(is_nullable.to_string()),
-                            Value::string(field.data_type.to_string()),
+                            Value::string(data_type_to_postgres_name(&field.data_type)),
                         ]));
                     }
                 }

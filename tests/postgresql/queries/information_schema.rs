@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_tables() {
     let mut executor = create_executor();
     executor
@@ -18,7 +17,6 @@ fn test_information_schema_tables() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_columns() {
     let mut executor = create_executor();
     executor
@@ -34,7 +32,7 @@ fn test_information_schema_columns() {
     assert_table_eq!(
         result,
         [
-            ["id", "INTEGER"],
+            ["id", "BIGINT"],
             ["name", "TEXT"],
             ["val", "DOUBLE PRECISION"],
         ]
@@ -42,7 +40,6 @@ fn test_information_schema_columns() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_column_ordinal() {
     let mut executor = create_executor();
     executor
@@ -59,7 +56,6 @@ fn test_information_schema_column_ordinal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_schemata() {
     let mut executor = create_executor();
 
@@ -72,7 +68,6 @@ fn test_information_schema_schemata() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_views() {
     let mut executor = create_executor();
     executor
@@ -89,7 +84,6 @@ fn test_information_schema_views() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_table_constraints() {
     let mut executor = create_executor();
     executor
@@ -106,7 +100,6 @@ fn test_information_schema_table_constraints() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_key_column_usage() {
     let mut executor = create_executor();
     executor
@@ -664,7 +657,6 @@ fn test_information_schema_sql_sizing() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_query_columns_by_table() {
     let mut executor = create_executor();
     executor
@@ -682,7 +674,7 @@ fn test_query_columns_by_table() {
     assert_table_eq!(
         result,
         [
-            ["id", "YES", "INTEGER"],
+            ["id", "YES", "BIGINT"],
             ["name", "YES", "TEXT"],
             ["active", "YES", "BOOLEAN"],
         ]
@@ -790,7 +782,6 @@ fn test_query_check_constraints() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_column_defaults() {
     let mut executor = create_executor();
     executor
@@ -808,7 +799,6 @@ fn test_column_defaults() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_nullable_columns() {
     let mut executor = create_executor();
     executor

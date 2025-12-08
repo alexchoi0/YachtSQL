@@ -186,6 +186,7 @@ impl ProjectionWithExprExec {
             | BinaryOp::RangeStrictlyRight => Some(DataType::Bool),
 
             BinaryOp::Add => match (&left_type, &right_type) {
+                (Some(DataType::Point), Some(DataType::Point)) => Some(DataType::Point),
                 (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
                     Some(DataType::Range(rt.clone()))
                 }
@@ -211,6 +212,7 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
             BinaryOp::Subtract => match (&left_type, &right_type) {
+                (Some(DataType::Point), Some(DataType::Point)) => Some(DataType::Point),
                 (Some(DataType::Json), Some(DataType::String))
                 | (Some(DataType::Json), Some(DataType::Int64)) => Some(DataType::Json),
 
@@ -243,6 +245,7 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
             BinaryOp::Multiply => match (&left_type, &right_type) {
+                (Some(DataType::Point), Some(DataType::Point)) => Some(DataType::Point),
                 (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
                     Some(DataType::Range(rt.clone()))
                 }
@@ -260,6 +263,7 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
             BinaryOp::Divide => match (&left_type, &right_type) {
+                (Some(DataType::Point), Some(DataType::Point)) => Some(DataType::Point),
                 (Some(DataType::Interval), Some(DataType::Int64))
                 | (Some(DataType::Interval), Some(DataType::Float64)) => Some(DataType::Interval),
                 (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
@@ -1165,8 +1169,9 @@ impl ProjectionWithExprExec {
             | FunctionName::Height
             | FunctionName::Radius
             | FunctionName::Diameter
-            | FunctionName::Center
             | FunctionName::Distance => Some(DataType::Float64),
+
+            FunctionName::Center => Some(DataType::Point),
 
             FunctionName::PointX | FunctionName::PointY => Some(DataType::Float64),
 
