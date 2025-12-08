@@ -1214,6 +1214,101 @@ impl ProjectionWithExprExec {
 
             FunctionName::Custom(s) if s == "ST_ASBINARY" => Some(DataType::Bytes),
 
+            FunctionName::Map => {
+                if args.len() >= 2 {
+                    let key_type = Self::infer_expr_type_with_schema(&args[0], schema)
+                        .unwrap_or(DataType::String);
+                    let value_type = Self::infer_expr_type_with_schema(&args[1], schema)
+                        .unwrap_or(DataType::String);
+                    Some(DataType::Map(Box::new(key_type), Box::new(value_type)))
+                } else {
+                    Some(DataType::Map(
+                        Box::new(DataType::String),
+                        Box::new(DataType::String),
+                    ))
+                }
+            }
+            FunctionName::MapFromArrays => {
+                if args.len() >= 2 {
+                    let key_type = Self::infer_expr_type_with_schema(&args[0], schema)
+                        .and_then(|dt| match dt {
+                            DataType::Array(elem) => Some(*elem),
+                            _ => None,
+                        })
+                        .unwrap_or(DataType::String);
+                    let value_type = Self::infer_expr_type_with_schema(&args[1], schema)
+                        .and_then(|dt| match dt {
+                            DataType::Array(elem) => Some(*elem),
+                            _ => None,
+                        })
+                        .unwrap_or(DataType::String);
+                    Some(DataType::Map(Box::new(key_type), Box::new(value_type)))
+                } else {
+                    Some(DataType::Map(
+                        Box::new(DataType::String),
+                        Box::new(DataType::String),
+                    ))
+                }
+            }
+            FunctionName::MapKeys => {
+                if !args.is_empty() {
+                    if let Some(DataType::Map(key_type, _)) =
+                        Self::infer_expr_type_with_schema(&args[0], schema)
+                    {
+                        Some(DataType::Array(key_type))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::String)))
+                    }
+                } else {
+                    Some(DataType::Array(Box::new(DataType::String)))
+                }
+            }
+            FunctionName::MapValues => {
+                if !args.is_empty() {
+                    if let Some(DataType::Map(_, value_type)) =
+                        Self::infer_expr_type_with_schema(&args[0], schema)
+                    {
+                        Some(DataType::Array(value_type))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::String)))
+                    }
+                } else {
+                    Some(DataType::Array(Box::new(DataType::String)))
+                }
+            }
+            FunctionName::MapContains => Some(DataType::Bool),
+            FunctionName::MapAdd
+            | FunctionName::MapSubtract
+            | FunctionName::MapUpdate
+            | FunctionName::MapConcat
+            | FunctionName::MapPopulateSeries
+            | FunctionName::MapFilter
+            | FunctionName::MapApply
+            | FunctionName::MapSort
+            | FunctionName::MapReverseSort
+            | FunctionName::MapPartialSort => {
+                if !args.is_empty() {
+                    let first_map_arg =
+                        if matches!(&args[0], yachtsql_optimizer::Expr::Lambda { .. }) {
+                            args.get(1)
+                        } else {
+                            args.first()
+                        };
+                    if let Some(arg) = first_map_arg {
+                        if let Some(map_type @ DataType::Map(_, _)) =
+                            Self::infer_expr_type_with_schema(arg, schema)
+                        {
+                            return Some(map_type);
+                        }
+                    }
+                }
+                Some(DataType::Map(
+                    Box::new(DataType::String),
+                    Box::new(DataType::Int64),
+                ))
+            }
+            FunctionName::MapExists | FunctionName::MapAll => Some(DataType::Bool),
+
             _ => None,
         }
     }
@@ -1317,6 +1412,7 @@ impl ProjectionWithExprExec {
             Expr::ArrayIndex { array, .. } => {
                 match Self::infer_expr_type_with_schema(array, schema)? {
                     DataType::Array(elem_type) => Some(*elem_type),
+                    DataType::Map(_, value_type) => Some(*value_type),
                     _ => None,
                 }
             }
@@ -1402,6 +1498,7 @@ impl ProjectionWithExprExec {
             },
             Expr::ArrayIndex { array, .. } => match Self::infer_expr_type(array)? {
                 DataType::Array(elem_type) => Some(*elem_type),
+                DataType::Map(_, value_type) => Some(*value_type),
                 _ => None,
             },
             Expr::ArraySlice { array, .. } => Self::infer_expr_type(array),

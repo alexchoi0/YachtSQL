@@ -572,6 +572,14 @@ impl DdlExecutor for QueryExecutor {
                 let inner_data_type = self.sql_type_to_data_type(dataset_id, inner_type)?;
                 Ok(DataType::Array(Box::new(inner_data_type)))
             }
+            SqlDataType::Map(key_type, value_type) => {
+                let key_data_type = self.sql_type_to_data_type(dataset_id, key_type)?;
+                let value_data_type = self.sql_type_to_data_type(dataset_id, value_type)?;
+                Ok(DataType::Map(
+                    Box::new(key_data_type),
+                    Box::new(value_data_type),
+                ))
+            }
             SqlDataType::JSON => Ok(DataType::Json),
             SqlDataType::Nullable(inner) => self.sql_type_to_data_type(dataset_id, inner),
             SqlDataType::Interval { .. } => Ok(DataType::Interval),

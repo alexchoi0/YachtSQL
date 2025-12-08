@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_constructor() {
     let mut executor = create_executor();
@@ -10,7 +9,6 @@ fn test_map_constructor() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_from_arrays() {
     let mut executor = create_executor();
@@ -20,7 +18,6 @@ fn test_map_from_arrays() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_keys() {
     let mut executor = create_executor();
@@ -30,7 +27,6 @@ fn test_map_keys() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_values() {
     let mut executor = create_executor();
@@ -40,7 +36,6 @@ fn test_map_values() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_contains() {
     let mut executor = create_executor();
@@ -50,7 +45,6 @@ fn test_map_contains() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_contains_not_found() {
     let mut executor = create_executor();
@@ -60,7 +54,6 @@ fn test_map_contains_not_found() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_subscript() {
     let mut executor = create_executor();
@@ -70,7 +63,6 @@ fn test_map_subscript() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_add() {
     let mut executor = create_executor();
@@ -80,7 +72,6 @@ fn test_map_add() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_subtract() {
     let mut executor = create_executor();
@@ -90,7 +81,6 @@ fn test_map_subtract() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_populate_series() {
     let mut executor = create_executor();
@@ -100,7 +90,6 @@ fn test_map_populate_series() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_filter() {
     let mut executor = create_executor();
@@ -110,7 +99,6 @@ fn test_map_filter() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_apply() {
     let mut executor = create_executor();
@@ -120,7 +108,6 @@ fn test_map_apply() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_update() {
     let mut executor = create_executor();
@@ -130,7 +117,6 @@ fn test_map_update() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_concat() {
     let mut executor = create_executor();
@@ -140,7 +126,6 @@ fn test_map_concat() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_exists() {
     let mut executor = create_executor();
@@ -150,7 +135,6 @@ fn test_map_exists() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_all() {
     let mut executor = create_executor();
@@ -160,7 +144,6 @@ fn test_map_all() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_sort() {
     let mut executor = create_executor();
@@ -170,7 +153,6 @@ fn test_map_sort() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_reverse_sort() {
     let mut executor = create_executor();
@@ -180,7 +162,6 @@ fn test_map_reverse_sort() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_partial_sort() {
     let mut executor = create_executor();
@@ -190,7 +171,6 @@ fn test_map_partial_sort() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_column() {
     let mut executor = create_executor();
@@ -216,7 +196,6 @@ fn test_map_column() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_element_access() {
     let mut executor = create_executor();
@@ -240,7 +219,6 @@ fn test_map_element_access() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_map_contains_filter() {
     let mut executor = create_executor();

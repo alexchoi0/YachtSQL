@@ -919,6 +919,29 @@ impl ProjectionWithExprExec {
             return Self::evaluate_higher_order_function(func_name, args, batch, row_idx, dialect);
         }
 
+        if matches!(
+            name,
+            FunctionName::Map
+                | FunctionName::MapFromArrays
+                | FunctionName::MapKeys
+                | FunctionName::MapValues
+                | FunctionName::MapContains
+                | FunctionName::MapAdd
+                | FunctionName::MapSubtract
+                | FunctionName::MapUpdate
+                | FunctionName::MapConcat
+                | FunctionName::MapPopulateSeries
+                | FunctionName::MapFilter
+                | FunctionName::MapApply
+                | FunctionName::MapExists
+                | FunctionName::MapAll
+                | FunctionName::MapSort
+                | FunctionName::MapReverseSort
+                | FunctionName::MapPartialSort
+        ) {
+            return Self::evaluate_map_function(name, args, batch, row_idx, dialect);
+        }
+
         Err(Error::unsupported_feature(format!(
             "Unknown function: {}",
             func_name

@@ -15,9 +15,23 @@ impl ProjectionWithExprExec {
         let array_value = Self::evaluate_expr(array, batch, row_idx)?;
         let index_value = Self::evaluate_expr(index, batch, row_idx)?;
 
-        let arr = if array_value.is_null() {
+        if array_value.is_null() {
             return Ok(Value::null());
-        } else if let Some(elements) = array_value.as_array() {
+        }
+
+        if let Some(map_entries) = array_value.as_map() {
+            if index_value.is_null() {
+                return Ok(Value::null());
+            }
+            for (k, v) in map_entries {
+                if Self::values_equal(k, &index_value) {
+                    return Ok(v.clone());
+                }
+            }
+            return Ok(Value::null());
+        }
+
+        let arr = if let Some(elements) = array_value.as_array() {
             elements
         } else {
             return Err(Error::TypeMismatch {

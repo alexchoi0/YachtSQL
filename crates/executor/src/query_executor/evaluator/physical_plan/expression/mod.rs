@@ -19,6 +19,7 @@ mod fulltext;
 mod generator;
 mod geometric;
 mod json;
+mod map;
 mod math;
 mod string;
 mod system;

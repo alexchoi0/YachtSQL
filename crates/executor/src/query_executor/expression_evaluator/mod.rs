@@ -7386,6 +7386,7 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Inet => Some("inet"),
             DataType::Cidr => Some("cidr"),
             DataType::Hstore => Some("hstore"),
+            DataType::Map(_, _) => Some("map"),
             DataType::Custom(_) => Some("composite"),
             DataType::Unknown => None,
             DataType::MacAddr => Some("macaddr"),
