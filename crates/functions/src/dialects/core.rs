@@ -113,5 +113,16 @@ pub fn core_aggregate_functions() -> Vec<&'static str> {
         "VAR_POP",
         "VAR_SAMP",
         "STRING_AGG",
+        "ROW_NUMBER",
+        "RANK",
+        "DENSE_RANK",
+        "NTILE",
+        "PERCENT_RANK",
+        "CUME_DIST",
+        "LAG",
+        "LEAD",
+        "FIRST_VALUE",
+        "LAST_VALUE",
+        "NTH_VALUE",
     ]
 }
