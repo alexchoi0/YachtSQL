@@ -243,6 +243,24 @@ impl AggregateExec {
                     CastDataType::Hstore => DataType::Hstore,
                     CastDataType::MacAddr => DataType::MacAddr,
                     CastDataType::MacAddr8 => DataType::MacAddr8,
+                    CastDataType::Int4Range => {
+                        DataType::Range(yachtsql_core::types::RangeType::Int4Range)
+                    }
+                    CastDataType::Int8Range => {
+                        DataType::Range(yachtsql_core::types::RangeType::Int8Range)
+                    }
+                    CastDataType::NumRange => {
+                        DataType::Range(yachtsql_core::types::RangeType::NumRange)
+                    }
+                    CastDataType::TsRange => {
+                        DataType::Range(yachtsql_core::types::RangeType::TsRange)
+                    }
+                    CastDataType::TsTzRange => {
+                        DataType::Range(yachtsql_core::types::RangeType::TsTzRange)
+                    }
+                    CastDataType::DateRange => {
+                        DataType::Range(yachtsql_core::types::RangeType::DateRange)
+                    }
                     CastDataType::Array(inner) => {
                         let inner_expr = Expr::Cast {
                             expr: Box::new(Expr::Literal(yachtsql_ir::expr::LiteralValue::Null)),

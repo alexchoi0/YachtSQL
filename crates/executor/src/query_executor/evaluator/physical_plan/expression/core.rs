@@ -942,6 +942,32 @@ impl ProjectionWithExprExec {
             return Self::evaluate_map_function(name, args, batch, row_idx, dialect);
         }
 
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
+                "LOWER"
+                | "UPPER"
+                | "LOWER_INC"
+                | "UPPER_INC"
+                | "LOWER_INF"
+                | "UPPER_INF"
+                | "ISEMPTY"
+                | "RANGE_MERGE"
+                | "RANGE_ISEMPTY"
+                | "RANGE_CONTAINS"
+                | "RANGE_CONTAINS_ELEM"
+                | "RANGE_OVERLAPS"
+                | "RANGE_UNION"
+                | "RANGE_INTERSECTION"
+                | "RANGE_ADJACENT"
+                | "RANGE_STRICTLY_LEFT"
+                | "RANGE_STRICTLY_RIGHT"
+                | "RANGE_DIFFERENCE"
+            )
+        ) {
+            return Self::evaluate_range_function(func_name, args, batch, row_idx);
+        }
+
         Err(Error::unsupported_feature(format!(
             "Unknown function: {}",
             func_name

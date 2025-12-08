@@ -125,6 +125,12 @@ pub enum Column {
         key_type: DataType,
         value_type: DataType,
     },
+
+    Range {
+        data: Vec<yachtsql_core::types::Range>,
+        nulls: NullBitmap,
+        range_type: yachtsql_core::types::RangeType,
+    },
 }
 
 impl Column {
@@ -250,6 +256,11 @@ impl Column {
                 key_type: *key_type.clone(),
                 value_type: *value_type.clone(),
             },
+            DataType::Range(range_type) => Column::Range {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+                range_type: range_type.clone(),
+            },
             _ => unimplemented!("Complex types not yet supported: {:?}", data_type),
         }
     }
@@ -306,6 +317,7 @@ impl Column {
                 value_type,
                 ..
             } => DataType::Map(Box::new(key_type.clone()), Box::new(value_type.clone())),
+            Column::Range { range_type, .. } => DataType::Range(range_type.clone()),
         }
     }
 
@@ -337,6 +349,7 @@ impl Column {
             Column::PgBox { nulls, .. } => nulls.len(),
             Column::Circle { nulls, .. } => nulls.len(),
             Column::Map { nulls, .. } => nulls.len(),
+            Column::Range { nulls, .. } => nulls.len(),
         }
     }
 
@@ -372,6 +385,7 @@ impl Column {
             Column::PgBox { nulls, .. } => nulls,
             Column::Circle { nulls, .. } => nulls,
             Column::Map { nulls, .. } => nulls,
+            Column::Range { nulls, .. } => nulls,
         }
     }
 
@@ -776,6 +790,19 @@ impl Column {
                     )))
                 }
             }
+            Column::Range { data, nulls, .. } => {
+                if let Some(v) = value.as_range() {
+                    data.push(v.clone());
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -896,6 +923,20 @@ impl Column {
             }
             Column::Map { data, nulls, .. } => {
                 data.push(Vec::new());
+                nulls.push(false);
+            }
+            Column::Range {
+                data,
+                nulls,
+                range_type,
+            } => {
+                data.push(yachtsql_core::types::Range {
+                    range_type: range_type.clone(),
+                    lower: None,
+                    upper: None,
+                    lower_inclusive: false,
+                    upper_inclusive: false,
+                });
                 nulls.push(false);
             }
         }
@@ -1275,6 +1316,19 @@ impl Column {
                     )))
                 }
             }
+            Column::Range { data, nulls, .. } => {
+                if let Some(v) = value.as_range() {
+                    data[index] = v.clone();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -1394,6 +1448,20 @@ impl Column {
                 data[index] = Vec::new();
                 nulls.set(index, false);
             }
+            Column::Range {
+                data,
+                nulls,
+                range_type,
+            } => {
+                data[index] = yachtsql_core::types::Range {
+                    range_type: range_type.clone(),
+                    lower: None,
+                    upper: None,
+                    lower_inclusive: false,
+                    upper_inclusive: false,
+                };
+                nulls.set(index, false);
+            }
         }
         Ok(())
     }
@@ -1503,6 +1571,10 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
+            Column::Range { data, nulls, .. } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
         }
     }
 
@@ -1547,6 +1619,7 @@ impl Column {
             Column::PgBox { data, .. } => Ok(Value::pgbox(data[index].clone())),
             Column::Circle { data, .. } => Ok(Value::circle(data[index].clone())),
             Column::Map { data, .. } => Ok(Value::map(data[index].clone())),
+            Column::Range { data, .. } => Ok(Value::range(data[index].clone())),
         }
     }
 
@@ -1737,6 +1810,16 @@ impl Column {
                     nulls,
                     key_type: key_type.clone(),
                     value_type: value_type.clone(),
+                })
+            }
+            Column::Range {
+                data, range_type, ..
+            } => {
+                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
+                Ok(Column::Range {
+                    data: gathered_data,
+                    nulls,
+                    range_type: range_type.clone(),
                 })
             }
         }

@@ -12,6 +12,10 @@ impl ProjectionWithExprExec {
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("UPPER", args, 1)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        if val.as_range().is_some() {
+            return yachtsql_functions::range::range_upper(&val);
+        }
         Self::apply_string_unary("UPPER", &args[0], batch, row_idx, |s| s.to_uppercase())
     }
 }

@@ -675,6 +675,26 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(l), Some(r)) = (left.as_range(), right.as_range()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::ArrayContains => yachtsql_functions::range::range_contains_range(left, right),
+                BinaryOp::ArrayContainedBy => yachtsql_functions::range::range_contains_range(right, left),
+                BinaryOp::ArrayOverlap => yachtsql_functions::range::range_overlaps(left, right),
+                BinaryOp::RangeAdjacent => yachtsql_functions::range::range_adjacent(left, right),
+                BinaryOp::RangeStrictlyLeft => yachtsql_functions::range::range_strictly_left(left, right),
+                BinaryOp::RangeStrictlyRight => yachtsql_functions::range::range_strictly_right(left, right),
+                BinaryOp::Add => yachtsql_functions::range::range_union(left, right),
+                BinaryOp::Multiply => yachtsql_functions::range::range_intersection(left, right),
+                BinaryOp::Subtract => yachtsql_functions::range::range_difference(left, right),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for RANGE",
+                    op
+                ))),
+            };
+        }
+
         let is_geometric_left = left.as_point().is_some()
             || left.as_circle().is_some()
             || matches!(left.data_type(), yachtsql_core::types::DataType::PgBox)

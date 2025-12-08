@@ -148,6 +148,12 @@ impl ProjectionWithExprExec {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
+            CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
+            CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
+            CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
+            CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
+            CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
+            CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
             CastDataType::Custom(name, struct_fields) => {
                 if struct_fields.is_empty() {
                     DataType::Custom(name.clone())
@@ -177,6 +183,9 @@ impl ProjectionWithExprExec {
             | BinaryOp::Or => Some(DataType::Bool),
 
             BinaryOp::Add => match (&left_type, &right_type) {
+                (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
+                    Some(DataType::Range(rt.clone()))
+                }
                 (Some(DataType::Timestamp), Some(DataType::Interval))
                 | (Some(DataType::Interval), Some(DataType::Timestamp))
                 | (Some(DataType::TimestampTz), Some(DataType::Interval))
@@ -199,6 +208,9 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
             BinaryOp::Subtract => match (&left_type, &right_type) {
+                (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
+                    Some(DataType::Range(rt.clone()))
+                }
                 (Some(DataType::Timestamp), Some(DataType::Interval))
                 | (Some(DataType::TimestampTz), Some(DataType::Interval)) => {
                     Some(DataType::Timestamp)
@@ -225,6 +237,9 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
             BinaryOp::Multiply => match (&left_type, &right_type) {
+                (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
+                    Some(DataType::Range(rt.clone()))
+                }
                 (Some(DataType::Interval), Some(DataType::Int64))
                 | (Some(DataType::Interval), Some(DataType::Float64))
                 | (Some(DataType::Int64), Some(DataType::Interval))
@@ -504,9 +519,7 @@ impl ProjectionWithExprExec {
             | FunctionName::TrimRight
             | FunctionName::Replace
             | FunctionName::StrReplace
-            | FunctionName::Upper
             | FunctionName::Ucase
-            | FunctionName::Lower
             | FunctionName::Lcase
             | FunctionName::Substr
             | FunctionName::Substring
@@ -544,6 +557,70 @@ impl ProjectionWithExprExec {
                     }
                 } else {
                     Some(DataType::String)
+                }
+            }
+
+            FunctionName::Lower | FunctionName::Upper => {
+                if !args.is_empty() {
+                    match Self::infer_expr_type_with_schema(&args[0], schema) {
+                        Some(DataType::Range(range_type)) => {
+                            match range_type {
+                                yachtsql_core::types::RangeType::Int4Range
+                                | yachtsql_core::types::RangeType::Int8Range => {
+                                    Some(DataType::Int64)
+                                }
+                                yachtsql_core::types::RangeType::NumRange => {
+                                    Some(DataType::Float64)
+                                }
+                                yachtsql_core::types::RangeType::DateRange => {
+                                    Some(DataType::Date)
+                                }
+                                yachtsql_core::types::RangeType::TsRange
+                                | yachtsql_core::types::RangeType::TsTzRange => {
+                                    Some(DataType::Timestamp)
+                                }
+                            }
+                        }
+                        _ => Some(DataType::String),
+                    }
+                } else {
+                    Some(DataType::String)
+                }
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "LOWER_INC"
+                        | "UPPER_INC"
+                        | "LOWER_INF"
+                        | "UPPER_INF"
+                        | "ISEMPTY"
+                        | "RANGE_ISEMPTY"
+                        | "RANGE_CONTAINS"
+                        | "RANGE_CONTAINS_ELEM"
+                        | "RANGE_OVERLAPS"
+                        | "RANGE_ADJACENT"
+                        | "RANGE_STRICTLY_LEFT"
+                        | "RANGE_STRICTLY_RIGHT"
+                ) =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "RANGE_MERGE"
+                        | "RANGE_UNION"
+                        | "RANGE_INTERSECTION"
+                        | "RANGE_DIFFERENCE"
+                ) =>
+            {
+                if !args.is_empty() {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                } else {
+                    None
                 }
             }
 

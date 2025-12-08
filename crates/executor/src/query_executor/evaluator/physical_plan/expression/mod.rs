@@ -21,6 +21,7 @@ mod geometric;
 mod json;
 mod map;
 mod math;
+mod range;
 mod string;
 mod system;
 

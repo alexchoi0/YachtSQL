@@ -1244,6 +1244,42 @@ impl TableValuedFunctionExec {
                         ))]),
                         vec![],
                     ),
+                    CastDataType::Int4Range => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "int4range",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Int8Range => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "int8range",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::NumRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "numrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::TsRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "tsrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::TsTzRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "tstzrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::DateRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "daterange",
+                        ))]),
+                        vec![],
+                    ),
                 };
                 ast::Expr::Cast {
                     expr: Box::new(inner),
