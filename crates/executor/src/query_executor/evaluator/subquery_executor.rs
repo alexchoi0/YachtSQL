@@ -139,6 +139,10 @@ impl SubqueryExecutorImpl {
                     return Ok(Table::empty(batch.schema().clone()));
                 }
 
+                if batch.schema().fields().is_empty() {
+                    return Ok(Table::empty_with_rows(batch.schema().clone(), passing_rows.len()));
+                }
+
                 let mut new_columns = Vec::new();
                 for col_idx in 0..batch.schema().fields().len() {
                     let input_col = batch.column(col_idx).ok_or_else(|| {
@@ -239,10 +243,12 @@ impl SubqueryExecutorImpl {
 
                 row_indices.sort_by(|&a, &b| {
                     for order_expr in order_by {
-                        let a_val = ProjectionWithExprExec::evaluate_expr(&order_expr.expr, &batch, a)
-                            .unwrap_or_else(|_| Value::null());
-                        let b_val = ProjectionWithExprExec::evaluate_expr(&order_expr.expr, &batch, b)
-                            .unwrap_or_else(|_| Value::null());
+                        let a_val =
+                            ProjectionWithExprExec::evaluate_expr(&order_expr.expr, &batch, a)
+                                .unwrap_or_else(|_| Value::null());
+                        let b_val =
+                            ProjectionWithExprExec::evaluate_expr(&order_expr.expr, &batch, b)
+                                .unwrap_or_else(|_| Value::null());
 
                         let cmp = self.compare_values(&a_val, &b_val);
 
@@ -1112,9 +1118,9 @@ impl SubqueryExecutor for SubqueryExecutorImpl {
             ));
         }
 
-        let columns = batch.columns().ok_or_else(|| {
-            Error::InternalError("Expected column-format table".to_string())
-        })?;
+        let columns = batch
+            .columns()
+            .ok_or_else(|| Error::InternalError("Expected column-format table".to_string()))?;
 
         let num_cols = columns.len();
         let mut tuples = Vec::with_capacity(batch.num_rows());

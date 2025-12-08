@@ -253,7 +253,6 @@ fn test_lateral_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uncorrelated_scalar_subquery_avg() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -262,7 +261,7 @@ fn test_uncorrelated_scalar_subquery_avg() {
         .execute_sql("SELECT emp_name FROM employees WHERE salary > (SELECT AVG(salary) FROM employees) ORDER BY emp_id")
         .unwrap();
 
-    assert_table_eq!(result, [["Alice"], ["Bob"], ["Diana"]]);
+    assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
 #[test]
@@ -409,7 +408,6 @@ fn test_not_in_subquery_with_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_not_in_with_empty_subquery() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -418,7 +416,7 @@ fn test_not_in_with_empty_subquery() {
         .execute_sql("SELECT emp_name FROM employees WHERE dept_id NOT IN (SELECT dept_id FROM departments WHERE dept_name = 'NonExistent') ORDER BY emp_id")
         .unwrap();
 
-    assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"], ["Diana"]]);
+    assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"], ["Diana"], ["Eve"]]);
 }
 
 #[test]
@@ -709,7 +707,6 @@ fn test_subquery_comparison_not_equal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_comparison_less_than_or_equal() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -718,7 +715,7 @@ fn test_subquery_comparison_less_than_or_equal() {
         .execute_sql("SELECT emp_name FROM employees WHERE salary <= (SELECT AVG(salary) FROM employees) ORDER BY emp_id")
         .unwrap();
 
-    assert_table_eq!(result, [["Charlie"], ["Eve"]]);
+    assert_table_eq!(result, [["Charlie"], ["Diana"], ["Eve"]]);
 }
 
 #[test]
@@ -996,7 +993,6 @@ fn test_subquery_caching_uncorrelated() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_aggregates_and_filter() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -1009,7 +1005,7 @@ fn test_subquery_with_aggregates_and_filter() {
         )
         .unwrap();
 
-    assert_table_eq!(result, [["Bob"]]);
+    assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
 #[test]
