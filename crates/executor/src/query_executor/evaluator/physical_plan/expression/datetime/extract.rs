@@ -71,9 +71,11 @@ impl ProjectionWithExprExec {
                     part
                 ))),
             }
+        } else if date_val.as_interval().is_some() {
+            yachtsql_functions::interval::interval_extract(&date_val, &part_upper)
         } else {
             Err(Error::TypeMismatch {
-                expected: "DATE or TIMESTAMP".to_string(),
+                expected: "DATE, TIMESTAMP, or INTERVAL".to_string(),
                 actual: date_val.data_type().to_string(),
             })
         }

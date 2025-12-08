@@ -3566,6 +3566,57 @@ impl<'a> ExpressionEvaluator<'a> {
                 let arg = self.evaluate_function_arg(&args[0], row)?;
                 yachtsql_functions::scalar::eval_length(&arg)
             }
+            "OCTET_LENGTH" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "OCTET_LENGTH() requires exactly 1 argument".to_string(),
+                    ));
+                }
+                let arg = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::scalar::eval_octet_length(&arg)
+            }
+            "BIT_COUNT" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "BIT_COUNT() requires exactly 1 argument".to_string(),
+                    ));
+                }
+                let arg = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::scalar::eval_bit_count(&arg)
+            }
+            "GET_BIT" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "GET_BIT() requires exactly 2 arguments".to_string(),
+                    ));
+                }
+                let value = self.evaluate_function_arg(&args[0], row)?;
+                let position = self.evaluate_function_arg(&args[1], row)?;
+                let pos = position.as_i64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "INT64".to_string(),
+                    actual: position.data_type().to_string(),
+                })?;
+                yachtsql_functions::scalar::eval_get_bit(&value, pos)
+            }
+            "SET_BIT" => {
+                if args.len() != 3 {
+                    return Err(Error::InvalidQuery(
+                        "SET_BIT() requires exactly 3 arguments".to_string(),
+                    ));
+                }
+                let value = self.evaluate_function_arg(&args[0], row)?;
+                let position = self.evaluate_function_arg(&args[1], row)?;
+                let new_value = self.evaluate_function_arg(&args[2], row)?;
+                let pos = position.as_i64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "INT64".to_string(),
+                    actual: position.data_type().to_string(),
+                })?;
+                let new_val = new_value.as_i64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "INT64".to_string(),
+                    actual: new_value.data_type().to_string(),
+                })?;
+                yachtsql_functions::scalar::eval_set_bit(&value, pos, new_val)
+            }
             "SUBSTRING" | "SUBSTR" => {
                 if args.len() < 2 || args.len() > 3 {
                     return Err(Error::InvalidQuery(

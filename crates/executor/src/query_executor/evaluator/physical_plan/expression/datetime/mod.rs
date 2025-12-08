@@ -82,10 +82,43 @@ impl ProjectionWithExprExec {
             "DAYOFYEAR" => Self::eval_dayofyear(args, batch, row_idx),
             "LAST_DAY" => Self::eval_last_day(args, batch, row_idx),
             "AT_TIME_ZONE" => Self::eval_at_time_zone(args, batch, row_idx),
+            "JUSTIFY_DAYS" => Self::eval_justify_days(args, batch, row_idx),
+            "JUSTIFY_HOURS" => Self::eval_justify_hours(args, batch, row_idx),
+            "JUSTIFY_INTERVAL" => Self::eval_justify_interval(args, batch, row_idx),
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown datetime function: {}",
                 name
             ))),
         }
+    }
+
+    fn eval_justify_days(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "JUSTIFY_DAYS requires exactly 1 argument",
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        yachtsql_functions::interval::justify_days(&val)
+    }
+
+    fn eval_justify_hours(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "JUSTIFY_HOURS requires exactly 1 argument",
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        yachtsql_functions::interval::justify_hours(&val)
+    }
+
+    fn eval_justify_interval(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "JUSTIFY_INTERVAL requires exactly 1 argument",
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        yachtsql_functions::interval::justify_interval(&val)
     }
 }

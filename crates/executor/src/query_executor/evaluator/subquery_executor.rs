@@ -616,6 +616,15 @@ impl SubqueryExecutorImpl {
                         }
                     }
                     UnaryOp::Plus => Ok(val),
+                    UnaryOp::BitwiseNot => {
+                        if val.is_null() {
+                            Ok(Value::null())
+                        } else if let Some(i) = val.as_i64() {
+                            Ok(Value::int64(!i))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
                 }
             }
 

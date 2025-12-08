@@ -9,6 +9,10 @@ fn are_types_compatible(col_type: &DataType, schema_type: &DataType) -> bool {
         return true;
     }
 
+    if matches!(col_type, DataType::Unknown) || matches!(schema_type, DataType::Unknown) {
+        return true;
+    }
+
     if CoercionRules::can_implicitly_coerce(col_type, schema_type) {
         return true;
     }

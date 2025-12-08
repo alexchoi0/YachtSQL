@@ -52,6 +52,7 @@ impl JoinReorder {
             PlanNode::AlterTable { .. } => 0,
             PlanNode::DistinctOn { input, .. } => Self::estimate_cardinality(input) / 2,
             PlanNode::EmptyRelation => 1,
+            PlanNode::Values { rows } => rows.len(),
             PlanNode::InsertOnConflict { values, .. } => values.len(),
             PlanNode::Insert { values, source, .. } => {
                 if let Some(rows) = values {
@@ -338,6 +339,7 @@ impl JoinReorder {
             | PlanNode::DistinctOn { .. }
             | PlanNode::ArrayJoin { .. } => None,
             PlanNode::EmptyRelation
+            | PlanNode::Values { .. }
             | PlanNode::InsertOnConflict { .. }
             | PlanNode::Insert { .. }
             | PlanNode::Merge { .. } => None,

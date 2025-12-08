@@ -128,8 +128,9 @@ impl LogicalPlanBuilder {
     pub(super) fn sql_value_to_literal(&self, value: &ast::ValueWithSpan) -> Result<LiteralValue> {
         match &value.value {
             ast::Value::Number(s, _) => {
+                use rust_decimal::Decimal;
                 if s.contains('.') || s.to_lowercase().contains('e') {
-                    s.parse::<rust_decimal::Decimal>()
+                    Decimal::from_str_exact(s)
                         .map(LiteralValue::Numeric)
                         .or_else(|_| {
                             s.parse::<f64>()
@@ -138,7 +139,7 @@ impl LogicalPlanBuilder {
                         })
                 } else {
                     s.parse::<i64>().map(LiteralValue::Int64).or_else(|_| {
-                        s.parse::<rust_decimal::Decimal>()
+                        Decimal::from_str_exact(s)
                             .map(LiteralValue::Numeric)
                             .map_err(|_| Error::invalid_query("Invalid integer literal"))
                     })
@@ -164,10 +165,22 @@ impl LogicalPlanBuilder {
             | ast::Value::DoubleQuotedByteStringLiteral(s)
             | ast::Value::TripleSingleQuotedByteStringLiteral(s)
             | ast::Value::TripleDoubleQuotedByteStringLiteral(s) => {
-                Ok(LiteralValue::Bytes(s.as_bytes().to_vec()))
+                if let Some(hex_str) = s.strip_prefix("\\x") {
+                    Self::parse_hex_literal(hex_str)
+                } else {
+                    Self::parse_bit_string_literal(s)
+                }
             }
 
             ast::Value::HexStringLiteral(s) => Self::parse_hex_literal(s),
+            ast::Value::EscapedStringLiteral(s) => {
+                let unescaped = Self::unescape_string(s);
+                if let Some(hex_str) = unescaped.strip_prefix("\\x") {
+                    Self::parse_hex_literal(hex_str)
+                } else {
+                    Ok(LiteralValue::String(unescaped))
+                }
+            }
             _ => Err(Error::unsupported_feature(format!(
                 "Value type not supported: {:?}",
                 value.value
@@ -209,18 +222,39 @@ impl LogicalPlanBuilder {
             .collect()
     }
 
-    pub(super) fn parse_hex_literal(hex_str: &str) -> Result<LiteralValue> {
-        if !hex_str.len().is_multiple_of(2) {
-            return Err(Error::invalid_query(format!(
-                "Invalid hex literal: '{}' - hex string must have even length",
-                hex_str
-            )));
+    pub(super) fn parse_bit_string_literal(bit_str: &str) -> Result<LiteralValue> {
+        if bit_str.chars().all(|c| c == '0' || c == '1') {
+            let padded_len = bit_str.len().div_ceil(8) * 8;
+            let padded = format!("{:0>width$}", bit_str, width = padded_len);
+
+            let mut bytes = Vec::with_capacity(padded_len / 8);
+            for chunk in padded.as_bytes().chunks(8) {
+                let byte_str = std::str::from_utf8(chunk).unwrap();
+                let byte = u8::from_str_radix(byte_str, 2).map_err(|_| {
+                    Error::invalid_query(format!(
+                        "Invalid bit string literal: '{}' contains invalid bits",
+                        bit_str
+                    ))
+                })?;
+                bytes.push(byte);
+            }
+            Ok(LiteralValue::Bytes(bytes))
+        } else {
+            Ok(LiteralValue::Bytes(bit_str.as_bytes().to_vec()))
         }
+    }
 
-        let mut bytes = Vec::with_capacity(hex_str.len() / 2);
+    pub(super) fn parse_hex_literal(hex_str: &str) -> Result<LiteralValue> {
+        let padded = if hex_str.len() % 2 == 1 {
+            format!("0{}", hex_str)
+        } else {
+            hex_str.to_string()
+        };
 
-        for i in (0..hex_str.len()).step_by(2) {
-            let byte_str = &hex_str[i..i + 2];
+        let mut bytes = Vec::with_capacity(padded.len() / 2);
+
+        for i in (0..padded.len()).step_by(2) {
+            let byte_str = &padded[i..i + 2];
             match u8::from_str_radix(byte_str, 16) {
                 Ok(byte) => bytes.push(byte),
                 Err(_) => {
@@ -233,5 +267,52 @@ impl LogicalPlanBuilder {
         }
 
         Ok(LiteralValue::Bytes(bytes))
+    }
+
+    fn unescape_string(s: &str) -> String {
+        let mut result = String::with_capacity(s.len());
+        let mut chars = s.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.peek() {
+                    Some('\\') => {
+                        chars.next();
+                        result.push('\\');
+                    }
+                    Some('n') => {
+                        chars.next();
+                        result.push('\n');
+                    }
+                    Some('r') => {
+                        chars.next();
+                        result.push('\r');
+                    }
+                    Some('t') => {
+                        chars.next();
+                        result.push('\t');
+                    }
+                    Some('\'') => {
+                        chars.next();
+                        result.push('\'');
+                    }
+                    Some('"') => {
+                        chars.next();
+                        result.push('"');
+                    }
+                    Some('x') => {
+                        result.push('\\');
+                        result.push(chars.next().unwrap());
+                    }
+                    _ => {
+                        result.push(c);
+                    }
+                }
+            } else {
+                result.push(c);
+            }
+        }
+
+        result
     }
 }

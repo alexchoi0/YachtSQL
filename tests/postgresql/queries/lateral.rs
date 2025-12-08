@@ -19,7 +19,6 @@ fn setup_tables(executor: &mut yachtsql::QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lateral_basic() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -44,7 +43,6 @@ fn test_lateral_basic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lateral_top_n_per_group() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -76,7 +74,6 @@ fn test_lateral_top_n_per_group() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lateral_aggregate() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -105,7 +102,6 @@ fn test_lateral_aggregate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lateral_left_join() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -137,7 +133,7 @@ fn test_lateral_left_join() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "VALUES clause not yet supported"]
 fn test_lateral_with_values() {
     let mut executor = create_executor();
 
@@ -153,7 +149,7 @@ fn test_lateral_with_values() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "LATERAL UNNEST column aliasing needs investigation"]
 fn test_lateral_unnest() {
     let mut executor = create_executor();
 
@@ -177,7 +173,7 @@ fn test_lateral_unnest() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "VALUES clause not yet supported"]
 fn test_lateral_generate_series() {
     let mut executor = create_executor();
 
@@ -234,21 +230,20 @@ fn test_lateral_correlated() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lateral_multiple() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
 
     let result = executor
         .execute_sql(
-            "SELECT d.name, top.name AS top_earner, bottom.name AS bottom_earner
+            "SELECT d.name, highest.name AS top_earner, lowest.name AS bottom_earner
              FROM departments d
              CROSS JOIN LATERAL (
                  SELECT name FROM employees WHERE dept_id = d.id ORDER BY salary DESC LIMIT 1
-             ) top
+             ) highest
              CROSS JOIN LATERAL (
                  SELECT name FROM employees WHERE dept_id = d.id ORDER BY salary ASC LIMIT 1
-             ) bottom
+             ) lowest
              ORDER BY d.id",
         )
         .unwrap();
@@ -314,7 +309,6 @@ fn test_lateral_json_each() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lateral_recursive_depth() {
     let mut executor = create_executor();
 

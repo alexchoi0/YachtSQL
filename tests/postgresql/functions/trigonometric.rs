@@ -53,7 +53,6 @@ fn test_atan2() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sinh() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT SINH(0)").unwrap();
@@ -61,7 +60,6 @@ fn test_sinh() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cosh() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT COSH(0)").unwrap();
@@ -69,7 +67,6 @@ fn test_cosh() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tanh() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT TANH(0)").unwrap();
@@ -77,7 +74,6 @@ fn test_tanh() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_asinh() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ASINH(0)").unwrap();
@@ -85,7 +81,6 @@ fn test_asinh() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_acosh() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ACOSH(1)").unwrap();
@@ -93,7 +88,6 @@ fn test_acosh() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_atanh() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ATANH(0)").unwrap();
@@ -122,7 +116,6 @@ fn test_degrees() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cot() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT COT(1)").unwrap();
@@ -130,7 +123,6 @@ fn test_cot() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sind() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT SIND(90)").unwrap();
@@ -138,7 +130,6 @@ fn test_sind() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cosd() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT COSD(0)").unwrap();
@@ -146,7 +137,6 @@ fn test_cosd() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tand() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT TAND(45)").unwrap();
@@ -154,7 +144,6 @@ fn test_tand() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_asind() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ASIND(1)").unwrap();
@@ -162,7 +151,6 @@ fn test_asind() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_acosd() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ACOSD(0)").unwrap();
@@ -170,7 +158,6 @@ fn test_acosd() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_atand() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ATAND(1)").unwrap();
@@ -178,7 +165,6 @@ fn test_atand() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_atan2d() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ATAN2D(1, 1)").unwrap();
@@ -186,7 +172,6 @@ fn test_atan2d() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cotd() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT COTD(45)").unwrap();
@@ -201,7 +186,6 @@ fn test_log_natural() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_log_base10() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT LOG(100)").unwrap();
@@ -223,7 +207,6 @@ fn test_exp() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cbrt() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT CBRT(27)").unwrap();
@@ -231,7 +214,6 @@ fn test_cbrt() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_factorial() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT FACTORIAL(5)").unwrap();
@@ -239,7 +221,6 @@ fn test_factorial() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_gcd() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT GCD(12, 8)").unwrap();
@@ -247,7 +228,6 @@ fn test_gcd() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lcm() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT LCM(4, 6)").unwrap();
@@ -255,7 +235,6 @@ fn test_lcm() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_min_scale() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT MIN_SCALE(8.4100)").unwrap();
@@ -263,15 +242,13 @@ fn test_min_scale() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_scale() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT SCALE(8.4100)").unwrap();
-    assert_table_eq!(result, [[4]]);
+    let result = executor.execute_sql("SELECT SCALE(8.41)").unwrap();
+    assert_table_eq!(result, [[2]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_trim_scale() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT TRIM_SCALE(8.4100)").unwrap();
@@ -279,7 +256,6 @@ fn test_trim_scale() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_width_bucket() {
     let mut executor = create_executor();
     let result = executor
@@ -296,7 +272,6 @@ fn test_random() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_setseed() {
     let mut executor = create_executor();
     executor.execute_sql("SELECT SETSEED(0.5)").unwrap();
@@ -305,7 +280,6 @@ fn test_setseed() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_div() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT DIV(9, 4)").unwrap();

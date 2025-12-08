@@ -795,8 +795,10 @@ fn test_bool_and() {
         .execute_sql("INSERT INTO flags VALUES (true), (true), (true)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT BOOL_AND(flag) FROM flags");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT BOOL_AND(flag) FROM flags")
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
@@ -809,8 +811,10 @@ fn test_bool_and_with_false() {
         .execute_sql("INSERT INTO flags VALUES (true), (false), (true)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT BOOL_AND(flag) FROM flags");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT BOOL_AND(flag) FROM flags")
+        .unwrap();
+    assert_table_eq!(result, [[false]]);
 }
 
 #[test]
@@ -823,8 +827,10 @@ fn test_bool_or() {
         .execute_sql("INSERT INTO flags VALUES (false), (false), (false)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT BOOL_OR(flag) FROM flags");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT BOOL_OR(flag) FROM flags")
+        .unwrap();
+    assert_table_eq!(result, [[false]]);
 }
 
 #[test]
@@ -837,8 +843,10 @@ fn test_bool_or_with_true() {
         .execute_sql("INSERT INTO flags VALUES (false), (true), (false)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT BOOL_OR(flag) FROM flags");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT BOOL_OR(flag) FROM flags")
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
@@ -851,8 +859,10 @@ fn test_every() {
         .execute_sql("INSERT INTO flags VALUES (true), (true), (true)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT EVERY(flag) FROM flags");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT EVERY(flag) FROM flags")
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
@@ -865,8 +875,10 @@ fn test_bit_and() {
         .execute_sql("INSERT INTO bits VALUES (7), (3), (5)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT BIT_AND(value) FROM bits");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT BIT_AND(value) FROM bits")
+        .unwrap();
+    assert_table_eq!(result, [[1]]);
 }
 
 #[test]
@@ -879,8 +891,10 @@ fn test_bit_or() {
         .execute_sql("INSERT INTO bits VALUES (1), (2), (4)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT BIT_OR(value) FROM bits");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT BIT_OR(value) FROM bits")
+        .unwrap();
+    assert_table_eq!(result, [[7]]);
 }
 
 #[test]
@@ -893,8 +907,10 @@ fn test_bit_xor() {
         .execute_sql("INSERT INTO bits VALUES (1), (2), (3)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT BIT_XOR(value) FROM bits");
-    assert!(result.is_err());
+    let result = executor
+        .execute_sql("SELECT BIT_XOR(value) FROM bits")
+        .unwrap();
+    assert_table_eq!(result, [[0]]);
 }
 
 #[test]

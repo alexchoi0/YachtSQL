@@ -581,6 +581,7 @@ fn format_expr(expr: &yachtsql_optimizer::expr::Expr) -> String {
                 UnaryOp::Plus => "+",
                 UnaryOp::IsNull => "IS NULL",
                 UnaryOp::IsNotNull => "IS NOT NULL",
+                UnaryOp::BitwiseNot => "~",
             };
             if matches!(op, UnaryOp::IsNull | UnaryOp::IsNotNull) {
                 format!("{} {}", format_expr(expr), op_str)

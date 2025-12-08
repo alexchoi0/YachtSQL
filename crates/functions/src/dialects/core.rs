@@ -4,6 +4,7 @@ pub fn core_scalar_functions() -> Vec<&'static str> {
         "LOWER",
         "CONCAT",
         "LENGTH",
+        "OCTET_LENGTH",
         "CHAR_LENGTH",
         "CHARACTER_LENGTH",
         "SUBSTRING",
@@ -90,6 +91,9 @@ pub fn core_scalar_functions() -> Vec<&'static str> {
         "PARSE_DATE",
         "PARSE_TIMESTAMP",
         "LAST_DAY",
+        "JUSTIFY_DAYS",
+        "JUSTIFY_HOURS",
+        "JUSTIFY_INTERVAL",
         "CAST",
         "TO_CHAR",
         "TO_NUMBER",
@@ -124,5 +128,7 @@ pub fn core_aggregate_functions() -> Vec<&'static str> {
         "FIRST_VALUE",
         "LAST_VALUE",
         "NTH_VALUE",
+        "GROUPING",
+        "GROUPING_ID",
     ]
 }

@@ -401,6 +401,7 @@ impl LogicalPlanBuilder {
             factor,
             ast::TableFactor::Derived { lateral: true, .. }
                 | ast::TableFactor::Function { lateral: true, .. }
+                | ast::TableFactor::UNNEST { .. }
         )
     }
 

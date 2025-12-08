@@ -140,6 +140,7 @@ impl CommonSubexpressionElimination {
                 format!("tuple:({})", elem_sigs.join(","))
             }
             Expr::Grouping { column } => format!("grouping:{}", column),
+            Expr::GroupingId { columns } => format!("grouping_id:{}", columns.join(",")),
             Expr::Excluded { column } => format!("excluded:{}", column),
             Expr::WindowFunction {
                 name,
@@ -378,6 +379,7 @@ impl CommonSubexpressionElimination {
             | Expr::Wildcard
             | Expr::QualifiedWildcard { .. }
             | Expr::Grouping { .. }
+            | Expr::GroupingId { .. }
             | Expr::Excluded { .. } => {}
             Expr::Tuple(exprs) => {
                 for e in exprs {
@@ -394,6 +396,7 @@ impl CommonSubexpressionElimination {
             | Expr::Wildcard
             | Expr::QualifiedWildcard { .. }
             | Expr::Grouping { .. }
+            | Expr::GroupingId { .. }
             | Expr::Excluded { .. }
             | Expr::Tuple(_) => false,
 
@@ -648,6 +651,7 @@ impl CommonSubexpressionElimination {
             | PlanNode::DistinctOn { .. }
             | PlanNode::ArrayJoin { .. } => None,
             PlanNode::EmptyRelation
+            | PlanNode::Values { .. }
             | PlanNode::InsertOnConflict { .. }
             | PlanNode::Insert { .. }
             | PlanNode::Merge { .. } => None,

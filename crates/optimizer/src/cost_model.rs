@@ -218,6 +218,7 @@ impl CostModel {
             }
             PlanNode::AlterTable { .. } => Cost::new(0, 10.0, 100.0, 0),
             PlanNode::EmptyRelation => Cost::new(1, 1.0, 0.0, 0),
+            PlanNode::Values { rows } => Cost::new(rows.len(), 1.0, 0.0, rows.len() * 50),
             PlanNode::DistinctOn { input, .. } => {
                 let input_cost = self.estimate_node_cost(input);
                 self.estimate_distinct_cost(&input_cost)

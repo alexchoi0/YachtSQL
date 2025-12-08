@@ -21,9 +21,12 @@ impl ProjectionWithExprExec {
             Ok(Value::int64(Self::find_substring_position(
                 string, substring,
             )))
+        } else if let (Some(pattern), Some(haystack)) = (values[0].as_bytes(), values[1].as_bytes())
+        {
+            Ok(Value::int64(Self::find_bytes_position(haystack, pattern)))
         } else {
             Err(crate::error::Error::TypeMismatch {
-                expected: "STRING, STRING".to_string(),
+                expected: "STRING, STRING or BYTES, BYTES".to_string(),
                 actual: format!("{}, {}", values[0].data_type(), values[1].data_type()),
             })
         }

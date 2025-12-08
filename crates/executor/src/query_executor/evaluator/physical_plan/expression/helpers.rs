@@ -128,6 +128,17 @@ impl ProjectionWithExprExec {
         }
     }
 
+    pub(super) fn find_bytes_position(haystack: &[u8], needle: &[u8]) -> i64 {
+        if needle.is_empty() {
+            return 1;
+        }
+        haystack
+            .windows(needle.len())
+            .position(|window| window == needle)
+            .map(|pos| (pos + 1) as i64)
+            .unwrap_or(0)
+    }
+
     pub(super) fn apply_string_int_binary<F>(
         func_name: &str,
         args: &[crate::optimizer::expr::Expr],

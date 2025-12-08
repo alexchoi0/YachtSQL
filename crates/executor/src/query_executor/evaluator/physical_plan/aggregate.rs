@@ -157,7 +157,11 @@ impl AggregateExec {
                             | FunctionName::ArgMax
                             | FunctionName::TopK
                             | FunctionName::WindowFunnel
-                    ) || matches!(name, FunctionName::Custom(s) if s == "REGR_SLOPE" || s == "REGR_INTERCEPT" || s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG");
+                            | FunctionName::RegrSlope
+                            | FunctionName::RegrIntercept
+                            | FunctionName::JsonObjectAgg
+                            | FunctionName::JsonbObjectAgg
+                    );
                     if needs_array {
                         let mut values = Vec::with_capacity(args.len());
                         for arg in args {
@@ -477,14 +481,18 @@ impl AggregateExec {
 
                 FunctionName::WindowFunnel => Some(DataType::Int64),
 
-                FunctionName::Custom(s)
-                    if s == "JSON_AGG"
-                        || s == "JSONB_AGG"
-                        || s == "JSON_OBJECT_AGG"
-                        || s == "JSONB_OBJECT_AGG" =>
-                {
-                    Some(DataType::Json)
+                FunctionName::BitAnd | FunctionName::BitOr | FunctionName::BitXor => {
+                    Some(DataType::Int64)
                 }
+
+                FunctionName::BoolAnd | FunctionName::BoolOr | FunctionName::Every => {
+                    Some(DataType::Bool)
+                }
+
+                FunctionName::JsonAgg
+                | FunctionName::JsonbAgg
+                | FunctionName::JsonObjectAgg
+                | FunctionName::JsonbObjectAgg => Some(DataType::Json),
 
                 _ => Some(DataType::Float64),
             },
@@ -1528,7 +1536,67 @@ impl AggregateExec {
                         Value::array(result)
                     }
                     FunctionName::WindowFunnel => Value::int64(0),
-                    FunctionName::Custom(s) if s == "JSON_AGG" || s == "JSONB_AGG" => {
+                    FunctionName::BitAnd => {
+                        let mut result: Option<i64> = None;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                result = Some(match result {
+                                    None => i,
+                                    Some(prev) => prev & i,
+                                });
+                            }
+                        }
+                        result.map(Value::int64).unwrap_or(Value::null())
+                    }
+                    FunctionName::BitOr => {
+                        let mut result: Option<i64> = None;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                result = Some(match result {
+                                    None => i,
+                                    Some(prev) => prev | i,
+                                });
+                            }
+                        }
+                        result.map(Value::int64).unwrap_or(Value::null())
+                    }
+                    FunctionName::BitXor => {
+                        let mut result: Option<i64> = None;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                result = Some(match result {
+                                    None => i,
+                                    Some(prev) => prev ^ i,
+                                });
+                            }
+                        }
+                        result.map(Value::int64).unwrap_or(Value::null())
+                    }
+                    FunctionName::BoolAnd | FunctionName::Every => {
+                        let mut result: Option<bool> = None;
+                        for val in &values {
+                            if let Some(b) = val.as_bool() {
+                                result = Some(match result {
+                                    None => b,
+                                    Some(prev) => prev && b,
+                                });
+                            }
+                        }
+                        result.map(Value::bool_val).unwrap_or(Value::null())
+                    }
+                    FunctionName::BoolOr => {
+                        let mut result: Option<bool> = None;
+                        for val in &values {
+                            if let Some(b) = val.as_bool() {
+                                result = Some(match result {
+                                    None => b,
+                                    Some(prev) => prev || b,
+                                });
+                            }
+                        }
+                        result.map(Value::bool_val).unwrap_or(Value::null())
+                    }
+                    FunctionName::JsonAgg | FunctionName::JsonbAgg => {
                         let non_null_values: Vec<serde_json::Value> = values
                             .iter()
                             .filter(|v| !v.is_null())
@@ -1540,9 +1608,7 @@ impl AggregateExec {
                             Value::json(serde_json::Value::Array(non_null_values))
                         }
                     }
-                    FunctionName::Custom(s)
-                        if s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG" =>
-                    {
+                    FunctionName::JsonObjectAgg | FunctionName::JsonbObjectAgg => {
                         let mut obj = serde_json::Map::new();
                         for val in &values {
                             if val.is_null() {
@@ -1729,7 +1795,11 @@ impl SortAggregateExec {
                             | FunctionName::ArgMax
                             | FunctionName::TopK
                             | FunctionName::WindowFunnel
-                    ) || matches!(name, FunctionName::Custom(s) if s == "REGR_SLOPE" || s == "REGR_INTERCEPT" || s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG");
+                            | FunctionName::RegrSlope
+                            | FunctionName::RegrIntercept
+                            | FunctionName::JsonObjectAgg
+                            | FunctionName::JsonbObjectAgg
+                    );
                     if needs_array {
                         let mut values = Vec::with_capacity(args.len());
                         for arg in args {
@@ -2382,9 +2452,7 @@ impl SortAggregateExec {
                             conditions.iter().map(|&b| Value::bool_val(b)).collect();
                         Value::array(result)
                     }
-                    FunctionName::Custom(s)
-                        if s == "SIMPLE_LINEAR_REGRESSION" || s == "SIMPLELINEARREGRESSION" =>
-                    {
+                    FunctionName::SimpleLinearRegression => {
                         let pairs: Vec<(f64, f64)> = values
                             .iter()
                             .filter_map(|v| {
@@ -2416,25 +2484,14 @@ impl SortAggregateExec {
                             Value::array(vec![Value::float64(slope), Value::float64(intercept)])
                         }
                     }
-                    FunctionName::Custom(s)
-                        if s == "STOCHASTIC_LINEAR_REGRESSION"
-                            || s == "STOCHASTICLINEARREGRESSION" =>
-                    {
+                    FunctionName::StochasticLinearRegression => {
                         Value::array(vec![Value::float64(0.0), Value::float64(0.0)])
                     }
-                    FunctionName::Custom(s)
-                        if s == "STOCHASTIC_LOGISTIC_REGRESSION"
-                            || s == "STOCHASTICLOGISTICREGRESSION" =>
-                    {
+                    FunctionName::StochasticLogisticRegression => {
                         Value::array(vec![Value::float64(0.0)])
                     }
-                    FunctionName::Custom(s)
-                        if s == "CATEGORICAL_INFORMATION_VALUE"
-                            || s == "CATEGORICALINFORMATIONVALUE" =>
-                    {
-                        Value::float64(0.0)
-                    }
-                    FunctionName::Custom(s) if s == "ENTROPY" => {
+                    FunctionName::CategoricalInformationValue => Value::float64(0.0),
+                    FunctionName::Entropy => {
                         let mut freq_map: std::collections::HashMap<String, usize> =
                             std::collections::HashMap::new();
                         let mut total = 0usize;
@@ -2458,7 +2515,7 @@ impl SortAggregateExec {
                             Value::float64(entropy)
                         }
                     }
-                    FunctionName::Custom(s) if s == "MEAN_ZSCORE" || s == "MEANZSCORE" => {
+                    FunctionName::MeanZscore => {
                         let float_values: Vec<f64> = values
                             .iter()
                             .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
@@ -2486,7 +2543,7 @@ impl SortAggregateExec {
                             }
                         }
                     }
-                    FunctionName::Custom(s) if s == "UNIQ_UPDOWN" || s == "UNIQUPDOWN" => {
+                    FunctionName::UniqUpdown => {
                         let mut count = 0i64;
                         let mut prev: Option<f64> = None;
                         for val in &values {
@@ -2505,28 +2562,14 @@ impl SortAggregateExec {
                         }
                         Value::int64(count)
                     }
-                    FunctionName::Custom(s)
-                        if s == "CRAMERS_V"
-                            || s == "CRAMERSV"
-                            || s == "CRAMERS_V_BIAS_CORRECTED"
-                            || s == "CRAMERSVBIASCORRECTED"
-                            || s == "THEIL_U"
-                            || s == "THEILU"
-                            || s == "CONTINGENCY_COEFFICIENT"
-                            || s == "CONTINGENCYCOEFFICIENT" =>
-                    {
-                        Value::float64(0.0)
-                    }
-                    FunctionName::Custom(s)
-                        if s == "MANNWHITNEY_U_TEST"
-                            || s == "MANNWHITNEYUTEST"
-                            || s == "STUDENT_T_TEST"
-                            || s == "STUDENTTTEST"
-                            || s == "WELCH_T_TEST"
-                            || s == "WELCHTTEST"
-                            || s == "KOLMOGOROV_SMIRNOV_TEST"
-                            || s == "KOLMOGOROVSMIRNOVTEST" =>
-                    {
+                    FunctionName::CramersV
+                    | FunctionName::CramersVBiasCorrected
+                    | FunctionName::TheilU
+                    | FunctionName::ContingencyCoefficient => Value::float64(0.0),
+                    FunctionName::MannWhitneyUTest
+                    | FunctionName::StudentTTest
+                    | FunctionName::WelchTTest
+                    | FunctionName::KolmogorovSmirnovTest => {
                         Value::array(vec![Value::float64(0.0), Value::float64(1.0)])
                     }
                     _ => Value::null(),

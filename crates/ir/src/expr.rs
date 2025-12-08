@@ -122,6 +122,9 @@ pub enum Expr {
     Grouping {
         column: String,
     },
+    GroupingId {
+        columns: Vec<String>,
+    },
     Excluded {
         column: String,
     },
@@ -216,6 +219,8 @@ pub enum BinaryOp {
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
+    ShiftLeft,
+    ShiftRight,
     Like,
     NotLike,
     ILike,
@@ -252,6 +257,7 @@ pub enum UnaryOp {
     Plus,
     IsNull,
     IsNotNull,
+    BitwiseNot,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -480,6 +486,7 @@ impl Expr {
             | Expr::Wildcard
             | Expr::QualifiedWildcard { .. }
             | Expr::Grouping { .. }
+            | Expr::GroupingId { .. }
             | Expr::Excluded { .. } => false,
         }
     }

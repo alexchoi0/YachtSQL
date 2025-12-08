@@ -11,7 +11,6 @@ fn test_bytea_hex_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bytea_escape_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -35,7 +34,6 @@ fn test_bytea_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bytea_length() {
     let mut executor = create_executor();
     let result = executor
@@ -54,7 +52,6 @@ fn test_bytea_concat() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bytea_substring() {
     let mut executor = create_executor();
     let result = executor
@@ -64,7 +61,6 @@ fn test_bytea_substring() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bytea_position() {
     let mut executor = create_executor();
     let result = executor
@@ -74,7 +70,6 @@ fn test_bytea_position() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bytea_octet_length() {
     let mut executor = create_executor();
     let result = executor
@@ -109,7 +104,6 @@ fn test_bytea_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_encode_bytea_to_base64() {
     let mut executor = create_executor();
     let result = executor
@@ -119,7 +113,6 @@ fn test_encode_bytea_to_base64() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_decode_base64_to_bytea() {
     let mut executor = create_executor();
     let result = executor
@@ -129,7 +122,6 @@ fn test_decode_base64_to_bytea() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_encode_bytea_to_hex() {
     let mut executor = create_executor();
     let result = executor
@@ -139,7 +131,6 @@ fn test_encode_bytea_to_hex() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_decode_hex_to_bytea() {
     let mut executor = create_executor();
     let result = executor

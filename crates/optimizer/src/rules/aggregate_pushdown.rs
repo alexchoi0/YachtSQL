@@ -272,6 +272,7 @@ impl AggregatePushdown {
             | PlanNode::DistinctOn { .. }
             | PlanNode::ArrayJoin { .. }
             | PlanNode::EmptyRelation
+            | PlanNode::Values { .. }
             | PlanNode::InsertOnConflict { .. }
             | PlanNode::Insert { .. }
             | PlanNode::Merge { .. } => None,

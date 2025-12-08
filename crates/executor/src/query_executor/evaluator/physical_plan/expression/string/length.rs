@@ -15,6 +15,32 @@ impl ProjectionWithExprExec {
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
         crate::functions::scalar::eval_length(&val)
     }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_octet_length(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("OCTET_LENGTH", args, 1)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+
+        if let Some(s) = val.as_str() {
+            return Ok(Value::int64(s.len() as i64));
+        }
+
+        if let Some(b) = val.as_bytes() {
+            return Ok(Value::int64(b.len() as i64));
+        }
+
+        Err(crate::error::Error::TypeMismatch {
+            expected: "STRING or BYTES".to_string(),
+            actual: val.data_type().to_string(),
+        })
+    }
 }
 
 #[cfg(test)]

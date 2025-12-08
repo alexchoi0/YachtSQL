@@ -124,9 +124,8 @@ impl PredicatePushdown {
                 refs.extend(Self::get_column_references(high));
                 refs
             }
-            Expr::Wildcard | Expr::QualifiedWildcard { .. } | Expr::Excluded { .. } => vec![],
+            Expr::Wildcard | Expr::QualifiedWildcard { .. } => vec![],
             Expr::Tuple(exprs) => exprs.iter().flat_map(Self::get_column_references).collect(),
-            Expr::Grouping { column } => vec![column.clone()],
             Expr::Cast { expr, .. } => Self::get_column_references(expr),
             Expr::TryCast { expr, .. } => Self::get_column_references(expr),
             Expr::Subquery { .. } => vec![],
@@ -183,6 +182,9 @@ impl PredicatePushdown {
                 refs
             }
             Expr::Lambda { body, .. } => Self::get_column_references(body),
+            Expr::Grouping { column } => vec![column.clone()],
+            Expr::GroupingId { columns } => columns.clone(),
+            Expr::Excluded { column } => vec![column.clone()],
         }
     }
 
@@ -507,6 +509,7 @@ impl PredicatePushdown {
             | PlanNode::DistinctOn { .. }
             | PlanNode::ArrayJoin { .. } => None,
             PlanNode::EmptyRelation
+            | PlanNode::Values { .. }
             | PlanNode::InsertOnConflict { .. }
             | PlanNode::Insert { .. }
             | PlanNode::Merge { .. } => None,

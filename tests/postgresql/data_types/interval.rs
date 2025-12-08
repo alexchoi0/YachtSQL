@@ -107,7 +107,6 @@ fn test_interval_division() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_date_plus_interval() {
     let mut executor = create_executor();
     let result = executor
@@ -135,7 +134,6 @@ fn test_timestamp_minus_interval() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_interval_extract_days() {
     let mut executor = create_executor();
     let result = executor
@@ -145,7 +143,6 @@ fn test_interval_extract_days() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_interval_extract_hours() {
     let mut executor = create_executor();
     let result = executor
@@ -187,7 +184,6 @@ fn test_interval_negative() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_interval_iso_format() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT INTERVAL 'P1Y2M3D'").unwrap();
@@ -195,17 +191,15 @@ fn test_interval_iso_format() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_age_function() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT AGE(TIMESTAMP '2024-06-15', TIMESTAMP '2024-01-01')")
+        .execute_sql("SELECT AGE(TIMESTAMP '2024-06-15 00:00:00', TIMESTAMP '2024-01-01 00:00:00')")
         .unwrap();
     assert_eq!(result.num_rows(), 1);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_justify_days() {
     let mut executor = create_executor();
     let result = executor
@@ -215,7 +209,6 @@ fn test_justify_days() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_justify_hours() {
     let mut executor = create_executor();
     let result = executor
@@ -225,7 +218,6 @@ fn test_justify_hours() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_justify_interval() {
     let mut executor = create_executor();
     let result = executor

@@ -13,7 +13,13 @@ impl ProjectionWithExprExec {
     ) -> Result<Value> {
         if args.len() == 1 {
             let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-            Self::calculate_natural_log(val)
+            match Self::value_to_f64(&val)? {
+                Some(f) => {
+                    Self::validate_positive(f, "LOG value")?;
+                    Ok(Value::float64(f.log10()))
+                }
+                None => Ok(Value::null()),
+            }
         } else if args.len() == 2 {
             let base_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
             let value_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
@@ -59,13 +65,13 @@ mod tests {
     use crate::tests::support::assert_error_contains;
 
     #[test]
-    fn calculates_natural_log_with_one_arg() {
+    fn calculates_log10_with_one_arg() {
         let schema = Schema::from_fields(vec![Field::nullable("val", DataType::Float64)]);
-        let batch = create_batch(schema, vec![vec![Value::float64(std::f64::consts::E)]]);
+        let batch = create_batch(schema, vec![vec![Value::float64(100.0)]]);
         let args = vec![Expr::column("val")];
         let result = ProjectionWithExprExec::eval_log(&args, &batch, 0).expect("success");
         if let Some(f) = result.as_f64() {
-            assert!((f - 1.0).abs() < 0.001)
+            assert!((f - 2.0).abs() < 0.001)
         } else {
             panic!("Expected Float64")
         }

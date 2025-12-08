@@ -129,6 +129,17 @@ pub(super) fn evaluate_expr_row(expr: &Expr, row: &Row, schema: &Schema) -> Resu
                 UnaryOp::Plus => Ok(val),
                 UnaryOp::IsNull => Ok(Value::bool_val(val.is_null())),
                 UnaryOp::IsNotNull => Ok(Value::bool_val(!val.is_null())),
+                UnaryOp::BitwiseNot => {
+                    if let Some(i) = val.as_i64() {
+                        Ok(Value::int64(!i))
+                    } else if val.is_null() {
+                        Ok(Value::null())
+                    } else {
+                        Err(Error::InvalidOperation(
+                            "Bitwise NOT requires integer".to_string(),
+                        ))
+                    }
+                }
             }
         }
         Expr::Cast {

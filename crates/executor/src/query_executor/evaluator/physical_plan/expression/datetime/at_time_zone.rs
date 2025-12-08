@@ -51,7 +51,7 @@ impl ProjectionWithExprExec {
             Expr::Function { name, args } => {
                 use yachtsql_ir::FunctionName;
                 match name {
-                    FunctionName::Custom(s) if s == "AT_TIME_ZONE" => false,
+                    FunctionName::AtTimeZone => false,
                     _ => args.first().is_some_and(Self::is_plain_timestamp_expr),
                 }
             }

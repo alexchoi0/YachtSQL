@@ -120,6 +120,10 @@ impl ProjectionWithExprExec {
     fn parse_interval_string(value_str: &str, unit_hint: &str) -> Result<Interval> {
         let trimmed = value_str.trim();
 
+        if trimmed.starts_with('P') || trimmed.starts_with('p') {
+            return Self::parse_iso8601_interval(trimmed);
+        }
+
         if let Ok(int_val) = trimmed.parse::<i64>() {
             if unit_hint.is_empty() {
                 return Err(Error::invalid_query(
@@ -174,6 +178,107 @@ impl ProjectionWithExprExec {
                 }
             }
             i += 2;
+        }
+
+        Ok(Interval::new(months, days, micros))
+    }
+
+    fn parse_iso8601_interval(s: &str) -> Result<Interval> {
+        let mut months = 0i32;
+        let mut days = 0i32;
+        let mut micros = 0i64;
+
+        let s = if s.starts_with('P') || s.starts_with('p') {
+            &s[1..]
+        } else {
+            s
+        };
+
+        let (date_part, time_part) = if let Some(t_pos) = s.find(['T', 't']) {
+            (&s[..t_pos], Some(&s[t_pos + 1..]))
+        } else {
+            (s, None)
+        };
+
+        let mut num_buf = String::new();
+        for c in date_part.chars() {
+            match c {
+                '0'..='9' | '.' | '-' => num_buf.push(c),
+                'Y' | 'y' => {
+                    if !num_buf.is_empty() {
+                        let years: f64 = num_buf.parse().map_err(|_| {
+                            Error::invalid_query(format!("Invalid year value: {}", num_buf))
+                        })?;
+                        months += (years * 12.0) as i32;
+                        num_buf.clear();
+                    }
+                }
+                'M' | 'm' => {
+                    if !num_buf.is_empty() {
+                        let m: f64 = num_buf.parse().map_err(|_| {
+                            Error::invalid_query(format!("Invalid month value: {}", num_buf))
+                        })?;
+                        months += m as i32;
+                        num_buf.clear();
+                    }
+                }
+                'W' | 'w' => {
+                    if !num_buf.is_empty() {
+                        let weeks: f64 = num_buf.parse().map_err(|_| {
+                            Error::invalid_query(format!("Invalid week value: {}", num_buf))
+                        })?;
+                        days += (weeks * 7.0) as i32;
+                        num_buf.clear();
+                    }
+                }
+                'D' | 'd' => {
+                    if !num_buf.is_empty() {
+                        let d: f64 = num_buf.parse().map_err(|_| {
+                            Error::invalid_query(format!("Invalid day value: {}", num_buf))
+                        })?;
+                        days += d as i32;
+                        num_buf.clear();
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if let Some(time_str) = time_part {
+            num_buf.clear();
+            for c in time_str.chars() {
+                match c {
+                    '0'..='9' | '.' | '-' => num_buf.push(c),
+                    'H' | 'h' => {
+                        if !num_buf.is_empty() {
+                            let hours: f64 = num_buf.parse().map_err(|_| {
+                                Error::invalid_query(format!("Invalid hour value: {}", num_buf))
+                            })?;
+                            micros += (hours * Interval::MICROS_PER_HOUR as f64) as i64;
+                            num_buf.clear();
+                        }
+                    }
+                    'M' | 'm' => {
+                        if !num_buf.is_empty() {
+                            let minutes: f64 = num_buf.parse().map_err(|_| {
+                                Error::invalid_query(format!("Invalid minute value: {}", num_buf))
+                            })?;
+                            micros += (minutes * Interval::MICROS_PER_MINUTE as f64) as i64;
+                            num_buf.clear();
+                        }
+                    }
+                    'S' | 's' => {
+                        if !num_buf.is_empty() {
+                            let seconds: f64 = num_buf.parse().map_err(|_| {
+                                Error::invalid_query(format!("Invalid second value: {}", num_buf))
+                            })?;
+                            micros += (seconds * Interval::MICROS_PER_SECOND as f64) as i64;
+                            num_buf.clear();
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
 
         Ok(Interval::new(months, days, micros))

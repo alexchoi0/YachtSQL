@@ -168,6 +168,20 @@ impl<'a> StatementValidator<'a> {
                 }
             }
             Expr::Nested(inner) => Self::collect_column_names(inner, columns),
+            Expr::Rollup(sets) | Expr::Cube(sets) => {
+                for set in sets {
+                    for col_expr in set {
+                        Self::collect_column_names(col_expr, columns);
+                    }
+                }
+            }
+            Expr::GroupingSets(sets) => {
+                for set in sets {
+                    for col_expr in set {
+                        Self::collect_column_names(col_expr, columns);
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -270,6 +284,7 @@ impl<'a> StatementValidator<'a> {
                 | "EVERY"
                 | "BIT_AND"
                 | "BIT_OR"
+                | "BIT_XOR"
                 | "STDDEV"
                 | "STDDEV_POP"
                 | "STDDEV_SAMP"

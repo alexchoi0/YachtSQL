@@ -457,7 +457,8 @@ impl InterestingOrderRule {
             | PlanNode::TableValuedFunction { .. }
             | PlanNode::AlterTable { .. }
             | PlanNode::InsertOnConflict { .. }
-            | PlanNode::EmptyRelation => Ok((node.clone(), OrderingProperty::empty(), false)),
+            | PlanNode::EmptyRelation
+            | PlanNode::Values { .. } => Ok((node.clone(), OrderingProperty::empty(), false)),
         }
     }
 

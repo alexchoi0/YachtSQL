@@ -163,6 +163,17 @@ impl LogicalPlanBuilder {
         match set_expr {
             ast::SetExpr::Select(select) => self.select_to_plan(select),
             ast::SetExpr::Query(query) => self.query_to_plan(query),
+            ast::SetExpr::Values(values) => {
+                let mut value_rows = Vec::new();
+                for row in &values.rows {
+                    let row_values = row
+                        .iter()
+                        .map(|expr| self.sql_expr_to_expr(expr))
+                        .collect::<Result<Vec<_>>>()?;
+                    value_rows.push(row_values);
+                }
+                Ok(LogicalPlan::new(PlanNode::Values { rows: value_rows }))
+            }
             ast::SetExpr::SetOperation {
                 op,
                 set_quantifier,
@@ -248,48 +259,57 @@ impl LogicalPlanBuilder {
             .iter()
             .any(|(expr, _)| self.has_window_function(expr));
 
-        let (group_by_exprs, _has_rollup, _has_cube, _has_grouping_sets, _explicit_grouping_sets): (
-            Vec<Expr>,
-            bool,
-            bool,
-            bool,
-            Vec<Vec<Expr>>,
-        ) = if let ast::GroupByExpr::Expressions(exprs, _) = &select.group_by {
-            let mut all_group_cols = Vec::new();
-            let mut is_rollup = false;
-            let mut is_cube = false;
-            let mut is_grouping_sets = false;
-            let mut explicit_grouping_sets: Vec<Vec<Expr>> = Vec::new();
+        #[allow(clippy::type_complexity)]
+        let (
+            group_by_exprs,
+            _has_rollup,
+            _has_cube,
+            _has_grouping_sets,
+            _explicit_grouping_sets,
+            _regular_group_cols,
+        ): (Vec<Expr>, bool, bool, bool, Vec<Vec<Expr>>, Vec<Expr>) =
+            if let ast::GroupByExpr::Expressions(exprs, _) = &select.group_by {
+                let mut all_group_cols = Vec::new();
+                let mut regular_group_cols = Vec::new();
+                let mut is_rollup = false;
+                let mut is_cube = false;
+                let mut is_grouping_sets = false;
+                let mut explicit_grouping_sets: Vec<Vec<Expr>> = Vec::new();
 
-            for ast_expr in exprs {
-
-                if let Some(ext) = self.extract_grouping_extension(ast_expr)? {
-
-                    is_rollup |= ext.is_rollup;
-                    is_cube |= ext.is_cube;
-                    is_grouping_sets |= ext.is_grouping_sets;
-                    for col in ext.columns {
-                        all_group_cols.push(self.sql_expr_to_expr(&col)?);
-                    }
-
-                    if ext.is_grouping_sets && !ext.explicit_sets.is_empty() {
-                        for set in ext.explicit_sets {
-                            let converted_set: Result<Vec<Expr>> = set.iter()
-                                .map(|e| self.sql_expr_to_expr(e))
-                                .collect();
-                            explicit_grouping_sets.push(converted_set?);
+                for ast_expr in exprs {
+                    if let Some(ext) = self.extract_grouping_extension(ast_expr)? {
+                        is_rollup |= ext.is_rollup;
+                        is_cube |= ext.is_cube;
+                        is_grouping_sets |= ext.is_grouping_sets;
+                        for col in ext.columns {
+                            all_group_cols.push(self.sql_expr_to_expr(&col)?);
                         }
+
+                        if ext.is_grouping_sets && !ext.explicit_sets.is_empty() {
+                            for set in ext.explicit_sets {
+                                let converted_set: Result<Vec<Expr>> =
+                                    set.iter().map(|e| self.sql_expr_to_expr(e)).collect();
+                                explicit_grouping_sets.push(converted_set?);
+                            }
+                        }
+                    } else {
+                        let col_expr = self.sql_expr_to_expr(ast_expr)?;
+                        all_group_cols.push(col_expr.clone());
+                        regular_group_cols.push(col_expr);
                     }
-                } else {
-
-                    all_group_cols.push(self.sql_expr_to_expr(ast_expr)?);
                 }
-            }
 
-            (all_group_cols, is_rollup, is_cube, is_grouping_sets, explicit_grouping_sets)
-        } else {
-            (vec![], false, false, false, Vec::new())
-        };
+                (
+                    all_group_cols,
+                    is_rollup,
+                    is_cube,
+                    is_grouping_sets,
+                    explicit_grouping_sets,
+                    regular_group_cols,
+                )
+            } else {
+                (vec![], false, false, false, Vec::new(), Vec::new())
+            };
 
         if select.having.is_some() && group_by_exprs.is_empty() {
             return Err(Error::invalid_query(
@@ -321,6 +341,7 @@ impl LogicalPlanBuilder {
                     _has_cube,
                     _has_grouping_sets,
                     &_explicit_grouping_sets,
+                    &_regular_group_cols,
                 )?;
             } else {
                 plan = LogicalPlan::new(PlanNode::Aggregate {
@@ -743,12 +764,27 @@ impl LogicalPlanBuilder {
         is_cube: bool,
         is_grouping_sets: bool,
         explicit_grouping_sets: &[Vec<Expr>],
+        regular_group_cols: &[Expr],
     ) -> Result<LogicalPlan> {
-        let grouping_sets = if is_grouping_sets && !explicit_grouping_sets.is_empty() {
+        let extension_cols: Vec<Expr> = group_by_exprs
+            .iter()
+            .filter(|col| !regular_group_cols.contains(col))
+            .cloned()
+            .collect();
+
+        let mut grouping_sets = if is_grouping_sets && !explicit_grouping_sets.is_empty() {
             explicit_grouping_sets.to_vec()
         } else {
-            self.generate_grouping_sets(group_by_exprs, is_rollup, is_cube)?
+            self.generate_grouping_sets(&extension_cols, is_rollup, is_cube)?
         };
+
+        if !regular_group_cols.is_empty() {
+            for set in &mut grouping_sets {
+                let mut new_set = regular_group_cols.to_vec();
+                new_set.append(set);
+                *set = new_set;
+            }
+        }
 
         let aggregate_plans =
             self.build_grouping_set_plans(&plan, group_by_exprs, &aggregates, &grouping_sets);
@@ -814,15 +850,28 @@ impl LogicalPlanBuilder {
             projection_exprs.push(expr_with_alias);
         }
 
-        for (idx, agg) in aggregates.iter().enumerate() {
+        for agg in aggregates.iter() {
+            let agg_col_name = Self::format_aggregate_column_name_from_expr(agg);
             let col_ref = Expr::Column {
-                name: format!("agg_{}", idx),
+                name: agg_col_name.clone(),
                 table: None,
             };
 
-            let alias = Self::format_aggregate_column_name_from_expr(agg);
+            projection_exprs.push((col_ref, Some(agg_col_name)));
+        }
 
-            projection_exprs.push((col_ref, Some(alias)));
+        for orig_col in all_group_cols {
+            let col_name = match orig_col {
+                Expr::Column { name, .. } => name.clone(),
+                _ => continue,
+            };
+            let is_grouped = current_grouping_set.iter().any(|e| e == orig_col);
+            let grouping_value = if is_grouped { 0i64 } else { 1i64 };
+            let grouping_col_name = format!("__grouping_{}", col_name);
+            projection_exprs.push((
+                Expr::Literal(yachtsql_ir::expr::LiteralValue::Int64(grouping_value)),
+                Some(grouping_col_name),
+            ));
         }
 
         projection_exprs
@@ -841,18 +890,18 @@ impl LogicalPlanBuilder {
         }
     }
 
-    fn build_grouped_column_ref(&self, expr: &Expr, group_index: usize) -> (Expr, Option<String>) {
-        let original_name = match expr {
+    fn build_grouped_column_ref(&self, expr: &Expr, _group_index: usize) -> (Expr, Option<String>) {
+        let col_name = match expr {
             Expr::Column { name, .. } => name.clone(),
-            _ => format!("col_{}", group_index),
+            _ => format!("group_{}", _group_index),
         };
 
         (
             Expr::Column {
-                name: format!("group_{}", group_index),
+                name: col_name.clone(),
                 table: None,
             },
-            Some(original_name),
+            Some(col_name),
         )
     }
 
@@ -1563,24 +1612,26 @@ impl LogicalPlanBuilder {
             return (plan.clone(), None);
         };
 
-        let mut order_by_columns = std::collections::HashSet::new();
+        let mut order_by_columns: Vec<(String, Option<String>)> = Vec::new();
         for sort_expr in sort_exprs {
-            Self::collect_column_names(&sort_expr.expr, &mut order_by_columns);
+            Self::collect_column_refs(&sort_expr.expr, &mut order_by_columns);
         }
 
         let mut projection_output_columns = std::collections::HashSet::new();
         for (expr, alias) in expressions {
             if let Some(alias_name) = alias {
-                projection_output_columns.insert(alias_name.clone());
-            } else if let Expr::Column { name, .. } = expr {
-                projection_output_columns.insert(name.clone());
+                projection_output_columns.insert((alias_name.clone(), None));
+                projection_output_columns.insert((alias_name.clone(), Some(alias_name.clone())));
+            }
+            if let Expr::Column { name, table } = expr {
+                projection_output_columns.insert((name.clone(), table.clone()));
+                projection_output_columns.insert((name.clone(), None));
             }
         }
 
-        let missing_columns: Vec<String> = order_by_columns
-            .iter()
-            .filter(|col| !projection_output_columns.contains(*col))
-            .cloned()
+        let missing_columns: Vec<(String, Option<String>)> = order_by_columns
+            .into_iter()
+            .filter(|col| !projection_output_columns.contains(col))
             .collect();
 
         if missing_columns.is_empty() {
@@ -1590,11 +1641,11 @@ impl LogicalPlanBuilder {
         let original_exprs = expressions.clone();
 
         let mut new_expressions = expressions.clone();
-        for col_name in missing_columns {
+        for (col_name, col_table) in missing_columns {
             new_expressions.push((
                 Expr::Column {
                     name: col_name,
-                    table: None,
+                    table: col_table,
                 },
                 None,
             ));
@@ -1608,25 +1659,28 @@ impl LogicalPlanBuilder {
         (modified_plan, Some(original_exprs))
     }
 
-    fn collect_column_names(expr: &Expr, columns: &mut std::collections::HashSet<String>) {
+    fn collect_column_refs(expr: &Expr, columns: &mut Vec<(String, Option<String>)>) {
         match expr {
-            Expr::Column { name, .. } => {
-                columns.insert(name.clone());
+            Expr::Column { name, table } => {
+                let col_ref = (name.clone(), table.clone());
+                if !columns.contains(&col_ref) {
+                    columns.push(col_ref);
+                }
             }
             Expr::BinaryOp { left, right, .. } => {
-                Self::collect_column_names(left, columns);
-                Self::collect_column_names(right, columns);
+                Self::collect_column_refs(left, columns);
+                Self::collect_column_refs(right, columns);
             }
             Expr::UnaryOp { expr: inner, .. } => {
-                Self::collect_column_names(inner, columns);
+                Self::collect_column_refs(inner, columns);
             }
             Expr::Function { args, .. } | Expr::Aggregate { args, .. } => {
                 for arg in args {
-                    Self::collect_column_names(arg, columns);
+                    Self::collect_column_refs(arg, columns);
                 }
             }
             Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => {
-                Self::collect_column_names(expr, columns);
+                Self::collect_column_refs(expr, columns);
             }
             _ => {}
         }
@@ -2060,6 +2114,9 @@ impl LogicalPlanBuilder {
 
                 let array_expr = self.sql_expr_to_expr(&array_exprs[0])?;
                 let table_alias = alias.as_ref().map(|a| a.name.value.clone());
+                let column_alias = alias
+                    .as_ref()
+                    .and_then(|a| a.columns.first().map(|c| c.name.value.clone()));
                 let offset_alias_name = with_offset_alias.as_ref().map(|a| a.value.clone());
 
                 let has_position_column = *with_offset || *with_ordinality;
@@ -2067,6 +2124,7 @@ impl LogicalPlanBuilder {
                 Ok(LogicalPlan::new(PlanNode::Unnest {
                     array_expr,
                     alias: table_alias,
+                    column_alias,
                     with_offset: has_position_column,
                     offset_alias: offset_alias_name,
                 }))

@@ -258,6 +258,7 @@ impl EliminateRedundant {
             | PlanNode::DistinctOn { .. }
             | PlanNode::ArrayJoin { .. } => None,
             PlanNode::EmptyRelation
+            | PlanNode::Values { .. }
             | PlanNode::InsertOnConflict { .. }
             | PlanNode::Insert { .. }
             | PlanNode::Merge { .. } => None,

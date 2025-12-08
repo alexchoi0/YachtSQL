@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_and() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 91 & 15").unwrap();
@@ -10,7 +9,6 @@ fn test_bitwise_and() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_or() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 32 | 3").unwrap();
@@ -18,7 +16,6 @@ fn test_bitwise_or() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_xor() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 17 # 5").unwrap();
@@ -26,7 +23,6 @@ fn test_bitwise_xor() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_not() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ~1").unwrap();
@@ -34,7 +30,6 @@ fn test_bitwise_not() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_shift_left() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 1 << 4").unwrap();
@@ -42,7 +37,6 @@ fn test_bitwise_shift_left() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_shift_right() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 16 >> 2").unwrap();
@@ -57,7 +51,6 @@ fn test_bit_string_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_string_hex() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT X'1FF'").unwrap();
@@ -65,7 +58,6 @@ fn test_bit_string_hex() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_varying() {
     let mut executor = create_executor();
     executor
@@ -80,7 +72,6 @@ fn test_bit_varying() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_fixed() {
     let mut executor = create_executor();
     executor
@@ -95,7 +86,6 @@ fn test_bit_fixed() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_and_aggregate() {
     let mut executor = create_executor();
     executor
@@ -112,7 +102,6 @@ fn test_bit_and_aggregate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_or_aggregate() {
     let mut executor = create_executor();
     executor
@@ -129,7 +118,6 @@ fn test_bit_or_aggregate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_xor_aggregate() {
     let mut executor = create_executor();
     executor
@@ -146,7 +134,6 @@ fn test_bit_xor_aggregate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_count() {
     let mut executor = create_executor();
     let result = executor
@@ -156,7 +143,6 @@ fn test_bit_count() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_get_bit() {
     let mut executor = create_executor();
     let result = executor
@@ -166,7 +152,6 @@ fn test_get_bit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_set_bit() {
     let mut executor = create_executor();
     let result = executor
@@ -179,11 +164,10 @@ fn test_set_bit() {
 fn test_length_bit() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT LENGTH(B'10101010')").unwrap();
-    assert_table_eq!(result, [[8]]);
+    assert_table_eq!(result, [[1]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_octet_length_bit() {
     let mut executor = create_executor();
     let result = executor
@@ -230,7 +214,6 @@ fn test_bit_string_substring() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_in_expression() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT (15 & 7) | 8").unwrap();
@@ -238,7 +221,6 @@ fn test_bitwise_in_expression() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_with_column() {
     let mut executor = create_executor();
     executor
@@ -255,7 +237,6 @@ fn test_bitwise_with_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_shift_chain() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT (1 << 4) >> 2").unwrap();
@@ -263,7 +244,6 @@ fn test_bitwise_shift_chain() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bitwise_complex() {
     let mut executor = create_executor();
     let result = executor

@@ -160,6 +160,107 @@ pub fn eval_length(value: &Value) -> Result<Value> {
     })
 }
 
+pub fn eval_octet_length(value: &Value) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    if let Some(s) = value.as_str() {
+        return Ok(Value::int64(s.len() as i64));
+    }
+
+    if let Some(b) = value.as_bytes() {
+        return Ok(Value::int64(b.len() as i64));
+    }
+
+    Err(yachtsql_core::error::Error::TypeMismatch {
+        expected: "STRING or BYTES".to_string(),
+        actual: value.data_type().to_string(),
+    })
+}
+
+pub fn eval_bit_count(value: &Value) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    if let Some(i) = value.as_i64() {
+        return Ok(Value::int64(i.count_ones() as i64));
+    }
+
+    if let Some(b) = value.as_bytes() {
+        let count: u32 = b.iter().map(|byte| byte.count_ones()).sum();
+        return Ok(Value::int64(count as i64));
+    }
+
+    Err(yachtsql_core::error::Error::TypeMismatch {
+        expected: "INTEGER or BYTES".to_string(),
+        actual: value.data_type().to_string(),
+    })
+}
+
+pub fn eval_get_bit(value: &Value, position: i64) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    if let Some(b) = value.as_bytes() {
+        let bit_len = b.len() * 8;
+        if position < 0 || position >= bit_len as i64 {
+            return Err(yachtsql_core::error::Error::invalid_query(format!(
+                "GET_BIT: bit index {} out of range (0..{})",
+                position, bit_len
+            )));
+        }
+        let byte_idx = position as usize / 8;
+        let bit_idx = 7 - (position as usize % 8);
+        let bit = (b[byte_idx] >> bit_idx) & 1;
+        return Ok(Value::int64(bit as i64));
+    }
+
+    Err(yachtsql_core::error::Error::TypeMismatch {
+        expected: "BYTES".to_string(),
+        actual: value.data_type().to_string(),
+    })
+}
+
+pub fn eval_set_bit(value: &Value, position: i64, new_value: i64) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    if new_value != 0 && new_value != 1 {
+        return Err(yachtsql_core::error::Error::invalid_query(format!(
+            "SET_BIT: new value must be 0 or 1, got {}",
+            new_value
+        )));
+    }
+
+    if let Some(b) = value.as_bytes() {
+        let bit_len = b.len() * 8;
+        if position < 0 || position >= bit_len as i64 {
+            return Err(yachtsql_core::error::Error::invalid_query(format!(
+                "SET_BIT: bit index {} out of range (0..{})",
+                position, bit_len
+            )));
+        }
+        let byte_idx = position as usize / 8;
+        let bit_idx = 7 - (position as usize % 8);
+        let mut result = b.to_vec();
+        if new_value == 1 {
+            result[byte_idx] |= 1 << bit_idx;
+        } else {
+            result[byte_idx] &= !(1 << bit_idx);
+        }
+        return Ok(Value::bytes(result));
+    }
+
+    Err(yachtsql_core::error::Error::TypeMismatch {
+        expected: "BYTES".to_string(),
+        actual: value.data_type().to_string(),
+    })
+}
+
 fn value_to_string_for_hashing(value: &Value) -> Result<String> {
     if value.is_null() {
         return Ok(String::new());

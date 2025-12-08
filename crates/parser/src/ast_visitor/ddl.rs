@@ -84,6 +84,7 @@ impl LogicalPlanBuilder {
             }
             ast::DataType::String(_) | ast::DataType::Text => Ok(DataType::String),
             ast::DataType::Varchar(_) | ast::DataType::Char(_) => Ok(DataType::String),
+            ast::DataType::Bit(_) | ast::DataType::BitVarying(_) => Ok(DataType::Bytes),
             ast::DataType::Boolean => Ok(DataType::Bool),
             ast::DataType::Date => Ok(DataType::Date),
             ast::DataType::Timestamp(_, _) => Ok(DataType::Timestamp),

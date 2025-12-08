@@ -286,7 +286,8 @@ pub fn provided_ordering(node: &PlanNode, child_ordering: &OrderingProperty) -> 
         PlanNode::Unnest { .. }
         | PlanNode::TableValuedFunction { .. }
         | PlanNode::ArrayJoin { .. }
-        | PlanNode::EmptyRelation => OrderingProperty::empty(),
+        | PlanNode::EmptyRelation
+        | PlanNode::Values { .. } => OrderingProperty::empty(),
     }
 }
 

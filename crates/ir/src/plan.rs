@@ -164,6 +164,7 @@ pub enum PlanNode {
     Unnest {
         array_expr: Expr,
         alias: Option<String>,
+        column_alias: Option<String>,
         with_offset: bool,
         offset_alias: Option<String>,
     },
@@ -193,6 +194,10 @@ pub enum PlanNode {
     },
 
     EmptyRelation,
+
+    Values {
+        rows: Vec<Vec<Expr>>,
+    },
 
     InsertOnConflict {
         table_name: String,
@@ -406,7 +411,8 @@ impl PlanNode {
             | PlanNode::TableValuedFunction { .. }
             | PlanNode::AlterTable { .. }
             | PlanNode::InsertOnConflict { .. }
-            | PlanNode::EmptyRelation => vec![],
+            | PlanNode::EmptyRelation
+            | PlanNode::Values { .. } => vec![],
             PlanNode::Insert { source, .. } => {
                 if let Some(source_plan) = source {
                     vec![source_plan.as_ref()]
