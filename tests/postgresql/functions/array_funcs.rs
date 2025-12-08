@@ -15,7 +15,9 @@ fn test_array_length() {
 #[ignore = "Implement me!"]
 fn test_array_length_empty() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT array_length(ARRAY[], 1)").unwrap();
+    let result = executor
+        .execute_sql("SELECT array_length(ARRAY[], 1)")
+        .unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
@@ -119,7 +121,9 @@ fn test_array_agg() {
 #[ignore = "Implement me!"]
 fn test_unnest() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT unnest(ARRAY[1, 2, 3])").unwrap();
+    let result = executor
+        .execute_sql("SELECT unnest(ARRAY[1, 2, 3])")
+        .unwrap();
     assert_table_eq!(result, [[1], [2], [3]]);
 }
 

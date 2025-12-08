@@ -33,7 +33,11 @@ fn test_information_schema_columns() {
         .unwrap();
     assert_table_eq!(
         result,
-        [["id", "INTEGER"], ["name", "TEXT"], ["val", "DOUBLE PRECISION"],]
+        [
+            ["id", "INTEGER"],
+            ["name", "TEXT"],
+            ["val", "DOUBLE PRECISION"],
+        ]
     );
 }
 
@@ -125,7 +129,9 @@ fn test_information_schema_referential_constraints() {
         .execute_sql("CREATE TABLE ref_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE ref_child (id INTEGER, parent_id INTEGER REFERENCES ref_parent(id))")
+        .execute_sql(
+            "CREATE TABLE ref_child (id INTEGER, parent_id INTEGER REFERENCES ref_parent(id))",
+        )
         .unwrap();
 
     let result = executor
@@ -292,7 +298,9 @@ fn test_information_schema_constraint_table_usage() {
         .execute_sql("CREATE TABLE ctu_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE ctu_child (id INTEGER, ref_id INTEGER REFERENCES ctu_parent(id))")
+        .execute_sql(
+            "CREATE TABLE ctu_child (id INTEGER, ref_id INTEGER REFERENCES ctu_parent(id))",
+        )
         .unwrap();
 
     let result = executor.execute_sql(
@@ -730,7 +738,9 @@ fn test_query_foreign_keys() {
         .execute_sql("CREATE TABLE fk_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE fk_child (id INTEGER, parent_id INTEGER REFERENCES fk_parent(id))")
+        .execute_sql(
+            "CREATE TABLE fk_child (id INTEGER, parent_id INTEGER REFERENCES fk_parent(id))",
+        )
         .unwrap();
 
     let result = executor.execute_sql(
@@ -958,7 +968,9 @@ fn test_pg_catalog_pg_constraint() {
 fn test_pg_catalog_pg_proc() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION pg_proc_test() RETURNS INTEGER AS $$ SELECT 1 $$ LANGUAGE SQL")
+        .execute_sql(
+            "CREATE FUNCTION pg_proc_test() RETURNS INTEGER AS $$ SELECT 1 $$ LANGUAGE SQL",
+        )
         .unwrap();
 
     let result = executor

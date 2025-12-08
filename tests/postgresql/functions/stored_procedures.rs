@@ -303,7 +303,9 @@ fn test_alter_function_set_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA new_schema").unwrap();
     executor
-        .execute_sql("CREATE FUNCTION schema_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL")
+        .execute_sql(
+            "CREATE FUNCTION schema_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL",
+        )
         .unwrap();
 
     let result = executor.execute_sql("ALTER FUNCTION schema_func() SET SCHEMA new_schema");
@@ -315,7 +317,9 @@ fn test_alter_function_set_schema() {
 fn test_create_or_replace_function() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION replace_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL")
+        .execute_sql(
+            "CREATE FUNCTION replace_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL",
+        )
         .unwrap();
 
     let result = executor.execute_sql(

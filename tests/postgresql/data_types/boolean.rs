@@ -106,7 +106,9 @@ fn test_boolean_comparison_result() {
 fn test_boolean_case_when() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val INTEGER)").unwrap();
+    executor
+        .execute_sql("CREATE TABLE t (val INTEGER)")
+        .unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES (1), (2), (3)")
         .unwrap();

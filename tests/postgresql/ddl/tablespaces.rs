@@ -98,8 +98,8 @@ fn test_create_table_in_tablespace() {
         .execute_sql("CREATE TABLESPACE table_space LOCATION '/tmp/pgdata/table_space'")
         .ok();
 
-    let result =
-        executor.execute_sql("CREATE TABLE ts_table (id INTEGER, data TEXT) TABLESPACE table_space");
+    let result = executor
+        .execute_sql("CREATE TABLE ts_table (id INTEGER, data TEXT) TABLESPACE table_space");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -155,7 +155,9 @@ fn test_alter_materialized_view_set_tablespace() {
     executor
         .execute_sql("CREATE TABLESPACE mv_space LOCATION '/tmp/pgdata/mv_space'")
         .ok();
-    executor.execute_sql("CREATE TABLE mv_base (id INTEGER)").ok();
+    executor
+        .execute_sql("CREATE TABLE mv_base (id INTEGER)")
+        .ok();
     executor
         .execute_sql("CREATE MATERIALIZED VIEW mv_ts AS SELECT * FROM mv_base")
         .ok();

@@ -421,7 +421,9 @@ fn test_validate_constraint() {
 fn test_foreign_key_composite() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE comp_parent (a INTEGER, b INTEGER, name TEXT, PRIMARY KEY (a, b))")
+        .execute_sql(
+            "CREATE TABLE comp_parent (a INTEGER, b INTEGER, name TEXT, PRIMARY KEY (a, b))",
+        )
         .unwrap();
     executor.execute_sql(
         "CREATE TABLE comp_child (id INTEGER, pa INTEGER, pb INTEGER, FOREIGN KEY (pa, pb) REFERENCES comp_parent(a, b))"
@@ -683,7 +685,9 @@ fn test_foreign_key_violation_update() {
         .execute_sql("CREATE TABLE fk_upd_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE fk_upd_child (id INTEGER, pid INTEGER REFERENCES fk_upd_parent(id))")
+        .execute_sql(
+            "CREATE TABLE fk_upd_child (id INTEGER, pid INTEGER REFERENCES fk_upd_parent(id))",
+        )
         .unwrap();
     executor
         .execute_sql("INSERT INTO fk_upd_parent VALUES (1)")
@@ -947,7 +951,9 @@ fn test_foreign_key_with_index() {
         .execute_sql("CREATE TABLE idx_fk_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE idx_fk_child (id INTEGER, pid INTEGER REFERENCES idx_fk_parent(id))")
+        .execute_sql(
+            "CREATE TABLE idx_fk_child (id INTEGER, pid INTEGER REFERENCES idx_fk_parent(id))",
+        )
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_fk_child_pid ON idx_fk_child (pid)")
@@ -1119,8 +1125,8 @@ fn test_check_constraint_not_enforced() {
 #[test]
 fn test_check_constraint_enforced_explicit() {
     let mut executor = create_executor();
-    let result =
-        executor.execute_sql("CREATE TABLE chk_enf (id INTEGER, val INTEGER CHECK (val > 0) ENFORCED)");
+    let result = executor
+        .execute_sql("CREATE TABLE chk_enf (id INTEGER, val INTEGER CHECK (val > 0) ENFORCED)");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1495,8 +1501,9 @@ fn test_constraint_case_expression() {
 #[test]
 fn test_constraint_coalesce() {
     let mut executor = create_executor();
-    let result = executor
-        .execute_sql("CREATE TABLE coal_chk (id INTEGER, val INTEGER, CHECK (COALESCE(val, 0) >= 0))");
+    let result = executor.execute_sql(
+        "CREATE TABLE coal_chk (id INTEGER, val INTEGER, CHECK (COALESCE(val, 0) >= 0))",
+    );
     assert!(result.is_ok() || result.is_err());
 }
 

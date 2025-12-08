@@ -6,7 +6,9 @@ fn setup_tables(executor: &mut yachtsql::QueryExecutor) {
         .execute_sql("CREATE TABLE departments (id INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE employees (id INTEGER, name TEXT, dept_id INTEGER, salary INTEGER)")
+        .execute_sql(
+            "CREATE TABLE employees (id INTEGER, name TEXT, dept_id INTEGER, salary INTEGER)",
+        )
         .unwrap();
     executor
         .execute_sql("INSERT INTO departments VALUES (1, 'Engineering'), (2, 'Sales'), (3, 'HR')")
