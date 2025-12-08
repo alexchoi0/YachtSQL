@@ -165,8 +165,8 @@ impl LogicalPlanBuilder {
             | ast::Value::DoubleQuotedByteStringLiteral(s)
             | ast::Value::TripleSingleQuotedByteStringLiteral(s)
             | ast::Value::TripleDoubleQuotedByteStringLiteral(s) => {
-                if let Some(hex_str) = s.strip_prefix("\\x") {
-                    Self::parse_hex_literal(hex_str)
+                if s.contains("\\x") {
+                    Self::parse_byte_string_with_escapes(s)
                 } else {
                     Self::parse_bit_string_literal(s)
                 }
@@ -242,6 +242,60 @@ impl LogicalPlanBuilder {
         } else {
             Ok(LiteralValue::Bytes(bit_str.as_bytes().to_vec()))
         }
+    }
+
+    pub(super) fn parse_byte_string_with_escapes(s: &str) -> Result<LiteralValue> {
+        if let Some(hex_str) = s.strip_prefix("\\x")
+            && hex_str.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Self::parse_hex_literal(hex_str);
+        }
+
+        let mut bytes = Vec::new();
+        let mut chars = s.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '\\' && chars.peek() == Some(&'x') {
+                chars.next();
+                let mut hex = String::with_capacity(2);
+                for _ in 0..2 {
+                    match chars.next() {
+                        Some(h) if h.is_ascii_hexdigit() => hex.push(h),
+                        Some(h) => {
+                            return Err(Error::invalid_query(format!(
+                                "Invalid hex escape: \\x{}{} is not valid hex",
+                                hex, h
+                            )));
+                        }
+                        None => {
+                            return Err(Error::invalid_query(
+                                "Incomplete hex escape sequence".to_string(),
+                            ));
+                        }
+                    }
+                }
+                let byte = u8::from_str_radix(&hex, 16).unwrap();
+                bytes.push(byte);
+            } else if c == '\\' && chars.peek() == Some(&'\\') {
+                chars.next();
+                bytes.push(b'\\');
+            } else if c == '\\' && chars.peek() == Some(&'n') {
+                chars.next();
+                bytes.push(b'\n');
+            } else if c == '\\' && chars.peek() == Some(&'r') {
+                chars.next();
+                bytes.push(b'\r');
+            } else if c == '\\' && chars.peek() == Some(&'t') {
+                chars.next();
+                bytes.push(b'\t');
+            } else {
+                for b in c.to_string().as_bytes() {
+                    bytes.push(*b);
+                }
+            }
+        }
+
+        Ok(LiteralValue::Bytes(bytes))
     }
 
     pub(super) fn parse_hex_literal(hex_str: &str) -> Result<LiteralValue> {

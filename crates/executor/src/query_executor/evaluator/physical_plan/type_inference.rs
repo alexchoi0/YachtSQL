@@ -668,6 +668,7 @@ impl ProjectionWithExprExec {
             | FunctionName::CharLength
             | FunctionName::CharacterLength
             | FunctionName::OctetLength
+            | FunctionName::ByteLength
             | FunctionName::Lengthb
             | FunctionName::Position
             | FunctionName::Strpos

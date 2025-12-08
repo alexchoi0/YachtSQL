@@ -477,6 +477,263 @@ pub fn parse_json(value: &Value) -> Result<Value> {
     ))
 }
 
+pub fn json_extract_array(value: &Value, path: Option<&str>) -> Result<Value> {
+    use super::path::JsonPath;
+
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json = get_json_value(value)?;
+    let target = if let Some(path_str) = path {
+        let jpath = JsonPath::parse(path_str)?;
+        let results = jpath.evaluate(&json)?;
+        if results.is_empty() {
+            return Ok(Value::null());
+        }
+        results.into_iter().next().unwrap()
+    } else {
+        json.clone()
+    };
+
+    match target {
+        serde_json::Value::Array(arr) => {
+            let elements: Vec<Value> = arr.into_iter().map(Value::json).collect();
+            Ok(Value::array(elements))
+        }
+        _ => Ok(Value::null()),
+    }
+}
+
+pub fn json_value_array(value: &Value, path: Option<&str>) -> Result<Value> {
+    use super::path::JsonPath;
+
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json = get_json_value(value)?;
+    let target = if let Some(path_str) = path {
+        let jpath = JsonPath::parse(path_str)?;
+        let results = jpath.evaluate(&json)?;
+        if results.is_empty() {
+            return Ok(Value::null());
+        }
+        results.into_iter().next().unwrap()
+    } else {
+        json.clone()
+    };
+
+    match target {
+        serde_json::Value::Array(arr) => {
+            let elements: Vec<Value> = arr
+                .into_iter()
+                .map(|v| match v {
+                    serde_json::Value::String(s) => Value::string(s),
+                    serde_json::Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            Value::string(i.to_string())
+                        } else if let Some(f) = n.as_f64() {
+                            Value::string(f.to_string())
+                        } else {
+                            Value::null()
+                        }
+                    }
+                    serde_json::Value::Bool(b) => Value::string(b.to_string()),
+                    serde_json::Value::Null => Value::null(),
+                    _ => Value::null(),
+                })
+                .collect();
+            Ok(Value::array(elements))
+        }
+        _ => Ok(Value::null()),
+    }
+}
+
+pub fn json_set(json_value: &Value, path: &str, new_value: &Value) -> Result<Value> {
+    if json_value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let mut json = get_json_value(json_value)?;
+    let new_json = sql_to_json_fallible(new_value).unwrap_or(serde_json::Value::Null);
+    set_json_path(&mut json, path, new_json)?;
+    Ok(Value::json(json))
+}
+
+pub fn json_remove(json_value: &Value, path: &str) -> Result<Value> {
+    if json_value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let mut json = get_json_value(json_value)?;
+    remove_json_path(&mut json, path)?;
+    Ok(Value::json(json))
+}
+
+fn set_json_path(json: &mut serde_json::Value, path: &str, value: serde_json::Value) -> Result<()> {
+    let path = path.trim_start_matches('$').trim_start_matches('.');
+    if path.is_empty() {
+        *json = value;
+        return Ok(());
+    }
+
+    let parts: Vec<&str> = path.split('.').collect();
+    let mut current = json;
+
+    for (i, part) in parts.iter().enumerate() {
+        let is_last = i == parts.len() - 1;
+        if is_last {
+            if let serde_json::Value::Object(map) = current {
+                map.insert(part.to_string(), value);
+                return Ok(());
+            }
+        } else if let serde_json::Value::Object(map) = current {
+            current = map
+                .entry(part.to_string())
+                .or_insert(serde_json::Value::Object(serde_json::Map::new()));
+        } else {
+            return Err(Error::InvalidOperation(format!(
+                "Cannot traverse path '{}' - not an object",
+                part
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn remove_json_path(json: &mut serde_json::Value, path: &str) -> Result<()> {
+    let path = path.trim_start_matches('$').trim_start_matches('.');
+    if path.is_empty() {
+        return Ok(());
+    }
+
+    let parts: Vec<&str> = path.split('.').collect();
+    let mut current = json;
+
+    for (i, part) in parts.iter().enumerate() {
+        let is_last = i == parts.len() - 1;
+        if is_last {
+            if let serde_json::Value::Object(map) = current {
+                map.remove(*part);
+            }
+            return Ok(());
+        }
+        if let serde_json::Value::Object(map) = current {
+            if let Some(next) = map.get_mut(*part) {
+                current = next;
+            } else {
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        }
+    }
+    Ok(())
+}
+
+pub fn lax_bool(value: &Value) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json = get_json_value(value)?;
+    match &json {
+        serde_json::Value::Bool(b) => Ok(Value::bool_val(*b)),
+        serde_json::Value::String(s) => match s.to_lowercase().as_str() {
+            "true" | "1" => Ok(Value::bool_val(true)),
+            "false" | "0" => Ok(Value::bool_val(false)),
+            _ => Ok(Value::null()),
+        },
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(Value::bool_val(i != 0))
+            } else if let Some(f) = n.as_f64() {
+                Ok(Value::bool_val(f != 0.0))
+            } else {
+                Ok(Value::null())
+            }
+        }
+        _ => Ok(Value::null()),
+    }
+}
+
+pub fn lax_int64(value: &Value) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json = get_json_value(value)?;
+    match &json {
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(Value::int64(i))
+            } else if let Some(f) = n.as_f64() {
+                Ok(Value::int64(f as i64))
+            } else {
+                Ok(Value::null())
+            }
+        }
+        serde_json::Value::String(s) => match s.parse::<i64>() {
+            Ok(i) => Ok(Value::int64(i)),
+            Err(_) => Ok(Value::null()),
+        },
+        serde_json::Value::Bool(b) => Ok(Value::int64(if *b { 1 } else { 0 })),
+        _ => Ok(Value::null()),
+    }
+}
+
+pub fn lax_float64(value: &Value) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json = get_json_value(value)?;
+    match &json {
+        serde_json::Value::Number(n) => {
+            if let Some(f) = n.as_f64() {
+                Ok(Value::float64(f))
+            } else {
+                Ok(Value::null())
+            }
+        }
+        serde_json::Value::String(s) => match s.parse::<f64>() {
+            Ok(f) => Ok(Value::float64(f)),
+            Err(_) => Ok(Value::null()),
+        },
+        serde_json::Value::Bool(b) => Ok(Value::float64(if *b { 1.0 } else { 0.0 })),
+        _ => Ok(Value::null()),
+    }
+}
+
+pub fn lax_string(value: &Value) -> Result<Value> {
+    if value.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json = get_json_value(value)?;
+    match &json {
+        serde_json::Value::String(s) => Ok(Value::string(s.clone())),
+        serde_json::Value::Number(n) => Ok(Value::string(n.to_string())),
+        serde_json::Value::Bool(b) => Ok(Value::string(b.to_string())),
+        serde_json::Value::Null => Ok(Value::null()),
+        _ => Ok(Value::null()),
+    }
+}
+
+fn get_json_value(value: &Value) -> Result<serde_json::Value> {
+    if let Some(json) = value.as_json() {
+        return Ok(json.clone());
+    }
+    if let Some(s) = value.as_str() {
+        return parse_json_with_limits(s, DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE)
+            .map_err(|e| Error::InvalidOperation(format!("Invalid JSON: {}", e)));
+    }
+    Err(Error::InvalidOperation(
+        "Expected JSON or STRING value".to_string(),
+    ))
+}
+
 pub use super::extract::*;
 pub use super::postgres::*;
 pub use super::predicates::*;

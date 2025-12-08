@@ -470,6 +470,7 @@ impl ProjectionWithExprExec {
                 | FunctionName::CharLength
                 | FunctionName::CharacterLength
                 | FunctionName::OctetLength
+                | FunctionName::ByteLength
                 | FunctionName::Split
                 | FunctionName::SplitPart
                 | FunctionName::StringSplit
@@ -697,8 +698,10 @@ impl ProjectionWithExprExec {
                 && (s.starts_with("JSON")
                     || s.starts_with("IS_JSON")
                     || s.starts_with("IS_NOT_JSON")
+                    || s.starts_with("LAX_")
                     || s == "TO_JSON"
                     || s == "TO_JSONB"
+                    || s == "TO_JSON_STRING"
                     || s == "PARSE_JSON")
             {
                 return Self::evaluate_json_function(func_name, args, batch, row_idx);

@@ -16,7 +16,11 @@ pub use extract::{
     json_extract, json_extract_json, json_extract_path_array, json_extract_path_array_text,
     json_query, json_value, json_value_text,
 };
-pub use functions::{JsonOnBehavior, JsonValueEvalOptions, parse_json, to_json, to_json_string};
+pub use functions::{
+    JsonOnBehavior, JsonValueEvalOptions, json_extract_array, json_remove, json_set,
+    json_value_array, lax_bool, lax_float64, lax_int64, lax_string, parse_json, to_json,
+    to_json_string,
+};
 pub use parser::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE, parse_json_with_limits};
 pub use path::JsonPath;
 pub use postgres::{

@@ -165,6 +165,7 @@ fn function_return_type(name: &yachtsql_ir::FunctionName) -> Option<DataType> {
         | FunctionName::CharLength
         | FunctionName::CharacterLength
         | FunctionName::OctetLength
+        | FunctionName::ByteLength
         | FunctionName::Lengthb => Some(DataType::Int64),
         FunctionName::Upper
         | FunctionName::Ucase

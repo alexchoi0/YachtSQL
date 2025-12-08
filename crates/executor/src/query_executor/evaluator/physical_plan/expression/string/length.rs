@@ -22,7 +22,20 @@ impl ProjectionWithExprExec {
         row_idx: usize,
     ) -> Result<Value> {
         Self::validate_arg_count("OCTET_LENGTH", args, 1)?;
-        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        Self::evaluate_byte_length_impl(&args[0], batch, row_idx)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_byte_length(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("BYTE_LENGTH", args, 1)?;
+        Self::evaluate_byte_length_impl(&args[0], batch, row_idx)
+    }
+
+    fn evaluate_byte_length_impl(arg: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
+        let val = Self::evaluate_expr(arg, batch, row_idx)?;
 
         if val.is_null() {
             return Ok(Value::null());

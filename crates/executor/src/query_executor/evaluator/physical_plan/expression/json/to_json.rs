@@ -20,6 +20,31 @@ impl ProjectionWithExprExec {
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
         yachtsql_functions::json::to_json(&val)
     }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_to_json_string(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "TO_JSON_STRING requires exactly 1 argument".to_string(),
+            ));
+        }
+
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let json_val = yachtsql_functions::json::to_json(&val)?;
+        if json_val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(json) = json_val.as_json() {
+            Ok(Value::string(json.to_string()))
+        } else {
+            Err(Error::invalid_query(
+                "TO_JSON_STRING: failed to convert to JSON".to_string(),
+            ))
+        }
+    }
 }
 
 #[cfg(test)]

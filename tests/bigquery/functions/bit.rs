@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_count() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT BIT_COUNT(5)").unwrap();
@@ -10,7 +9,6 @@ fn test_bit_count() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_count_zero() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT BIT_COUNT(0)").unwrap();
@@ -18,7 +16,6 @@ fn test_bit_count_zero() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_count_bytes() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT BIT_COUNT(b'\\xFF')").unwrap();
@@ -26,7 +23,6 @@ fn test_bit_count_bytes() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_byte_length() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT BYTE_LENGTH('hello')").unwrap();
@@ -34,7 +30,6 @@ fn test_byte_length() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_byte_length_unicode() {
     let mut executor = create_executor();
     let result = executor
@@ -44,7 +39,6 @@ fn test_byte_length_unicode() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_byte_length_bytes() {
     let mut executor = create_executor();
     let result = executor
@@ -54,7 +48,6 @@ fn test_byte_length_bytes() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_and_aggregate() {
     let mut executor = create_executor();
     executor
@@ -71,7 +64,6 @@ fn test_bit_and_aggregate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_or_aggregate() {
     let mut executor = create_executor();
     executor
@@ -88,7 +80,6 @@ fn test_bit_or_aggregate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_xor_aggregate() {
     let mut executor = create_executor();
     executor
@@ -105,7 +96,6 @@ fn test_bit_xor_aggregate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_and_operator() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 7 & 3").unwrap();
@@ -113,7 +103,6 @@ fn test_bit_and_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_or_operator() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 4 | 2").unwrap();
@@ -121,7 +110,6 @@ fn test_bit_or_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_xor_operator() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 5 ^ 3").unwrap();
@@ -129,7 +117,6 @@ fn test_bit_xor_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_not_operator() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ~0").unwrap();
@@ -137,7 +124,6 @@ fn test_bit_not_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_left_shift() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 1 << 4").unwrap();
@@ -145,7 +131,6 @@ fn test_left_shift() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_right_shift() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 16 >> 2").unwrap();
@@ -153,7 +138,6 @@ fn test_right_shift() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_operations_with_group_by() {
     let mut executor = create_executor();
     executor
@@ -170,7 +154,6 @@ fn test_bit_operations_with_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bit_count_null() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT BIT_COUNT(NULL)").unwrap();

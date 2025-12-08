@@ -59,6 +59,7 @@ impl ProjectionWithExprExec {
                 Self::evaluate_length(args, batch, row_idx)
             }
             "OCTET_LENGTH" => Self::evaluate_octet_length(args, batch, row_idx),
+            "BYTE_LENGTH" => Self::evaluate_byte_length(args, batch, row_idx),
             "SPLIT" | "STRING_TO_ARRAY" => Self::evaluate_split(args, batch, row_idx),
             "SPLIT_PART" => Self::evaluate_split_part(args, batch, row_idx),
             "SPLITBYCHAR" | "SPLITBYSTRING" => Self::evaluate_split(args, batch, row_idx),

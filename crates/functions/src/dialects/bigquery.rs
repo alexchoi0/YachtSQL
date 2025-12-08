@@ -23,6 +23,17 @@ pub fn bigquery_scalar_functions() -> Vec<&'static str> {
         "JSON_KEYS",
         "JSON_LENGTH",
         "JSON_TYPE",
+        "JSON_EXTRACT_ARRAY",
+        "JSON_EXTRACT_STRING_ARRAY",
+        "JSON_QUERY_ARRAY",
+        "JSON_VALUE_ARRAY",
+        "JSON_SET",
+        "JSON_REMOVE",
+        "JSON_STRIP_NULLS",
+        "LAX_BOOL",
+        "LAX_INT64",
+        "LAX_FLOAT64",
+        "LAX_STRING",
         "STARTS_WITH",
         "ENDS_WITH",
         "CONCAT_WS",
@@ -122,6 +133,8 @@ pub fn bigquery_scalar_functions() -> Vec<&'static str> {
         "CURRENT_TIME",
         "CURRENT_TIMESTAMP",
         "GROUPING",
+        "BIT_COUNT",
+        "BYTE_LENGTH",
     ]
 }
 
