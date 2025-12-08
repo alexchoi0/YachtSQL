@@ -125,6 +125,15 @@ impl DmlUpdateExecutor for QueryExecutor {
                     )?;
                     let new_row = Row::from_named_values(updated_row_map.clone());
 
+                    self.validate_update_constraints(
+                        &dataset_id,
+                        &table_id,
+                        &schema,
+                        &new_row,
+                        row_idx,
+                        &all_rows,
+                    )?;
+
                     self.validate_view_check_option_update(
                         &dataset_id,
                         &table_id,
@@ -160,6 +169,15 @@ impl DmlUpdateExecutor for QueryExecutor {
                     &schema,
                 )?;
                 let new_row = Row::from_named_values(updated_row_map.clone());
+
+                self.validate_update_constraints(
+                    &dataset_id,
+                    &table_id,
+                    &schema,
+                    &new_row,
+                    row_idx,
+                    &all_rows,
+                )?;
 
                 self.validate_view_check_option_update(&dataset_id, &table_id, &new_row, &schema)?;
 
@@ -820,5 +838,150 @@ impl QueryExecutor {
         }
 
         Ok(SqlValue::SingleQuotedString(format!("{:?}", value)))
+    }
+
+    fn validate_update_constraints(
+        &self,
+        dataset_id: &str,
+        table_id: &str,
+        schema: &Schema,
+        new_row: &Row,
+        current_row_idx: usize,
+        all_rows: &[Row],
+    ) -> Result<()> {
+        let mut schema_with_evaluator = schema.clone();
+        if schema_with_evaluator.check_evaluator().is_none() {
+            let evaluator = super::build_check_evaluator();
+            schema_with_evaluator.set_check_evaluator(evaluator);
+        }
+
+        yachtsql_storage::constraints::validate_check_constraints(&schema_with_evaluator, new_row)?;
+
+        self.validate_unique_constraints_for_update(
+            &schema_with_evaluator,
+            new_row,
+            current_row_idx,
+            all_rows,
+        )?;
+
+        {
+            let storage = self.storage.borrow();
+            let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
+            let table_full_name = format!("{}.{}", dataset_id, table_id);
+            enforcer.validate_update(&table_full_name, new_row, &storage)?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_unique_constraints_for_update(
+        &self,
+        schema: &Schema,
+        new_row: &Row,
+        current_row_idx: usize,
+        all_rows: &[Row],
+    ) -> Result<()> {
+        let other_rows: Vec<&Row> = all_rows
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| *idx != current_row_idx)
+            .map(|(_, row)| row)
+            .collect();
+
+        if let Some(pk_columns) = schema.primary_key() {
+            let new_pk_values: Vec<yachtsql_core::types::Value> = pk_columns
+                .iter()
+                .filter_map(|col| {
+                    schema
+                        .field_index(col)
+                        .map(|idx| new_row.values()[idx].clone())
+                })
+                .collect();
+
+            if new_pk_values.iter().any(|v| v.is_null()) {
+                return Err(Error::NotNullViolation {
+                    column: pk_columns.join(", "),
+                });
+            }
+
+            for other_row in &other_rows {
+                let other_pk_values: Vec<yachtsql_core::types::Value> = pk_columns
+                    .iter()
+                    .filter_map(|col| {
+                        schema
+                            .field_index(col)
+                            .map(|idx| other_row.values()[idx].clone())
+                    })
+                    .collect();
+
+                if new_pk_values == other_pk_values {
+                    return Err(Error::UniqueConstraintViolation(format!(
+                        "PRIMARY KEY constraint violation: duplicate key value violates unique constraint on columns: {}",
+                        pk_columns.join(", ")
+                    )));
+                }
+            }
+        }
+
+        for unique_cols in schema.unique_constraints() {
+            let new_unique_values: Vec<yachtsql_core::types::Value> = unique_cols
+                .iter()
+                .filter_map(|col| {
+                    schema
+                        .field_index(col)
+                        .map(|idx| new_row.values()[idx].clone())
+                })
+                .collect();
+
+            if new_unique_values.iter().any(|v| v.is_null()) {
+                continue;
+            }
+
+            for other_row in &other_rows {
+                let other_unique_values: Vec<yachtsql_core::types::Value> = unique_cols
+                    .iter()
+                    .filter_map(|col| {
+                        schema
+                            .field_index(col)
+                            .map(|idx| other_row.values()[idx].clone())
+                    })
+                    .collect();
+
+                if other_unique_values.iter().any(|v| v.is_null()) {
+                    continue;
+                }
+
+                if new_unique_values == other_unique_values {
+                    return Err(Error::UniqueConstraintViolation(format!(
+                        "UNIQUE constraint violation: duplicate key value on columns: {}",
+                        unique_cols.join(", ")
+                    )));
+                }
+            }
+        }
+
+        for (idx, field) in schema.fields().iter().enumerate() {
+            if !field.is_unique {
+                continue;
+            }
+
+            let new_value = &new_row.values()[idx];
+
+            if new_value.is_null() {
+                continue;
+            }
+
+            for other_row in &other_rows {
+                let other_value = &other_row.values()[idx];
+                if !other_value.is_null() && new_value == other_value {
+                    return Err(Error::UniqueConstraintViolation(format!(
+                        "UNIQUE constraint violation: duplicate value in column '{}'",
+                        field.name
+                    )));
+                }
+            }
+        }
+
+        Ok(())
     }
 }

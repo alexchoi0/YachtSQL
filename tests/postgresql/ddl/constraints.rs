@@ -440,7 +440,6 @@ fn test_foreign_key_composite() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_on_delete_restrict() {
     let mut executor = create_executor();
     executor
@@ -461,7 +460,6 @@ fn test_foreign_key_on_delete_restrict() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_on_delete_no_action() {
     let mut executor = create_executor();
     executor
@@ -482,7 +480,6 @@ fn test_foreign_key_on_delete_no_action() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_on_update_restrict() {
     let mut executor = create_executor();
     executor
@@ -678,7 +675,6 @@ fn test_foreign_key_violation_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_violation_update() {
     let mut executor = create_executor();
     executor
@@ -1293,7 +1289,6 @@ fn test_check_constraint_enforcement_on_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_check_constraint_enforcement_on_update() {
     let mut executor = create_executor();
     executor
@@ -1322,7 +1317,6 @@ fn test_unique_enforcement_on_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unique_enforcement_on_update() {
     let mut executor = create_executor();
     executor

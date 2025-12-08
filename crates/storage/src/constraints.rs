@@ -163,7 +163,7 @@ fn columns_match_non_null(schema: &Schema, columns: &[String], row1: &Row, row2:
     })
 }
 
-fn validate_check_constraints(schema: &Schema, row: &Row) -> Result<()> {
+pub fn validate_check_constraints(schema: &Schema, row: &Row) -> Result<()> {
     let Some(evaluator) = schema.check_evaluator() else {
         return Ok(());
     };

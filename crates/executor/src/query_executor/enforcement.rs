@@ -11,6 +11,231 @@ impl ForeignKeyEnforcer {
         Self {}
     }
 
+    pub fn validate_update(
+        &self,
+        table_name: &str,
+        row: &Row,
+        storage: &yachtsql_storage::Storage,
+    ) -> Result<()> {
+        let (dataset_id, table_id) = Self::parse_table_name(table_name);
+
+        let (child_schema, foreign_keys) = {
+            let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Dataset '{}' not found for FK validation",
+                    dataset_id
+                ))
+            })?;
+            let table = dataset.get_table(&table_id).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Table '{}.{}' not found for FK validation",
+                    dataset_id, table_id
+                ))
+            })?;
+            (table.schema().clone(), table.foreign_keys().to_vec())
+        };
+
+        for fk in foreign_keys {
+            if !fk.is_enforced() {
+                continue;
+            }
+
+            let fk_values = Self::extract_column_values(&child_schema, row, &fk.child_columns)?;
+
+            if fk_values.is_empty() {
+                continue;
+            }
+
+            let parent_exists =
+                Self::parent_row_exists(&fk.parent_table, &fk.parent_columns, &fk_values, storage)?;
+
+            if !parent_exists {
+                return Err(yachtsql_core::error::Error::constraint_violation(format!(
+                    "Foreign key constraint '{}' violated: no matching row in parent table '{}' for values {:?}",
+                    fk.name.as_deref().unwrap_or("unnamed"),
+                    fk.parent_table,
+                    fk_values
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_restrict_on_delete(
+        &self,
+        table_name: &str,
+        deleted_row: &Row,
+        storage: &yachtsql_storage::Storage,
+    ) -> Result<()> {
+        use yachtsql_storage::foreign_keys::ReferentialAction;
+
+        let (dataset_id, table_id) = Self::parse_table_name(table_name);
+
+        let parent_schema = {
+            let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Dataset '{}' not found for RESTRICT check",
+                    dataset_id
+                ))
+            })?;
+            let table = dataset.get_table(&table_id).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Table '{}.{}' not found for RESTRICT check",
+                    dataset_id, table_id
+                ))
+            })?;
+            table.schema().clone()
+        };
+
+        let child_tables = Self::find_child_tables_with_fks(table_name, storage)?;
+
+        for (child_dataset, child_table_name, fk) in child_tables {
+            let should_restrict = matches!(
+                fk.on_delete,
+                ReferentialAction::Restrict | ReferentialAction::NoAction
+            );
+
+            if !should_restrict {
+                continue;
+            }
+
+            let parent_key_values =
+                Self::extract_column_values(&parent_schema, deleted_row, &fk.parent_columns)?;
+
+            if parent_key_values.is_empty() {
+                continue;
+            }
+
+            let has_child_references = Self::has_child_references(
+                &child_dataset,
+                &child_table_name,
+                &fk,
+                &parent_key_values,
+                storage,
+            )?;
+
+            if has_child_references {
+                return Err(yachtsql_core::error::Error::constraint_violation(format!(
+                    "Foreign key constraint '{}' on table '{}.{}' violated: cannot delete row from '{}' because it is referenced by rows in child table",
+                    fk.name.as_deref().unwrap_or("unnamed"),
+                    child_dataset,
+                    child_table_name,
+                    table_name
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_restrict_on_update(
+        &self,
+        table_name: &str,
+        old_row: &Row,
+        new_row: &Row,
+        storage: &yachtsql_storage::Storage,
+    ) -> Result<()> {
+        use yachtsql_storage::foreign_keys::ReferentialAction;
+
+        let (dataset_id, table_id) = Self::parse_table_name(table_name);
+
+        let parent_schema = {
+            let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Dataset '{}' not found for RESTRICT check",
+                    dataset_id
+                ))
+            })?;
+            let table = dataset.get_table(&table_id).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Table '{}.{}' not found for RESTRICT check",
+                    dataset_id, table_id
+                ))
+            })?;
+            table.schema().clone()
+        };
+
+        let child_tables = Self::find_child_tables_with_fks(table_name, storage)?;
+
+        for (child_dataset, child_table_name, fk) in child_tables {
+            let should_restrict = matches!(
+                fk.on_update,
+                ReferentialAction::Restrict | ReferentialAction::NoAction
+            );
+
+            if !should_restrict {
+                continue;
+            }
+
+            let old_parent_values =
+                Self::extract_column_values(&parent_schema, old_row, &fk.parent_columns)?;
+            let new_parent_values =
+                Self::extract_column_values(&parent_schema, new_row, &fk.parent_columns)?;
+
+            if old_parent_values == new_parent_values {
+                continue;
+            }
+
+            if old_parent_values.is_empty() {
+                continue;
+            }
+
+            let has_child_references = Self::has_child_references(
+                &child_dataset,
+                &child_table_name,
+                &fk,
+                &old_parent_values,
+                storage,
+            )?;
+
+            if has_child_references {
+                return Err(yachtsql_core::error::Error::constraint_violation(format!(
+                    "Foreign key constraint '{}' on table '{}.{}' violated: cannot update row in '{}' because it is referenced by rows in child table",
+                    fk.name.as_deref().unwrap_or("unnamed"),
+                    child_dataset,
+                    child_table_name,
+                    table_name
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn has_child_references(
+        child_dataset: &str,
+        child_table_name: &str,
+        fk: &yachtsql_storage::foreign_keys::ForeignKey,
+        parent_key_values: &[yachtsql_core::types::Value],
+        storage: &yachtsql_storage::Storage,
+    ) -> Result<bool> {
+        let (child_schema, all_rows) = {
+            let dataset = storage.get_dataset(child_dataset).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Dataset '{}' not found",
+                    child_dataset
+                ))
+            })?;
+            let table = dataset.get_table(child_table_name).ok_or_else(|| {
+                yachtsql_core::error::Error::InvalidOperation(format!(
+                    "Table '{}' not found",
+                    child_table_name
+                ))
+            })?;
+            (table.schema().clone(), table.get_all_rows())
+        };
+
+        for row in all_rows {
+            let fk_values = Self::extract_column_values(&child_schema, &row, &fk.child_columns)?;
+            if !fk_values.is_empty() && fk_values == parent_key_values {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     pub fn cascade_delete(
         &self,
         table_name: &str,
@@ -18,6 +243,8 @@ impl ForeignKeyEnforcer {
         storage: &mut yachtsql_storage::Storage,
     ) -> Result<()> {
         use yachtsql_storage::foreign_keys::ReferentialAction;
+
+        self.check_restrict_on_delete(table_name, deleted_row, storage)?;
 
         let (dataset_id, table_id) = Self::parse_table_name(table_name);
 
@@ -90,6 +317,8 @@ impl ForeignKeyEnforcer {
         storage: &mut yachtsql_storage::Storage,
     ) -> Result<()> {
         use yachtsql_storage::foreign_keys::ReferentialAction;
+
+        self.check_restrict_on_update(table_name, old_row, new_row, storage)?;
 
         let (dataset_id, table_id) = Self::parse_table_name(table_name);
 
