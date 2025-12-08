@@ -291,6 +291,18 @@ pub enum FunctionName {
     IntervalLengthSum,
     Retention,
     WindowFunnel,
+    SimpleLinearRegression,
+    StochasticLinearRegression,
+    StochasticLogisticRegression,
+    CategoricalInformationValue,
+    CramersV,
+    CramersVBiasCorrected,
+    TheilU,
+    ContingencyCoefficient,
+    MannWhitneyUTest,
+    StudentTTest,
+    WelchTTest,
+    KolmogorovSmirnovTest,
 
     Map,
     MapFromArrays,
@@ -310,6 +322,380 @@ pub enum FunctionName {
     MapReverseSort,
     MapPartialSort,
 
+    // String functions
+    TrimChars,
+    LtrimChars,
+    RtrimChars,
+    StringToArray,
+    StartsWith,
+    EndsWith,
+    RegexpContains,
+    RegexpReplace,
+    ReplaceRegexpAll,
+    ReplaceRegexpOne,
+    RegexpExtract,
+    Format,
+    QuoteIdent,
+    QuoteLiteral,
+    Casefold,
+    SplitByChar,
+    SplitByString,
+    BitCount,
+    GetBit,
+    SetBit,
+
+    // Array functions
+    ArrayReverse,
+    ArrayAppend,
+    ArrayPrepend,
+    ArrayPosition,
+    ArrayRemove,
+    ArrayReplace,
+    ArraySort,
+    ArrayDistinct,
+    GenerateArray,
+    GenerateDateArray,
+    GenerateTimestampArray,
+    GenerateUuidArray,
+
+    // Math functions
+    Degrees,
+    Radians,
+    SafeDivide,
+    SafeMultiply,
+    SafeAdd,
+    SafeSubtract,
+    SafeNegate,
+    Gamma,
+    Lgamma,
+    Sinh,
+    Cosh,
+    Tanh,
+    Asinh,
+    Acosh,
+    Atanh,
+    Cot,
+    Sind,
+    Cosd,
+    Tand,
+    Asind,
+    Acosd,
+    Atand,
+    Atan2d,
+    Cotd,
+    Cbrt,
+    Factorial,
+    Gcd,
+    Lcm,
+    Scale,
+    MinScale,
+    TrimScale,
+    WidthBucket,
+    Setseed,
+    ToNumber,
+
+    // Date/time functions
+    TimestampTrunc,
+    FormatDate,
+    ParseDate,
+    ParseTimestamp,
+    MakeDate,
+    MakeTimestamp,
+    TimestampDiff,
+    IntervalLiteral,
+    IntervalParse,
+    Year,
+    Month,
+    Day,
+    Hour,
+    Minute,
+    Second,
+    Quarter,
+    Week,
+    Isoweek,
+    Dayofweek,
+    Dayofyear,
+    Dayofmonth,
+    Weekday,
+    LastDay,
+    AtTimeZone,
+    JustifyDays,
+    JustifyHours,
+    JustifyInterval,
+    Dow,
+    Doy,
+
+    // Crypto/hash functions
+    Sha1,
+    Sha512,
+    FarmFingerprint,
+    ToHex,
+    FromHex,
+    GenRandomBytes,
+    Digest,
+    Crc32,
+    Crc32c,
+
+    // UUID functions
+    UuidGenerateV1,
+    Uuidv4,
+    Uuidv7,
+
+    // Geometric functions
+    Point,
+    PointX,
+    PointY,
+    Box,
+    Circle,
+    Area,
+    Center,
+    Diameter,
+    Radius,
+    Width,
+    Height,
+    Distance,
+    Contains,
+    ContainedBy,
+    Overlaps,
+
+    // Geography (ST_*) functions
+    StGeogpoint,
+    StGeogfromtext,
+    StGeogfromgeojson,
+    StAstext,
+    StAsgeojson,
+    StAsbinary,
+    StX,
+    StY,
+    StGeometrytype,
+    StIsempty,
+    StIsclosed,
+    StIscollection,
+    StDimension,
+    StNumpoints,
+    StNpoints,
+    StPointn,
+    StStartpoint,
+    StEndpoint,
+    StMakeline,
+    StMakepolygon,
+    StDistance,
+    StLength,
+    StArea,
+    StPerimeter,
+    StMaxdistance,
+    StAzimuth,
+    StCentroid,
+    StContains,
+    StCovers,
+    StCoveredby,
+    StDisjoint,
+    StDwithin,
+    StEquals,
+    StIntersects,
+    StTouches,
+    StWithin,
+    StBoundary,
+    StBuffer,
+    StBufferwithtolerance,
+    StClosestpoint,
+    StConvexhull,
+    StDifference,
+    StIntersection,
+    StSimplify,
+    StSnaptogrid,
+    StUnion,
+    StBoundingbox,
+    StGeohash,
+    StGeogpointfromgeohash,
+
+    // Full-text search functions
+    ToTsvector,
+    ToTsquery,
+    PlaintoTsquery,
+    PhrasetoTsquery,
+    WebsearchToTsquery,
+    TsMatch,
+    TsMatchVq,
+    TsMatchQv,
+    TsRank,
+    TsRankCd,
+    TsvectorConcat,
+    TsHeadline,
+    Setweight,
+    Strip,
+    TsvectorLength,
+    Numnode,
+    Querytree,
+    TsqueryAnd,
+    TsqueryOr,
+    TsqueryNot,
+
+    // Hstore functions
+    Hstore,
+    HstoreExists,
+    HstoreExistsAll,
+    HstoreExistsAny,
+    Exist,
+    HstoreConcat,
+    HstoreDelete,
+    HstoreDeleteKey,
+    HstoreDeleteKeys,
+    HstoreDeleteHstore,
+    Delete,
+    HstoreContains,
+    HstoreContainedBy,
+    HstoreAkeys,
+    Akeys,
+    Skeys,
+    HstoreAvals,
+    Avals,
+    Svals,
+    HstoreDefined,
+    Defined,
+    HstoreToJson,
+    HstoreToJsonb,
+    HstoreToArray,
+    HstoreToMatrix,
+    HstoreSlice,
+    Slice,
+    HstoreGet,
+    HstoreGetValues,
+
+    // Higher-order array functions (ClickHouse-style)
+    Arraymap,
+    Arrayfilter,
+    Arrayexists,
+    Arrayall,
+    Arrayfirst,
+    Arraylast,
+    Arrayfirstindex,
+    Arraylastindex,
+    Arraycount,
+    Arraysum,
+    Arrayavg,
+    Arraymin,
+    Arraymax,
+    Arraysort,
+    Arrayreversesort,
+    Arrayfold,
+    Arrayreduce,
+    Arrayreduceinranges,
+    Arraycumsum,
+    Arraycumsumnonnegative,
+    Arraydifference,
+    Arraysplit,
+    Arrayreversesplit,
+    Arraycompact,
+    Arrayzip,
+    Arrayauc,
+
+    // Range functions
+    LowerInc,
+    UpperInc,
+    LowerInf,
+    UpperInf,
+    Isempty,
+    RangeMerge,
+    RangeIsempty,
+    RangeContains,
+    RangeContainsElem,
+    RangeOverlaps,
+    RangeUnion,
+    RangeIntersection,
+    RangeAdjacent,
+    RangeStrictlyLeft,
+    RangeStrictlyRight,
+    RangeDifference,
+
+    // Sequence functions
+    Nextval,
+    Currval,
+    Setval,
+    Lastval,
+
+    // JSON aggregate functions
+    JsonAgg,
+    JsonbAgg,
+    JsonObjectAgg,
+    JsonbObjectAgg,
+    JsonArrayagg,
+    JsonObjectagg,
+
+    // JSON functions
+    JsonExtractJson,
+    JsonExtractPathArray,
+    JsonExtractPathArrayText,
+    JsonExists,
+    JsonKeys,
+    JsonObjectKeys,
+    JsonbObjectKeys,
+    JsonValueText,
+    ToJson,
+    ToJsonb,
+    ToJsonString,
+    JsonbPretty,
+    JsonbContains,
+    JsonbPathExists,
+    JsonbPathMatch,
+    JsonbPathQueryFirst,
+    JsonArray,
+    JsonObject,
+    ParseJson,
+    JsonBuildArray,
+    JsonbBuildArray,
+    JsonBuildObject,
+    JsonbBuildObject,
+    JsonStripNulls,
+    JsonbStripNulls,
+    JsonbInsert,
+    JsonbConcat,
+    JsonbDelete,
+    JsonbDeletePath,
+    JsonbSet,
+    IsJsonValue,
+    IsJsonArray,
+    IsJsonObject,
+    IsJsonScalar,
+    IsNotJsonValue,
+    IsNotJsonArray,
+    IsNotJsonObject,
+    IsNotJsonScalar,
+
+    // Aggregate functions
+    RegrSlope,
+    RegrIntercept,
+    Entropy,
+    MeanZscore,
+    UniqUpdown,
+
+    // Network functions
+    NetIpFromString,
+    NetSafeIpFromString,
+    NetIpv4FromInt64,
+    NetIpNetMask,
+    NetIpTrunc,
+    NetIpv4ToInt64,
+    NetIpToString,
+    NetHost,
+    NetPublicSuffix,
+    NetRegDomain,
+
+    // Encryption functions
+    KeysKeysetChain,
+    AeadEncrypt,
+    DeterministicEncrypt,
+    AeadDecryptBytes,
+    DeterministicDecryptBytes,
+    AeadDecryptString,
+    DeterministicDecryptString,
+
+    // System/Special functions
+    MergeAction,
+    Array,
+
+    /// Reserved for internal use only. Not part of any SQL dialect.
+    /// Used for internal engine functions like `YACHTSQL.IS_FEATURE_ENABLED`.
     Custom(String),
 }
 
@@ -639,6 +1025,30 @@ impl FunctionName {
             "RETENTION" => Self::Retention,
             "WINDOW_FUNNEL" => Self::WindowFunnel,
             "WINDOWFUNNEL" => Self::WindowFunnel,
+            "SIMPLE_LINEAR_REGRESSION" => Self::SimpleLinearRegression,
+            "SIMPLELINEARREGRESSION" => Self::SimpleLinearRegression,
+            "STOCHASTIC_LINEAR_REGRESSION" => Self::StochasticLinearRegression,
+            "STOCHASTICLINEARREGRESSION" => Self::StochasticLinearRegression,
+            "STOCHASTIC_LOGISTIC_REGRESSION" => Self::StochasticLogisticRegression,
+            "STOCHASTICLOGISTICREGRESSION" => Self::StochasticLogisticRegression,
+            "CATEGORICAL_INFORMATION_VALUE" => Self::CategoricalInformationValue,
+            "CATEGORICALINFORMATIONVALUE" => Self::CategoricalInformationValue,
+            "CRAMERS_V" => Self::CramersV,
+            "CRAMERSV" => Self::CramersV,
+            "CRAMERS_V_BIAS_CORRECTED" => Self::CramersVBiasCorrected,
+            "CRAMERSVBIASCORRECTED" => Self::CramersVBiasCorrected,
+            "THEIL_U" => Self::TheilU,
+            "THEILU" => Self::TheilU,
+            "CONTINGENCY_COEFFICIENT" => Self::ContingencyCoefficient,
+            "CONTINGENCYCOEFFICIENT" => Self::ContingencyCoefficient,
+            "MANNWHITNEY_U_TEST" => Self::MannWhitneyUTest,
+            "MANNWHITNEYUTEST" => Self::MannWhitneyUTest,
+            "STUDENT_T_TEST" => Self::StudentTTest,
+            "STUDENTTTEST" => Self::StudentTTest,
+            "WELCH_T_TEST" => Self::WelchTTest,
+            "WELCHTTEST" => Self::WelchTTest,
+            "KOLMOGOROV_SMIRNOV_TEST" => Self::KolmogorovSmirnovTest,
+            "KOLMOGOROVSMIRNOVTEST" => Self::KolmogorovSmirnovTest,
 
             "MAP" => Self::Map,
             "MAPFROMARRAYS" => Self::MapFromArrays,
@@ -657,6 +1067,378 @@ impl FunctionName {
             "MAPSORT" | "MAP_SORT" => Self::MapSort,
             "MAPREVERSESORT" | "MAP_REVERSE_SORT" => Self::MapReverseSort,
             "MAPPARTIALSORT" | "MAP_PARTIAL_SORT" => Self::MapPartialSort,
+
+            // String functions
+            "TRIM_CHARS" => Self::TrimChars,
+            "LTRIM_CHARS" => Self::LtrimChars,
+            "RTRIM_CHARS" => Self::RtrimChars,
+            "STRING_TO_ARRAY" => Self::StringToArray,
+            "STARTS_WITH" | "STARTSWITH" => Self::StartsWith,
+            "ENDS_WITH" | "ENDSWITH" => Self::EndsWith,
+            "REGEXP_CONTAINS" => Self::RegexpContains,
+            "REGEXP_REPLACE" => Self::RegexpReplace,
+            "REPLACEREGEXPALL" => Self::ReplaceRegexpAll,
+            "REPLACEREGEXPONE" => Self::ReplaceRegexpOne,
+            "REGEXP_EXTRACT" => Self::RegexpExtract,
+            "FORMAT" => Self::Format,
+            "QUOTE_IDENT" => Self::QuoteIdent,
+            "QUOTE_LITERAL" => Self::QuoteLiteral,
+            "CASEFOLD" => Self::Casefold,
+            "SPLITBYCHAR" => Self::SplitByChar,
+            "SPLITBYSTRING" => Self::SplitByString,
+            "BIT_COUNT" => Self::BitCount,
+            "GET_BIT" => Self::GetBit,
+            "SET_BIT" => Self::SetBit,
+
+            // Array functions
+            "ARRAY_REVERSE" => Self::ArrayReverse,
+            "ARRAY_APPEND" => Self::ArrayAppend,
+            "ARRAY_PREPEND" => Self::ArrayPrepend,
+            "ARRAY_POSITION" => Self::ArrayPosition,
+            "ARRAY_REMOVE" => Self::ArrayRemove,
+            "ARRAY_REPLACE" => Self::ArrayReplace,
+            "ARRAY_SORT" => Self::ArraySort,
+            "ARRAY_DISTINCT" => Self::ArrayDistinct,
+            "GENERATE_ARRAY" => Self::GenerateArray,
+            "GENERATE_DATE_ARRAY" => Self::GenerateDateArray,
+            "GENERATE_TIMESTAMP_ARRAY" => Self::GenerateTimestampArray,
+            "GENERATE_UUID_ARRAY" => Self::GenerateUuidArray,
+
+            // Math functions
+            "DEGREES" => Self::Degrees,
+            "RADIANS" => Self::Radians,
+            "SAFE_DIVIDE" => Self::SafeDivide,
+            "SAFE_MULTIPLY" => Self::SafeMultiply,
+            "SAFE_ADD" => Self::SafeAdd,
+            "SAFE_SUBTRACT" => Self::SafeSubtract,
+            "SAFE_NEGATE" => Self::SafeNegate,
+            "GAMMA" => Self::Gamma,
+            "LGAMMA" => Self::Lgamma,
+            "SINH" => Self::Sinh,
+            "COSH" => Self::Cosh,
+            "TANH" => Self::Tanh,
+            "ASINH" => Self::Asinh,
+            "ACOSH" => Self::Acosh,
+            "ATANH" => Self::Atanh,
+            "COT" => Self::Cot,
+            "SIND" => Self::Sind,
+            "COSD" => Self::Cosd,
+            "TAND" => Self::Tand,
+            "ASIND" => Self::Asind,
+            "ACOSD" => Self::Acosd,
+            "ATAND" => Self::Atand,
+            "ATAN2D" => Self::Atan2d,
+            "COTD" => Self::Cotd,
+            "CBRT" => Self::Cbrt,
+            "FACTORIAL" => Self::Factorial,
+            "GCD" => Self::Gcd,
+            "LCM" => Self::Lcm,
+            "SCALE" => Self::Scale,
+            "MIN_SCALE" => Self::MinScale,
+            "TRIM_SCALE" => Self::TrimScale,
+            "WIDTH_BUCKET" => Self::WidthBucket,
+            "SETSEED" => Self::Setseed,
+            "TO_NUMBER" => Self::ToNumber,
+
+            // Date/time functions
+            "TIMESTAMP_TRUNC" => Self::TimestampTrunc,
+            "FORMAT_DATE" => Self::FormatDate,
+            "PARSE_DATE" => Self::ParseDate,
+            "PARSE_TIMESTAMP" => Self::ParseTimestamp,
+            "MAKE_DATE" => Self::MakeDate,
+            "MAKE_TIMESTAMP" => Self::MakeTimestamp,
+            "TIMESTAMP_DIFF" => Self::TimestampDiff,
+            "INTERVAL_LITERAL" => Self::IntervalLiteral,
+            "INTERVAL_PARSE" => Self::IntervalParse,
+            "YEAR" => Self::Year,
+            "MONTH" => Self::Month,
+            "DAY" => Self::Day,
+            "HOUR" => Self::Hour,
+            "MINUTE" => Self::Minute,
+            "SECOND" => Self::Second,
+            "QUARTER" => Self::Quarter,
+            "WEEK" => Self::Week,
+            "ISOWEEK" => Self::Isoweek,
+            "DAYOFWEEK" => Self::Dayofweek,
+            "DAYOFYEAR" => Self::Dayofyear,
+            "DAYOFMONTH" => Self::Dayofmonth,
+            "WEEKDAY" => Self::Weekday,
+            "LAST_DAY" => Self::LastDay,
+            "AT_TIME_ZONE" => Self::AtTimeZone,
+            "JUSTIFY_DAYS" => Self::JustifyDays,
+            "JUSTIFY_HOURS" => Self::JustifyHours,
+            "JUSTIFY_INTERVAL" => Self::JustifyInterval,
+            "DOW" => Self::Dow,
+            "DOY" => Self::Doy,
+
+            // Crypto/hash functions
+            "SHA1" => Self::Sha1,
+            "SHA512" => Self::Sha512,
+            "FARM_FINGERPRINT" => Self::FarmFingerprint,
+            "TO_HEX" => Self::ToHex,
+            "FROM_HEX" => Self::FromHex,
+            "GEN_RANDOM_BYTES" => Self::GenRandomBytes,
+            "DIGEST" => Self::Digest,
+            "CRC32" => Self::Crc32,
+            "CRC32C" => Self::Crc32c,
+
+            // UUID functions
+            "UUID_GENERATE_V1" => Self::UuidGenerateV1,
+            "UUIDV4" => Self::Uuidv4,
+            "UUIDV7" => Self::Uuidv7,
+
+            // Geometric functions
+            "POINT" => Self::Point,
+            "POINT_X" => Self::PointX,
+            "POINT_Y" => Self::PointY,
+            "BOX" => Self::Box,
+            "CIRCLE" => Self::Circle,
+            "AREA" => Self::Area,
+            "CENTER" => Self::Center,
+            "DIAMETER" => Self::Diameter,
+            "RADIUS" => Self::Radius,
+            "WIDTH" => Self::Width,
+            "HEIGHT" => Self::Height,
+            "DISTANCE" => Self::Distance,
+            "CONTAINS" => Self::Contains,
+            "CONTAINED_BY" => Self::ContainedBy,
+            "OVERLAPS" => Self::Overlaps,
+
+            // Geography (ST_*) functions
+            "ST_GEOGPOINT" => Self::StGeogpoint,
+            "ST_GEOGFROMTEXT" => Self::StGeogfromtext,
+            "ST_GEOGFROMGEOJSON" => Self::StGeogfromgeojson,
+            "ST_ASTEXT" => Self::StAstext,
+            "ST_ASGEOJSON" => Self::StAsgeojson,
+            "ST_ASBINARY" => Self::StAsbinary,
+            "ST_X" => Self::StX,
+            "ST_Y" => Self::StY,
+            "ST_GEOMETRYTYPE" => Self::StGeometrytype,
+            "ST_ISEMPTY" => Self::StIsempty,
+            "ST_ISCLOSED" => Self::StIsclosed,
+            "ST_ISCOLLECTION" => Self::StIscollection,
+            "ST_DIMENSION" => Self::StDimension,
+            "ST_NUMPOINTS" => Self::StNumpoints,
+            "ST_NPOINTS" => Self::StNpoints,
+            "ST_POINTN" => Self::StPointn,
+            "ST_STARTPOINT" => Self::StStartpoint,
+            "ST_ENDPOINT" => Self::StEndpoint,
+            "ST_MAKELINE" => Self::StMakeline,
+            "ST_MAKEPOLYGON" => Self::StMakepolygon,
+            "ST_DISTANCE" => Self::StDistance,
+            "ST_LENGTH" => Self::StLength,
+            "ST_AREA" => Self::StArea,
+            "ST_PERIMETER" => Self::StPerimeter,
+            "ST_MAXDISTANCE" => Self::StMaxdistance,
+            "ST_AZIMUTH" => Self::StAzimuth,
+            "ST_CENTROID" => Self::StCentroid,
+            "ST_CONTAINS" => Self::StContains,
+            "ST_COVERS" => Self::StCovers,
+            "ST_COVEREDBY" => Self::StCoveredby,
+            "ST_DISJOINT" => Self::StDisjoint,
+            "ST_DWITHIN" => Self::StDwithin,
+            "ST_EQUALS" => Self::StEquals,
+            "ST_INTERSECTS" => Self::StIntersects,
+            "ST_TOUCHES" => Self::StTouches,
+            "ST_WITHIN" => Self::StWithin,
+            "ST_BOUNDARY" => Self::StBoundary,
+            "ST_BUFFER" => Self::StBuffer,
+            "ST_BUFFERWITHTOLERANCE" => Self::StBufferwithtolerance,
+            "ST_CLOSESTPOINT" => Self::StClosestpoint,
+            "ST_CONVEXHULL" => Self::StConvexhull,
+            "ST_DIFFERENCE" => Self::StDifference,
+            "ST_INTERSECTION" => Self::StIntersection,
+            "ST_SIMPLIFY" => Self::StSimplify,
+            "ST_SNAPTOGRID" => Self::StSnaptogrid,
+            "ST_UNION" => Self::StUnion,
+            "ST_BOUNDINGBOX" => Self::StBoundingbox,
+            "ST_GEOHASH" => Self::StGeohash,
+            "ST_GEOGPOINTFROMGEOHASH" => Self::StGeogpointfromgeohash,
+
+            // Full-text search functions
+            "TO_TSVECTOR" => Self::ToTsvector,
+            "TO_TSQUERY" => Self::ToTsquery,
+            "PLAINTO_TSQUERY" => Self::PlaintoTsquery,
+            "PHRASETO_TSQUERY" => Self::PhrasetoTsquery,
+            "WEBSEARCH_TO_TSQUERY" => Self::WebsearchToTsquery,
+            "TS_MATCH" => Self::TsMatch,
+            "TS_MATCH_VQ" => Self::TsMatchVq,
+            "TS_MATCH_QV" => Self::TsMatchQv,
+            "TS_RANK" => Self::TsRank,
+            "TS_RANK_CD" => Self::TsRankCd,
+            "TSVECTOR_CONCAT" => Self::TsvectorConcat,
+            "TS_HEADLINE" => Self::TsHeadline,
+            "SETWEIGHT" => Self::Setweight,
+            "STRIP" => Self::Strip,
+            "TSVECTOR_LENGTH" => Self::TsvectorLength,
+            "NUMNODE" => Self::Numnode,
+            "QUERYTREE" => Self::Querytree,
+            "TSQUERY_AND" => Self::TsqueryAnd,
+            "TSQUERY_OR" => Self::TsqueryOr,
+            "TSQUERY_NOT" => Self::TsqueryNot,
+
+            // Hstore functions
+            "HSTORE" => Self::Hstore,
+            "HSTORE_EXISTS" => Self::HstoreExists,
+            "HSTORE_EXISTS_ALL" => Self::HstoreExistsAll,
+            "HSTORE_EXISTS_ANY" => Self::HstoreExistsAny,
+            "EXIST" => Self::Exist,
+            "HSTORE_CONCAT" => Self::HstoreConcat,
+            "HSTORE_DELETE" => Self::HstoreDelete,
+            "HSTORE_DELETE_KEY" => Self::HstoreDeleteKey,
+            "HSTORE_DELETE_KEYS" => Self::HstoreDeleteKeys,
+            "HSTORE_DELETE_HSTORE" => Self::HstoreDeleteHstore,
+            "DELETE" => Self::Delete,
+            "HSTORE_CONTAINS" => Self::HstoreContains,
+            "HSTORE_CONTAINED_BY" => Self::HstoreContainedBy,
+            "HSTORE_AKEYS" => Self::HstoreAkeys,
+            "AKEYS" => Self::Akeys,
+            "SKEYS" => Self::Skeys,
+            "HSTORE_AVALS" => Self::HstoreAvals,
+            "AVALS" => Self::Avals,
+            "SVALS" => Self::Svals,
+            "HSTORE_DEFINED" => Self::HstoreDefined,
+            "DEFINED" => Self::Defined,
+            "HSTORE_TO_JSON" => Self::HstoreToJson,
+            "HSTORE_TO_JSONB" => Self::HstoreToJsonb,
+            "HSTORE_TO_ARRAY" => Self::HstoreToArray,
+            "HSTORE_TO_MATRIX" => Self::HstoreToMatrix,
+            "HSTORE_SLICE" => Self::HstoreSlice,
+            "SLICE" => Self::Slice,
+            "HSTORE_GET" => Self::HstoreGet,
+            "HSTORE_GET_VALUES" => Self::HstoreGetValues,
+
+            // Higher-order array functions (ClickHouse-style)
+            "ARRAYMAP" => Self::Arraymap,
+            "ARRAYFILTER" => Self::Arrayfilter,
+            "ARRAYEXISTS" => Self::Arrayexists,
+            "ARRAYALL" => Self::Arrayall,
+            "ARRAYFIRST" => Self::Arrayfirst,
+            "ARRAYLAST" => Self::Arraylast,
+            "ARRAYFIRSTINDEX" => Self::Arrayfirstindex,
+            "ARRAYLASTINDEX" => Self::Arraylastindex,
+            "ARRAYCOUNT" => Self::Arraycount,
+            "ARRAYSUM" => Self::Arraysum,
+            "ARRAYAVG" => Self::Arrayavg,
+            "ARRAYMIN" => Self::Arraymin,
+            "ARRAYMAX" => Self::Arraymax,
+            "ARRAYSORT" => Self::Arraysort,
+            "ARRAYREVERSESORT" => Self::Arrayreversesort,
+            "ARRAYFOLD" => Self::Arrayfold,
+            "ARRAYREDUCE" => Self::Arrayreduce,
+            "ARRAYREDUCEINRANGES" => Self::Arrayreduceinranges,
+            "ARRAYCUMSUM" => Self::Arraycumsum,
+            "ARRAYCUMSUMNONNEGATIVE" => Self::Arraycumsumnonnegative,
+            "ARRAYDIFFERENCE" => Self::Arraydifference,
+            "ARRAYSPLIT" => Self::Arraysplit,
+            "ARRAYREVERSESPLIT" => Self::Arrayreversesplit,
+            "ARRAYCOMPACT" => Self::Arraycompact,
+            "ARRAYZIP" => Self::Arrayzip,
+            "ARRAYAUC" => Self::Arrayauc,
+
+            // Range functions
+            "LOWER_INC" => Self::LowerInc,
+            "UPPER_INC" => Self::UpperInc,
+            "LOWER_INF" => Self::LowerInf,
+            "UPPER_INF" => Self::UpperInf,
+            "ISEMPTY" => Self::Isempty,
+            "RANGE_MERGE" => Self::RangeMerge,
+            "RANGE_ISEMPTY" => Self::RangeIsempty,
+            "RANGE_CONTAINS" => Self::RangeContains,
+            "RANGE_CONTAINS_ELEM" => Self::RangeContainsElem,
+            "RANGE_OVERLAPS" => Self::RangeOverlaps,
+            "RANGE_UNION" => Self::RangeUnion,
+            "RANGE_INTERSECTION" => Self::RangeIntersection,
+            "RANGE_ADJACENT" => Self::RangeAdjacent,
+            "RANGE_STRICTLY_LEFT" => Self::RangeStrictlyLeft,
+            "RANGE_STRICTLY_RIGHT" => Self::RangeStrictlyRight,
+            "RANGE_DIFFERENCE" => Self::RangeDifference,
+
+            // Sequence functions
+            "NEXTVAL" => Self::Nextval,
+            "CURRVAL" => Self::Currval,
+            "SETVAL" => Self::Setval,
+            "LASTVAL" => Self::Lastval,
+
+            // JSON aggregate functions
+            "JSON_AGG" => Self::JsonAgg,
+            "JSONB_AGG" => Self::JsonbAgg,
+            "JSON_OBJECT_AGG" => Self::JsonObjectAgg,
+            "JSONB_OBJECT_AGG" => Self::JsonbObjectAgg,
+            "JSON_ARRAYAGG" => Self::JsonArrayagg,
+            "JSON_OBJECTAGG" => Self::JsonObjectagg,
+
+            // JSON functions
+            "JSON_EXTRACT_JSON" => Self::JsonExtractJson,
+            "JSON_EXTRACT_PATH_ARRAY" => Self::JsonExtractPathArray,
+            "JSON_EXTRACT_PATH_ARRAY_TEXT" => Self::JsonExtractPathArrayText,
+            "JSON_EXISTS" => Self::JsonExists,
+            "JSON_KEYS" => Self::JsonKeys,
+            "JSON_OBJECT_KEYS" => Self::JsonObjectKeys,
+            "JSONB_OBJECT_KEYS" => Self::JsonbObjectKeys,
+            "JSON_VALUE_TEXT" => Self::JsonValueText,
+            "TO_JSON" => Self::ToJson,
+            "TO_JSONB" => Self::ToJsonb,
+            "TO_JSON_STRING" => Self::ToJsonString,
+            "JSONB_PRETTY" => Self::JsonbPretty,
+            "JSONB_CONTAINS" => Self::JsonbContains,
+            "JSONB_PATH_EXISTS" => Self::JsonbPathExists,
+            "JSONB_PATH_MATCH" => Self::JsonbPathMatch,
+            "JSONB_PATH_QUERY_FIRST" => Self::JsonbPathQueryFirst,
+            "JSON_ARRAY" => Self::JsonArray,
+            "JSON_OBJECT" => Self::JsonObject,
+            "PARSE_JSON" => Self::ParseJson,
+            "JSON_BUILD_ARRAY" => Self::JsonBuildArray,
+            "JSONB_BUILD_ARRAY" => Self::JsonbBuildArray,
+            "JSON_BUILD_OBJECT" => Self::JsonBuildObject,
+            "JSONB_BUILD_OBJECT" => Self::JsonbBuildObject,
+            "JSON_STRIP_NULLS" => Self::JsonStripNulls,
+            "JSONB_STRIP_NULLS" => Self::JsonbStripNulls,
+            "JSONB_INSERT" => Self::JsonbInsert,
+            "JSONB_CONCAT" => Self::JsonbConcat,
+            "JSONB_DELETE" => Self::JsonbDelete,
+            "JSONB_DELETE_PATH" => Self::JsonbDeletePath,
+            "JSONB_SET" => Self::JsonbSet,
+            "IS_JSON_VALUE" => Self::IsJsonValue,
+            "IS_JSON_ARRAY" => Self::IsJsonArray,
+            "IS_JSON_OBJECT" => Self::IsJsonObject,
+            "IS_JSON_SCALAR" => Self::IsJsonScalar,
+            "IS_NOT_JSON_VALUE" => Self::IsNotJsonValue,
+            "IS_NOT_JSON_ARRAY" => Self::IsNotJsonArray,
+            "IS_NOT_JSON_OBJECT" => Self::IsNotJsonObject,
+            "IS_NOT_JSON_SCALAR" => Self::IsNotJsonScalar,
+
+            // Aggregate functions
+            "REGR_SLOPE" => Self::RegrSlope,
+            "REGR_INTERCEPT" => Self::RegrIntercept,
+            "ENTROPY" => Self::Entropy,
+            "MEAN_ZSCORE" | "MEANZSCORE" => Self::MeanZscore,
+            "UNIQ_UPDOWN" | "UNIQUPDOWN" => Self::UniqUpdown,
+
+            // Network functions
+            "NET.IP_FROM_STRING" => Self::NetIpFromString,
+            "NET.SAFE_IP_FROM_STRING" => Self::NetSafeIpFromString,
+            "NET.IPV4_FROM_INT64" => Self::NetIpv4FromInt64,
+            "NET.IP_NET_MASK" => Self::NetIpNetMask,
+            "NET.IP_TRUNC" => Self::NetIpTrunc,
+            "NET.IPV4_TO_INT64" => Self::NetIpv4ToInt64,
+            "NET.IP_TO_STRING" => Self::NetIpToString,
+            "NET.HOST" => Self::NetHost,
+            "NET.PUBLIC_SUFFIX" => Self::NetPublicSuffix,
+            "NET.REG_DOMAIN" => Self::NetRegDomain,
+
+            // Encryption functions
+            "KEYS.KEYSET_CHAIN" => Self::KeysKeysetChain,
+            "AEAD.ENCRYPT" => Self::AeadEncrypt,
+            "DETERMINISTIC_ENCRYPT" => Self::DeterministicEncrypt,
+            "AEAD.DECRYPT_BYTES" => Self::AeadDecryptBytes,
+            "DETERMINISTIC_DECRYPT_BYTES" => Self::DeterministicDecryptBytes,
+            "AEAD.DECRYPT_STRING" => Self::AeadDecryptString,
+            "DETERMINISTIC_DECRYPT_STRING" => Self::DeterministicDecryptString,
+
+            // System/Special functions
+            "MERGE_ACTION" => Self::MergeAction,
+            "ARRAY" => Self::Array,
 
             _ => Self::Custom(s.to_uppercase()),
         }
@@ -955,6 +1737,18 @@ impl FunctionName {
             Self::IntervalLengthSum => "INTERVAL_LENGTH_SUM",
             Self::Retention => "RETENTION",
             Self::WindowFunnel => "WINDOW_FUNNEL",
+            Self::SimpleLinearRegression => "SIMPLE_LINEAR_REGRESSION",
+            Self::StochasticLinearRegression => "STOCHASTIC_LINEAR_REGRESSION",
+            Self::StochasticLogisticRegression => "STOCHASTIC_LOGISTIC_REGRESSION",
+            Self::CategoricalInformationValue => "CATEGORICAL_INFORMATION_VALUE",
+            Self::CramersV => "CRAMERS_V",
+            Self::CramersVBiasCorrected => "CRAMERS_V_BIAS_CORRECTED",
+            Self::TheilU => "THEIL_U",
+            Self::ContingencyCoefficient => "CONTINGENCY_COEFFICIENT",
+            Self::MannWhitneyUTest => "MANNWHITNEY_U_TEST",
+            Self::StudentTTest => "STUDENT_T_TEST",
+            Self::WelchTTest => "WELCH_T_TEST",
+            Self::KolmogorovSmirnovTest => "KOLMOGOROV_SMIRNOV_TEST",
 
             Self::Map => "MAP",
             Self::MapFromArrays => "MAPFROMARRAYS",
@@ -974,105 +1768,491 @@ impl FunctionName {
             Self::MapReverseSort => "MAPREVERSESORT",
             Self::MapPartialSort => "MAPPARTIALSORT",
 
+            // String functions
+            Self::TrimChars => "TRIM_CHARS",
+            Self::LtrimChars => "LTRIM_CHARS",
+            Self::RtrimChars => "RTRIM_CHARS",
+            Self::StringToArray => "STRING_TO_ARRAY",
+            Self::StartsWith => "STARTS_WITH",
+            Self::EndsWith => "ENDS_WITH",
+            Self::RegexpContains => "REGEXP_CONTAINS",
+            Self::RegexpReplace => "REGEXP_REPLACE",
+            Self::ReplaceRegexpAll => "REPLACEREGEXPALL",
+            Self::ReplaceRegexpOne => "REPLACEREGEXPONE",
+            Self::RegexpExtract => "REGEXP_EXTRACT",
+            Self::Format => "FORMAT",
+            Self::QuoteIdent => "QUOTE_IDENT",
+            Self::QuoteLiteral => "QUOTE_LITERAL",
+            Self::Casefold => "CASEFOLD",
+            Self::SplitByChar => "SPLITBYCHAR",
+            Self::SplitByString => "SPLITBYSTRING",
+            Self::BitCount => "BIT_COUNT",
+            Self::GetBit => "GET_BIT",
+            Self::SetBit => "SET_BIT",
+
+            // Array functions
+            Self::ArrayReverse => "ARRAY_REVERSE",
+            Self::ArrayAppend => "ARRAY_APPEND",
+            Self::ArrayPrepend => "ARRAY_PREPEND",
+            Self::ArrayPosition => "ARRAY_POSITION",
+            Self::ArrayRemove => "ARRAY_REMOVE",
+            Self::ArrayReplace => "ARRAY_REPLACE",
+            Self::ArraySort => "ARRAY_SORT",
+            Self::ArrayDistinct => "ARRAY_DISTINCT",
+            Self::GenerateArray => "GENERATE_ARRAY",
+            Self::GenerateDateArray => "GENERATE_DATE_ARRAY",
+            Self::GenerateTimestampArray => "GENERATE_TIMESTAMP_ARRAY",
+            Self::GenerateUuidArray => "GENERATE_UUID_ARRAY",
+
+            // Math functions
+            Self::Degrees => "DEGREES",
+            Self::Radians => "RADIANS",
+            Self::SafeDivide => "SAFE_DIVIDE",
+            Self::SafeMultiply => "SAFE_MULTIPLY",
+            Self::SafeAdd => "SAFE_ADD",
+            Self::SafeSubtract => "SAFE_SUBTRACT",
+            Self::SafeNegate => "SAFE_NEGATE",
+            Self::Gamma => "GAMMA",
+            Self::Lgamma => "LGAMMA",
+            Self::Sinh => "SINH",
+            Self::Cosh => "COSH",
+            Self::Tanh => "TANH",
+            Self::Asinh => "ASINH",
+            Self::Acosh => "ACOSH",
+            Self::Atanh => "ATANH",
+            Self::Cot => "COT",
+            Self::Sind => "SIND",
+            Self::Cosd => "COSD",
+            Self::Tand => "TAND",
+            Self::Asind => "ASIND",
+            Self::Acosd => "ACOSD",
+            Self::Atand => "ATAND",
+            Self::Atan2d => "ATAN2D",
+            Self::Cotd => "COTD",
+            Self::Cbrt => "CBRT",
+            Self::Factorial => "FACTORIAL",
+            Self::Gcd => "GCD",
+            Self::Lcm => "LCM",
+            Self::Scale => "SCALE",
+            Self::MinScale => "MIN_SCALE",
+            Self::TrimScale => "TRIM_SCALE",
+            Self::WidthBucket => "WIDTH_BUCKET",
+            Self::Setseed => "SETSEED",
+            Self::ToNumber => "TO_NUMBER",
+
+            // Date/time functions
+            Self::TimestampTrunc => "TIMESTAMP_TRUNC",
+            Self::FormatDate => "FORMAT_DATE",
+            Self::ParseDate => "PARSE_DATE",
+            Self::ParseTimestamp => "PARSE_TIMESTAMP",
+            Self::MakeDate => "MAKE_DATE",
+            Self::MakeTimestamp => "MAKE_TIMESTAMP",
+            Self::TimestampDiff => "TIMESTAMP_DIFF",
+            Self::IntervalLiteral => "INTERVAL_LITERAL",
+            Self::IntervalParse => "INTERVAL_PARSE",
+            Self::Year => "YEAR",
+            Self::Month => "MONTH",
+            Self::Day => "DAY",
+            Self::Hour => "HOUR",
+            Self::Minute => "MINUTE",
+            Self::Second => "SECOND",
+            Self::Quarter => "QUARTER",
+            Self::Week => "WEEK",
+            Self::Isoweek => "ISOWEEK",
+            Self::Dayofweek => "DAYOFWEEK",
+            Self::Dayofyear => "DAYOFYEAR",
+            Self::Dayofmonth => "DAYOFMONTH",
+            Self::Weekday => "WEEKDAY",
+            Self::LastDay => "LAST_DAY",
+            Self::AtTimeZone => "AT_TIME_ZONE",
+            Self::JustifyDays => "JUSTIFY_DAYS",
+            Self::JustifyHours => "JUSTIFY_HOURS",
+            Self::JustifyInterval => "JUSTIFY_INTERVAL",
+            Self::Dow => "DOW",
+            Self::Doy => "DOY",
+
+            // Crypto/hash functions
+            Self::Sha1 => "SHA1",
+            Self::Sha512 => "SHA512",
+            Self::FarmFingerprint => "FARM_FINGERPRINT",
+            Self::ToHex => "TO_HEX",
+            Self::FromHex => "FROM_HEX",
+            Self::GenRandomBytes => "GEN_RANDOM_BYTES",
+            Self::Digest => "DIGEST",
+            Self::Crc32 => "CRC32",
+            Self::Crc32c => "CRC32C",
+
+            // UUID functions
+            Self::UuidGenerateV1 => "UUID_GENERATE_V1",
+            Self::Uuidv4 => "UUIDV4",
+            Self::Uuidv7 => "UUIDV7",
+
+            // Geometric functions
+            Self::Point => "POINT",
+            Self::PointX => "POINT_X",
+            Self::PointY => "POINT_Y",
+            Self::Box => "BOX",
+            Self::Circle => "CIRCLE",
+            Self::Area => "AREA",
+            Self::Center => "CENTER",
+            Self::Diameter => "DIAMETER",
+            Self::Radius => "RADIUS",
+            Self::Width => "WIDTH",
+            Self::Height => "HEIGHT",
+            Self::Distance => "DISTANCE",
+            Self::Contains => "CONTAINS",
+            Self::ContainedBy => "CONTAINED_BY",
+            Self::Overlaps => "OVERLAPS",
+
+            // Geography (ST_*) functions
+            Self::StGeogpoint => "ST_GEOGPOINT",
+            Self::StGeogfromtext => "ST_GEOGFROMTEXT",
+            Self::StGeogfromgeojson => "ST_GEOGFROMGEOJSON",
+            Self::StAstext => "ST_ASTEXT",
+            Self::StAsgeojson => "ST_ASGEOJSON",
+            Self::StAsbinary => "ST_ASBINARY",
+            Self::StX => "ST_X",
+            Self::StY => "ST_Y",
+            Self::StGeometrytype => "ST_GEOMETRYTYPE",
+            Self::StIsempty => "ST_ISEMPTY",
+            Self::StIsclosed => "ST_ISCLOSED",
+            Self::StIscollection => "ST_ISCOLLECTION",
+            Self::StDimension => "ST_DIMENSION",
+            Self::StNumpoints => "ST_NUMPOINTS",
+            Self::StNpoints => "ST_NPOINTS",
+            Self::StPointn => "ST_POINTN",
+            Self::StStartpoint => "ST_STARTPOINT",
+            Self::StEndpoint => "ST_ENDPOINT",
+            Self::StMakeline => "ST_MAKELINE",
+            Self::StMakepolygon => "ST_MAKEPOLYGON",
+            Self::StDistance => "ST_DISTANCE",
+            Self::StLength => "ST_LENGTH",
+            Self::StArea => "ST_AREA",
+            Self::StPerimeter => "ST_PERIMETER",
+            Self::StMaxdistance => "ST_MAXDISTANCE",
+            Self::StAzimuth => "ST_AZIMUTH",
+            Self::StCentroid => "ST_CENTROID",
+            Self::StContains => "ST_CONTAINS",
+            Self::StCovers => "ST_COVERS",
+            Self::StCoveredby => "ST_COVEREDBY",
+            Self::StDisjoint => "ST_DISJOINT",
+            Self::StDwithin => "ST_DWITHIN",
+            Self::StEquals => "ST_EQUALS",
+            Self::StIntersects => "ST_INTERSECTS",
+            Self::StTouches => "ST_TOUCHES",
+            Self::StWithin => "ST_WITHIN",
+            Self::StBoundary => "ST_BOUNDARY",
+            Self::StBuffer => "ST_BUFFER",
+            Self::StBufferwithtolerance => "ST_BUFFERWITHTOLERANCE",
+            Self::StClosestpoint => "ST_CLOSESTPOINT",
+            Self::StConvexhull => "ST_CONVEXHULL",
+            Self::StDifference => "ST_DIFFERENCE",
+            Self::StIntersection => "ST_INTERSECTION",
+            Self::StSimplify => "ST_SIMPLIFY",
+            Self::StSnaptogrid => "ST_SNAPTOGRID",
+            Self::StUnion => "ST_UNION",
+            Self::StBoundingbox => "ST_BOUNDINGBOX",
+            Self::StGeohash => "ST_GEOHASH",
+            Self::StGeogpointfromgeohash => "ST_GEOGPOINTFROMGEOHASH",
+
+            // Full-text search functions
+            Self::ToTsvector => "TO_TSVECTOR",
+            Self::ToTsquery => "TO_TSQUERY",
+            Self::PlaintoTsquery => "PLAINTO_TSQUERY",
+            Self::PhrasetoTsquery => "PHRASETO_TSQUERY",
+            Self::WebsearchToTsquery => "WEBSEARCH_TO_TSQUERY",
+            Self::TsMatch => "TS_MATCH",
+            Self::TsMatchVq => "TS_MATCH_VQ",
+            Self::TsMatchQv => "TS_MATCH_QV",
+            Self::TsRank => "TS_RANK",
+            Self::TsRankCd => "TS_RANK_CD",
+            Self::TsvectorConcat => "TSVECTOR_CONCAT",
+            Self::TsHeadline => "TS_HEADLINE",
+            Self::Setweight => "SETWEIGHT",
+            Self::Strip => "STRIP",
+            Self::TsvectorLength => "TSVECTOR_LENGTH",
+            Self::Numnode => "NUMNODE",
+            Self::Querytree => "QUERYTREE",
+            Self::TsqueryAnd => "TSQUERY_AND",
+            Self::TsqueryOr => "TSQUERY_OR",
+            Self::TsqueryNot => "TSQUERY_NOT",
+
+            // Hstore functions
+            Self::Hstore => "HSTORE",
+            Self::HstoreExists => "HSTORE_EXISTS",
+            Self::HstoreExistsAll => "HSTORE_EXISTS_ALL",
+            Self::HstoreExistsAny => "HSTORE_EXISTS_ANY",
+            Self::Exist => "EXIST",
+            Self::HstoreConcat => "HSTORE_CONCAT",
+            Self::HstoreDelete => "HSTORE_DELETE",
+            Self::HstoreDeleteKey => "HSTORE_DELETE_KEY",
+            Self::HstoreDeleteKeys => "HSTORE_DELETE_KEYS",
+            Self::HstoreDeleteHstore => "HSTORE_DELETE_HSTORE",
+            Self::Delete => "DELETE",
+            Self::HstoreContains => "HSTORE_CONTAINS",
+            Self::HstoreContainedBy => "HSTORE_CONTAINED_BY",
+            Self::HstoreAkeys => "HSTORE_AKEYS",
+            Self::Akeys => "AKEYS",
+            Self::Skeys => "SKEYS",
+            Self::HstoreAvals => "HSTORE_AVALS",
+            Self::Avals => "AVALS",
+            Self::Svals => "SVALS",
+            Self::HstoreDefined => "HSTORE_DEFINED",
+            Self::Defined => "DEFINED",
+            Self::HstoreToJson => "HSTORE_TO_JSON",
+            Self::HstoreToJsonb => "HSTORE_TO_JSONB",
+            Self::HstoreToArray => "HSTORE_TO_ARRAY",
+            Self::HstoreToMatrix => "HSTORE_TO_MATRIX",
+            Self::HstoreSlice => "HSTORE_SLICE",
+            Self::Slice => "SLICE",
+            Self::HstoreGet => "HSTORE_GET",
+            Self::HstoreGetValues => "HSTORE_GET_VALUES",
+
+            // Higher-order array functions (ClickHouse-style)
+            Self::Arraymap => "ARRAYMAP",
+            Self::Arrayfilter => "ARRAYFILTER",
+            Self::Arrayexists => "ARRAYEXISTS",
+            Self::Arrayall => "ARRAYALL",
+            Self::Arrayfirst => "ARRAYFIRST",
+            Self::Arraylast => "ARRAYLAST",
+            Self::Arrayfirstindex => "ARRAYFIRSTINDEX",
+            Self::Arraylastindex => "ARRAYLASTINDEX",
+            Self::Arraycount => "ARRAYCOUNT",
+            Self::Arraysum => "ARRAYSUM",
+            Self::Arrayavg => "ARRAYAVG",
+            Self::Arraymin => "ARRAYMIN",
+            Self::Arraymax => "ARRAYMAX",
+            Self::Arraysort => "ARRAYSORT",
+            Self::Arrayreversesort => "ARRAYREVERSESORT",
+            Self::Arrayfold => "ARRAYFOLD",
+            Self::Arrayreduce => "ARRAYREDUCE",
+            Self::Arrayreduceinranges => "ARRAYREDUCEINRANGES",
+            Self::Arraycumsum => "ARRAYCUMSUM",
+            Self::Arraycumsumnonnegative => "ARRAYCUMSUMNONNEGATIVE",
+            Self::Arraydifference => "ARRAYDIFFERENCE",
+            Self::Arraysplit => "ARRAYSPLIT",
+            Self::Arrayreversesplit => "ARRAYREVERSESPLIT",
+            Self::Arraycompact => "ARRAYCOMPACT",
+            Self::Arrayzip => "ARRAYZIP",
+            Self::Arrayauc => "ARRAYAUC",
+
+            // Range functions
+            Self::LowerInc => "LOWER_INC",
+            Self::UpperInc => "UPPER_INC",
+            Self::LowerInf => "LOWER_INF",
+            Self::UpperInf => "UPPER_INF",
+            Self::Isempty => "ISEMPTY",
+            Self::RangeMerge => "RANGE_MERGE",
+            Self::RangeIsempty => "RANGE_ISEMPTY",
+            Self::RangeContains => "RANGE_CONTAINS",
+            Self::RangeContainsElem => "RANGE_CONTAINS_ELEM",
+            Self::RangeOverlaps => "RANGE_OVERLAPS",
+            Self::RangeUnion => "RANGE_UNION",
+            Self::RangeIntersection => "RANGE_INTERSECTION",
+            Self::RangeAdjacent => "RANGE_ADJACENT",
+            Self::RangeStrictlyLeft => "RANGE_STRICTLY_LEFT",
+            Self::RangeStrictlyRight => "RANGE_STRICTLY_RIGHT",
+            Self::RangeDifference => "RANGE_DIFFERENCE",
+
+            // Sequence functions
+            Self::Nextval => "NEXTVAL",
+            Self::Currval => "CURRVAL",
+            Self::Setval => "SETVAL",
+            Self::Lastval => "LASTVAL",
+
+            // JSON aggregate functions
+            Self::JsonAgg => "JSON_AGG",
+            Self::JsonbAgg => "JSONB_AGG",
+            Self::JsonObjectAgg => "JSON_OBJECT_AGG",
+            Self::JsonbObjectAgg => "JSONB_OBJECT_AGG",
+            Self::JsonArrayagg => "JSON_ARRAYAGG",
+            Self::JsonObjectagg => "JSON_OBJECTAGG",
+
+            // JSON functions
+            Self::JsonExtractJson => "JSON_EXTRACT_JSON",
+            Self::JsonExtractPathArray => "JSON_EXTRACT_PATH_ARRAY",
+            Self::JsonExtractPathArrayText => "JSON_EXTRACT_PATH_ARRAY_TEXT",
+            Self::JsonExists => "JSON_EXISTS",
+            Self::JsonKeys => "JSON_KEYS",
+            Self::JsonObjectKeys => "JSON_OBJECT_KEYS",
+            Self::JsonbObjectKeys => "JSONB_OBJECT_KEYS",
+            Self::JsonValueText => "JSON_VALUE_TEXT",
+            Self::ToJson => "TO_JSON",
+            Self::ToJsonb => "TO_JSONB",
+            Self::ToJsonString => "TO_JSON_STRING",
+            Self::JsonbPretty => "JSONB_PRETTY",
+            Self::JsonbContains => "JSONB_CONTAINS",
+            Self::JsonbPathExists => "JSONB_PATH_EXISTS",
+            Self::JsonbPathMatch => "JSONB_PATH_MATCH",
+            Self::JsonbPathQueryFirst => "JSONB_PATH_QUERY_FIRST",
+            Self::JsonArray => "JSON_ARRAY",
+            Self::JsonObject => "JSON_OBJECT",
+            Self::ParseJson => "PARSE_JSON",
+            Self::JsonBuildArray => "JSON_BUILD_ARRAY",
+            Self::JsonbBuildArray => "JSONB_BUILD_ARRAY",
+            Self::JsonBuildObject => "JSON_BUILD_OBJECT",
+            Self::JsonbBuildObject => "JSONB_BUILD_OBJECT",
+            Self::JsonStripNulls => "JSON_STRIP_NULLS",
+            Self::JsonbStripNulls => "JSONB_STRIP_NULLS",
+            Self::JsonbInsert => "JSONB_INSERT",
+            Self::JsonbConcat => "JSONB_CONCAT",
+            Self::JsonbDelete => "JSONB_DELETE",
+            Self::JsonbDeletePath => "JSONB_DELETE_PATH",
+            Self::JsonbSet => "JSONB_SET",
+            Self::IsJsonValue => "IS_JSON_VALUE",
+            Self::IsJsonArray => "IS_JSON_ARRAY",
+            Self::IsJsonObject => "IS_JSON_OBJECT",
+            Self::IsJsonScalar => "IS_JSON_SCALAR",
+            Self::IsNotJsonValue => "IS_NOT_JSON_VALUE",
+            Self::IsNotJsonArray => "IS_NOT_JSON_ARRAY",
+            Self::IsNotJsonObject => "IS_NOT_JSON_OBJECT",
+            Self::IsNotJsonScalar => "IS_NOT_JSON_SCALAR",
+
+            // Aggregate functions
+            Self::RegrSlope => "REGR_SLOPE",
+            Self::RegrIntercept => "REGR_INTERCEPT",
+            Self::Entropy => "ENTROPY",
+            Self::MeanZscore => "MEAN_ZSCORE",
+            Self::UniqUpdown => "UNIQ_UPDOWN",
+
+            // Network functions
+            Self::NetIpFromString => "NET.IP_FROM_STRING",
+            Self::NetSafeIpFromString => "NET.SAFE_IP_FROM_STRING",
+            Self::NetIpv4FromInt64 => "NET.IPV4_FROM_INT64",
+            Self::NetIpNetMask => "NET.IP_NET_MASK",
+            Self::NetIpTrunc => "NET.IP_TRUNC",
+            Self::NetIpv4ToInt64 => "NET.IPV4_TO_INT64",
+            Self::NetIpToString => "NET.IP_TO_STRING",
+            Self::NetHost => "NET.HOST",
+            Self::NetPublicSuffix => "NET.PUBLIC_SUFFIX",
+            Self::NetRegDomain => "NET.REG_DOMAIN",
+
+            // Encryption functions
+            Self::KeysKeysetChain => "KEYS.KEYSET_CHAIN",
+            Self::AeadEncrypt => "AEAD.ENCRYPT",
+            Self::DeterministicEncrypt => "DETERMINISTIC_ENCRYPT",
+            Self::AeadDecryptBytes => "AEAD.DECRYPT_BYTES",
+            Self::DeterministicDecryptBytes => "DETERMINISTIC_DECRYPT_BYTES",
+            Self::AeadDecryptString => "AEAD.DECRYPT_STRING",
+            Self::DeterministicDecryptString => "DETERMINISTIC_DECRYPT_STRING",
+
+            // System/Special functions
+            Self::MergeAction => "MERGE_ACTION",
+            Self::Array => "ARRAY",
+
             Self::Custom(name) => name,
         }
     }
 
     pub fn is_aggregate(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Self::Count
-            | Self::Sum
-            | Self::Avg
-            | Self::Average
-            | Self::Min
-            | Self::Minimum
-            | Self::Max
-            | Self::Maximum
-            | Self::StringAgg
-            | Self::GroupConcat
-            | Self::ListAgg
-            | Self::ArrayAgg
-            | Self::Collect
-            | Self::StddevPop
-            | Self::Stddevp
-            | Self::StddevSamp
-            | Self::Stddevs
-            | Self::Stddev
-            | Self::Stdev
-            | Self::StandardDeviation
-            | Self::VarPop
-            | Self::Varp
-            | Self::VarSamp
-            | Self::Vars
-            | Self::Variance
-            | Self::Var
-            | Self::Median
-            | Self::PercentileCont
-            | Self::PercentileDisc
-            | Self::Mode
-            | Self::Corr
-            | Self::CovarPop
-            | Self::CovarSamp
-            | Self::CountIf
-            | Self::BoolAnd
-            | Self::BoolOr
-            | Self::Every
-            | Self::BitAnd
-            | Self::BitOr
-            | Self::BitXor
-            | Self::ApproxCountDistinct
-            | Self::ApproxDistinct
-            | Self::ApproxQuantiles
-            | Self::ApproxTopCount
-            | Self::ApproxTopSum
-            | Self::Ndv
-            | Self::Uniq
-            | Self::UniqExact
-            | Self::UniqHll12
-            | Self::UniqCombined
-            | Self::UniqCombined64
-            | Self::UniqThetaSketch
-            | Self::UniqArray
-            | Self::Quantile
-            | Self::QuantileExact
-            | Self::QuantileTDigest
-            | Self::QuantileTiming
-            | Self::QuantilesTDigest
-            | Self::QuantilesTiming
-            | Self::ArgMin
-            | Self::ArgMax
-            | Self::GroupArray
-            | Self::GroupArrayMovingAvg
-            | Self::GroupArrayMovingSum
-            | Self::Any
-            | Self::AnyLast
-            | Self::AnyHeavy
-            | Self::TopK
-            | Self::GroupUniqArray
-            | Self::SumWithOverflow
-            | Self::SumMap
-            | Self::MinMap
-            | Self::MaxMap
-            | Self::GroupBitmap
-            | Self::GroupBitmapAnd
-            | Self::GroupBitmapOr
-            | Self::GroupBitmapXor
-            | Self::RankCorr
-            | Self::ExponentialMovingAverage
-            | Self::IntervalLengthSum
-            | Self::Retention
-            | Self::WindowFunnel => true,
-            Self::Custom(name) => matches!(
-                name.as_str(),
-                "JSON_AGG"
-                    | "JSONB_AGG"
-                    | "JSON_OBJECT_AGG"
-                    | "JSONB_OBJECT_AGG"
-                    | "JSON_ARRAYAGG"
-                    | "JSON_OBJECTAGG"
-            ),
-            _ => false,
-        }
+                | Self::Sum
+                | Self::Avg
+                | Self::Average
+                | Self::Min
+                | Self::Minimum
+                | Self::Max
+                | Self::Maximum
+                | Self::StringAgg
+                | Self::GroupConcat
+                | Self::ListAgg
+                | Self::ArrayAgg
+                | Self::Collect
+                | Self::StddevPop
+                | Self::Stddevp
+                | Self::StddevSamp
+                | Self::Stddevs
+                | Self::Stddev
+                | Self::Stdev
+                | Self::StandardDeviation
+                | Self::VarPop
+                | Self::Varp
+                | Self::VarSamp
+                | Self::Vars
+                | Self::Variance
+                | Self::Var
+                | Self::Median
+                | Self::PercentileCont
+                | Self::PercentileDisc
+                | Self::Mode
+                | Self::Corr
+                | Self::CovarPop
+                | Self::CovarSamp
+                | Self::CountIf
+                | Self::BoolAnd
+                | Self::BoolOr
+                | Self::Every
+                | Self::BitAnd
+                | Self::BitOr
+                | Self::BitXor
+                | Self::ApproxCountDistinct
+                | Self::ApproxDistinct
+                | Self::ApproxQuantiles
+                | Self::ApproxTopCount
+                | Self::ApproxTopSum
+                | Self::Ndv
+                | Self::Uniq
+                | Self::UniqExact
+                | Self::UniqHll12
+                | Self::UniqCombined
+                | Self::UniqCombined64
+                | Self::UniqThetaSketch
+                | Self::UniqArray
+                | Self::Quantile
+                | Self::QuantileExact
+                | Self::QuantileTDigest
+                | Self::QuantileTiming
+                | Self::QuantilesTDigest
+                | Self::QuantilesTiming
+                | Self::ArgMin
+                | Self::ArgMax
+                | Self::GroupArray
+                | Self::GroupArrayMovingAvg
+                | Self::GroupArrayMovingSum
+                | Self::Any
+                | Self::AnyLast
+                | Self::AnyHeavy
+                | Self::TopK
+                | Self::GroupUniqArray
+                | Self::SumWithOverflow
+                | Self::SumMap
+                | Self::MinMap
+                | Self::MaxMap
+                | Self::GroupBitmap
+                | Self::GroupBitmapAnd
+                | Self::GroupBitmapOr
+                | Self::GroupBitmapXor
+                | Self::RankCorr
+                | Self::ExponentialMovingAverage
+                | Self::IntervalLengthSum
+                | Self::Retention
+                | Self::WindowFunnel
+                | Self::SimpleLinearRegression
+                | Self::StochasticLinearRegression
+                | Self::StochasticLogisticRegression
+                | Self::CategoricalInformationValue
+                | Self::CramersV
+                | Self::CramersVBiasCorrected
+                | Self::TheilU
+                | Self::ContingencyCoefficient
+                | Self::MannWhitneyUTest
+                | Self::StudentTTest
+                | Self::WelchTTest
+                | Self::KolmogorovSmirnovTest
+                | Self::JsonAgg
+                | Self::JsonbAgg
+                | Self::JsonObjectAgg
+                | Self::JsonbObjectAgg
+                | Self::JsonArrayagg
+                | Self::JsonObjectagg
+                | Self::RegrSlope
+                | Self::RegrIntercept
+                | Self::Entropy
+                | Self::MeanZscore
+                | Self::UniqUpdown
+        )
     }
 
     pub fn is_window(&self) -> bool {

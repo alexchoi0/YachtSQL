@@ -146,7 +146,7 @@ impl LogicalPlanBuilder {
             .map(|f| f.to_string().to_uppercase());
 
         Ok(Expr::Function {
-            name: yachtsql_ir::FunctionName::Custom("INTERVAL_PARSE".to_string()),
+            name: yachtsql_ir::FunctionName::IntervalParse,
             args: vec![
                 Expr::Literal(LiteralValue::String(value_str)),
                 Expr::Literal(LiteralValue::String(unit.unwrap_or_default())),

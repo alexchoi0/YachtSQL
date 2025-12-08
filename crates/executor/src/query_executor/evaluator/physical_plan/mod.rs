@@ -950,12 +950,12 @@ impl UnnestExec {
             Expr::Literal(LiteralValue::Null) => Ok(Self::empty_array()),
 
 
-            Expr::Function { name, args } if matches!(name, yachtsql_ir::FunctionName::Custom(s) if s == "ARRAY") => {
+            Expr::Function { name, args } if matches!(name, yachtsql_ir::FunctionName::Array) => {
                 self.evaluate_element_list(args)
             }
 
 
-            Expr::Function { name, args } if matches!(name, yachtsql_ir::FunctionName::Custom(s) if s == "GENERATE_ARRAY") => {
+            Expr::Function { name, args } if matches!(name, yachtsql_ir::FunctionName::GenerateArray) => {
                 self.evaluate_generate_array(args)
             }
 

@@ -30,8 +30,7 @@ impl ProjectionWithExprExec {
                 Expr::Function {
                     name,
                     args: interval_args,
-                } if matches!(name, yachtsql_ir::FunctionName::Custom(s) if s == "INTERVAL_LITERAL") =>
-                {
+                } if matches!(name, yachtsql_ir::FunctionName::IntervalLiteral) => {
                     if interval_args.len() != 2 {
                         return Err(crate::error::Error::invalid_query(
                             "INTERVAL_LITERAL requires exactly 2 arguments".to_string(),
@@ -150,7 +149,7 @@ mod tests {
             vec![vec![date(2024, 1, 1), date(2024, 1, 15), Value::int64(1)]],
         );
         let interval_literal = Expr::Function {
-            name: FunctionName::Custom("INTERVAL_LITERAL".to_string()),
+            name: FunctionName::IntervalLiteral,
             args: vec![
                 Expr::literal(LiteralValue::Int64(1)),
                 Expr::literal(LiteralValue::String("week".to_string())),

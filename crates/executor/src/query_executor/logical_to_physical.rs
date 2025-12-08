@@ -1455,8 +1455,7 @@ impl LogicalToPhysicalPlanner {
             Expr::Column { .. } => Ok(yachtsql_core::types::DataType::String),
 
             Expr::Function { name, args, .. }
-                if matches!(name, yachtsql_ir::FunctionName::Custom(s) if s == "MERGE_ACTION")
-                    && args.is_empty() =>
+                if matches!(name, yachtsql_ir::FunctionName::MergeAction) && args.is_empty() =>
             {
                 Ok(yachtsql_core::types::DataType::String)
             }

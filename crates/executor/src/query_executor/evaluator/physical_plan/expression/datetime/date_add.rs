@@ -23,7 +23,7 @@ impl ProjectionWithExprExec {
             Expr::Function {
                 name,
                 args: interval_args,
-            } if matches!(name, yachtsql_ir::FunctionName::Custom(s) if s == "INTERVAL_LITERAL") => {
+            } if matches!(name, yachtsql_ir::FunctionName::IntervalLiteral) => {
                 if interval_args.len() != 2 {
                     return Err(Error::invalid_query(
                         "INTERVAL_LITERAL requires exactly 2 arguments".to_string(),
