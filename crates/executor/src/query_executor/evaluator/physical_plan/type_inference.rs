@@ -211,6 +211,9 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
             BinaryOp::Subtract => match (&left_type, &right_type) {
+                (Some(DataType::Json), Some(DataType::String))
+                | (Some(DataType::Json), Some(DataType::Int64)) => Some(DataType::Json),
+
                 (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
                     Some(DataType::Range(rt.clone()))
                 }
@@ -299,10 +302,16 @@ impl ProjectionWithExprExec {
             | BinaryOp::RegexNotMatchI => Some(DataType::Bool),
 
             BinaryOp::Concat => match (&left_type, &right_type) {
+                (Some(DataType::Json), Some(DataType::Json)) => Some(DataType::Json),
                 (Some(DataType::Hstore), Some(DataType::Hstore)) => Some(DataType::Hstore),
                 (Some(DataType::String), _) | (_, Some(DataType::String)) => Some(DataType::String),
                 (Some(DataType::Bytes), Some(DataType::Bytes)) => Some(DataType::Bytes),
                 _ => left_type.or(right_type),
+            },
+
+            BinaryOp::HashMinus => match (&left_type, &right_type) {
+                (Some(DataType::Json), _) => Some(DataType::Json),
+                _ => None,
             },
 
             _ => None,
@@ -1019,7 +1028,12 @@ impl ProjectionWithExprExec {
             | FunctionName::CovarPop
             | FunctionName::CovarSamp => Some(DataType::Float64),
 
-            FunctionName::Custom(s) if s == "JSON_AGG" || s == "JSON_OBJECT_AGG" => {
+            FunctionName::Custom(s)
+                if s == "JSON_AGG"
+                    || s == "JSONB_AGG"
+                    || s == "JSON_OBJECT_AGG"
+                    || s == "JSONB_OBJECT_AGG" =>
+            {
                 Some(DataType::Json)
             }
 
@@ -1047,12 +1061,24 @@ impl ProjectionWithExprExec {
                 if s == "JSON_ARRAY"
                     || s == "JSON_OBJECT"
                     || s == "PARSE_JSON"
-                    || s == "TO_JSON" =>
+                    || s == "TO_JSON"
+                    || s == "TO_JSONB"
+                    || s == "JSON_BUILD_ARRAY"
+                    || s == "JSONB_BUILD_ARRAY"
+                    || s == "JSON_BUILD_OBJECT"
+                    || s == "JSONB_BUILD_OBJECT"
+                    || s == "JSON_STRIP_NULLS"
+                    || s == "JSONB_STRIP_NULLS"
+                    || s == "JSONB_INSERT" =>
             {
                 Some(DataType::Json)
             }
 
             FunctionName::Custom(s) if s == "TO_JSON_STRING" => Some(DataType::String),
+            FunctionName::Custom(s) if s == "JSONB_PRETTY" => Some(DataType::String),
+            FunctionName::Custom(s) if s == "JSON_OBJECT_KEYS" || s == "JSONB_OBJECT_KEYS" => {
+                Some(DataType::String)
+            }
 
             FunctionName::JsonQuery => Some(DataType::Json),
             FunctionName::JsonType | FunctionName::JsonTypeof => Some(DataType::String),

@@ -8,11 +8,26 @@ mod subqueries;
 
 use sqlparser::ast;
 use yachtsql_core::error::{Error, Result};
-use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue, UnaryOp};
+use yachtsql_ir::expr::{BinaryOp, CastDataType, Expr, LiteralValue, UnaryOp};
 
 use super::LogicalPlanBuilder;
 
 impl LogicalPlanBuilder {
+    pub(super) fn sql_expr_to_expr_for_cast(
+        &self,
+        expr: &ast::Expr,
+        target_type: &CastDataType,
+    ) -> Result<Expr> {
+        if matches!(target_type, CastDataType::Json)
+            && let ast::Expr::Value(value) = expr
+            && let ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) =
+                &value.value
+        {
+            return Ok(Expr::Literal(LiteralValue::String(s.clone())));
+        }
+        self.sql_expr_to_expr(expr)
+    }
+
     pub(super) fn sql_expr_to_expr(&self, expr: &ast::Expr) -> Result<Expr> {
         match expr {
             ast::Expr::Identifier(ident) => Ok(Expr::column(ident.value.clone())),

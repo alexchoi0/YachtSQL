@@ -580,7 +580,7 @@ impl DdlExecutor for QueryExecutor {
                     Box::new(value_data_type),
                 ))
             }
-            SqlDataType::JSON => Ok(DataType::Json),
+            SqlDataType::JSON | SqlDataType::JSONB => Ok(DataType::Json),
             SqlDataType::Nullable(inner) => self.sql_type_to_data_type(dataset_id, inner),
             SqlDataType::Interval { .. } => Ok(DataType::Interval),
             SqlDataType::GeometricType(kind) => {

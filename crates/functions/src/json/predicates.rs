@@ -138,3 +138,63 @@ pub fn is_not_json_object(value: &Value) -> Result<Value> {
 pub fn is_not_json_scalar(value: &Value) -> Result<Value> {
     negate_json_predicate(is_json_scalar(value))
 }
+
+pub fn jsonb_key_exists(json: &Value, key: &Value) -> Result<Value> {
+    return_null_if_null!(json);
+
+    let json_val = get_json_value(json)?;
+    let key_str = key
+        .as_str()
+        .ok_or_else(|| Error::invalid_query("Key must be a string"))?;
+
+    let exists = match &json_val {
+        JsonValue::Object(obj) => obj.contains_key(key_str),
+        _ => false,
+    };
+
+    Ok(Value::bool_val(exists))
+}
+
+pub fn jsonb_keys_all_exist(json: &Value, keys: &Value) -> Result<Value> {
+    return_null_if_null!(json);
+
+    let json_val = get_json_value(json)?;
+    let keys_array = keys
+        .as_array()
+        .ok_or_else(|| Error::invalid_query("Keys must be an array"))?;
+
+    let result = match &json_val {
+        JsonValue::Object(obj) => keys_array.iter().all(|k| {
+            if let Some(key_str) = k.as_str() {
+                obj.contains_key(key_str)
+            } else {
+                false
+            }
+        }),
+        _ => false,
+    };
+
+    Ok(Value::bool_val(result))
+}
+
+pub fn jsonb_keys_any_exist(json: &Value, keys: &Value) -> Result<Value> {
+    return_null_if_null!(json);
+
+    let json_val = get_json_value(json)?;
+    let keys_array = keys
+        .as_array()
+        .ok_or_else(|| Error::invalid_query("Keys must be an array"))?;
+
+    let result = match &json_val {
+        JsonValue::Object(obj) => keys_array.iter().any(|k| {
+            if let Some(key_str) = k.as_str() {
+                obj.contains_key(key_str)
+            } else {
+                false
+            }
+        }),
+        _ => false,
+    };
+
+    Ok(Value::bool_val(result))
+}

@@ -239,6 +239,7 @@ pub enum BinaryOp {
     GeometricContains,
     GeometricContainedBy,
     GeometricOverlap,
+    HashMinus,
     RangeAdjacent,
     RangeStrictlyLeft,
     RangeStrictlyRight,

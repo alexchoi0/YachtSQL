@@ -160,6 +160,114 @@ fn register_json_construction(registry: &mut FunctionRegistry) {
             evaluator: |args| crate::json::functions::parse_json(&args[0]),
         }),
     );
+
+    registry.register_scalar(
+        "TO_JSONB".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "TO_JSONB".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Json,
+            variadic: true,
+            evaluator: |args| {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "TO_JSONB requires at least one argument",
+                    ));
+                }
+                crate::json::functions::to_json(&args[0])
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "JSON_BUILD_ARRAY".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSON_BUILD_ARRAY".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Json,
+            variadic: true,
+            evaluator: |args| crate::json::builder::json_array(args.to_vec()),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_BUILD_ARRAY".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_BUILD_ARRAY".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Json,
+            variadic: true,
+            evaluator: |args| crate::json::builder::json_array(args.to_vec()),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSON_BUILD_OBJECT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSON_BUILD_OBJECT".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Json,
+            variadic: true,
+            evaluator: |args| {
+                if args.len() % 2 != 0 {
+                    return Err(Error::invalid_query(
+                        "JSON_BUILD_OBJECT requires an even number of arguments (key-value pairs)"
+                            .to_string(),
+                    ));
+                }
+
+                let mut pairs = Vec::new();
+                for chunk in args.chunks(2) {
+                    let key = if let Some(s) = chunk[0].as_str() {
+                        s.to_string()
+                    } else {
+                        return Err(Error::invalid_query(format!(
+                            "JSON_BUILD_OBJECT keys must be strings, got {:?}",
+                            chunk[0].data_type()
+                        )));
+                    };
+                    let value = chunk[1].clone();
+                    pairs.push((key, value));
+                }
+
+                crate::json::builder::json_object(pairs)
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_BUILD_OBJECT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_BUILD_OBJECT".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Json,
+            variadic: true,
+            evaluator: |args| {
+                if args.len() % 2 != 0 {
+                    return Err(Error::invalid_query(
+                        "JSONB_BUILD_OBJECT requires an even number of arguments (key-value pairs)"
+                            .to_string(),
+                    ));
+                }
+
+                let mut pairs = Vec::new();
+                for chunk in args.chunks(2) {
+                    let key = if let Some(s) = chunk[0].as_str() {
+                        s.to_string()
+                    } else {
+                        return Err(Error::invalid_query(format!(
+                            "JSONB_BUILD_OBJECT keys must be strings, got {:?}",
+                            chunk[0].data_type()
+                        )));
+                    };
+                    let value = chunk[1].clone();
+                    pairs.push((key, value));
+                }
+
+                crate::json::builder::json_object(pairs)
+            },
+        }),
+    );
 }
 
 fn register_json_predicates(registry: &mut FunctionRegistry) {
@@ -282,6 +390,50 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             evaluator: |args| crate::json::postgres::json_type(&args[0]),
         }),
     );
+
+    registry.register_scalar(
+        "JSON_TYPEOF".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSON_TYPEOF".to_string(),
+            arg_types: vec![DataType::Json],
+            return_type: DataType::String,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::json_type(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_TYPEOF".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_TYPEOF".to_string(),
+            arg_types: vec![DataType::Json],
+            return_type: DataType::String,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::json_type(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSON_ARRAY_LENGTH".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSON_ARRAY_LENGTH".to_string(),
+            arg_types: vec![DataType::Json],
+            return_type: DataType::Int64,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::json_length(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_ARRAY_LENGTH".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_ARRAY_LENGTH".to_string(),
+            arg_types: vec![DataType::Json],
+            return_type: DataType::Int64,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::json_length(&args[0]),
+        }),
+    );
 }
 
 fn register_jsonb_ops(registry: &mut FunctionRegistry) {
@@ -344,6 +496,96 @@ fn register_jsonb_ops(registry: &mut FunctionRegistry) {
                     args[1].as_str().unwrap_or(""),
                 )
             },
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_DELETE_PATH".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_DELETE_PATH".to_string(),
+            arg_types: vec![DataType::Json, DataType::String],
+            return_type: DataType::Json,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::jsonb_delete_path(&args[0], &args[1]),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_SET".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_SET".to_string(),
+            arg_types: vec![DataType::Json, DataType::String, DataType::Json],
+            return_type: DataType::Json,
+            variadic: true,
+            evaluator: |args| {
+                if args.len() < 3 {
+                    return Err(Error::invalid_query(
+                        "JSONB_SET requires at least 3 arguments".to_string(),
+                    ));
+                }
+                let create_missing = if args.len() > 3 {
+                    args[3].as_bool()
+                } else {
+                    None
+                };
+                crate::json::postgres::jsonb_set(&args[0], &args[1], &args[2], create_missing)
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_INSERT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_INSERT".to_string(),
+            arg_types: vec![DataType::Json, DataType::String, DataType::Json],
+            return_type: DataType::Json,
+            variadic: true,
+            evaluator: |args| {
+                if args.len() < 3 {
+                    return Err(Error::invalid_query(
+                        "JSONB_INSERT requires at least 3 arguments".to_string(),
+                    ));
+                }
+                let insert_after = if args.len() > 3 {
+                    args[3].as_bool().unwrap_or(false)
+                } else {
+                    false
+                };
+                crate::json::postgres::jsonb_insert(&args[0], &args[1], &args[2], insert_after)
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_PRETTY".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_PRETTY".to_string(),
+            arg_types: vec![DataType::Json],
+            return_type: DataType::String,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::jsonb_pretty(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSON_STRIP_NULLS".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSON_STRIP_NULLS".to_string(),
+            arg_types: vec![DataType::Json],
+            return_type: DataType::Json,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::json_strip_nulls(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "JSONB_STRIP_NULLS".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "JSONB_STRIP_NULLS".to_string(),
+            arg_types: vec![DataType::Json],
+            return_type: DataType::Json,
+            variadic: false,
+            evaluator: |args| crate::json::postgres::json_strip_nulls(&args[0]),
         }),
     );
 }
