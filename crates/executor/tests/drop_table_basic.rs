@@ -96,7 +96,7 @@ fn test_drop_and_recreate_table() {
 }
 
 #[test]
-fn test_drop_table_cascade_not_supported() {
+fn test_drop_table_cascade() {
     let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
 
     executor
@@ -105,8 +105,8 @@ fn test_drop_table_cascade_not_supported() {
 
     let result = executor.execute_sql("DROP TABLE parent CASCADE");
     assert!(
-        result.is_err(),
-        "DROP TABLE CASCADE should fail as unsupported"
+        result.is_ok(),
+        "DROP TABLE CASCADE should succeed: {:?}",
+        result
     );
-    assert!(result.unwrap_err().to_string().contains("CASCADE"));
 }

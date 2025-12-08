@@ -303,3 +303,56 @@ fn test_generated_by_default_as_identity() {
         .unwrap();
     assert_table_eq!(result, [[100]]);
 }
+
+#[test]
+#[ignore = "sqlparser 0.59 doesn't support sequence options in GENERATED AS IDENTITY"]
+fn test_generated_identity_with_sequence_options() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE identity_opts (id INTEGER GENERATED ALWAYS AS IDENTITY (START WITH 100 INCREMENT BY 10), name TEXT)",
+        )
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO identity_opts (name) VALUES ('Alice')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO identity_opts (name) VALUES ('Bob')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO identity_opts (name) VALUES ('Charlie')")
+        .unwrap();
+    let result = executor
+        .execute_sql("SELECT id FROM identity_opts ORDER BY id")
+        .unwrap();
+    assert_table_eq!(result, [[100], [110], [120]]);
+}
+
+#[test]
+fn test_drop_table_drops_owned_sequence() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE serial_drop_test (id SERIAL, name TEXT)")
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO serial_drop_test (name) VALUES ('Test')")
+        .unwrap();
+    let result = executor
+        .execute_sql("SELECT id FROM serial_drop_test")
+        .unwrap();
+    assert_table_eq!(result, [[1]]);
+
+    executor.execute_sql("DROP TABLE serial_drop_test").unwrap();
+
+    executor
+        .execute_sql("CREATE TABLE serial_drop_test (id SERIAL, name TEXT)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO serial_drop_test (name) VALUES ('Test2')")
+        .unwrap();
+    let result2 = executor
+        .execute_sql("SELECT id FROM serial_drop_test")
+        .unwrap();
+    assert_table_eq!(result2, [[1]]);
+}

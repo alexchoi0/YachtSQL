@@ -18,22 +18,13 @@ impl DdlDropExecutor for QueryExecutor {
         use sqlparser::ast::Statement;
 
         let Statement::Drop {
-            names,
-            if_exists,
-            cascade,
-            ..
+            names, if_exists, ..
         } = stmt
         else {
             return Err(Error::InternalError(
                 "Not a DROP TABLE statement".to_string(),
             ));
         };
-
-        if *cascade {
-            return Err(Error::UnsupportedFeature(
-                "DROP TABLE CASCADE is not yet supported".to_string(),
-            ));
-        }
 
         for table_name_obj in names {
             let table_name = table_name_obj.to_string();
@@ -106,6 +97,8 @@ impl DdlDropExecutor for QueryExecutor {
                         )));
                     }
                 }
+
+                dataset.sequences_mut().drop_owned_by_table(&table_id);
 
                 dataset.delete_table(&table_id)?;
             }
