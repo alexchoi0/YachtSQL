@@ -6,9 +6,9 @@ fn test_create_type_composite() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
         "CREATE TYPE address AS (
-            street STRING,
-            city STRING,
-            zip STRING
+            street TEXT,
+            city TEXT,
+            zip TEXT
         )",
     );
     assert!(result.is_ok() || result.is_err());
@@ -18,10 +18,10 @@ fn test_create_type_composite() {
 fn test_composite_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE person_name AS (first_name STRING, last_name STRING)")
+        .execute_sql("CREATE TYPE person_name AS (first_name TEXT, last_name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE people (id INT64, name person_name)")
+        .execute_sql("CREATE TABLE people (id INTEGER, name person_name)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO people VALUES (1, ROW('John', 'Doe'))")
@@ -36,10 +36,10 @@ fn test_composite_column() {
 fn test_composite_access_field() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE point_2d AS (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TYPE point_2d AS (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE points (id INT64, p point_2d)")
+        .execute_sql("CREATE TABLE points (id INTEGER, p point_2d)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO points VALUES (1, ROW(3.0, 4.0))")
@@ -82,10 +82,10 @@ fn test_composite_comparison_less_than() {
 fn test_composite_nested() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE inner_type AS (val INT64)")
+        .execute_sql("CREATE TYPE inner_type AS (val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TYPE outer_type AS (name STRING, inner_val inner_type)")
+        .execute_sql("CREATE TYPE outer_type AS (name TEXT, inner_val inner_type)")
         .unwrap();
 
     let result = executor.execute_sql("SELECT ROW('test', ROW(42))::outer_type");
@@ -96,10 +96,10 @@ fn test_composite_nested() {
 fn test_composite_array_of() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE item AS (name STRING, quantity INT64)")
+        .execute_sql("CREATE TYPE item AS (name TEXT, quantity INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, items item[])")
+        .execute_sql("CREATE TABLE orders (id INTEGER, items item[])")
         .unwrap();
 
     let result =
@@ -111,10 +111,10 @@ fn test_composite_array_of() {
 fn test_composite_update_field() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE coord AS (x INT64, y INT64)")
+        .execute_sql("CREATE TYPE coord AS (x INTEGER, y INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE locations (id INT64, pos coord)")
+        .execute_sql("CREATE TABLE locations (id INTEGER, pos coord)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO locations VALUES (1, ROW(10, 20))")
@@ -128,11 +128,11 @@ fn test_composite_update_field() {
 fn test_composite_in_function() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE dimensions AS (width INT64, height INT64)")
+        .execute_sql("CREATE TYPE dimensions AS (width INTEGER, height INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
-        "CREATE FUNCTION calc_area(d dimensions) RETURNS INT64
+        "CREATE FUNCTION calc_area(d dimensions) RETURNS INTEGER
          AS $$ SELECT (d).width * (d).height; $$ LANGUAGE SQL",
     );
     assert!(result.is_ok() || result.is_err());
@@ -142,7 +142,7 @@ fn test_composite_in_function() {
 fn test_composite_return_type() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE result_pair AS (success BOOL, message STRING)")
+        .execute_sql("CREATE TYPE result_pair AS (success BOOLEAN, message TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -156,7 +156,7 @@ fn test_composite_return_type() {
 fn test_composite_drop_type() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE temp_type AS (a INT64)")
+        .execute_sql("CREATE TYPE temp_type AS (a INTEGER)")
         .unwrap();
     let result = executor.execute_sql("DROP TYPE temp_type");
     assert!(result.is_ok() || result.is_err());
@@ -166,9 +166,9 @@ fn test_composite_drop_type() {
 fn test_composite_alter_type_add() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE extendable AS (a INT64)")
+        .execute_sql("CREATE TYPE extendable AS (a INTEGER)")
         .unwrap();
-    let result = executor.execute_sql("ALTER TYPE extendable ADD ATTRIBUTE b STRING");
+    let result = executor.execute_sql("ALTER TYPE extendable ADD ATTRIBUTE b TEXT");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -176,7 +176,7 @@ fn test_composite_alter_type_add() {
 fn test_composite_alter_type_drop() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE reducible AS (a INT64, b STRING)")
+        .execute_sql("CREATE TYPE reducible AS (a INTEGER, b TEXT)")
         .unwrap();
     let result = executor.execute_sql("ALTER TYPE reducible DROP ATTRIBUTE b");
     assert!(result.is_ok() || result.is_err());
@@ -186,7 +186,7 @@ fn test_composite_alter_type_drop() {
 fn test_composite_alter_type_rename() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE renamable AS (old_name INT64)")
+        .execute_sql("CREATE TYPE renamable AS (old_name INTEGER)")
         .unwrap();
     let result = executor.execute_sql("ALTER TYPE renamable RENAME ATTRIBUTE old_name TO new_name");
     assert!(result.is_ok() || result.is_err());
@@ -205,7 +205,7 @@ fn test_composite_is_not_distinct_from() {
 fn test_composite_cast_row() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE typed_row AS (id INT64, name STRING)")
+        .execute_sql("CREATE TYPE typed_row AS (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("SELECT ROW(1, 'test')::typed_row");
@@ -216,10 +216,10 @@ fn test_composite_cast_row() {
 fn test_composite_in_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE search_key AS (a INT64, b INT64)")
+        .execute_sql("CREATE TYPE search_key AS (a INTEGER, b INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE search_data (id INT64, key search_key)")
+        .execute_sql("CREATE TABLE search_data (id INTEGER, key search_key)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO search_data VALUES (1, ROW(10, 20)), (2, ROW(30, 40))")
@@ -234,10 +234,10 @@ fn test_composite_in_where() {
 fn test_composite_order_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE sortable AS (priority INT64, name STRING)")
+        .execute_sql("CREATE TYPE sortable AS (priority INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE sort_items (id INT64, item sortable)")
+        .execute_sql("CREATE TABLE sort_items (id INTEGER, item sortable)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO sort_items VALUES (1, ROW(2, 'B')), (2, ROW(1, 'A'))")
@@ -252,10 +252,10 @@ fn test_composite_order_by() {
 fn test_composite_null_field() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE nullable_fields AS (a INT64, b STRING)")
+        .execute_sql("CREATE TYPE nullable_fields AS (a INTEGER, b TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE nullable_comp (id INT64, data nullable_fields)")
+        .execute_sql("CREATE TABLE nullable_comp (id INTEGER, data nullable_fields)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable_comp VALUES (1, ROW(NULL, 'test'))")
@@ -269,10 +269,10 @@ fn test_composite_null_field() {
 fn test_composite_whole_row_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE whole_null AS (a INT64)")
+        .execute_sql("CREATE TYPE whole_null AS (a INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE null_comp (id INT64, data whole_null)")
+        .execute_sql("CREATE TABLE null_comp (id INTEGER, data whole_null)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO null_comp VALUES (1, NULL)")

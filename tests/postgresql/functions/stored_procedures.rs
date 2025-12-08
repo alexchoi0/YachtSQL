@@ -4,7 +4,7 @@ use crate::common::create_executor;
 fn test_create_function_sql() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION add_numbers(a INT64, b INT64) RETURNS INT64
+        "CREATE FUNCTION add_numbers(a INTEGER, b INTEGER) RETURNS INTEGER
          AS $$ SELECT a + b; $$ LANGUAGE SQL",
     );
     assert!(result.is_ok() || result.is_err());
@@ -14,7 +14,7 @@ fn test_create_function_sql() {
 fn test_create_function_plpgsql() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION multiply(a INT64, b INT64) RETURNS INT64 AS $$
+        "CREATE FUNCTION multiply(a INTEGER, b INTEGER) RETURNS INTEGER AS $$
          BEGIN
              RETURN a * b;
          END;
@@ -27,11 +27,11 @@ fn test_create_function_plpgsql() {
 fn test_create_procedure() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE proc_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE proc_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
-        "CREATE PROCEDURE insert_value(p_id INT64, p_val INT64) AS $$
+        "CREATE PROCEDURE insert_value(p_id INTEGER, p_val INTEGER) AS $$
          BEGIN
              INSERT INTO proc_test VALUES (p_id, p_val);
          END;
@@ -45,11 +45,11 @@ fn test_create_procedure() {
 fn test_call_procedure() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE call_test (id INT64)")
+        .execute_sql("CREATE TABLE call_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
-            "CREATE PROCEDURE add_row(p_id INT64) AS $$
+            "CREATE PROCEDURE add_row(p_id INTEGER) AS $$
          BEGIN
              INSERT INTO call_test VALUES (p_id);
          END;
@@ -65,7 +65,7 @@ fn test_call_procedure() {
 fn test_function_returns_table() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION get_numbers() RETURNS TABLE(num INT64) AS $$
+        "CREATE FUNCTION get_numbers() RETURNS TABLE(num INTEGER) AS $$
          BEGIN
              RETURN QUERY SELECT generate_series(1, 5);
          END;
@@ -78,7 +78,7 @@ fn test_function_returns_table() {
 fn test_function_returns_setof() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE setof_test (id INT64, val STRING)")
+        .execute_sql("CREATE TABLE setof_test (id INTEGER, val TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -94,10 +94,10 @@ fn test_function_out_parameter() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
         "CREATE FUNCTION divide_with_remainder(
-             dividend INT64,
-             divisor INT64,
-             OUT quotient INT64,
-             OUT remainder INT64
+             dividend INTEGER,
+             divisor INTEGER,
+             OUT quotient INTEGER,
+             OUT remainder INTEGER
          ) AS $$
          BEGIN
              quotient := dividend / divisor;
@@ -112,7 +112,7 @@ fn test_function_out_parameter() {
 fn test_function_inout_parameter() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION increment(INOUT val INT64) AS $$
+        "CREATE FUNCTION increment(INOUT val INTEGER) AS $$
          BEGIN
              val := val + 1;
          END;
@@ -125,7 +125,7 @@ fn test_function_inout_parameter() {
 fn test_function_default_parameter() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION greet(name STRING DEFAULT 'World') RETURNS STRING AS $$
+        "CREATE FUNCTION greet(name TEXT DEFAULT 'World') RETURNS TEXT AS $$
          SELECT 'Hello, ' || name || '!';
          $$ LANGUAGE SQL",
     );
@@ -136,7 +136,7 @@ fn test_function_default_parameter() {
 fn test_function_variadic() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION sum_all(VARIADIC nums INT64[]) RETURNS INT64 AS $$
+        "CREATE FUNCTION sum_all(VARIADIC nums INTEGER[]) RETURNS INTEGER AS $$
          SELECT SUM(n) FROM UNNEST(nums) AS n;
          $$ LANGUAGE SQL",
     );
@@ -147,7 +147,7 @@ fn test_function_variadic() {
 fn test_function_immutable() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION const_func() RETURNS INT64
+        "CREATE FUNCTION const_func() RETURNS INTEGER
          IMMUTABLE
          AS $$ SELECT 42; $$ LANGUAGE SQL",
     );
@@ -169,7 +169,7 @@ fn test_function_stable() {
 fn test_function_volatile() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION volatile_func() RETURNS FLOAT64
+        "CREATE FUNCTION volatile_func() RETURNS DOUBLE PRECISION
          VOLATILE
          AS $$ SELECT RANDOM(); $$ LANGUAGE SQL",
     );
@@ -180,7 +180,7 @@ fn test_function_volatile() {
 fn test_function_strict() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION strict_add(a INT64, b INT64) RETURNS INT64
+        "CREATE FUNCTION strict_add(a INTEGER, b INTEGER) RETURNS INTEGER
          STRICT
          AS $$ SELECT a + b; $$ LANGUAGE SQL",
     );
@@ -191,7 +191,7 @@ fn test_function_strict() {
 fn test_function_security_definer() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION secure_func() RETURNS INT64
+        "CREATE FUNCTION secure_func() RETURNS INTEGER
          SECURITY DEFINER
          AS $$ SELECT 1; $$ LANGUAGE SQL",
     );
@@ -202,7 +202,7 @@ fn test_function_security_definer() {
 fn test_function_security_invoker() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION invoker_func() RETURNS INT64
+        "CREATE FUNCTION invoker_func() RETURNS INTEGER
          SECURITY INVOKER
          AS $$ SELECT 1; $$ LANGUAGE SQL",
     );
@@ -213,7 +213,7 @@ fn test_function_security_invoker() {
 fn test_function_parallel_safe() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION parallel_func(a INT64) RETURNS INT64
+        "CREATE FUNCTION parallel_func(a INTEGER) RETURNS INTEGER
          PARALLEL SAFE
          AS $$ SELECT a * 2; $$ LANGUAGE SQL",
     );
@@ -224,7 +224,7 @@ fn test_function_parallel_safe() {
 fn test_function_cost() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION expensive_func() RETURNS INT64
+        "CREATE FUNCTION expensive_func() RETURNS INTEGER
          COST 1000
          AS $$ SELECT 1; $$ LANGUAGE SQL",
     );
@@ -235,7 +235,7 @@ fn test_function_cost() {
 fn test_function_rows() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION estimate_rows() RETURNS SETOF INT64
+        "CREATE FUNCTION estimate_rows() RETURNS SETOF INTEGER
          ROWS 100
          AS $$ SELECT generate_series(1, 100); $$ LANGUAGE SQL",
     );
@@ -247,7 +247,7 @@ fn test_function_rows() {
 fn test_drop_function() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION to_drop() RETURNS INT64 AS $$ SELECT 1; $$ LANGUAGE SQL")
+        .execute_sql("CREATE FUNCTION to_drop() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL")
         .unwrap();
 
     let result = executor.execute_sql("DROP FUNCTION to_drop()");
@@ -278,7 +278,7 @@ fn test_drop_procedure() {
 fn test_alter_function_rename() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION old_func() RETURNS INT64 AS $$ SELECT 1; $$ LANGUAGE SQL")
+        .execute_sql("CREATE FUNCTION old_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL")
         .unwrap();
 
     let result = executor.execute_sql("ALTER FUNCTION old_func() RENAME TO new_func");
@@ -290,7 +290,7 @@ fn test_alter_function_rename() {
 fn test_alter_function_owner() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION owner_func() RETURNS INT64 AS $$ SELECT 1; $$ LANGUAGE SQL")
+        .execute_sql("CREATE FUNCTION owner_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL")
         .unwrap();
 
     let result = executor.execute_sql("ALTER FUNCTION owner_func() OWNER TO postgres");
@@ -303,7 +303,9 @@ fn test_alter_function_set_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA new_schema").unwrap();
     executor
-        .execute_sql("CREATE FUNCTION schema_func() RETURNS INT64 AS $$ SELECT 1; $$ LANGUAGE SQL")
+        .execute_sql(
+            "CREATE FUNCTION schema_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL",
+        )
         .unwrap();
 
     let result = executor.execute_sql("ALTER FUNCTION schema_func() SET SCHEMA new_schema");
@@ -315,11 +317,13 @@ fn test_alter_function_set_schema() {
 fn test_create_or_replace_function() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION replace_func() RETURNS INT64 AS $$ SELECT 1; $$ LANGUAGE SQL")
+        .execute_sql(
+            "CREATE FUNCTION replace_func() RETURNS INTEGER AS $$ SELECT 1; $$ LANGUAGE SQL",
+        )
         .unwrap();
 
     let result = executor.execute_sql(
-        "CREATE OR REPLACE FUNCTION replace_func() RETURNS INT64 AS $$ SELECT 2; $$ LANGUAGE SQL",
+        "CREATE OR REPLACE FUNCTION replace_func() RETURNS INTEGER AS $$ SELECT 2; $$ LANGUAGE SQL",
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -330,12 +334,12 @@ fn test_function_overloading() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE FUNCTION overload(a INT64) RETURNS INT64 AS $$ SELECT a; $$ LANGUAGE SQL",
+            "CREATE FUNCTION overload(a INTEGER) RETURNS INTEGER AS $$ SELECT a; $$ LANGUAGE SQL",
         )
         .unwrap();
 
     let result = executor.execute_sql(
-        "CREATE FUNCTION overload(a INT64, b INT64) RETURNS INT64 AS $$ SELECT a + b; $$ LANGUAGE SQL"
+        "CREATE FUNCTION overload(a INTEGER, b INTEGER) RETURNS INTEGER AS $$ SELECT a + b; $$ LANGUAGE SQL"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -344,7 +348,7 @@ fn test_function_overloading() {
 fn test_procedure_transaction_control() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_test (id INT64)")
+        .execute_sql("CREATE TABLE tx_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -363,7 +367,7 @@ fn test_procedure_transaction_control() {
 fn test_function_exception_handling() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION safe_divide(a INT64, b INT64) RETURNS INT64 AS $$
+        "CREATE FUNCTION safe_divide(a INTEGER, b INTEGER) RETURNS INTEGER AS $$
          BEGIN
              RETURN a / b;
          EXCEPTION
@@ -379,10 +383,10 @@ fn test_function_exception_handling() {
 fn test_function_with_declare() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION with_vars() RETURNS INT64 AS $$
+        "CREATE FUNCTION with_vars() RETURNS INTEGER AS $$
          DECLARE
-             x INT64 := 10;
-             y INT64 := 20;
+             x INTEGER := 10;
+             y INTEGER := 20;
          BEGIN
              RETURN x + y;
          END;
@@ -395,7 +399,7 @@ fn test_function_with_declare() {
 fn test_function_if_else() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION check_value(val INT64) RETURNS STRING AS $$
+        "CREATE FUNCTION check_value(val INTEGER) RETURNS TEXT AS $$
          BEGIN
              IF val > 100 THEN
                  RETURN 'high';
@@ -414,10 +418,10 @@ fn test_function_if_else() {
 fn test_function_loop() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION count_to(n INT64) RETURNS INT64 AS $$
+        "CREATE FUNCTION count_to(n INTEGER) RETURNS INTEGER AS $$
          DECLARE
-             i INT64 := 0;
-             total INT64 := 0;
+             i INTEGER := 0;
+             total INTEGER := 0;
          BEGIN
              LOOP
                  i := i + 1;
@@ -435,9 +439,9 @@ fn test_function_loop() {
 fn test_function_for_loop() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE FUNCTION sum_range(start_val INT64, end_val INT64) RETURNS INT64 AS $$
+        "CREATE FUNCTION sum_range(start_val INTEGER, end_val INTEGER) RETURNS INTEGER AS $$
          DECLARE
-             total INT64 := 0;
+             total INTEGER := 0;
          BEGIN
              FOR i IN start_val..end_val LOOP
                  total := total + i;
@@ -453,14 +457,14 @@ fn test_function_for_loop() {
 fn test_function_cursor() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cursor_data (id INT64, val STRING)")
+        .execute_sql("CREATE TABLE cursor_data (id INTEGER, val TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
-        "CREATE FUNCTION process_rows() RETURNS INT64 AS $$
+        "CREATE FUNCTION process_rows() RETURNS INTEGER AS $$
          DECLARE
              rec RECORD;
-             cnt INT64 := 0;
+             cnt INTEGER := 0;
          BEGIN
              FOR rec IN SELECT * FROM cursor_data LOOP
                  cnt := cnt + 1;

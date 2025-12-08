@@ -5,7 +5,7 @@ use crate::common::create_executor;
 fn test_insert_returning_all() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_insert (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE ret_insert (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor
@@ -18,7 +18,7 @@ fn test_insert_returning_all() {
 fn test_insert_returning_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_cols (id INT64, name STRING, age INT64)")
+        .execute_sql("CREATE TABLE ret_cols (id INTEGER, name TEXT, age INTEGER)")
         .unwrap();
 
     let result = executor
@@ -31,7 +31,7 @@ fn test_insert_returning_columns() {
 fn test_insert_returning_expression() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_expr (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE ret_expr (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor
@@ -44,7 +44,7 @@ fn test_insert_returning_expression() {
 fn test_insert_returning_multiple_rows() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_multi (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE ret_multi (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor
@@ -59,7 +59,7 @@ fn test_insert_returning_multiple_rows() {
 fn test_update_returning_all() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_upd (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE ret_upd (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_upd VALUES (1, 100), (2, 200), (3, 300)")
@@ -76,7 +76,7 @@ fn test_update_returning_all() {
 fn test_update_returning_old_new() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_old_new (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE ret_old_new (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_upd VALUES (1, 100)")
@@ -92,7 +92,7 @@ fn test_update_returning_old_new() {
 fn test_delete_returning_all() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_del (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE ret_del (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_del VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
@@ -108,7 +108,7 @@ fn test_delete_returning_all() {
 fn test_delete_returning_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_del_cols (id INT64, name STRING, active BOOL)")
+        .execute_sql("CREATE TABLE ret_del_cols (id INTEGER, name TEXT, active BOOL)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_del_cols VALUES (1, 'Alice', TRUE), (2, 'Bob', FALSE)")
@@ -125,7 +125,7 @@ fn test_delete_returning_columns() {
 fn test_insert_returning_with_default() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_def (id INT64, name STRING DEFAULT 'Unknown')")
+        .execute_sql("CREATE TABLE ret_def (id INTEGER, name TEXT DEFAULT 'Unknown')")
         .unwrap();
 
     let result = executor
@@ -138,7 +138,7 @@ fn test_insert_returning_with_default() {
 fn test_insert_returning_function() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_func (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE ret_func (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor
@@ -153,7 +153,7 @@ fn test_insert_returning_function() {
 fn test_upsert_returning() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_upsert (id INT64 PRIMARY KEY, val INT64)")
+        .execute_sql("CREATE TABLE ret_upsert (id INTEGER PRIMARY KEY, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_upsert VALUES (1, 100)")
@@ -173,7 +173,7 @@ fn test_upsert_returning() {
 fn test_insert_returning_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_null (id INT64, opt_val STRING)")
+        .execute_sql("CREATE TABLE ret_null (id INTEGER, opt_val TEXT)")
         .unwrap();
 
     let result = executor
@@ -186,7 +186,7 @@ fn test_insert_returning_null() {
 fn test_update_returning_case() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_case (id INT64, status STRING)")
+        .execute_sql("CREATE TABLE ret_case (id INTEGER, status TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_case VALUES (1, 'pending'), (2, 'active')")
@@ -205,7 +205,7 @@ fn test_update_returning_case() {
 fn test_delete_returning_with_join_condition() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_del_cond (id INT64, category STRING)")
+        .execute_sql("CREATE TABLE ret_del_cond (id INTEGER, category TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_del_cond VALUES (1, 'A'), (2, 'B'), (3, 'A')")
@@ -221,7 +221,7 @@ fn test_delete_returning_with_join_condition() {
 fn test_insert_returning_concat() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_concat (id INT64, first_name STRING, last_name STRING)")
+        .execute_sql("CREATE TABLE ret_concat (id INTEGER, first_name TEXT, last_name TEXT)")
         .unwrap();
 
     let result = executor
@@ -237,7 +237,7 @@ fn test_insert_returning_concat() {
 fn test_insert_returning_arithmetic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_arith (id INT64, quantity INT64, price INT64)")
+        .execute_sql("CREATE TABLE ret_arith (id INTEGER, quantity INTEGER, price INTEGER)")
         .unwrap();
 
     let result = executor
@@ -254,7 +254,7 @@ fn test_insert_returning_arithmetic() {
 fn test_update_returning_aggregate_subquery() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_agg (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE ret_agg (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_agg VALUES (1, 10), (2, 20)")
@@ -273,7 +273,7 @@ fn test_update_returning_aggregate_subquery() {
 fn test_delete_returning_count() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_count (id INT64)")
+        .execute_sql("CREATE TABLE ret_count (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_count VALUES (1), (2), (3), (4), (5)")
@@ -289,7 +289,7 @@ fn test_delete_returning_count() {
 fn test_insert_returning_coalesce() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_coal (id INT64, val STRING)")
+        .execute_sql("CREATE TABLE ret_coal (id INTEGER, val TEXT)")
         .unwrap();
 
     let result = executor
@@ -305,7 +305,7 @@ fn test_insert_returning_coalesce() {
 fn test_update_returning_boolean() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ret_bool (id INT64, active BOOL)")
+        .execute_sql("CREATE TABLE ret_bool (id INTEGER, active BOOL)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ret_bool VALUES (1, FALSE)")

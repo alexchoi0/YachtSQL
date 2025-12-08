@@ -78,7 +78,7 @@ fn test_boolean_filter() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE t (id INT64, active BOOLEAN)")
+        .execute_sql("CREATE TABLE t (id INTEGER, active BOOLEAN)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES (1, true), (2, false), (3, true)")
@@ -106,7 +106,9 @@ fn test_boolean_comparison_result() {
 fn test_boolean_case_when() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val INT64)").unwrap();
+    executor
+        .execute_sql("CREATE TABLE t (val INTEGER)")
+        .unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES (1), (2), (3)")
         .unwrap();

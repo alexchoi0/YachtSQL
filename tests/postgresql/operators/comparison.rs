@@ -5,7 +5,7 @@ use crate::common::create_executor;
 
 fn setup_numbers_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE numbers (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE numbers (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO numbers VALUES (1, 10), (2, 20), (3, 30), (4, 40), (5, 50)")
@@ -14,7 +14,7 @@ fn setup_numbers_table(executor: &mut QueryExecutor) {
 
 fn setup_strings_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE strings (id INT64, text STRING)")
+        .execute_sql("CREATE TABLE strings (id INTEGER, text TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO strings VALUES (1, 'apple'), (2, 'banana'), (3, 'cherry')")
@@ -23,7 +23,7 @@ fn setup_strings_table(executor: &mut QueryExecutor) {
 
 fn setup_nullable_numbers(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE nullable_numbers (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE nullable_numbers (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable_numbers VALUES (1, 10), (2, NULL), (3, 30)")

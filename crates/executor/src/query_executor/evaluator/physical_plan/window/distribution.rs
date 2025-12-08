@@ -103,30 +103,36 @@ impl WindowExec {
         }
 
         let total_rows = indices.len();
-        let bucket_size = total_rows.div_ceil(num_buckets);
+        let base_size = total_rows / num_buckets;
+        let remainder = total_rows % num_buckets;
 
-        for (position, &original_idx) in indices.iter().enumerate() {
-            let bucket_number = Self::calculate_bucket_number(position, bucket_size, num_buckets);
-            results[original_idx] = Value::int64(bucket_number as i64);
+        let mut current_bucket = 1usize;
+        let mut rows_in_current_bucket = 0usize;
+
+        for &original_idx in indices.iter() {
+            results[original_idx] = Value::int64(current_bucket as i64);
+            rows_in_current_bucket += 1;
+
+            let bucket_size = if current_bucket <= remainder {
+                base_size + 1
+            } else {
+                base_size
+            };
+
+            if rows_in_current_bucket >= bucket_size && current_bucket < num_buckets {
+                current_bucket += 1;
+                rows_in_current_bucket = 0;
+            }
         }
     }
 
-    pub(super) fn extract_ntile_bucket_count(args: &[Expr]) -> usize {
+    fn extract_ntile_bucket_count(args: &[Expr]) -> usize {
         args.first()
             .and_then(|arg| match arg {
                 Expr::Literal(crate::optimizer::expr::LiteralValue::Int64(n)) => Some(*n as usize),
                 _ => None,
             })
             .unwrap_or(1)
-    }
-
-    pub(super) fn calculate_bucket_number(
-        position: usize,
-        bucket_size: usize,
-        max_buckets: usize,
-    ) -> usize {
-        let bucket = (position / bucket_size) + 1;
-        bucket.min(max_buckets)
     }
 
     pub(super) fn compute_unknown_function(indices: &[usize], results: &mut [Value]) {

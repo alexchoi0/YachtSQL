@@ -5,19 +5,19 @@ use crate::common::create_executor;
 
 fn setup_simple_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE items (id INT64, name STRING, quantity INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER, name TEXT, quantity INTEGER)")
         .unwrap();
 }
 
 fn setup_table_with_defaults(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, status STRING DEFAULT 'pending', amount INT64 DEFAULT 0)")
+        .execute_sql("CREATE TABLE orders (id INTEGER, status TEXT DEFAULT 'pending', amount INTEGER DEFAULT 0)")
         .unwrap();
 }
 
 fn setup_nullable_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE contacts (id INT64, email STRING, phone STRING)")
+        .execute_sql("CREATE TABLE contacts (id INTEGER, email TEXT, phone TEXT)")
         .unwrap();
 }
 
@@ -237,7 +237,7 @@ fn test_insert_with_subquery() {
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE items_copy (id INT64, name STRING, quantity INT64)")
+        .execute_sql("CREATE TABLE items_copy (id INTEGER, name TEXT, quantity INTEGER)")
         .unwrap();
 
     executor
@@ -254,7 +254,7 @@ fn test_insert_on_conflict_do_nothing() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE unique_items (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE unique_items (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
 
     executor
@@ -277,7 +277,7 @@ fn test_insert_on_conflict_do_update() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE upsert_items (id INT64 PRIMARY KEY, name STRING, count INT64)")
+        .execute_sql("CREATE TABLE upsert_items (id INTEGER PRIMARY KEY, name TEXT, count INTEGER)")
         .unwrap();
 
     executor

@@ -16,7 +16,7 @@ fn test_uuid_literal() {
 fn test_uuid_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users_uuid (id UUID, name STRING)")
+        .execute_sql("CREATE TABLE users_uuid (id UUID, name TEXT)")
         .unwrap();
     executor
         .execute_sql(
@@ -53,7 +53,7 @@ fn test_uuid_not_equal() {
 fn test_uuid_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uuid_null (id INT64, uuid_col UUID)")
+        .execute_sql("CREATE TABLE uuid_null (id INTEGER, uuid_col UUID)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO uuid_null VALUES (1, NULL)")
@@ -100,7 +100,7 @@ fn test_gen_random_uuid() {
 fn test_uuid_in_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uuid_where (id UUID, value INT64)")
+        .execute_sql("CREATE TABLE uuid_where (id UUID, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO uuid_where VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 100)")
@@ -161,7 +161,7 @@ fn test_uuid_distinct() {
 fn test_uuid_group_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uuid_group (id UUID, amount INT64)")
+        .execute_sql("CREATE TABLE uuid_group (id UUID, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO uuid_group VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 100)")

@@ -220,6 +220,13 @@ impl CommonSubexpressionElimination {
                     Self::expr_signature(right)
                 )
             }
+            Expr::Lambda { params, body } => {
+                format!(
+                    "lambda({}):{}",
+                    params.join(","),
+                    Self::expr_signature(body)
+                )
+            }
         }
     }
 
@@ -363,6 +370,9 @@ impl CommonSubexpressionElimination {
                 Self::count_subexpressions(left, counts);
                 Self::count_subexpressions(right, counts);
             }
+            Expr::Lambda { body, .. } => {
+                Self::count_subexpressions(body, counts);
+            }
             Expr::Column { .. }
             | Expr::Literal(_)
             | Expr::Wildcard
@@ -409,7 +419,8 @@ impl CommonSubexpressionElimination {
             | Expr::ScalarSubquery { .. }
             | Expr::StructLiteral { .. }
             | Expr::StructFieldAccess { .. }
-            | Expr::IsDistinctFrom { .. } => true,
+            | Expr::IsDistinctFrom { .. }
+            | Expr::Lambda { .. } => true,
         }
     }
 

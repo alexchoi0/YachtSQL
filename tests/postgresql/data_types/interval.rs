@@ -60,7 +60,7 @@ fn test_interval_literal_years() {
 fn test_interval_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tasks (id INT64, duration INTERVAL)")
+        .execute_sql("CREATE TABLE tasks (id INTEGER, duration INTERVAL)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tasks VALUES (1, INTERVAL '2 hours')")
@@ -167,7 +167,7 @@ fn test_interval_comparison() {
 fn test_interval_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE interval_null (id INT64, dur INTERVAL)")
+        .execute_sql("CREATE TABLE interval_null (id INTEGER, dur INTERVAL)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO interval_null VALUES (1, NULL)")

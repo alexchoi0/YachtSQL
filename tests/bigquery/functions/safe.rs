@@ -332,7 +332,7 @@ fn test_safe_cast_bignumeric() {
 fn test_safe_cast_array() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT SAFE_CAST(ARRAY[1, 2, 3] AS ARRAY<STRING>)")
+        .execute_sql("SELECT SAFE_CAST([1, 2, 3] AS ARRAY<STRING>)")
         .unwrap();
     assert_table_eq!(result, [[["1", "2", "3"]]]);
 }
@@ -342,7 +342,7 @@ fn test_safe_cast_array() {
 fn test_safe_offset() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT arr[SAFE_OFFSET(10)] FROM (SELECT ARRAY[1, 2, 3] AS arr)")
+        .execute_sql("SELECT arr[SAFE_OFFSET(10)] FROM (SELECT [1, 2, 3] AS arr)")
         .unwrap();
     assert_table_eq!(result, [[null]]);
 }
@@ -352,7 +352,7 @@ fn test_safe_offset() {
 fn test_safe_ordinal() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT arr[SAFE_ORDINAL(10)] FROM (SELECT ARRAY[1, 2, 3] AS arr)")
+        .execute_sql("SELECT arr[SAFE_ORDINAL(10)] FROM (SELECT [1, 2, 3] AS arr)")
         .unwrap();
     assert_table_eq!(result, [[null]]);
 }

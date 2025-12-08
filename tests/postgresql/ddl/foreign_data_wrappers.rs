@@ -354,7 +354,7 @@ fn test_create_foreign_table() {
     executor.execute_sql("CREATE SERVER ft_srv FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host 'localhost', dbname 'remote')").ok();
 
     let result = executor.execute_sql(
-        "CREATE FOREIGN TABLE foreign_users (id INT64, name TEXT, email TEXT) SERVER ft_srv OPTIONS (table_name 'users')"
+        "CREATE FOREIGN TABLE foreign_users (id INTEGER, name TEXT, email TEXT) SERVER ft_srv OPTIONS (table_name 'users')"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -370,7 +370,7 @@ fn test_create_foreign_table_schema_qualified() {
         .ok();
 
     let result = executor.execute_sql(
-        "CREATE FOREIGN TABLE foreign_products (id INT64, name TEXT) SERVER ft_schema_srv OPTIONS (schema_name 'public', table_name 'products')"
+        "CREATE FOREIGN TABLE foreign_products (id INTEGER, name TEXT) SERVER ft_schema_srv OPTIONS (schema_name 'public', table_name 'products')"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -386,7 +386,7 @@ fn test_create_foreign_table_if_not_exists() {
         .ok();
 
     let result = executor.execute_sql(
-        "CREATE FOREIGN TABLE IF NOT EXISTS foreign_items (id INT64) SERVER ft_ine_srv",
+        "CREATE FOREIGN TABLE IF NOT EXISTS foreign_items (id INTEGER) SERVER ft_ine_srv",
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -403,7 +403,7 @@ fn test_foreign_table_column_options() {
 
     let result = executor.execute_sql(
         "CREATE FOREIGN TABLE foreign_col_opts (
-            id INT64 OPTIONS (column_name 'user_id'),
+            id INTEGER OPTIONS (column_name 'user_id'),
             name TEXT OPTIONS (column_name 'user_name')
         ) SERVER ft_col_srv",
     );
@@ -420,7 +420,7 @@ fn test_alter_foreign_table_add_column() {
         .execute_sql("CREATE SERVER ft_add_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE ft_add (id INT64) SERVER ft_add_srv")
+        .execute_sql("CREATE FOREIGN TABLE ft_add (id INTEGER) SERVER ft_add_srv")
         .ok();
 
     let result = executor.execute_sql("ALTER FOREIGN TABLE ft_add ADD COLUMN name TEXT");
@@ -438,7 +438,7 @@ fn test_alter_foreign_table_drop_column() {
         .ok();
     executor
         .execute_sql(
-            "CREATE FOREIGN TABLE ft_drop_col (id INT64, name TEXT) SERVER ft_drop_col_srv",
+            "CREATE FOREIGN TABLE ft_drop_col (id INTEGER, name TEXT) SERVER ft_drop_col_srv",
         )
         .ok();
 
@@ -456,7 +456,7 @@ fn test_alter_foreign_table_options() {
         .execute_sql("CREATE SERVER ft_opt_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE ft_opt (id INT64) SERVER ft_opt_srv")
+        .execute_sql("CREATE FOREIGN TABLE ft_opt (id INTEGER) SERVER ft_opt_srv")
         .ok();
 
     let result =
@@ -474,7 +474,7 @@ fn test_alter_foreign_table_rename() {
         .execute_sql("CREATE SERVER ft_rename_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE ft_old_name (id INT64) SERVER ft_rename_srv")
+        .execute_sql("CREATE FOREIGN TABLE ft_old_name (id INTEGER) SERVER ft_rename_srv")
         .ok();
 
     let result = executor.execute_sql("ALTER FOREIGN TABLE ft_old_name RENAME TO ft_new_name");
@@ -492,7 +492,7 @@ fn test_alter_foreign_table_set_schema() {
         .execute_sql("CREATE SERVER ft_schema_mov_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE ft_to_move (id INT64) SERVER ft_schema_mov_srv")
+        .execute_sql("CREATE FOREIGN TABLE ft_to_move (id INTEGER) SERVER ft_schema_mov_srv")
         .ok();
 
     let result = executor.execute_sql("ALTER FOREIGN TABLE ft_to_move SET SCHEMA ft_schema");
@@ -509,7 +509,7 @@ fn test_drop_foreign_table() {
         .execute_sql("CREATE SERVER ft_drop_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE ft_to_drop (id INT64) SERVER ft_drop_srv")
+        .execute_sql("CREATE FOREIGN TABLE ft_to_drop (id INTEGER) SERVER ft_drop_srv")
         .ok();
 
     let result = executor.execute_sql("DROP FOREIGN TABLE ft_to_drop");
@@ -533,7 +533,7 @@ fn test_drop_foreign_table_cascade() {
         .execute_sql("CREATE SERVER ft_cascade_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE ft_cascade (id INT64) SERVER ft_cascade_srv")
+        .execute_sql("CREATE FOREIGN TABLE ft_cascade (id INTEGER) SERVER ft_cascade_srv")
         .ok();
 
     let result = executor.execute_sql("DROP FOREIGN TABLE ft_cascade CASCADE");
@@ -611,7 +611,7 @@ fn test_select_from_foreign_table() {
         .execute_sql("CREATE SERVER sel_ft_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE sel_ft (id INT64, name TEXT) SERVER sel_ft_srv")
+        .execute_sql("CREATE FOREIGN TABLE sel_ft (id INTEGER, name TEXT) SERVER sel_ft_srv")
         .ok();
 
     let result = executor.execute_sql("SELECT * FROM sel_ft WHERE id = 1");
@@ -629,11 +629,11 @@ fn test_join_foreign_and_local() {
         .ok();
     executor
         .execute_sql(
-            "CREATE FOREIGN TABLE foreign_orders (id INT64, user_id INT64) SERVER join_ft_srv",
+            "CREATE FOREIGN TABLE foreign_orders (id INTEGER, user_id INTEGER) SERVER join_ft_srv",
         )
         .ok();
     executor
-        .execute_sql("CREATE TABLE local_users (id INT64, name TEXT)")
+        .execute_sql("CREATE TABLE local_users (id INTEGER, name TEXT)")
         .ok();
 
     let result = executor.execute_sql(
@@ -652,7 +652,7 @@ fn test_insert_foreign_table() {
         .execute_sql("CREATE SERVER ins_ft_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE ins_ft (id INT64, name TEXT) SERVER ins_ft_srv")
+        .execute_sql("CREATE FOREIGN TABLE ins_ft (id INTEGER, name TEXT) SERVER ins_ft_srv")
         .ok();
 
     let result = executor.execute_sql("INSERT INTO ins_ft VALUES (1, 'test')");
@@ -669,7 +669,7 @@ fn test_update_foreign_table() {
         .execute_sql("CREATE SERVER upd_ft_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE upd_ft (id INT64, name TEXT) SERVER upd_ft_srv")
+        .execute_sql("CREATE FOREIGN TABLE upd_ft (id INTEGER, name TEXT) SERVER upd_ft_srv")
         .ok();
 
     let result = executor.execute_sql("UPDATE upd_ft SET name = 'updated' WHERE id = 1");
@@ -686,7 +686,7 @@ fn test_delete_foreign_table() {
         .execute_sql("CREATE SERVER del_ft_srv FOREIGN DATA WRAPPER postgres_fdw")
         .ok();
     executor
-        .execute_sql("CREATE FOREIGN TABLE del_ft (id INT64, name TEXT) SERVER del_ft_srv")
+        .execute_sql("CREATE FOREIGN TABLE del_ft (id INTEGER, name TEXT) SERVER del_ft_srv")
         .ok();
 
     let result = executor.execute_sql("DELETE FROM del_ft WHERE id = 1");
@@ -704,7 +704,7 @@ fn test_file_fdw_foreign_table() {
         .ok();
 
     let result = executor.execute_sql(
-        "CREATE FOREIGN TABLE csv_data (id INT64, name TEXT, value FLOAT64) SERVER file_srv OPTIONS (filename '/tmp/data.csv', format 'csv', header 'true')"
+        "CREATE FOREIGN TABLE csv_data (id INTEGER, name TEXT, value DOUBLE PRECISION) SERVER file_srv OPTIONS (filename '/tmp/data.csv', format 'csv', header 'true')"
     );
     assert!(result.is_ok() || result.is_err());
 }

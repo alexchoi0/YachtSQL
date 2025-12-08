@@ -98,8 +98,8 @@ fn test_create_table_in_tablespace() {
         .execute_sql("CREATE TABLESPACE table_space LOCATION '/tmp/pgdata/table_space'")
         .ok();
 
-    let result =
-        executor.execute_sql("CREATE TABLE ts_table (id INT64, data TEXT) TABLESPACE table_space");
+    let result = executor
+        .execute_sql("CREATE TABLE ts_table (id INTEGER, data TEXT) TABLESPACE table_space");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -110,7 +110,7 @@ fn test_create_index_in_tablespace() {
         .execute_sql("CREATE TABLESPACE index_space LOCATION '/tmp/pgdata/index_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE idx_ts_table (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE idx_ts_table (id INTEGER, data TEXT)")
         .ok();
 
     let result =
@@ -125,7 +125,7 @@ fn test_alter_table_set_tablespace() {
         .execute_sql("CREATE TABLESPACE move_space LOCATION '/tmp/pgdata/move_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE move_table (id INT64)")
+        .execute_sql("CREATE TABLE move_table (id INTEGER)")
         .ok();
 
     let result = executor.execute_sql("ALTER TABLE move_table SET TABLESPACE move_space");
@@ -139,7 +139,7 @@ fn test_alter_index_set_tablespace() {
         .execute_sql("CREATE TABLESPACE idx_move_space LOCATION '/tmp/pgdata/idx_move_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE idx_move_table (id INT64)")
+        .execute_sql("CREATE TABLE idx_move_table (id INTEGER)")
         .ok();
     executor
         .execute_sql("CREATE INDEX idx_move ON idx_move_table (id)")
@@ -155,7 +155,9 @@ fn test_alter_materialized_view_set_tablespace() {
     executor
         .execute_sql("CREATE TABLESPACE mv_space LOCATION '/tmp/pgdata/mv_space'")
         .ok();
-    executor.execute_sql("CREATE TABLE mv_base (id INT64)").ok();
+    executor
+        .execute_sql("CREATE TABLE mv_base (id INTEGER)")
+        .ok();
     executor
         .execute_sql("CREATE MATERIALIZED VIEW mv_ts AS SELECT * FROM mv_base")
         .ok();
@@ -242,7 +244,7 @@ fn test_tablespace_in_create_table_as() {
         .execute_sql("CREATE TABLESPACE ctas_space LOCATION '/tmp/pgdata/ctas_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE source_table (id INT64)")
+        .execute_sql("CREATE TABLE source_table (id INTEGER)")
         .ok();
 
     let result = executor
@@ -258,7 +260,7 @@ fn test_tablespace_partition() {
         .ok();
     executor
         .execute_sql(
-            "CREATE TABLE part_parent (id INT64, created_at DATE) PARTITION BY RANGE (created_at)",
+            "CREATE TABLE part_parent (id INTEGER, created_at DATE) PARTITION BY RANGE (created_at)",
         )
         .ok();
 
@@ -312,7 +314,7 @@ fn test_move_with_nowait() {
         .execute_sql("CREATE TABLESPACE nowait_space LOCATION '/tmp/pgdata/nowait_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE nowait_table (id INT64)")
+        .execute_sql("CREATE TABLE nowait_table (id INTEGER)")
         .ok();
 
     let result =
@@ -391,7 +393,7 @@ fn test_tablespace_with_replication() {
         .execute_sql("CREATE TABLESPACE repl_space LOCATION '/tmp/pgdata/repl_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE repl_table (id INT64) TABLESPACE repl_space")
+        .execute_sql("CREATE TABLE repl_table (id INTEGER) TABLESPACE repl_space")
         .ok();
 
     let result = executor.execute_sql("CREATE PUBLICATION repl_pub FOR TABLE repl_table");
@@ -443,7 +445,7 @@ fn test_tablespace_cluster() {
         .execute_sql("CREATE TABLESPACE cluster_space LOCATION '/tmp/pgdata/cluster_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE cluster_table (id INT64 PRIMARY KEY) TABLESPACE cluster_space")
+        .execute_sql("CREATE TABLE cluster_table (id INTEGER PRIMARY KEY) TABLESPACE cluster_space")
         .ok();
 
     let result = executor.execute_sql("CLUSTER cluster_table USING cluster_table_pkey");
@@ -468,7 +470,7 @@ fn test_vacuum_full_with_tablespace() {
         .execute_sql("CREATE TABLESPACE vacuum_space LOCATION '/tmp/pgdata/vacuum_space'")
         .ok();
     executor
-        .execute_sql("CREATE TABLE vacuum_table (id INT64) TABLESPACE vacuum_space")
+        .execute_sql("CREATE TABLE vacuum_table (id INTEGER) TABLESPACE vacuum_space")
         .ok();
 
     let result = executor.execute_sql("VACUUM FULL vacuum_table");

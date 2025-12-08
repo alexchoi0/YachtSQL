@@ -36,7 +36,14 @@ impl ProjectionWithExprExec {
                 | CastDataType::MacAddr8
                 | CastDataType::Hstore
                 | CastDataType::Uuid
-                | CastDataType::Interval => {
+                | CastDataType::Interval
+                | CastDataType::Int4Range
+                | CastDataType::Int8Range
+                | CastDataType::NumRange
+                | CastDataType::TsRange
+                | CastDataType::TsTzRange
+                | CastDataType::DateRange
+                | CastDataType::Vector(_) => {
                     return crate::query_executor::execution::perform_cast(&value, target_type);
                 }
                 _ => {}
@@ -166,6 +173,12 @@ impl ProjectionWithExprExec {
                     "MACADDR8" => CastDataType::MacAddr8,
                     "INTERVAL" => CastDataType::Interval,
                     "UUID" => CastDataType::Uuid,
+                    "INT4RANGE" => CastDataType::Int4Range,
+                    "INT8RANGE" => CastDataType::Int8Range,
+                    "NUMRANGE" => CastDataType::NumRange,
+                    "TSRANGE" => CastDataType::TsRange,
+                    "TSTZRANGE" => CastDataType::TsTzRange,
+                    "DATERANGE" => CastDataType::DateRange,
                     _ => {
                         if let Some(s) = value.as_str() {
                             return Ok(Value::string(s.to_string()));

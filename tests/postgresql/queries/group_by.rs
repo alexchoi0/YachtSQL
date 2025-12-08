@@ -5,7 +5,7 @@ use crate::common::create_executor;
 
 fn setup_sales_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE sales (id INT64, product STRING, category STRING, amount INT64, quantity INT64)")
+        .execute_sql("CREATE TABLE sales (id INTEGER, product TEXT, category TEXT, amount INTEGER, quantity INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO sales VALUES (1, 'Widget', 'Electronics', 100, 2), (2, 'Gadget', 'Electronics', 200, 1), (3, 'Chair', 'Furniture', 150, 3), (4, 'Table', 'Furniture', 300, 1), (5, 'Widget', 'Electronics', 100, 5)")
@@ -127,7 +127,7 @@ fn test_group_by_all_rows_same_group() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE items (value INT64)")
+        .execute_sql("CREATE TABLE items (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (10), (20), (30)")
@@ -145,7 +145,7 @@ fn test_group_by_with_null_values() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE data (category STRING, value INT64)")
+        .execute_sql("CREATE TABLE data (category TEXT, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data VALUES ('A', 10), ('A', 20), (NULL, 30), (NULL, 40)")

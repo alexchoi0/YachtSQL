@@ -5,7 +5,7 @@ use crate::common::create_executor;
 fn test_create_index_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_users_name ON users (name)")
@@ -24,7 +24,7 @@ fn test_create_index_basic() {
 fn test_create_index_multiple_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, user_id INT64, status STRING)")
+        .execute_sql("CREATE TABLE orders (id INTEGER, user_id INTEGER, status TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_orders_user_status ON orders (user_id, status)")
@@ -43,7 +43,7 @@ fn test_create_index_multiple_columns() {
 fn test_create_unique_index() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, email STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, email TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE UNIQUE INDEX idx_users_email ON users (email)")
@@ -60,7 +60,7 @@ fn test_create_unique_index() {
 fn test_drop_index() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE items (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_items_name ON items (name)")
@@ -78,7 +78,7 @@ fn test_drop_index() {
 fn test_drop_index_if_exists() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (id INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("DROP INDEX IF EXISTS nonexistent_index")
@@ -92,7 +92,7 @@ fn test_drop_index_if_exists() {
 fn test_create_index_if_not_exists() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_name ON users (name)")
@@ -109,7 +109,7 @@ fn test_create_index_if_not_exists() {
 fn test_index_with_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, status STRING)")
+        .execute_sql("CREATE TABLE orders (id INTEGER, status TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_pending ON orders (id) WHERE status = 'pending'")
@@ -128,7 +128,7 @@ fn test_index_with_where() {
 fn test_create_index_desc() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_value_desc ON items (value DESC)")
@@ -147,7 +147,7 @@ fn test_create_index_desc() {
 fn test_create_index_nulls_first() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_value ON items (value NULLS FIRST)")

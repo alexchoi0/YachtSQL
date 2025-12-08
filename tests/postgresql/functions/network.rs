@@ -44,7 +44,7 @@ fn test_macaddr8_literal() {
 fn test_inet_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE servers (id INT64, ip INET)")
+        .execute_sql("CREATE TABLE servers (id INTEGER, ip INET)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO servers VALUES (1, '192.168.1.1')")

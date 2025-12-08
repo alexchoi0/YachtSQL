@@ -5,7 +5,7 @@ use crate::common::create_executor;
 
 fn setup_users_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT, age INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -159,7 +159,7 @@ fn test_delete_with_subquery() {
     setup_users_table(&mut executor);
 
     executor
-        .execute_sql("CREATE TABLE to_delete (user_id INT64)")
+        .execute_sql("CREATE TABLE to_delete (user_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO to_delete VALUES (1), (3)")
@@ -195,7 +195,7 @@ fn test_delete_with_is_null() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
+        .execute_sql("CREATE TABLE nullable (id INTEGER, value TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable VALUES (1, 'a'), (2, NULL), (3, 'c')")

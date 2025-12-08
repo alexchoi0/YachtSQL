@@ -163,7 +163,7 @@ fn test_values_expressions() {
 fn test_values_insert_from() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE values_insert (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE values_insert (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO values_insert SELECT * FROM (VALUES (1, 'Alice'), (2, 'Bob')) AS t(id, name)")
@@ -198,7 +198,7 @@ fn test_values_many_columns() {
 fn test_values_where_exists() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE exists_test (id INT64)")
+        .execute_sql("CREATE TABLE exists_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO exists_test VALUES (1), (2), (3)")
@@ -218,7 +218,7 @@ fn test_values_where_exists() {
 fn test_values_in_clause() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE in_test (id INT64, val STRING)")
+        .execute_sql("CREATE TABLE in_test (id INTEGER, val TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO in_test VALUES (1, 'a'), (2, 'b'), (3, 'c')")

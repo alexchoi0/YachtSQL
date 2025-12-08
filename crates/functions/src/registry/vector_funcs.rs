@@ -56,6 +56,28 @@ fn register_distance_functions(registry: &mut FunctionRegistry) {
             evaluator: |args| vector::inner_product(&args[0], &args[1]),
         }),
     );
+
+    registry.register_scalar(
+        "L1_DISTANCE".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "L1_DISTANCE".to_string(),
+            arg_types: vec![DataType::Vector(0), DataType::Vector(0)],
+            return_type: DataType::Float64,
+            variadic: false,
+            evaluator: |args| vector::l1_distance(&args[0], &args[1]),
+        }),
+    );
+
+    registry.register_scalar(
+        "NEGATIVE_INNER_PRODUCT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "NEGATIVE_INNER_PRODUCT".to_string(),
+            arg_types: vec![DataType::Vector(0), DataType::Vector(0)],
+            return_type: DataType::Float64,
+            variadic: false,
+            evaluator: |args| vector::negative_inner_product(&args[0], &args[1]),
+        }),
+    );
 }
 
 fn register_arithmetic_functions(registry: &mut FunctionRegistry) {

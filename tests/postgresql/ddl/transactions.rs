@@ -5,7 +5,7 @@ use crate::common::create_executor;
 fn test_begin_commit() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -22,7 +22,7 @@ fn test_begin_commit() {
 fn test_begin_rollback() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_rollback (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_rollback (id INTEGER, val INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -39,7 +39,7 @@ fn test_begin_rollback() {
 fn test_start_transaction() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_start (id INT64)")
+        .execute_sql("CREATE TABLE tx_start (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("START TRANSACTION").unwrap();
@@ -56,7 +56,7 @@ fn test_start_transaction() {
 fn test_transaction_isolation_read_committed() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_iso (id INT64)")
+        .execute_sql("CREATE TABLE tx_iso (id INTEGER)")
         .unwrap();
 
     executor
@@ -75,7 +75,7 @@ fn test_transaction_isolation_read_committed() {
 fn test_transaction_isolation_repeatable_read() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_rr (id INT64)")
+        .execute_sql("CREATE TABLE tx_rr (id INTEGER)")
         .unwrap();
 
     executor
@@ -94,7 +94,7 @@ fn test_transaction_isolation_repeatable_read() {
 fn test_transaction_isolation_serializable() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_ser (id INT64)")
+        .execute_sql("CREATE TABLE tx_ser (id INTEGER)")
         .unwrap();
 
     executor
@@ -113,7 +113,7 @@ fn test_transaction_isolation_serializable() {
 fn test_transaction_read_only() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_readonly (id INT64)")
+        .execute_sql("CREATE TABLE tx_readonly (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_readonly VALUES (1)")
@@ -130,7 +130,7 @@ fn test_transaction_read_only() {
 fn test_transaction_read_write() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_rw (id INT64)")
+        .execute_sql("CREATE TABLE tx_rw (id INTEGER)")
         .unwrap();
 
     executor
@@ -150,7 +150,7 @@ fn test_transaction_read_write() {
 fn test_savepoint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_save (id INT64)")
+        .execute_sql("CREATE TABLE tx_save (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -172,7 +172,7 @@ fn test_savepoint() {
 fn test_release_savepoint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_release (id INT64)")
+        .execute_sql("CREATE TABLE tx_release (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -195,7 +195,7 @@ fn test_release_savepoint() {
 fn test_nested_savepoints() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_nested (id INT64)")
+        .execute_sql("CREATE TABLE tx_nested (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -221,7 +221,7 @@ fn test_nested_savepoints() {
 fn test_end_transaction() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_end (id INT64)")
+        .execute_sql("CREATE TABLE tx_end (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -239,7 +239,7 @@ fn test_end_transaction() {
 fn test_abort_transaction() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_abort (id INT64)")
+        .execute_sql("CREATE TABLE tx_abort (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -257,7 +257,7 @@ fn test_abort_transaction() {
 fn test_transaction_deferrable() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_defer (id INT64)")
+        .execute_sql("CREATE TABLE tx_defer (id INTEGER)")
         .unwrap();
 
     executor
@@ -274,7 +274,7 @@ fn test_transaction_deferrable() {
 fn test_set_transaction() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_set (id INT64)")
+        .execute_sql("CREATE TABLE tx_set (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -295,7 +295,7 @@ fn test_set_transaction() {
 fn test_commit_and_chain() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_chain (id INT64)")
+        .execute_sql("CREATE TABLE tx_chain (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -317,7 +317,7 @@ fn test_commit_and_chain() {
 fn test_rollback_and_chain() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_rb_chain (id INT64)")
+        .execute_sql("CREATE TABLE tx_rb_chain (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -339,7 +339,7 @@ fn test_rollback_and_chain() {
 fn test_transaction_multiple_statements() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_multi (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_multi (id INTEGER, val INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -366,7 +366,7 @@ fn test_transaction_multiple_statements() {
 fn test_rollback_to_savepoint_multiple() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_sp_multi (id INT64)")
+        .execute_sql("CREATE TABLE tx_sp_multi (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -393,7 +393,7 @@ fn test_rollback_to_savepoint_multiple() {
 fn test_savepoint_same_name_overwrite() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_sp_overwrite (id INT64)")
+        .execute_sql("CREATE TABLE tx_sp_overwrite (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -421,7 +421,7 @@ fn test_savepoint_same_name_overwrite() {
 fn test_begin_work() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_work (id INT64)")
+        .execute_sql("CREATE TABLE tx_work (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN WORK").unwrap();
@@ -438,7 +438,7 @@ fn test_begin_work() {
 fn test_rollback_work() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_rb_work (id INT64)")
+        .execute_sql("CREATE TABLE tx_rb_work (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN WORK").unwrap();
@@ -458,7 +458,7 @@ fn test_transaction_ddl_create_table() {
 
     executor.execute_sql("BEGIN").unwrap();
     executor
-        .execute_sql("CREATE TABLE tx_ddl_create (id INT64)")
+        .execute_sql("CREATE TABLE tx_ddl_create (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_ddl_create VALUES (1)")
@@ -473,7 +473,7 @@ fn test_transaction_ddl_create_table() {
 fn test_transaction_ddl_rollback() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_ddl_rb_base (id INT64)")
+        .execute_sql("CREATE TABLE tx_ddl_rb_base (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -488,7 +488,7 @@ fn test_transaction_ddl_rollback() {
 fn test_transaction_update_rollback() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_upd_rb (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_upd_rb (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_upd_rb VALUES (1, 100)")
@@ -510,7 +510,7 @@ fn test_transaction_update_rollback() {
 fn test_transaction_delete_rollback() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_del_rb (id INT64)")
+        .execute_sql("CREATE TABLE tx_del_rb (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_del_rb VALUES (1), (2), (3)")
@@ -533,7 +533,7 @@ fn test_transaction_delete_rollback() {
 fn test_set_transaction_read_only() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_set_ro (id INT64)")
+        .execute_sql("CREATE TABLE tx_set_ro (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_set_ro VALUES (1)")
@@ -552,7 +552,7 @@ fn test_set_transaction_read_only() {
 fn test_set_transaction_read_write() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_set_rw (id INT64)")
+        .execute_sql("CREATE TABLE tx_set_rw (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -570,7 +570,7 @@ fn test_set_transaction_read_write() {
 fn test_prepare_transaction() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_prepare (id INT64)")
+        .execute_sql("CREATE TABLE tx_prepare (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -599,7 +599,7 @@ fn test_rollback_prepared() {
 fn test_transaction_with_select_for_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_for_upd (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_for_upd (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_for_upd VALUES (1, 100)")
@@ -622,7 +622,7 @@ fn test_transaction_with_select_for_update() {
 fn test_lock_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_lock (id INT64)")
+        .execute_sql("CREATE TABLE tx_lock (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -643,7 +643,7 @@ fn test_lock_table() {
 fn test_lock_table_share_mode() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_lock_share (id INT64)")
+        .execute_sql("CREATE TABLE tx_lock_share (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_lock_share VALUES (1)")
@@ -664,7 +664,7 @@ fn test_lock_table_share_mode() {
 fn test_lock_table_row_exclusive() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_lock_row_ex (id INT64)")
+        .execute_sql("CREATE TABLE tx_lock_row_ex (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -687,7 +687,7 @@ fn test_lock_table_row_exclusive() {
 fn test_lock_table_share_row_exclusive() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_lock_sre (id INT64)")
+        .execute_sql("CREATE TABLE tx_lock_sre (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -708,7 +708,7 @@ fn test_lock_table_share_row_exclusive() {
 fn test_lock_table_exclusive() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_lock_ex (id INT64)")
+        .execute_sql("CREATE TABLE tx_lock_ex (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -729,7 +729,7 @@ fn test_lock_table_exclusive() {
 fn test_lock_table_nowait() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_lock_nowait (id INT64)")
+        .execute_sql("CREATE TABLE tx_lock_nowait (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -744,7 +744,7 @@ fn test_lock_table_nowait() {
 fn test_transaction_with_cte() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_cte (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_cte (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_cte VALUES (1, 100), (2, 200)")
@@ -767,7 +767,7 @@ fn test_transaction_with_cte() {
 fn test_transaction_with_returning() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_ret (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE tx_ret (id INTEGER, name TEXT)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -783,7 +783,7 @@ fn test_transaction_with_returning() {
 fn test_transaction_implicit_begin() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_implicit (id INT64)")
+        .execute_sql("CREATE TABLE tx_implicit (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_implicit VALUES (1)")
@@ -798,9 +798,9 @@ fn test_transaction_implicit_begin() {
 fn test_set_constraints_deferred() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE tx_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
-    executor.execute_sql("CREATE TABLE tx_child (id INT64, parent_id INT64 REFERENCES tx_parent(id) DEFERRABLE INITIALLY DEFERRED)").unwrap();
+    executor.execute_sql("CREATE TABLE tx_child (id INTEGER, parent_id INTEGER REFERENCES tx_parent(id) DEFERRABLE INITIALLY DEFERRED)").unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
     executor
@@ -820,7 +820,7 @@ fn test_set_constraints_deferred() {
 fn test_set_constraints_immediate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_const_imm (id INT64)")
+        .execute_sql("CREATE TABLE tx_const_imm (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -841,7 +841,7 @@ fn test_set_constraints_immediate() {
 fn test_set_constraints_deferred_mode() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_const_def (id INT64)")
+        .execute_sql("CREATE TABLE tx_const_def (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -861,7 +861,7 @@ fn test_set_constraints_deferred_mode() {
 fn test_transaction_isolation_read_uncommitted() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_read_unc (id INT64)")
+        .execute_sql("CREATE TABLE tx_read_unc (id INTEGER)")
         .unwrap();
 
     executor
@@ -881,7 +881,7 @@ fn test_transaction_isolation_read_uncommitted() {
 fn test_transaction_combined_options() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_combined (id INT64)")
+        .execute_sql("CREATE TABLE tx_combined (id INTEGER)")
         .unwrap();
 
     executor
@@ -900,7 +900,7 @@ fn test_transaction_combined_options() {
 fn test_savepoint_release_and_continue() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_sp_cont (id INT64)")
+        .execute_sql("CREATE TABLE tx_sp_cont (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -928,7 +928,7 @@ fn test_savepoint_release_and_continue() {
 fn test_rollback_to_savepoint_and_continue() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_rb_cont (id INT64)")
+        .execute_sql("CREATE TABLE tx_rb_cont (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -955,10 +955,10 @@ fn test_rollback_to_savepoint_and_continue() {
 fn test_transaction_with_subquery() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_subq_src (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_subq_src (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE tx_subq_dst (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE tx_subq_dst (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_subq_src VALUES (1, 100), (2, 200)")
@@ -978,7 +978,7 @@ fn test_transaction_with_subquery() {
 fn test_two_phase_commit_syntax() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_2pc (id INT64)")
+        .execute_sql("CREATE TABLE tx_2pc (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -1026,7 +1026,7 @@ fn test_pg_try_advisory_lock() {
 fn test_transaction_snapshot() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_snap (id INT64)")
+        .execute_sql("CREATE TABLE tx_snap (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_snap VALUES (1)")
@@ -1047,7 +1047,7 @@ fn test_transaction_snapshot() {
 fn test_transaction_with_exception_recovery() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tx_except (id INT64)")
+        .execute_sql("CREATE TABLE tx_except (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tx_except VALUES (1)")

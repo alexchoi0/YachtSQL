@@ -6,10 +6,10 @@ use crate::common::create_executor;
 fn test_create_table_inherits() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cities (name STRING, population INT64)")
+        .execute_sql("CREATE TABLE cities (name TEXT, population INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE capitals (state STRING) INHERITS (cities)")
+        .execute_sql("CREATE TABLE capitals (state TEXT) INHERITS (cities)")
         .unwrap();
 
     executor
@@ -24,10 +24,10 @@ fn test_create_table_inherits() {
 fn test_inheritance_parent_sees_children() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE parent_table (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE parent_table (id INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE child_table (extra STRING) INHERITS (parent_table)")
+        .execute_sql("CREATE TABLE child_table (extra TEXT) INHERITS (parent_table)")
         .unwrap();
 
     executor
@@ -48,10 +48,10 @@ fn test_inheritance_parent_sees_children() {
 fn test_inheritance_only_parent() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE only_parent (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE only_parent (id INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE only_child (extra STRING) INHERITS (only_parent)")
+        .execute_sql("CREATE TABLE only_child (extra TEXT) INHERITS (only_parent)")
         .unwrap();
 
     executor
@@ -72,10 +72,10 @@ fn test_inheritance_only_parent() {
 fn test_inheritance_multiple_parents() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE person (name STRING)")
+        .execute_sql("CREATE TABLE person (name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE employee (emp_id INT64)")
+        .execute_sql("CREATE TABLE employee (emp_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE TABLE manager () INHERITS (person, employee)")
@@ -93,13 +93,13 @@ fn test_inheritance_multiple_parents() {
 fn test_inheritance_chain() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE base (id INT64)")
+        .execute_sql("CREATE TABLE base (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE mid (mid_val STRING) INHERITS (base)")
+        .execute_sql("CREATE TABLE mid (mid_val TEXT) INHERITS (base)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE leaf (leaf_val INT64) INHERITS (mid)")
+        .execute_sql("CREATE TABLE leaf (leaf_val INTEGER) INHERITS (mid)")
         .unwrap();
 
     executor
@@ -113,10 +113,10 @@ fn test_inheritance_chain() {
 fn test_no_inherit_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE parent_con (id INT64, val INT64 CHECK (val > 0))")
+        .execute_sql("CREATE TABLE parent_con (id INTEGER, val INTEGER CHECK (val > 0))")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE child_con (extra STRING) INHERITS (parent_con)")
+        .execute_sql("CREATE TABLE child_con (extra TEXT) INHERITS (parent_con)")
         .unwrap();
 
     let result = executor.execute_sql("INSERT INTO child_con VALUES (1, -1, 'test')");
@@ -127,10 +127,10 @@ fn test_no_inherit_constraint() {
 fn test_alter_inherit() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE new_parent (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE new_parent (id INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE new_child (id INT64, name STRING, extra STRING)")
+        .execute_sql("CREATE TABLE new_child (id INTEGER, name TEXT, extra TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("ALTER TABLE new_child INHERIT new_parent");
@@ -141,10 +141,10 @@ fn test_alter_inherit() {
 fn test_alter_no_inherit() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE old_parent (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE old_parent (id INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE old_child (extra STRING) INHERITS (old_parent)")
+        .execute_sql("CREATE TABLE old_child (extra TEXT) INHERITS (old_parent)")
         .unwrap();
 
     let result = executor.execute_sql("ALTER TABLE old_child NO INHERIT old_parent");
@@ -156,10 +156,10 @@ fn test_alter_no_inherit() {
 fn test_inheritance_update_parent() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE upd_parent (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE upd_parent (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE upd_child (extra STRING) INHERITS (upd_parent)")
+        .execute_sql("CREATE TABLE upd_child (extra TEXT) INHERITS (upd_parent)")
         .unwrap();
 
     executor
@@ -178,10 +178,10 @@ fn test_inheritance_update_parent() {
 fn test_inheritance_delete_parent() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE del_parent (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE del_parent (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE del_child (extra STRING) INHERITS (del_parent)")
+        .execute_sql("CREATE TABLE del_child (extra TEXT) INHERITS (del_parent)")
         .unwrap();
 
     executor
@@ -200,10 +200,10 @@ fn test_inheritance_delete_parent() {
 fn test_inheritance_index_on_parent() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE idx_parent (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE idx_parent (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE idx_child (extra STRING) INHERITS (idx_parent)")
+        .execute_sql("CREATE TABLE idx_child (extra TEXT) INHERITS (idx_parent)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_parent_val ON idx_parent (val)")
@@ -223,10 +223,10 @@ fn test_inheritance_index_on_parent() {
 fn test_inheritance_with_default() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE def_parent (id INT64, status STRING DEFAULT 'active')")
+        .execute_sql("CREATE TABLE def_parent (id INTEGER, status TEXT DEFAULT 'active')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE def_child (extra INT64) INHERITS (def_parent)")
+        .execute_sql("CREATE TABLE def_child (extra INTEGER) INHERITS (def_parent)")
         .unwrap();
 
     executor
@@ -242,10 +242,10 @@ fn test_inheritance_with_default() {
 fn test_inheritance_with_not_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nn_parent (id INT64 NOT NULL, name STRING)")
+        .execute_sql("CREATE TABLE nn_parent (id INTEGER NOT NULL, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE nn_child (extra STRING) INHERITS (nn_parent)")
+        .execute_sql("CREATE TABLE nn_child (extra TEXT) INHERITS (nn_parent)")
         .unwrap();
 
     let result =
@@ -258,10 +258,10 @@ fn test_inheritance_with_not_null() {
 fn test_inheritance_count_with_only() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cnt_parent (id INT64)")
+        .execute_sql("CREATE TABLE cnt_parent (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE cnt_child (extra STRING) INHERITS (cnt_parent)")
+        .execute_sql("CREATE TABLE cnt_child (extra TEXT) INHERITS (cnt_parent)")
         .unwrap();
 
     executor
@@ -287,10 +287,10 @@ fn test_inheritance_count_with_only() {
 fn test_inheritance_tableoid() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE oid_parent (id INT64)")
+        .execute_sql("CREATE TABLE oid_parent (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE oid_child (extra STRING) INHERITS (oid_parent)")
+        .execute_sql("CREATE TABLE oid_child (extra TEXT) INHERITS (oid_parent)")
         .unwrap();
 
     executor
@@ -309,10 +309,10 @@ fn test_inheritance_tableoid() {
 fn test_inheritance_unique_on_child() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uniq_parent (id INT64)")
+        .execute_sql("CREATE TABLE uniq_parent (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE uniq_child (code STRING UNIQUE) INHERITS (uniq_parent)")
+        .execute_sql("CREATE TABLE uniq_child (code TEXT UNIQUE) INHERITS (uniq_parent)")
         .unwrap();
 
     executor

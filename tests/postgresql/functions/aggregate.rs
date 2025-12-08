@@ -5,7 +5,7 @@ use crate::common::create_executor;
 
 fn setup_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE numbers (id INT64, value INT64, category STRING)")
+        .execute_sql("CREATE TABLE numbers (id INTEGER, value INTEGER, category TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO numbers VALUES (1, 10, 'A'), (2, 20, 'A'), (3, 30, 'B'), (4, 40, 'B'), (5, 50, 'B')")
@@ -41,7 +41,7 @@ fn test_count_with_nulls() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE nullable (value INT64)")
+        .execute_sql("CREATE TABLE nullable (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable VALUES (1), (NULL), (3), (NULL)")
@@ -179,7 +179,7 @@ fn test_count_distinct() {
 fn test_sum_distinct() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE dup_values (value INT64)")
+        .execute_sql("CREATE TABLE dup_values (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO dup_values VALUES (10), (20), (10), (30), (20)")
@@ -197,7 +197,7 @@ fn test_sum_distinct() {
 fn test_avg_distinct() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE dup_values (value INT64)")
+        .execute_sql("CREATE TABLE dup_values (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO dup_values VALUES (10), (20), (10), (30), (20)")
@@ -212,7 +212,7 @@ fn test_avg_distinct() {
 
 fn setup_stats_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE stats (id INT64, value FLOAT64, group_id STRING)")
+        .execute_sql("CREATE TABLE stats (id INTEGER, value DOUBLE PRECISION, group_id TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO stats VALUES (1, 2.0, 'A'), (2, 4.0, 'A'), (3, 4.0, 'A'), (4, 4.0, 'B'), (5, 5.0, 'B'), (6, 5.0, 'B'), (7, 7.0, 'B'), (8, 9.0, 'B')")
@@ -289,7 +289,7 @@ fn test_stddev_samp() {
 fn test_covar_pop() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -306,7 +306,7 @@ fn test_covar_pop() {
 fn test_covar_samp() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -323,7 +323,7 @@ fn test_covar_samp() {
 fn test_corr() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -341,7 +341,7 @@ fn test_corr() {
 fn test_regr_slope() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -359,7 +359,7 @@ fn test_regr_slope() {
 fn test_regr_intercept() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -377,7 +377,7 @@ fn test_regr_intercept() {
 fn test_regr_count() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (NULL, 8.0)")
@@ -395,7 +395,7 @@ fn test_regr_count() {
 fn test_regr_r2() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -413,7 +413,7 @@ fn test_regr_r2() {
 fn test_regr_avgx() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -431,7 +431,7 @@ fn test_regr_avgx() {
 fn test_regr_avgy() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -449,7 +449,7 @@ fn test_regr_avgy() {
 fn test_regr_sxx() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -466,7 +466,7 @@ fn test_regr_sxx() {
 fn test_regr_syy() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -483,7 +483,7 @@ fn test_regr_syy() {
 fn test_regr_sxy() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE pairs (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)")
@@ -516,7 +516,7 @@ fn test_statistical_with_group_by() {
 fn test_statistical_with_nulls() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nullable_stats (value FLOAT64)")
+        .execute_sql("CREATE TABLE nullable_stats (value DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable_stats VALUES (1.0), (NULL), (3.0), (NULL), (5.0)")
@@ -532,7 +532,7 @@ fn test_statistical_with_nulls() {
 fn test_statistical_single_value() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE single_value (value FLOAT64)")
+        .execute_sql("CREATE TABLE single_value (value DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO single_value VALUES (5.0)")
@@ -655,7 +655,7 @@ fn test_array_agg_with_order() {
 fn test_array_agg_distinct() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE dup_values (value INT64)")
+        .execute_sql("CREATE TABLE dup_values (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO dup_values VALUES (1), (2), (1), (3), (2)")
@@ -716,7 +716,7 @@ fn test_string_agg_distinct() {
 fn test_string_agg_with_group_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (group_name STRING, item STRING)")
+        .execute_sql("CREATE TABLE items (group_name TEXT, item TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES ('A', 'apple'), ('A', 'apricot'), ('B', 'banana'), ('B', 'blueberry')")
@@ -757,7 +757,7 @@ fn test_jsonb_agg() {
 fn test_json_object_agg() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE kv (key STRING, value INT64)")
+        .execute_sql("CREATE TABLE kv (key TEXT, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO kv VALUES ('a', 1), ('b', 2), ('c', 3)")
@@ -773,7 +773,7 @@ fn test_json_object_agg() {
 fn test_jsonb_object_agg() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE kv (key STRING, value INT64)")
+        .execute_sql("CREATE TABLE kv (key TEXT, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO kv VALUES ('a', 1), ('b', 2), ('c', 3)")
@@ -859,7 +859,7 @@ fn test_every() {
 fn test_bit_and() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bits (value INT64)")
+        .execute_sql("CREATE TABLE bits (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bits VALUES (7), (3), (5)")
@@ -873,7 +873,7 @@ fn test_bit_and() {
 fn test_bit_or() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bits (value INT64)")
+        .execute_sql("CREATE TABLE bits (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bits VALUES (1), (2), (4)")
@@ -887,7 +887,7 @@ fn test_bit_or() {
 fn test_bit_xor() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bits (value INT64)")
+        .execute_sql("CREATE TABLE bits (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bits VALUES (1), (2), (3)")
@@ -902,7 +902,7 @@ fn test_bit_xor() {
 fn test_xmlagg() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE xml_data (content STRING)")
+        .execute_sql("CREATE TABLE xml_data (content TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO xml_data VALUES ('<item>1</item>'), ('<item>2</item>'), ('<item>3</item>')")
@@ -1029,7 +1029,7 @@ fn test_aggregate_with_case() {
 fn test_aggregate_with_coalesce() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nullable (value INT64)")
+        .execute_sql("CREATE TABLE nullable (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable VALUES (1), (NULL), (3)")
@@ -1083,7 +1083,7 @@ fn test_having_with_multiple_conditions() {
 fn test_aggregate_over_empty_set() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE empty_table (value INT64)")
+        .execute_sql("CREATE TABLE empty_table (value INTEGER)")
         .unwrap();
 
     let result = executor
@@ -1099,7 +1099,7 @@ fn test_aggregate_over_empty_set() {
 fn test_aggregate_all_nulls() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE all_nulls (value INT64)")
+        .execute_sql("CREATE TABLE all_nulls (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO all_nulls VALUES (NULL), (NULL), (NULL)")
@@ -1222,7 +1222,7 @@ fn test_aggregate_window_vs_aggregate() {
 
 fn setup_correlation_data(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE correlation_data (id INT64, x FLOAT64, y FLOAT64, z FLOAT64, category STRING)")
+        .execute_sql("CREATE TABLE correlation_data (id INTEGER, x DOUBLE PRECISION, y DOUBLE PRECISION, z DOUBLE PRECISION, category TEXT)")
         .unwrap();
     executor
         .execute_sql(
@@ -1254,7 +1254,7 @@ fn test_corr_perfect_positive() {
 fn test_corr_perfect_negative() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE neg_corr (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE neg_corr (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO neg_corr VALUES (1.0, 10.0), (2.0, 8.0), (3.0, 6.0), (4.0, 4.0), (5.0, 2.0)")
@@ -1270,7 +1270,7 @@ fn test_corr_perfect_negative() {
 fn test_corr_no_correlation() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE no_corr (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE no_corr (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql(
@@ -1288,7 +1288,7 @@ fn test_corr_no_correlation() {
 fn test_corr_with_nulls() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_nulls (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_nulls (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO corr_nulls VALUES (1.0, 2.0), (NULL, 4.0), (3.0, NULL), (4.0, 8.0), (5.0, 10.0)")
@@ -1304,7 +1304,7 @@ fn test_corr_with_nulls() {
 fn test_corr_single_pair() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_single (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_single (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO corr_single VALUES (1.0, 2.0)")
@@ -1320,7 +1320,7 @@ fn test_corr_single_pair() {
 fn test_corr_empty_set() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_empty (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_empty (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
 
     let result = executor
@@ -1333,7 +1333,7 @@ fn test_corr_empty_set() {
 fn test_corr_constant_x() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_const_x (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_const_x (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql(
@@ -1351,7 +1351,7 @@ fn test_corr_constant_x() {
 fn test_corr_constant_y() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_const_y (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_const_y (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql(
@@ -1427,7 +1427,7 @@ fn test_covar_pop_vs_samp() {
 fn test_covar_with_nulls() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE covar_nulls (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE covar_nulls (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql(
@@ -1445,7 +1445,7 @@ fn test_covar_with_nulls() {
 fn test_covar_single_pair() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE covar_single (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE covar_single (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO covar_single VALUES (1.0, 2.0)")
@@ -1522,7 +1522,7 @@ fn test_regr_r2_perfect_fit() {
 fn test_regr_count_with_nulls() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE regr_count_nulls (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE regr_count_nulls (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO regr_count_nulls VALUES (1.0, 2.0), (NULL, 4.0), (3.0, NULL), (4.0, 8.0), (5.0, 10.0)")
@@ -1601,7 +1601,7 @@ fn test_regr_with_group_by() {
 fn test_regr_empty_set() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE regr_empty (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE regr_empty (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
 
     let result = executor
@@ -1615,7 +1615,7 @@ fn test_regr_empty_set() {
 fn test_regr_single_point() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE regr_single (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE regr_single (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO regr_single VALUES (1.0, 2.0)")
@@ -1634,7 +1634,7 @@ fn test_regr_single_point() {
 fn test_regr_horizontal_line() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE regr_horiz (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE regr_horiz (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO regr_horiz VALUES (1.0, 5.0), (2.0, 5.0), (3.0, 5.0), (4.0, 5.0)")
@@ -1651,7 +1651,7 @@ fn test_regr_horizontal_line() {
 fn test_regr_vertical_line() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE regr_vert (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE regr_vert (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO regr_vert VALUES (5.0, 1.0), (5.0, 2.0), (5.0, 3.0), (5.0, 4.0)")
@@ -1784,7 +1784,7 @@ fn test_regr_window_function() {
 fn test_correlation_large_values() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_large (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_large (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql(
@@ -1802,7 +1802,7 @@ fn test_correlation_large_values() {
 fn test_correlation_small_values() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_small (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_small (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO corr_small VALUES (1e-10, 2e-10), (2e-10, 4e-10), (3e-10, 6e-10), (4e-10, 8e-10)")
@@ -1818,7 +1818,7 @@ fn test_correlation_small_values() {
 fn test_correlation_mixed_signs() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_mixed (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_mixed (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO corr_mixed VALUES (-2.0, 4.0), (-1.0, 1.0), (0.0, 0.0), (1.0, 1.0), (2.0, 4.0)")
@@ -1834,7 +1834,7 @@ fn test_correlation_mixed_signs() {
 fn test_correlation_quadratic_relationship() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_quad (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_quad (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO corr_quad VALUES (-2.0, 4.0), (-1.0, 1.0), (0.0, 0.0), (1.0, 1.0), (2.0, 4.0)")
@@ -1864,7 +1864,7 @@ fn test_correlation_with_order_by() {
 fn test_correlation_distinct() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_dup (x FLOAT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_dup (x DOUBLE PRECISION, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO corr_dup VALUES (1.0, 2.0), (1.0, 2.0), (2.0, 4.0), (2.0, 4.0), (3.0, 6.0)")
@@ -1942,10 +1942,10 @@ fn test_regr_prediction() {
 fn test_correlation_across_joins() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE corr_left (id INT64, x FLOAT64)")
+        .execute_sql("CREATE TABLE corr_left (id INTEGER, x DOUBLE PRECISION)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE corr_right (id INT64, y FLOAT64)")
+        .execute_sql("CREATE TABLE corr_right (id INTEGER, y DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO corr_left VALUES (1, 1.0), (2, 2.0), (3, 3.0), (4, 4.0)")

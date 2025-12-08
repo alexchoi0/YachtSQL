@@ -7,7 +7,9 @@ use crate::common::{create_executor, numeric};
 fn test_int64_basic() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val INT64)").unwrap();
+    executor
+        .execute_sql("CREATE TABLE t (val INTEGER)")
+        .unwrap();
     executor.execute_sql("INSERT INTO t VALUES (42)").unwrap();
 
     let result = executor.execute_sql("SELECT val FROM t").unwrap();
@@ -18,7 +20,9 @@ fn test_int64_basic() {
 fn test_int64_negative() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val INT64)").unwrap();
+    executor
+        .execute_sql("CREATE TABLE t (val INTEGER)")
+        .unwrap();
     executor.execute_sql("INSERT INTO t VALUES (-100)").unwrap();
 
     let result = executor.execute_sql("SELECT val FROM t").unwrap();
@@ -29,7 +33,9 @@ fn test_int64_negative() {
 fn test_int64_zero() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val INT64)").unwrap();
+    executor
+        .execute_sql("CREATE TABLE t (val INTEGER)")
+        .unwrap();
     executor.execute_sql("INSERT INTO t VALUES (0)").unwrap();
 
     let result = executor.execute_sql("SELECT val FROM t").unwrap();
@@ -41,7 +47,7 @@ fn test_float64_basic() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE t (val FLOAT64)")
+        .execute_sql("CREATE TABLE t (val DOUBLE PRECISION)")
         .unwrap();
     executor.execute_sql("INSERT INTO t VALUES (3.14)").unwrap();
 
@@ -54,7 +60,7 @@ fn test_float64_scientific() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE t (val FLOAT64)")
+        .execute_sql("CREATE TABLE t (val DOUBLE PRECISION)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES (1.5e10)")
@@ -86,7 +92,9 @@ fn test_numeric_arithmetic() {
 fn test_int64_null() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val INT64)").unwrap();
+    executor
+        .execute_sql("CREATE TABLE t (val INTEGER)")
+        .unwrap();
     executor.execute_sql("INSERT INTO t VALUES (NULL)").unwrap();
 
     let result = executor.execute_sql("SELECT val FROM t").unwrap();
@@ -98,7 +106,7 @@ fn test_numeric_comparison() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE nums (a INT64, b INT64)")
+        .execute_sql("CREATE TABLE nums (a INTEGER, b INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (10, 20), (30, 30), (50, 40)")
@@ -115,7 +123,9 @@ fn test_numeric_comparison() {
 fn test_numeric_in_expression() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val INT64)").unwrap();
+    executor
+        .execute_sql("CREATE TABLE t (val INTEGER)")
+        .unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES (10), (20), (30)")
         .unwrap();

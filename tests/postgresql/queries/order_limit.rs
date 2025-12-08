@@ -5,7 +5,7 @@ use crate::common::create_executor;
 
 fn setup_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE items (id INT64, name STRING, price INT64, category STRING)")
+        .execute_sql("CREATE TABLE items (id INTEGER, name TEXT, price INTEGER, category TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (1, 'Apple', 100, 'Fruit'), (2, 'Banana', 50, 'Fruit'), (3, 'Carrot', 75, 'Vegetable'), (4, 'Date', 200, 'Fruit'), (5, 'Eggplant', 125, 'Vegetable')")
@@ -120,7 +120,7 @@ fn test_order_by_with_null_values() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE nullable (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE nullable (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable VALUES (1, 30), (2, NULL), (3, 10), (4, NULL), (5, 20)")

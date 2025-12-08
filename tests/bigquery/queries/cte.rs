@@ -271,12 +271,12 @@ fn test_recursive_cte_path_finding() {
         .execute_sql(
             "WITH RECURSIVE paths AS (
                 SELECT from_node AS start_node, to_node AS end_node,
-                       weight AS total_weight, ARRAY[from_node, to_node] AS path
+                       weight AS total_weight, [from_node, to_node] AS path
                 FROM edges
                 WHERE from_node = 'A'
                 UNION ALL
                 SELECT p.start_node, e.to_node, p.total_weight + e.weight,
-                       ARRAY_CONCAT(p.path, ARRAY[e.to_node]
+                       ARRAY_CONCAT(p.path, [e.to_node]
                 FROM paths p
                 JOIN edges e ON p.end_node = e.from_node
                 WHERE NOT e.to_node IN UNNEST(p.path)

@@ -58,7 +58,9 @@ pub(crate) mod pattern_matching;
 pub mod temporal_queries;
 pub mod temporal_tables;
 
+pub mod information_schema;
 pub mod query_executor;
+pub mod system_schema;
 pub mod trigger_execution;
 
 pub(crate) mod sql {}

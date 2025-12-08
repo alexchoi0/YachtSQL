@@ -4,7 +4,7 @@ use crate::common::create_executor;
 fn test_enable_row_level_security() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rls_test (id INT64, user_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE rls_test (id INTEGER, user_id INTEGER, data TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("ALTER TABLE rls_test ENABLE ROW LEVEL SECURITY");
@@ -15,7 +15,7 @@ fn test_enable_row_level_security() {
 fn test_disable_row_level_security() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rls_disable (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE rls_disable (id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE rls_disable ENABLE ROW LEVEL SECURITY")
@@ -29,7 +29,7 @@ fn test_disable_row_level_security() {
 fn test_force_row_level_security() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rls_force (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE rls_force (id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE rls_force ENABLE ROW LEVEL SECURITY")
@@ -43,7 +43,7 @@ fn test_force_row_level_security() {
 fn test_no_force_row_level_security() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rls_noforce (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE rls_noforce (id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE rls_noforce ENABLE ROW LEVEL SECURITY")
@@ -60,7 +60,7 @@ fn test_no_force_row_level_security() {
 fn test_create_policy_select() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_sel (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_sel (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_sel ENABLE ROW LEVEL SECURITY")
@@ -76,7 +76,7 @@ fn test_create_policy_select() {
 fn test_create_policy_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_ins (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_ins (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_ins ENABLE ROW LEVEL SECURITY")
@@ -92,7 +92,7 @@ fn test_create_policy_insert() {
 fn test_create_policy_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_upd (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_upd (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_upd ENABLE ROW LEVEL SECURITY")
@@ -108,7 +108,7 @@ fn test_create_policy_update() {
 fn test_create_policy_delete() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_del (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_del (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_del ENABLE ROW LEVEL SECURITY")
@@ -124,7 +124,7 @@ fn test_create_policy_delete() {
 fn test_create_policy_all() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_all (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_all (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_all ENABLE ROW LEVEL SECURITY")
@@ -140,7 +140,7 @@ fn test_create_policy_all() {
 fn test_create_policy_with_check() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_check (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_check (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_check ENABLE ROW LEVEL SECURITY")
@@ -156,7 +156,7 @@ fn test_create_policy_with_check() {
 fn test_create_policy_to_role() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_role (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_role (id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_role ENABLE ROW LEVEL SECURITY")
@@ -171,7 +171,7 @@ fn test_create_policy_to_role() {
 fn test_create_policy_permissive() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_perm (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_perm (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_perm ENABLE ROW LEVEL SECURITY")
@@ -187,7 +187,7 @@ fn test_create_policy_permissive() {
 fn test_create_policy_restrictive() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_rest (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_rest (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_rest ENABLE ROW LEVEL SECURITY")
@@ -203,7 +203,7 @@ fn test_create_policy_restrictive() {
 fn test_alter_policy_using() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_alter (id INT64, owner_id INT64)")
+        .execute_sql("CREATE TABLE policy_alter (id INTEGER, owner_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_alter ENABLE ROW LEVEL SECURITY")
@@ -221,7 +221,7 @@ fn test_alter_policy_using() {
 fn test_alter_policy_with_check() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_alter_chk (id INT64, owner_id INT64)")
+        .execute_sql("CREATE TABLE policy_alter_chk (id INTEGER, owner_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_alter_chk ENABLE ROW LEVEL SECURITY")
@@ -240,7 +240,7 @@ fn test_alter_policy_with_check() {
 fn test_alter_policy_rename() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_rename (id INT64)")
+        .execute_sql("CREATE TABLE policy_rename (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_rename ENABLE ROW LEVEL SECURITY")
@@ -258,7 +258,7 @@ fn test_alter_policy_rename() {
 fn test_alter_policy_to_roles() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_roles (id INT64)")
+        .execute_sql("CREATE TABLE policy_roles (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_roles ENABLE ROW LEVEL SECURITY")
@@ -275,7 +275,7 @@ fn test_alter_policy_to_roles() {
 fn test_drop_policy() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_drop (id INT64)")
+        .execute_sql("CREATE TABLE policy_drop (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_drop ENABLE ROW LEVEL SECURITY")
@@ -292,7 +292,7 @@ fn test_drop_policy() {
 fn test_drop_policy_if_exists() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_drop_ie (id INT64)")
+        .execute_sql("CREATE TABLE policy_drop_ie (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("DROP POLICY IF EXISTS nonexistent ON policy_drop_ie");
@@ -303,7 +303,7 @@ fn test_drop_policy_if_exists() {
 fn test_policy_using_current_user() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_curuser (id INT64, username TEXT, data TEXT)")
+        .execute_sql("CREATE TABLE policy_curuser (id INTEGER, username TEXT, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_curuser ENABLE ROW LEVEL SECURITY")
@@ -318,7 +318,7 @@ fn test_policy_using_current_user() {
 fn test_policy_using_session_user() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_sessuser (id INT64, username TEXT)")
+        .execute_sql("CREATE TABLE policy_sessuser (id INTEGER, username TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_sessuser ENABLE ROW LEVEL SECURITY")
@@ -334,10 +334,10 @@ fn test_policy_using_session_user() {
 fn test_policy_using_subquery() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE user_groups (user_id INT64, group_id INT64)")
+        .execute_sql("CREATE TABLE user_groups (user_id INTEGER, group_id INTEGER)")
         .ok();
     executor
-        .execute_sql("CREATE TABLE policy_subq (id INT64, group_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_subq (id INTEGER, group_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_subq ENABLE ROW LEVEL SECURITY")
@@ -353,7 +353,7 @@ fn test_policy_using_subquery() {
 fn test_policy_using_function() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_func (id INT64, department TEXT)")
+        .execute_sql("CREATE TABLE policy_func (id INTEGER, department TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_func ENABLE ROW LEVEL SECURITY")
@@ -369,7 +369,7 @@ fn test_policy_using_function() {
 fn test_policy_tenant_isolation() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_tenant (id INT64, tenant_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_tenant (id INTEGER, tenant_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_tenant ENABLE ROW LEVEL SECURITY")
@@ -385,7 +385,7 @@ fn test_policy_tenant_isolation() {
 fn test_policy_time_based() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_time (id INT64, valid_until TIMESTAMP)")
+        .execute_sql("CREATE TABLE policy_time (id INTEGER, valid_until TIMESTAMP)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_time ENABLE ROW LEVEL SECURITY")
@@ -401,7 +401,7 @@ fn test_policy_time_based() {
 fn test_policy_status_based() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_status (id INT64, status TEXT, data TEXT)")
+        .execute_sql("CREATE TABLE policy_status (id INTEGER, status TEXT, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_status ENABLE ROW LEVEL SECURITY")
@@ -416,7 +416,7 @@ fn test_policy_status_based() {
 fn test_multiple_policies_same_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_multi (id INT64, owner_id INT64, is_public BOOL)")
+        .execute_sql("CREATE TABLE policy_multi (id INTEGER, owner_id INTEGER, is_public BOOL)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_multi ENABLE ROW LEVEL SECURITY")
@@ -434,7 +434,7 @@ fn test_multiple_policies_same_table() {
 fn test_permissive_and_restrictive() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_combo (id INT64, owner_id INT64, is_active BOOL)")
+        .execute_sql("CREATE TABLE policy_combo (id INTEGER, owner_id INTEGER, is_active BOOL)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_combo ENABLE ROW LEVEL SECURITY")
@@ -451,7 +451,7 @@ fn test_permissive_and_restrictive() {
 fn test_policy_different_commands() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_cmds (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_cmds (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_cmds ENABLE ROW LEVEL SECURITY")
@@ -480,7 +480,7 @@ fn test_policy_different_commands() {
 fn test_policy_bypass_role() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_bypass (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_bypass (id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_bypass ENABLE ROW LEVEL SECURITY")
@@ -519,11 +519,11 @@ fn test_policy_with_join() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE user_permissions (user_id INT64, resource_type TEXT, can_read BOOL)",
+            "CREATE TABLE user_permissions (user_id INTEGER, resource_type TEXT, can_read BOOL)",
         )
         .ok();
     executor
-        .execute_sql("CREATE TABLE policy_join (id INT64, resource_type TEXT, data TEXT)")
+        .execute_sql("CREATE TABLE policy_join (id INTEGER, resource_type TEXT, data TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_join ENABLE ROW LEVEL SECURITY")
@@ -548,7 +548,7 @@ fn test_policy_with_security_definer_function() {
         )
         .ok();
     executor
-        .execute_sql("CREATE TABLE policy_secdef (id INT64, department TEXT)")
+        .execute_sql("CREATE TABLE policy_secdef (id INTEGER, department TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_secdef ENABLE ROW LEVEL SECURITY")
@@ -564,7 +564,7 @@ fn test_policy_with_security_definer_function() {
 fn test_policy_with_case() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_case (id INT64, sensitivity TEXT, owner_id INT64)")
+        .execute_sql("CREATE TABLE policy_case (id INTEGER, sensitivity TEXT, owner_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_case ENABLE ROW LEVEL SECURITY")
@@ -586,7 +586,7 @@ fn test_policy_with_case() {
 fn test_policy_with_coalesce() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_coal (id INT64, owner_id INT64, is_public BOOL)")
+        .execute_sql("CREATE TABLE policy_coal (id INTEGER, owner_id INTEGER, is_public BOOL)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_coal ENABLE ROW LEVEL SECURITY")
@@ -603,7 +603,7 @@ fn test_rls_inheritance() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE policy_parent (id INT64, owner_id INT64) PARTITION BY RANGE (id)",
+            "CREATE TABLE policy_parent (id INTEGER, owner_id INTEGER) PARTITION BY RANGE (id)",
         )
         .ok();
     executor
@@ -625,7 +625,7 @@ fn test_rls_inheritance() {
 fn test_policy_on_view() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_base (id INT64, owner_id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE policy_base (id INTEGER, owner_id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW policy_view AS SELECT * FROM policy_base")
@@ -639,7 +639,7 @@ fn test_policy_on_view() {
 fn test_security_barrier_view() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE sb_base (id INT64, secret TEXT, owner_id INT64)")
+        .execute_sql("CREATE TABLE sb_base (id INTEGER, secret TEXT, owner_id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -652,7 +652,7 @@ fn test_security_barrier_view() {
 fn test_policy_explain() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE policy_explain (id INT64, owner_id INT64)")
+        .execute_sql("CREATE TABLE policy_explain (id INTEGER, owner_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE policy_explain ENABLE ROW LEVEL SECURITY")

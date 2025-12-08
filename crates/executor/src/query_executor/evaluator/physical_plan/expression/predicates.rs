@@ -30,6 +30,13 @@ impl ProjectionWithExprExec {
         list: &[crate::types::Value],
         negated: bool,
     ) -> Result<crate::types::Value> {
+        if value.is_null() {
+            if list.is_empty() {
+                return Ok(Value::bool_val(negated));
+            }
+            return Ok(Value::null());
+        }
+
         let mut found = false;
         let mut has_null = false;
 

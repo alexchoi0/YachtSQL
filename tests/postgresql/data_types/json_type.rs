@@ -32,7 +32,7 @@ fn test_jsonb_literal() {
 fn test_json_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE json_data (id INT64, data JSON)")
+        .execute_sql("CREATE TABLE json_data (id INTEGER, data JSON)")
         .unwrap();
     executor
         .execute_sql(r#"INSERT INTO json_data VALUES (1, '{"key": "value"}')"#)
@@ -46,7 +46,7 @@ fn test_json_column() {
 fn test_jsonb_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE jsonb_data (id INT64, data JSONB)")
+        .execute_sql("CREATE TABLE jsonb_data (id INTEGER, data JSONB)")
         .unwrap();
     executor
         .execute_sql(r#"INSERT INTO jsonb_data VALUES (1, '{"key": "value"}')"#)
@@ -318,7 +318,7 @@ fn test_jsonb_pretty() {
 fn test_json_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE json_null (id INT64, data JSON)")
+        .execute_sql("CREATE TABLE json_null (id INTEGER, data JSON)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO json_null VALUES (1, NULL)")

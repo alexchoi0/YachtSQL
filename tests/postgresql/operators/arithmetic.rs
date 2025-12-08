@@ -82,7 +82,7 @@ fn test_complex_expression() {
 fn test_arithmetic_with_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nums (a INT64, b INT64)")
+        .execute_sql("CREATE TABLE nums (a INTEGER, b INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (10, 3), (20, 4)")

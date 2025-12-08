@@ -80,7 +80,7 @@ fn test_circle_literal() {
 fn test_point_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE locations (id INT64, pos POINT)")
+        .execute_sql("CREATE TABLE locations (id INTEGER, pos POINT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO locations VALUES (1, POINT(10, 20))")
@@ -433,7 +433,7 @@ fn test_bound_box() {
 fn test_geometric_gist_index() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE geo_data (id INT64, loc POINT)")
+        .execute_sql("CREATE TABLE geo_data (id INTEGER, loc POINT)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX geo_idx ON geo_data USING GIST (loc)")

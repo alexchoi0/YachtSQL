@@ -7,10 +7,10 @@ fn test_generated_column_stored() {
     executor
         .execute_sql(
             "CREATE TABLE gen_stored (
-            id INT64,
-            price INT64,
-            quantity INT64,
-            total INT64 GENERATED ALWAYS AS (price * quantity) STORED
+            id INTEGER,
+            price INTEGER,
+            quantity INTEGER,
+            total INTEGER GENERATED ALWAYS AS (price * quantity) STORED
         )",
         )
         .unwrap();
@@ -30,10 +30,10 @@ fn test_generated_column_virtual() {
     executor
         .execute_sql(
             "CREATE TABLE gen_virtual (
-            id INT64,
-            first_name STRING,
-            last_name STRING,
-            full_name STRING GENERATED ALWAYS AS (first_name || ' ' || last_name) VIRTUAL
+            id INTEGER,
+            first_name TEXT,
+            last_name TEXT,
+            full_name TEXT GENERATED ALWAYS AS (first_name || ' ' || last_name) VIRTUAL
         )",
         )
         .unwrap();
@@ -55,9 +55,9 @@ fn test_generated_column_expression() {
     executor
         .execute_sql(
             "CREATE TABLE gen_expr (
-            id INT64,
-            val INT64,
-            doubled INT64 GENERATED ALWAYS AS (val * 2) STORED
+            id INTEGER,
+            val INTEGER,
+            doubled INTEGER GENERATED ALWAYS AS (val * 2) STORED
         )",
         )
         .unwrap();
@@ -77,10 +77,10 @@ fn test_generated_column_concat() {
     executor
         .execute_sql(
             "CREATE TABLE gen_concat (
-            id INT64,
-            prefix STRING,
-            code INT64,
-            full_code STRING GENERATED ALWAYS AS (prefix || '-' || CAST(code AS STRING)) STORED
+            id INTEGER,
+            prefix TEXT,
+            code INTEGER,
+            full_code TEXT GENERATED ALWAYS AS (prefix || '-' || CAST(code AS TEXT)) STORED
         )",
         )
         .unwrap();
@@ -100,10 +100,10 @@ fn test_generated_column_math() {
     executor
         .execute_sql(
             "CREATE TABLE gen_math (
-            id INT64,
-            width FLOAT64,
-            height FLOAT64,
-            area FLOAT64 GENERATED ALWAYS AS (width * height) STORED
+            id INTEGER,
+            width DOUBLE PRECISION,
+            height DOUBLE PRECISION,
+            area DOUBLE PRECISION GENERATED ALWAYS AS (width * height) STORED
         )",
         )
         .unwrap();
@@ -121,9 +121,9 @@ fn test_generated_column_case() {
     executor
         .execute_sql(
             "CREATE TABLE gen_case (
-            id INT64,
-            score INT64,
-            grade STRING GENERATED ALWAYS AS (
+            id INTEGER,
+            score INTEGER,
+            grade TEXT GENERATED ALWAYS AS (
                 CASE
                     WHEN score >= 90 THEN 'A'
                     WHEN score >= 80 THEN 'B'
@@ -148,9 +148,9 @@ fn test_generated_column_coalesce() {
     executor
         .execute_sql(
             "CREATE TABLE gen_coalesce (
-            id INT64,
-            name STRING,
-            display_name STRING GENERATED ALWAYS AS (COALESCE(name, 'Unknown')) STORED
+            id INTEGER,
+            name TEXT,
+            display_name TEXT GENERATED ALWAYS AS (COALESCE(name, 'Unknown')) STORED
         )",
         )
         .unwrap();
@@ -170,9 +170,9 @@ fn test_generated_column_update_dependency() {
     executor
         .execute_sql(
             "CREATE TABLE gen_update (
-            id INT64,
-            val INT64,
-            computed INT64 GENERATED ALWAYS AS (val + 100) STORED
+            id INTEGER,
+            val INTEGER,
+            computed INTEGER GENERATED ALWAYS AS (val + 100) STORED
         )",
         )
         .unwrap();
@@ -195,12 +195,12 @@ fn test_generated_column_multiple() {
     executor
         .execute_sql(
             "CREATE TABLE gen_multi (
-            id INT64,
-            a INT64,
-            b INT64,
-            sum_ab INT64 GENERATED ALWAYS AS (a + b) STORED,
-            diff_ab INT64 GENERATED ALWAYS AS (a - b) STORED,
-            prod_ab INT64 GENERATED ALWAYS AS (a * b) STORED
+            id INTEGER,
+            a INTEGER,
+            b INTEGER,
+            sum_ab INTEGER GENERATED ALWAYS AS (a + b) STORED,
+            diff_ab INTEGER GENERATED ALWAYS AS (a - b) STORED,
+            prod_ab INTEGER GENERATED ALWAYS AS (a * b) STORED
         )",
         )
         .unwrap();
@@ -220,9 +220,9 @@ fn test_generated_column_with_function() {
     executor
         .execute_sql(
             "CREATE TABLE gen_func (
-            id INT64,
-            text_val STRING,
-            upper_val STRING GENERATED ALWAYS AS (UPPER(text_val)) STORED
+            id INTEGER,
+            text_val TEXT,
+            upper_val TEXT GENERATED ALWAYS AS (UPPER(text_val)) STORED
         )",
         )
         .unwrap();
@@ -242,9 +242,9 @@ fn test_generated_column_length() {
     executor
         .execute_sql(
             "CREATE TABLE gen_len (
-            id INT64,
-            text_val STRING,
-            text_length INT64 GENERATED ALWAYS AS (LENGTH(text_val)) STORED
+            id INTEGER,
+            text_val TEXT,
+            text_length INTEGER GENERATED ALWAYS AS (LENGTH(text_val)) STORED
         )",
         )
         .unwrap();
@@ -264,9 +264,9 @@ fn test_generated_column_abs() {
     executor
         .execute_sql(
             "CREATE TABLE gen_abs (
-            id INT64,
-            val INT64,
-            abs_val INT64 GENERATED ALWAYS AS (ABS(val)) STORED
+            id INTEGER,
+            val INTEGER,
+            abs_val INTEGER GENERATED ALWAYS AS (ABS(val)) STORED
         )",
         )
         .unwrap();
@@ -284,9 +284,9 @@ fn test_generated_column_round() {
     executor
         .execute_sql(
             "CREATE TABLE gen_round (
-            id INT64,
-            val FLOAT64,
-            rounded INT64 GENERATED ALWAYS AS (CAST(ROUND(val) AS INT64)) STORED
+            id INTEGER,
+            val DOUBLE PRECISION,
+            rounded INTEGER GENERATED ALWAYS AS (CAST(ROUND(val) AS INTEGER)) STORED
         )",
         )
         .unwrap();
@@ -306,8 +306,8 @@ fn test_generated_column_boolean() {
     executor
         .execute_sql(
             "CREATE TABLE gen_bool (
-            id INT64,
-            val INT64,
+            id INTEGER,
+            val INTEGER,
             is_positive BOOL GENERATED ALWAYS AS (val > 0) STORED
         )",
         )
@@ -328,9 +328,9 @@ fn test_generated_column_select_all() {
     executor
         .execute_sql(
             "CREATE TABLE gen_select (
-            id INT64,
-            base INT64,
-            computed INT64 GENERATED ALWAYS AS (base * 10) STORED
+            id INTEGER,
+            base INTEGER,
+            computed INTEGER GENERATED ALWAYS AS (base * 10) STORED
         )",
         )
         .unwrap();
@@ -348,9 +348,9 @@ fn test_generated_column_where_clause() {
     executor
         .execute_sql(
             "CREATE TABLE gen_where (
-            id INT64,
-            val INT64,
-            doubled INT64 GENERATED ALWAYS AS (val * 2) STORED
+            id INTEGER,
+            val INTEGER,
+            doubled INTEGER GENERATED ALWAYS AS (val * 2) STORED
         )",
         )
         .unwrap();
@@ -370,9 +370,9 @@ fn test_generated_column_order_by() {
     executor
         .execute_sql(
             "CREATE TABLE gen_order (
-            id INT64,
-            val INT64,
-            neg_val INT64 GENERATED ALWAYS AS (-val) STORED
+            id INTEGER,
+            val INTEGER,
+            neg_val INTEGER GENERATED ALWAYS AS (-val) STORED
         )",
         )
         .unwrap();
@@ -392,10 +392,10 @@ fn test_generated_column_group_by() {
     executor
         .execute_sql(
             "CREATE TABLE gen_group (
-            id INT64,
-            category STRING,
-            val INT64,
-            doubled INT64 GENERATED ALWAYS AS (val * 2) STORED
+            id INTEGER,
+            category TEXT,
+            val INTEGER,
+            doubled INTEGER GENERATED ALWAYS AS (val * 2) STORED
         )",
         )
         .unwrap();
@@ -415,14 +415,14 @@ fn test_generated_column_join() {
     executor
         .execute_sql(
             "CREATE TABLE gen_main (
-            id INT64,
-            val INT64,
-            key INT64 GENERATED ALWAYS AS (val % 10) STORED
+            id INTEGER,
+            val INTEGER,
+            key INTEGER GENERATED ALWAYS AS (val % 10) STORED
         )",
         )
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE gen_ref (key INT64, name STRING)")
+        .execute_sql("CREATE TABLE gen_ref (key INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO gen_main (id, val) VALUES (1, 25)")

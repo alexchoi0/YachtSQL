@@ -6,7 +6,9 @@ pub use custom_statements::CustomStatementParser;
 use debug_print::debug_eprintln;
 pub use helpers::ParserHelpers;
 use sqlparser::ast::Statement as SqlStatement;
-use sqlparser::dialect::{BigQueryDialect, Dialect, GenericDialect, PostgreSqlDialect};
+use sqlparser::dialect::{
+    BigQueryDialect, ClickHouseDialect, Dialect, GenericDialect, PostgreSqlDialect,
+};
 use sqlparser::parser::Parser as SqlParser;
 use sqlparser::tokenizer::{Token, Tokenizer};
 use types::JsonValueRewriteResult;
@@ -31,7 +33,7 @@ impl Parser {
     pub fn with_dialect(dialect_type: DialectType) -> Self {
         let dialect: Box<dyn Dialect> = match dialect_type {
             DialectType::BigQuery => Box::new(BigQueryDialect),
-            DialectType::ClickHouse => Box::new(GenericDialect {}),
+            DialectType::ClickHouse => Box::new(ClickHouseDialect {}),
             DialectType::PostgreSQL => Box::new(PostgreSqlDialect {}),
         };
 

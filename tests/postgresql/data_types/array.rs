@@ -5,24 +5,24 @@ use crate::common::create_executor;
 #[ignore = "Implement me!"]
 fn test_array_literal_integers() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT [1, 2, 3]").unwrap();
-    assert_table_eq!(result, [[{1, 2, 3}]]);
+    let result = executor.execute_sql("SELECT ARRAY[1, 2, 3]").unwrap();
+    assert_table_eq!(result, [[1, 2, 3]]);
 }
 
 #[test]
 #[ignore = "Implement me!"]
 fn test_array_literal_strings() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT ['a', 'b', 'c']").unwrap();
-    assert_table_eq!(result, [[{"a", "b", "c"}]]);
+    let result = executor.execute_sql("SELECT ARRAY['a', 'b', 'c']").unwrap();
+    assert_table_eq!(result, [["a", "b", "c"]]);
 }
 
 #[test]
 #[ignore = "Implement me!"]
 fn test_empty_array() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT []").unwrap();
-    assert_table_eq!(result, [[{}]]);
+    let result = executor.execute_sql("SELECT ARRAY[]::INTEGER[]").unwrap();
+    assert_table_eq!(result, [[]]);
 }
 
 #[test]
@@ -30,20 +30,22 @@ fn test_empty_array() {
 fn test_array_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, values ARRAY<INT64>)")
+        .execute_sql("CREATE TABLE data (id INTEGER, values INTEGER[])")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO data VALUES (1, [10, 20, 30])")
+        .execute_sql("INSERT INTO data VALUES (1, ARRAY[10, 20, 30])")
         .unwrap();
 
     let result = executor.execute_sql("SELECT values FROM data").unwrap();
-    assert_table_eq!(result, [[{10, 20, 30}]]);
+    assert_table_eq!(result, [[10, 20, 30]]);
 }
 
 #[test]
 fn test_array_subscript() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT [10, 20, 30][1]").unwrap();
+    let result = executor
+        .execute_sql("SELECT (ARRAY[10, 20, 30])[1]")
+        .unwrap();
     assert_table_eq!(result, [[10]]);
 }
 
@@ -52,21 +54,21 @@ fn test_array_subscript() {
 fn test_array_with_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, values ARRAY<INT64>)")
+        .execute_sql("CREATE TABLE data (id INTEGER, values INTEGER[])")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO data VALUES (1, [1, NULL, 3])")
+        .execute_sql("INSERT INTO data VALUES (1, ARRAY[1, NULL, 3])")
         .unwrap();
 
     let result = executor.execute_sql("SELECT values FROM data").unwrap();
-    assert_table_eq!(result, [[{1, null, 3}]]);
+    assert_table_eq!(result, [[1, null, 3]]);
 }
 
 #[test]
 fn test_array_null_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, values ARRAY<INT64>)")
+        .execute_sql("CREATE TABLE data (id INTEGER, values INTEGER[])")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data VALUES (1, NULL)")
@@ -82,6 +84,8 @@ fn test_array_null_column() {
 #[ignore = "Implement me!"]
 fn test_nested_array() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT [[1, 2], [3, 4]]").unwrap();
-    assert_table_eq!(result, [[{{1, 2}, {3, 4}}]]);
+    let result = executor
+        .execute_sql("SELECT ARRAY[ARRAY[1, 2], ARRAY[3, 4]]")
+        .unwrap();
+    assert_table_eq!(result, [[[1, 2], [3, 4]]]);
 }

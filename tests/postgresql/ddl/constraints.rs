@@ -5,7 +5,7 @@ use crate::common::create_executor;
 fn test_primary_key_single_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pk_single (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE pk_single (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pk_single VALUES (1, 'Alice')")
@@ -21,7 +21,7 @@ fn test_primary_key_single_column() {
 fn test_primary_key_composite() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pk_comp (a INT64, b INT64, name STRING, PRIMARY KEY (a, b))")
+        .execute_sql("CREATE TABLE pk_comp (a INTEGER, b INTEGER, name TEXT, PRIMARY KEY (a, b))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pk_comp VALUES (1, 1, 'test')")
@@ -37,7 +37,7 @@ fn test_primary_key_composite() {
 fn test_primary_key_named() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pk_named (id INT64, CONSTRAINT pk_named_id PRIMARY KEY (id))")
+        .execute_sql("CREATE TABLE pk_named (id INTEGER, CONSTRAINT pk_named_id PRIMARY KEY (id))")
         .unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_table_eq!(result, [[1]]);
@@ -47,7 +47,7 @@ fn test_primary_key_named() {
 fn test_unique_constraint_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uq_col (id INT64, email STRING UNIQUE)")
+        .execute_sql("CREATE TABLE uq_col (id INTEGER, email TEXT UNIQUE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO uq_col VALUES (1, 'test@example.com')")
@@ -61,7 +61,7 @@ fn test_unique_constraint_column() {
 fn test_unique_constraint_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uq_tbl (id INT64, a INT64, b INT64, UNIQUE (a, b))")
+        .execute_sql("CREATE TABLE uq_tbl (id INTEGER, a INTEGER, b INTEGER, UNIQUE (a, b))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO uq_tbl VALUES (1, 1, 1)")
@@ -76,7 +76,7 @@ fn test_unique_constraint_named() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE uq_named (id INT64, email STRING, CONSTRAINT uq_email UNIQUE (email))",
+            "CREATE TABLE uq_named (id INTEGER, email TEXT, CONSTRAINT uq_email UNIQUE (email))",
         )
         .unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
@@ -87,7 +87,7 @@ fn test_unique_constraint_named() {
 fn test_not_null_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nn_test (id INT64 NOT NULL, name STRING)")
+        .execute_sql("CREATE TABLE nn_test (id INTEGER NOT NULL, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nn_test VALUES (1, 'test')")
@@ -101,7 +101,7 @@ fn test_not_null_constraint() {
 fn test_check_constraint_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE chk_col (id INT64, age INT64 CHECK (age >= 0))")
+        .execute_sql("CREATE TABLE chk_col (id INTEGER, age INTEGER CHECK (age >= 0))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO chk_col VALUES (1, 25)")
@@ -115,7 +115,7 @@ fn test_check_constraint_column() {
 fn test_check_constraint_table() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE chk_tbl (id INT64, start_date DATE, end_date DATE, CHECK (end_date > start_date))"
+        "CREATE TABLE chk_tbl (id INTEGER, start_date DATE, end_date DATE, CHECK (end_date > start_date))"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO chk_tbl VALUES (1, '2024-01-01', '2024-12-31')")
@@ -130,7 +130,7 @@ fn test_check_constraint_named() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE chk_named (id INT64, val INT64, CONSTRAINT chk_positive CHECK (val > 0))",
+            "CREATE TABLE chk_named (id INTEGER, val INTEGER, CONSTRAINT chk_positive CHECK (val > 0))",
         )
         .unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
@@ -141,10 +141,10 @@ fn test_check_constraint_named() {
 fn test_foreign_key_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE child (id INT64, parent_id INT64 REFERENCES parent(id))")
+        .execute_sql("CREATE TABLE child (id INTEGER, parent_id INTEGER REFERENCES parent(id))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO parent VALUES (1)")
@@ -161,10 +161,10 @@ fn test_foreign_key_basic() {
 fn test_foreign_key_table_level() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE departments (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE departments (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE employees (id INT64, dept_id INT64, FOREIGN KEY (dept_id) REFERENCES departments(id))"
+        "CREATE TABLE employees (id INTEGER, dept_id INTEGER, FOREIGN KEY (dept_id) REFERENCES departments(id))"
     ).unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_table_eq!(result, [[1]]);
@@ -174,10 +174,10 @@ fn test_foreign_key_table_level() {
 fn test_foreign_key_named() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ref_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE ref_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE ref_child (id INT64, pid INT64, CONSTRAINT fk_parent FOREIGN KEY (pid) REFERENCES ref_parent(id))"
+        "CREATE TABLE ref_child (id INTEGER, pid INTEGER, CONSTRAINT fk_parent FOREIGN KEY (pid) REFERENCES ref_parent(id))"
     ).unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_table_eq!(result, [[1]]);
@@ -187,10 +187,10 @@ fn test_foreign_key_named() {
 fn test_foreign_key_on_delete_cascade() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cascade_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE cascade_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE cascade_child (id INT64, pid INT64 REFERENCES cascade_parent(id) ON DELETE CASCADE)"
+        "CREATE TABLE cascade_child (id INTEGER, pid INTEGER REFERENCES cascade_parent(id) ON DELETE CASCADE)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO cascade_parent VALUES (1)")
@@ -212,10 +212,10 @@ fn test_foreign_key_on_delete_cascade() {
 fn test_foreign_key_on_delete_set_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE setnull_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE setnull_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE setnull_child (id INT64, pid INT64 REFERENCES setnull_parent(id) ON DELETE SET NULL)"
+        "CREATE TABLE setnull_child (id INTEGER, pid INTEGER REFERENCES setnull_parent(id) ON DELETE SET NULL)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO setnull_parent VALUES (1)")
@@ -237,10 +237,10 @@ fn test_foreign_key_on_delete_set_null() {
 fn test_foreign_key_on_delete_set_default() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE setdef_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE setdef_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE setdef_child (id INT64, pid INT64 DEFAULT 0 REFERENCES setdef_parent(id) ON DELETE SET DEFAULT)"
+        "CREATE TABLE setdef_child (id INTEGER, pid INTEGER DEFAULT 0 REFERENCES setdef_parent(id) ON DELETE SET DEFAULT)"
     ).unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_table_eq!(result, [[1]]);
@@ -250,10 +250,10 @@ fn test_foreign_key_on_delete_set_default() {
 fn test_foreign_key_on_update_cascade() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE upd_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE upd_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE upd_child (id INT64, pid INT64 REFERENCES upd_parent(id) ON UPDATE CASCADE)"
+        "CREATE TABLE upd_child (id INTEGER, pid INTEGER REFERENCES upd_parent(id) ON UPDATE CASCADE)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO upd_parent VALUES (1)")
@@ -273,7 +273,7 @@ fn test_foreign_key_on_update_cascade() {
 fn test_default_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE def_test (id INT64, status STRING DEFAULT 'pending')")
+        .execute_sql("CREATE TABLE def_test (id INTEGER, status TEXT DEFAULT 'pending')")
         .unwrap();
     executor
         .execute_sql("INSERT INTO def_test (id) VALUES (1)")
@@ -288,7 +288,7 @@ fn test_default_current_timestamp() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE ts_test (id INT64, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+            "CREATE TABLE ts_test (id INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
         )
         .unwrap();
     executor
@@ -305,7 +305,7 @@ fn test_default_current_timestamp() {
 fn test_add_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE add_const (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE add_const (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE add_const ADD CONSTRAINT chk_val CHECK (val > 0)")
@@ -320,7 +320,7 @@ fn test_drop_constraint() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE drop_const (id INT64, val INT64, CONSTRAINT chk_drop CHECK (val > 0))",
+            "CREATE TABLE drop_const (id INTEGER, val INTEGER, CONSTRAINT chk_drop CHECK (val > 0))",
         )
         .unwrap();
     executor
@@ -334,7 +334,7 @@ fn test_drop_constraint() {
 fn test_add_primary_key() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE add_pk (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE add_pk (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE add_pk ADD PRIMARY KEY (id)")
@@ -347,10 +347,10 @@ fn test_add_primary_key() {
 fn test_add_foreign_key() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fk_ref (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE fk_ref (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE add_fk (id INT64, ref_id INT64)")
+        .execute_sql("CREATE TABLE add_fk (id INTEGER, ref_id INTEGER)")
         .unwrap();
     executor.execute_sql(
         "ALTER TABLE add_fk ADD CONSTRAINT fk_ref_id FOREIGN KEY (ref_id) REFERENCES fk_ref(id)"
@@ -364,7 +364,7 @@ fn test_add_foreign_key() {
 fn test_exclusion_constraint() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE excl_test (id INT64, range_start INT64, range_end INT64, EXCLUDE USING gist (int8range(range_start, range_end) WITH &&))"
+        "CREATE TABLE excl_test (id INTEGER, range_start INTEGER, range_end INTEGER, EXCLUDE USING gist (int8range(range_start, range_end) WITH &&))"
     ).unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_table_eq!(result, [[1]]);
@@ -374,10 +374,10 @@ fn test_exclusion_constraint() {
 fn test_deferrable_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE defer_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE defer_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE defer_child (id INT64, pid INT64 REFERENCES defer_parent(id) DEFERRABLE INITIALLY DEFERRED)"
+        "CREATE TABLE defer_child (id INTEGER, pid INTEGER REFERENCES defer_parent(id) DEFERRABLE INITIALLY DEFERRED)"
     ).unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_table_eq!(result, [[1]]);
@@ -388,7 +388,7 @@ fn test_deferrable_constraint() {
 fn test_not_valid_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE notvalid_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE notvalid_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO notvalid_test VALUES (1, -5)")
@@ -405,7 +405,7 @@ fn test_not_valid_constraint() {
 fn test_validate_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE validate_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE validate_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE validate_test ADD CONSTRAINT chk_val CHECK (val > 0) NOT VALID")
@@ -421,10 +421,12 @@ fn test_validate_constraint() {
 fn test_foreign_key_composite() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE comp_parent (a INT64, b INT64, name STRING, PRIMARY KEY (a, b))")
+        .execute_sql(
+            "CREATE TABLE comp_parent (a INTEGER, b INTEGER, name TEXT, PRIMARY KEY (a, b))",
+        )
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE comp_child (id INT64, pa INT64, pb INT64, FOREIGN KEY (pa, pb) REFERENCES comp_parent(a, b))"
+        "CREATE TABLE comp_child (id INTEGER, pa INTEGER, pb INTEGER, FOREIGN KEY (pa, pb) REFERENCES comp_parent(a, b))"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO comp_parent VALUES (1, 1, 'test')")
@@ -442,10 +444,10 @@ fn test_foreign_key_composite() {
 fn test_foreign_key_on_delete_restrict() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE restrict_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE restrict_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE restrict_child (id INT64, pid INT64 REFERENCES restrict_parent(id) ON DELETE RESTRICT)"
+        "CREATE TABLE restrict_child (id INTEGER, pid INTEGER REFERENCES restrict_parent(id) ON DELETE RESTRICT)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO restrict_parent VALUES (1)")
@@ -463,10 +465,10 @@ fn test_foreign_key_on_delete_restrict() {
 fn test_foreign_key_on_delete_no_action() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE noact_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE noact_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE noact_child (id INT64, pid INT64 REFERENCES noact_parent(id) ON DELETE NO ACTION)"
+        "CREATE TABLE noact_child (id INTEGER, pid INTEGER REFERENCES noact_parent(id) ON DELETE NO ACTION)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO noact_parent VALUES (1)")
@@ -484,10 +486,10 @@ fn test_foreign_key_on_delete_no_action() {
 fn test_foreign_key_on_update_restrict() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE upd_restrict_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE upd_restrict_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE upd_restrict_child (id INT64, pid INT64 REFERENCES upd_restrict_parent(id) ON UPDATE RESTRICT)"
+        "CREATE TABLE upd_restrict_child (id INTEGER, pid INTEGER REFERENCES upd_restrict_parent(id) ON UPDATE RESTRICT)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO upd_restrict_parent VALUES (1)")
@@ -504,10 +506,10 @@ fn test_foreign_key_on_update_restrict() {
 fn test_foreign_key_on_update_set_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE upd_setnull_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE upd_setnull_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE upd_setnull_child (id INT64, pid INT64 REFERENCES upd_setnull_parent(id) ON UPDATE SET NULL)"
+        "CREATE TABLE upd_setnull_child (id INTEGER, pid INTEGER REFERENCES upd_setnull_parent(id) ON UPDATE SET NULL)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO upd_setnull_parent VALUES (1)")
@@ -529,13 +531,13 @@ fn test_foreign_key_on_update_set_null() {
 fn test_foreign_key_on_update_set_default() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE upd_setdef_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE upd_setdef_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO upd_setdef_parent VALUES (0), (1)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE upd_setdef_child (id INT64, pid INT64 DEFAULT 0 REFERENCES upd_setdef_parent(id) ON UPDATE SET DEFAULT)"
+        "CREATE TABLE upd_setdef_child (id INTEGER, pid INTEGER DEFAULT 0 REFERENCES upd_setdef_parent(id) ON UPDATE SET DEFAULT)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO upd_setdef_child VALUES (1, 1)")
@@ -554,7 +556,7 @@ fn test_foreign_key_on_update_set_default() {
 fn test_foreign_key_self_referencing() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE employees_hier (id INT64 PRIMARY KEY, name STRING, manager_id INT64 REFERENCES employees_hier(id))"
+        "CREATE TABLE employees_hier (id INTEGER PRIMARY KEY, name TEXT, manager_id INTEGER REFERENCES employees_hier(id))"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO employees_hier VALUES (1, 'CEO', NULL)")
@@ -577,7 +579,7 @@ fn test_foreign_key_self_referencing() {
 fn test_foreign_key_self_referencing_cascade() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE tree_nodes (id INT64 PRIMARY KEY, parent_id INT64 REFERENCES tree_nodes(id) ON DELETE CASCADE)"
+        "CREATE TABLE tree_nodes (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES tree_nodes(id) ON DELETE CASCADE)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO tree_nodes VALUES (1, NULL), (2, 1), (3, 2)")
@@ -596,14 +598,14 @@ fn test_foreign_key_self_referencing_cascade() {
 fn test_foreign_key_multiple_references() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users_fk (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE users_fk (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
     executor
         .execute_sql(
             "CREATE TABLE orders_fk (
-            id INT64 PRIMARY KEY,
-            created_by INT64 REFERENCES users_fk(id),
-            updated_by INT64 REFERENCES users_fk(id)
+            id INTEGER PRIMARY KEY,
+            created_by INTEGER REFERENCES users_fk(id),
+            updated_by INTEGER REFERENCES users_fk(id)
         )",
         )
         .unwrap();
@@ -622,10 +624,10 @@ fn test_foreign_key_multiple_references() {
 fn test_foreign_key_unique_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE unique_ref (id INT64, code STRING UNIQUE)")
+        .execute_sql("CREATE TABLE unique_ref (id INTEGER, code TEXT UNIQUE)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE ref_unique (id INT64, code STRING REFERENCES unique_ref(code))")
+        .execute_sql("CREATE TABLE ref_unique (id INTEGER, code TEXT REFERENCES unique_ref(code))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO unique_ref VALUES (1, 'ABC')")
@@ -642,11 +644,11 @@ fn test_foreign_key_unique_column() {
 fn test_foreign_key_null_allowed() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fk_null_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE fk_null_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
         .execute_sql(
-            "CREATE TABLE fk_null_child (id INT64, pid INT64 REFERENCES fk_null_parent(id))",
+            "CREATE TABLE fk_null_child (id INTEGER, pid INTEGER REFERENCES fk_null_parent(id))",
         )
         .unwrap();
     executor
@@ -663,11 +665,11 @@ fn test_foreign_key_null_allowed() {
 fn test_foreign_key_violation_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fk_viol_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE fk_viol_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
         .execute_sql(
-            "CREATE TABLE fk_viol_child (id INT64, pid INT64 REFERENCES fk_viol_parent(id))",
+            "CREATE TABLE fk_viol_child (id INTEGER, pid INTEGER REFERENCES fk_viol_parent(id))",
         )
         .unwrap();
 
@@ -680,10 +682,12 @@ fn test_foreign_key_violation_insert() {
 fn test_foreign_key_violation_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fk_upd_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE fk_upd_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE fk_upd_child (id INT64, pid INT64 REFERENCES fk_upd_parent(id))")
+        .execute_sql(
+            "CREATE TABLE fk_upd_child (id INTEGER, pid INTEGER REFERENCES fk_upd_parent(id))",
+        )
         .unwrap();
     executor
         .execute_sql("INSERT INTO fk_upd_parent VALUES (1)")
@@ -701,10 +705,10 @@ fn test_foreign_key_violation_update() {
 fn test_foreign_key_match_full() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE match_full_parent (a INT64, b INT64, PRIMARY KEY (a, b))")
+        .execute_sql("CREATE TABLE match_full_parent (a INTEGER, b INTEGER, PRIMARY KEY (a, b))")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE match_full_child (id INT64, pa INT64, pb INT64, FOREIGN KEY (pa, pb) REFERENCES match_full_parent(a, b) MATCH FULL)"
+        "CREATE TABLE match_full_child (id INTEGER, pa INTEGER, pb INTEGER, FOREIGN KEY (pa, pb) REFERENCES match_full_parent(a, b) MATCH FULL)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO match_full_parent VALUES (1, 1)")
@@ -723,10 +727,10 @@ fn test_foreign_key_match_full() {
 fn test_foreign_key_match_partial() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE match_partial_parent (a INT64, b INT64, PRIMARY KEY (a, b))")
+        .execute_sql("CREATE TABLE match_partial_parent (a INTEGER, b INTEGER, PRIMARY KEY (a, b))")
         .unwrap();
     let _ = executor.execute_sql(
-        "CREATE TABLE match_partial_child (id INT64, pa INT64, pb INT64, FOREIGN KEY (pa, pb) REFERENCES match_partial_parent(a, b) MATCH PARTIAL)"
+        "CREATE TABLE match_partial_child (id INTEGER, pa INTEGER, pb INTEGER, FOREIGN KEY (pa, pb) REFERENCES match_partial_parent(a, b) MATCH PARTIAL)"
     );
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_table_eq!(result, [[1]]);
@@ -737,10 +741,10 @@ fn test_foreign_key_match_partial() {
 fn test_foreign_key_match_simple() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE match_simple_parent (a INT64, b INT64, PRIMARY KEY (a, b))")
+        .execute_sql("CREATE TABLE match_simple_parent (a INTEGER, b INTEGER, PRIMARY KEY (a, b))")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE match_simple_child (id INT64, pa INT64, pb INT64, FOREIGN KEY (pa, pb) REFERENCES match_simple_parent(a, b) MATCH SIMPLE)"
+        "CREATE TABLE match_simple_child (id INTEGER, pa INTEGER, pb INTEGER, FOREIGN KEY (pa, pb) REFERENCES match_simple_parent(a, b) MATCH SIMPLE)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO match_simple_parent VALUES (1, 1)")
@@ -759,10 +763,10 @@ fn test_foreign_key_match_simple() {
 fn test_foreign_key_deferrable_initially_immediate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE defer_imm_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE defer_imm_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE defer_imm_child (id INT64, pid INT64 REFERENCES defer_imm_parent(id) DEFERRABLE INITIALLY IMMEDIATE)"
+        "CREATE TABLE defer_imm_child (id INTEGER, pid INTEGER REFERENCES defer_imm_parent(id) DEFERRABLE INITIALLY IMMEDIATE)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO defer_imm_parent VALUES (1)")
@@ -782,10 +786,10 @@ fn test_foreign_key_deferrable_initially_immediate() {
 fn test_foreign_key_deferred_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE defer_ins_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE defer_ins_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE defer_ins_child (id INT64, pid INT64 REFERENCES defer_ins_parent(id) DEFERRABLE INITIALLY DEFERRED)"
+        "CREATE TABLE defer_ins_child (id INTEGER, pid INTEGER REFERENCES defer_ins_parent(id) DEFERRABLE INITIALLY DEFERRED)"
     ).unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -808,10 +812,10 @@ fn test_foreign_key_deferred_insert() {
 fn test_foreign_key_set_constraints_immediate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE set_imm_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE set_imm_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE set_imm_child (id INT64, pid INT64 REFERENCES set_imm_parent(id) DEFERRABLE INITIALLY DEFERRED)"
+        "CREATE TABLE set_imm_child (id INTEGER, pid INTEGER REFERENCES set_imm_parent(id) DEFERRABLE INITIALLY DEFERRED)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO set_imm_parent VALUES (1)")
@@ -837,10 +841,10 @@ fn test_foreign_key_set_constraints_immediate() {
 fn test_foreign_key_set_constraints_deferred() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE set_def_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE set_def_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE set_def_child (id INT64, pid INT64 REFERENCES set_def_parent(id) DEFERRABLE)"
+        "CREATE TABLE set_def_child (id INTEGER, pid INTEGER REFERENCES set_def_parent(id) DEFERRABLE)"
     ).unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -865,11 +869,11 @@ fn test_foreign_key_set_constraints_deferred() {
 fn test_foreign_key_circular_reference() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE table_a (id INT64 PRIMARY KEY, b_id INT64)")
+        .execute_sql("CREATE TABLE table_a (id INTEGER PRIMARY KEY, b_id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
-            "CREATE TABLE table_b (id INT64 PRIMARY KEY, a_id INT64 REFERENCES table_a(id))",
+            "CREATE TABLE table_b (id INTEGER PRIMARY KEY, a_id INTEGER REFERENCES table_a(id))",
         )
         .unwrap();
     executor
@@ -898,10 +902,10 @@ fn test_foreign_key_across_schemas() {
     executor.execute_sql("CREATE SCHEMA schema_a").unwrap();
     executor.execute_sql("CREATE SCHEMA schema_b").unwrap();
     executor
-        .execute_sql("CREATE TABLE schema_a.parent_tbl (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE schema_a.parent_tbl (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE schema_b.child_tbl (id INT64, pid INT64 REFERENCES schema_a.parent_tbl(id))"
+        "CREATE TABLE schema_b.child_tbl (id INTEGER, pid INTEGER REFERENCES schema_a.parent_tbl(id))"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO schema_a.parent_tbl VALUES (1)")
@@ -921,10 +925,10 @@ fn test_foreign_key_across_schemas() {
 fn test_drop_foreign_key() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE drop_fk_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE drop_fk_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE drop_fk_child (id INT64, pid INT64, CONSTRAINT fk_drop FOREIGN KEY (pid) REFERENCES drop_fk_parent(id))"
+        "CREATE TABLE drop_fk_child (id INTEGER, pid INTEGER, CONSTRAINT fk_drop FOREIGN KEY (pid) REFERENCES drop_fk_parent(id))"
     ).unwrap();
     executor
         .execute_sql("ALTER TABLE drop_fk_child DROP CONSTRAINT fk_drop")
@@ -944,10 +948,12 @@ fn test_drop_foreign_key() {
 fn test_foreign_key_with_index() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE idx_fk_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE idx_fk_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE idx_fk_child (id INT64, pid INT64 REFERENCES idx_fk_parent(id))")
+        .execute_sql(
+            "CREATE TABLE idx_fk_child (id INTEGER, pid INTEGER REFERENCES idx_fk_parent(id))",
+        )
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_fk_child_pid ON idx_fk_child (pid)")
@@ -969,14 +975,14 @@ fn test_foreign_key_with_index() {
 fn test_foreign_key_cascade_multiple_levels() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE level1 (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE level1 (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE level2 (id INT64 PRIMARY KEY, l1_id INT64 REFERENCES level1(id) ON DELETE CASCADE)"
+        "CREATE TABLE level2 (id INTEGER PRIMARY KEY, l1_id INTEGER REFERENCES level1(id) ON DELETE CASCADE)"
     ).unwrap();
     executor
         .execute_sql(
-            "CREATE TABLE level3 (id INT64, l2_id INT64 REFERENCES level2(id) ON DELETE CASCADE)",
+            "CREATE TABLE level3 (id INTEGER, l2_id INTEGER REFERENCES level2(id) ON DELETE CASCADE)",
         )
         .unwrap();
 
@@ -1003,11 +1009,11 @@ fn test_foreign_key_cascade_multiple_levels() {
 fn test_foreign_key_references_primary_key_implicitly() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE impl_pk_parent (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE impl_pk_parent (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
     executor
         .execute_sql(
-            "CREATE TABLE impl_pk_child (id INT64, parent_id INT64 REFERENCES impl_pk_parent)",
+            "CREATE TABLE impl_pk_child (id INTEGER, parent_id INTEGER REFERENCES impl_pk_parent)",
         )
         .unwrap();
     executor
@@ -1027,10 +1033,10 @@ fn test_foreign_key_references_primary_key_implicitly() {
 fn test_foreign_key_with_check_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fk_chk_parent (id INT64 PRIMARY KEY CHECK (id > 0))")
+        .execute_sql("CREATE TABLE fk_chk_parent (id INTEGER PRIMARY KEY CHECK (id > 0))")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE fk_chk_child (id INT64, pid INT64 REFERENCES fk_chk_parent(id) CHECK (pid > 0))"
+        "CREATE TABLE fk_chk_child (id INTEGER, pid INTEGER REFERENCES fk_chk_parent(id) CHECK (pid > 0))"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO fk_chk_parent VALUES (1)")
@@ -1048,10 +1054,10 @@ fn test_foreign_key_with_check_constraint() {
 fn test_foreign_key_rename_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rename_fk_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE rename_fk_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE rename_fk_child (id INT64, pid INT64, CONSTRAINT old_fk_name FOREIGN KEY (pid) REFERENCES rename_fk_parent(id))"
+        "CREATE TABLE rename_fk_child (id INTEGER, pid INTEGER, CONSTRAINT old_fk_name FOREIGN KEY (pid) REFERENCES rename_fk_parent(id))"
     ).unwrap();
     executor
         .execute_sql("ALTER TABLE rename_fk_child RENAME CONSTRAINT old_fk_name TO new_fk_name")
@@ -1065,10 +1071,10 @@ fn test_foreign_key_rename_constraint() {
 fn test_foreign_key_not_enforced() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE not_enf_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE not_enf_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     let _ = executor.execute_sql(
-        "CREATE TABLE not_enf_child (id INT64, pid INT64 REFERENCES not_enf_parent(id) NOT ENFORCED)"
+        "CREATE TABLE not_enf_child (id INTEGER, pid INTEGER REFERENCES not_enf_parent(id) NOT ENFORCED)"
     );
 
     let result = executor.execute_sql("SELECT 1").unwrap();
@@ -1079,10 +1085,10 @@ fn test_foreign_key_not_enforced() {
 fn test_foreign_key_not_enforced_allows_invalid_reference() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ne_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE ne_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     let create_result = executor.execute_sql(
-        "CREATE TABLE ne_child (id INT64, pid INT64 REFERENCES ne_parent(id) NOT ENFORCED)",
+        "CREATE TABLE ne_child (id INTEGER, pid INTEGER REFERENCES ne_parent(id) NOT ENFORCED)",
     );
 
     if create_result.is_ok() {
@@ -1095,10 +1101,10 @@ fn test_foreign_key_not_enforced_allows_invalid_reference() {
 fn test_foreign_key_enforced_explicit() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE enf_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE enf_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     let result = executor.execute_sql(
-        "CREATE TABLE enf_child (id INT64, pid INT64 REFERENCES enf_parent(id) ENFORCED)",
+        "CREATE TABLE enf_child (id INTEGER, pid INTEGER REFERENCES enf_parent(id) ENFORCED)",
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1107,7 +1113,7 @@ fn test_foreign_key_enforced_explicit() {
 fn test_check_constraint_not_enforced() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE chk_ne (id INT64, val INT64, CONSTRAINT chk_positive CHECK (val > 0) NOT ENFORCED)"
+        "CREATE TABLE chk_ne (id INTEGER, val INTEGER, CONSTRAINT chk_positive CHECK (val > 0) NOT ENFORCED)"
     );
 
     if result.is_ok() {
@@ -1119,8 +1125,8 @@ fn test_check_constraint_not_enforced() {
 #[test]
 fn test_check_constraint_enforced_explicit() {
     let mut executor = create_executor();
-    let result =
-        executor.execute_sql("CREATE TABLE chk_enf (id INT64, val INT64 CHECK (val > 0) ENFORCED)");
+    let result = executor
+        .execute_sql("CREATE TABLE chk_enf (id INTEGER, val INTEGER CHECK (val > 0) ENFORCED)");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1129,7 +1135,7 @@ fn test_check_constraint_enforced_explicit() {
 fn test_unique_constraint_not_enforced() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE uq_ne (id INT64, email STRING, CONSTRAINT uq_email UNIQUE (email) NOT ENFORCED)"
+        "CREATE TABLE uq_ne (id INTEGER, email TEXT, CONSTRAINT uq_email UNIQUE (email) NOT ENFORCED)"
     );
 
     if result.is_ok() {
@@ -1146,7 +1152,7 @@ fn test_unique_constraint_not_enforced() {
 fn test_unique_constraint_enforced_explicit() {
     let mut executor = create_executor();
     let result =
-        executor.execute_sql("CREATE TABLE uq_enf (id INT64, email STRING UNIQUE ENFORCED)");
+        executor.execute_sql("CREATE TABLE uq_enf (id INTEGER, email TEXT UNIQUE ENFORCED)");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1154,7 +1160,7 @@ fn test_unique_constraint_enforced_explicit() {
 fn test_primary_key_not_enforced() {
     let mut executor = create_executor();
     let result =
-        executor.execute_sql("CREATE TABLE pk_ne (id INT64 PRIMARY KEY NOT ENFORCED, name STRING)");
+        executor.execute_sql("CREATE TABLE pk_ne (id INTEGER PRIMARY KEY NOT ENFORCED, name TEXT)");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1163,7 +1169,7 @@ fn test_alter_constraint_not_enforced() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE alter_ne (id INT64, val INT64, CONSTRAINT chk_val CHECK (val > 0))",
+            "CREATE TABLE alter_ne (id INTEGER, val INTEGER, CONSTRAINT chk_val CHECK (val > 0))",
         )
         .unwrap();
 
@@ -1175,7 +1181,7 @@ fn test_alter_constraint_not_enforced() {
 fn test_alter_constraint_enforced() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE alter_enf (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE alter_enf (id INTEGER, val INTEGER)")
         .unwrap();
 
     let add_result = executor
@@ -1192,7 +1198,7 @@ fn test_alter_constraint_enforced() {
 fn test_not_enforced_with_not_valid() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ne_nv (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE ne_nv (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ne_nv VALUES (1, -5)")
@@ -1208,7 +1214,7 @@ fn test_not_enforced_with_not_valid() {
 fn test_exclusion_constraint_not_enforced() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE excl_ne (id INT64, range_start INT64, range_end INT64, EXCLUDE USING gist (int8range(range_start, range_end) WITH &&) NOT ENFORCED)"
+        "CREATE TABLE excl_ne (id INTEGER, range_start INTEGER, range_end INTEGER, EXCLUDE USING gist (int8range(range_start, range_end) WITH &&) NOT ENFORCED)"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1217,7 +1223,7 @@ fn test_exclusion_constraint_not_enforced() {
 fn test_constraint_enforcement_in_information_schema() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE info_enf (id INT64, val INT64 CHECK (val > 0))")
+        .execute_sql("CREATE TABLE info_enf (id INTEGER, val INTEGER CHECK (val > 0))")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -1230,7 +1236,7 @@ fn test_constraint_enforcement_in_information_schema() {
 fn test_pg_constraint_convalidated() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_const (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE pg_const (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE pg_const ADD CONSTRAINT chk_val CHECK (val > 0) NOT VALID")
@@ -1245,10 +1251,10 @@ fn test_pg_constraint_convalidated() {
 fn test_foreign_key_not_enforced_cascade() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ne_cascade_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE ne_cascade_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     let result = executor.execute_sql(
-        "CREATE TABLE ne_cascade_child (id INT64, pid INT64 REFERENCES ne_cascade_parent(id) ON DELETE CASCADE NOT ENFORCED)"
+        "CREATE TABLE ne_cascade_child (id INTEGER, pid INTEGER REFERENCES ne_cascade_parent(id) ON DELETE CASCADE NOT ENFORCED)"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1257,10 +1263,10 @@ fn test_foreign_key_not_enforced_cascade() {
 fn test_constraint_enforcement_with_deferrable() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE def_enf_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE def_enf_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     let result = executor.execute_sql(
-        "CREATE TABLE def_enf_child (id INT64, pid INT64 REFERENCES def_enf_parent(id) DEFERRABLE INITIALLY DEFERRED NOT ENFORCED)"
+        "CREATE TABLE def_enf_child (id INTEGER, pid INTEGER REFERENCES def_enf_parent(id) DEFERRABLE INITIALLY DEFERRED NOT ENFORCED)"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1269,7 +1275,7 @@ fn test_constraint_enforcement_with_deferrable() {
 fn test_not_null_enforcement() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nn_enf (id INT64 NOT NULL, val INT64)")
+        .execute_sql("CREATE TABLE nn_enf (id INTEGER NOT NULL, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("INSERT INTO nn_enf VALUES (NULL, 1)");
@@ -1280,7 +1286,7 @@ fn test_not_null_enforcement() {
 fn test_check_constraint_enforcement_on_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE chk_ins (id INT64, age INT64 CHECK (age >= 0))")
+        .execute_sql("CREATE TABLE chk_ins (id INTEGER, age INTEGER CHECK (age >= 0))")
         .unwrap();
 
     let result = executor.execute_sql("INSERT INTO chk_ins VALUES (1, -5)");
@@ -1292,7 +1298,7 @@ fn test_check_constraint_enforcement_on_insert() {
 fn test_check_constraint_enforcement_on_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE chk_upd (id INT64, age INT64 CHECK (age >= 0))")
+        .execute_sql("CREATE TABLE chk_upd (id INTEGER, age INTEGER CHECK (age >= 0))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO chk_upd VALUES (1, 25)")
@@ -1306,7 +1312,7 @@ fn test_check_constraint_enforcement_on_update() {
 fn test_unique_enforcement_on_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uq_ins (id INT64, email STRING UNIQUE)")
+        .execute_sql("CREATE TABLE uq_ins (id INTEGER, email TEXT UNIQUE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO uq_ins VALUES (1, 'test@example.com')")
@@ -1321,7 +1327,7 @@ fn test_unique_enforcement_on_insert() {
 fn test_unique_enforcement_on_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE uq_upd (id INT64, email STRING UNIQUE)")
+        .execute_sql("CREATE TABLE uq_upd (id INTEGER, email TEXT UNIQUE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO uq_upd VALUES (1, 'alice@example.com')")
@@ -1338,7 +1344,7 @@ fn test_unique_enforcement_on_update() {
 fn test_primary_key_enforcement_on_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pk_ins (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE pk_ins (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pk_ins VALUES (1, 'Alice')")
@@ -1352,7 +1358,7 @@ fn test_primary_key_enforcement_on_insert() {
 fn test_primary_key_enforcement_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pk_null (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE pk_null (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("INSERT INTO pk_null VALUES (NULL, 'test')");
@@ -1363,7 +1369,7 @@ fn test_primary_key_enforcement_null() {
 fn test_composite_unique_enforcement() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE comp_uq (a INT64, b INT64, c STRING, UNIQUE(a, b))")
+        .execute_sql("CREATE TABLE comp_uq (a INTEGER, b INTEGER, c TEXT, UNIQUE(a, b))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO comp_uq VALUES (1, 1, 'first')")
@@ -1377,7 +1383,7 @@ fn test_composite_unique_enforcement() {
 fn test_composite_unique_partial_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE comp_uq_null (a INT64, b INT64, UNIQUE(a, b))")
+        .execute_sql("CREATE TABLE comp_uq_null (a INTEGER, b INTEGER, UNIQUE(a, b))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO comp_uq_null VALUES (1, NULL)")
@@ -1392,7 +1398,7 @@ fn test_composite_unique_partial_null() {
 fn test_unique_nulls_not_distinct() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE uq_nulls_nd (id INT64, val INT64, UNIQUE NULLS NOT DISTINCT (val))",
+        "CREATE TABLE uq_nulls_nd (id INTEGER, val INTEGER, UNIQUE NULLS NOT DISTINCT (val))",
     );
 
     if result.is_ok() {
@@ -1408,7 +1414,7 @@ fn test_unique_nulls_not_distinct() {
 fn test_exclusion_constraint_enforcement() {
     let mut executor = create_executor();
     let create_result = executor.execute_sql(
-        "CREATE TABLE excl_enf (id INT64, room INT64, during TSTZRANGE, EXCLUDE USING gist (room WITH =, during WITH &&))"
+        "CREATE TABLE excl_enf (id INTEGER, room INTEGER, during TSTZRANGE, EXCLUDE USING gist (room WITH =, during WITH &&))"
     );
 
     if create_result.is_ok() {
@@ -1426,7 +1432,7 @@ fn test_exclusion_constraint_enforcement() {
 fn test_constraint_using_function() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("CREATE TABLE chk_func (id INT64, email STRING CHECK (email LIKE '%@%'))");
+        .execute_sql("CREATE TABLE chk_func (id INTEGER, email TEXT CHECK (email LIKE '%@%'))");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1434,14 +1440,14 @@ fn test_constraint_using_function() {
 fn test_constraint_using_subquery() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE lookup (allowed_val INT64)")
+        .execute_sql("CREATE TABLE lookup (allowed_val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO lookup VALUES (1), (2), (3)")
         .unwrap();
 
     let result = executor.execute_sql(
-        "CREATE TABLE chk_subq (id INT64, val INT64 CHECK (val IN (SELECT allowed_val FROM lookup)))"
+        "CREATE TABLE chk_subq (id INTEGER, val INTEGER CHECK (val IN (SELECT allowed_val FROM lookup)))"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1450,7 +1456,7 @@ fn test_constraint_using_subquery() {
 fn test_constraint_multiple_columns() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE multi_chk (id INT64, start_date DATE, end_date DATE, CHECK (start_date < end_date))"
+        "CREATE TABLE multi_chk (id INTEGER, start_date DATE, end_date DATE, CHECK (start_date < end_date))"
     ).unwrap();
 
     let result =
@@ -1462,7 +1468,7 @@ fn test_constraint_multiple_columns() {
 fn test_constraint_or_condition() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE or_chk (id INT64, status STRING CHECK (status = 'active' OR status = 'inactive'))"
+        "CREATE TABLE or_chk (id INTEGER, status TEXT CHECK (status = 'active' OR status = 'inactive'))"
     ).unwrap();
 
     let result = executor.execute_sql("INSERT INTO or_chk VALUES (1, 'pending')");
@@ -1473,7 +1479,7 @@ fn test_constraint_or_condition() {
 fn test_constraint_and_condition() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE and_chk (id INT64, min_val INT64, max_val INT64, CHECK (min_val >= 0 AND max_val <= 100 AND min_val < max_val))"
+        "CREATE TABLE and_chk (id INTEGER, min_val INTEGER, max_val INTEGER, CHECK (min_val >= 0 AND max_val <= 100 AND min_val < max_val))"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO and_chk VALUES (1, 10, 50)")
@@ -1487,7 +1493,7 @@ fn test_constraint_and_condition() {
 fn test_constraint_case_expression() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE case_chk (id INT64, type STRING, value INT64, CHECK (CASE WHEN type = 'percentage' THEN value BETWEEN 0 AND 100 ELSE value >= 0 END))"
+        "CREATE TABLE case_chk (id INTEGER, type TEXT, value INTEGER, CHECK (CASE WHEN type = 'percentage' THEN value BETWEEN 0 AND 100 ELSE value >= 0 END))"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1495,8 +1501,9 @@ fn test_constraint_case_expression() {
 #[test]
 fn test_constraint_coalesce() {
     let mut executor = create_executor();
-    let result = executor
-        .execute_sql("CREATE TABLE coal_chk (id INT64, val INT64, CHECK (COALESCE(val, 0) >= 0))");
+    let result = executor.execute_sql(
+        "CREATE TABLE coal_chk (id INTEGER, val INTEGER, CHECK (COALESCE(val, 0) >= 0))",
+    );
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1504,7 +1511,7 @@ fn test_constraint_coalesce() {
 fn test_constraint_nullif() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE nullif_chk (id INT64, val INT64, CHECK (NULLIF(val, 0) IS DISTINCT FROM 0))",
+        "CREATE TABLE nullif_chk (id INTEGER, val INTEGER, CHECK (NULLIF(val, 0) IS DISTINCT FROM 0))",
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1514,10 +1521,10 @@ fn test_constraint_nullif() {
 fn test_deferred_constraint_violation_at_commit() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE def_viol_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE def_viol_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE def_viol_child (id INT64, pid INT64 REFERENCES def_viol_parent(id) DEFERRABLE INITIALLY DEFERRED)"
+        "CREATE TABLE def_viol_child (id INTEGER, pid INTEGER REFERENCES def_viol_parent(id) DEFERRABLE INITIALLY DEFERRED)"
     ).unwrap();
 
     executor.execute_sql("BEGIN").unwrap();
@@ -1533,10 +1540,10 @@ fn test_deferred_constraint_violation_at_commit() {
 fn test_set_constraints_named() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE named_def_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE named_def_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor.execute_sql(
-        "CREATE TABLE named_def_child (id INT64, pid INT64, CONSTRAINT fk_named_def FOREIGN KEY (pid) REFERENCES named_def_parent(id) DEFERRABLE INITIALLY IMMEDIATE)"
+        "CREATE TABLE named_def_child (id INTEGER, pid INTEGER, CONSTRAINT fk_named_def FOREIGN KEY (pid) REFERENCES named_def_parent(id) DEFERRABLE INITIALLY IMMEDIATE)"
     ).unwrap();
     executor
         .execute_sql("INSERT INTO named_def_parent VALUES (1)")
@@ -1561,11 +1568,11 @@ fn test_constraint_inheritance() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE TABLE parent_inherit (id INT64 PRIMARY KEY, val INT64 CHECK (val > 0))",
+            "CREATE TABLE parent_inherit (id INTEGER PRIMARY KEY, val INTEGER CHECK (val > 0))",
         )
         .unwrap();
     let result =
-        executor.execute_sql("CREATE TABLE child_inherit (extra STRING) INHERITS (parent_inherit)");
+        executor.execute_sql("CREATE TABLE child_inherit (extra TEXT) INHERITS (parent_inherit)");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1574,7 +1581,7 @@ fn test_constraint_inheritance() {
 fn test_constraint_no_inherit() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE no_inherit_parent (id INT64, val INT64, CONSTRAINT chk_no_inherit CHECK (val > 0) NO INHERIT)"
+        "CREATE TABLE no_inherit_parent (id INTEGER, val INTEGER, CONSTRAINT chk_no_inherit CHECK (val > 0) NO INHERIT)"
     ).unwrap();
     let result =
         executor.execute_sql("CREATE TABLE no_inherit_child () INHERITS (no_inherit_parent)");
@@ -1586,7 +1593,7 @@ fn test_constraint_no_inherit() {
 fn test_alter_table_enable_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE enable_const (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE enable_const (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("ALTER TABLE enable_const ADD CONSTRAINT chk_val CHECK (val > 0)")
@@ -1603,7 +1610,7 @@ fn test_alter_table_enable_constraint() {
 fn test_generated_column_constraint() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE gen_col (id INT64, quantity INT64, price FLOAT64, total FLOAT64 GENERATED ALWAYS AS (quantity * price) STORED)"
+        "CREATE TABLE gen_col (id INTEGER, quantity INTEGER, price DOUBLE PRECISION, total DOUBLE PRECISION GENERATED ALWAYS AS (quantity * price) STORED)"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1612,7 +1619,7 @@ fn test_generated_column_constraint() {
 fn test_generated_column_with_check() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE TABLE gen_chk (id INT64, quantity INT64 CHECK (quantity > 0), price FLOAT64 CHECK (price > 0), total FLOAT64 GENERATED ALWAYS AS (quantity * price) STORED CHECK (total > 0))"
+        "CREATE TABLE gen_chk (id INTEGER, quantity INTEGER CHECK (quantity > 0), price DOUBLE PRECISION CHECK (price > 0), total DOUBLE PRECISION GENERATED ALWAYS AS (quantity * price) STORED CHECK (total > 0))"
     );
     assert!(result.is_ok() || result.is_err());
 }
@@ -1621,7 +1628,7 @@ fn test_generated_column_with_check() {
 fn test_domain_constraint() {
     let mut executor = create_executor();
     let create_result =
-        executor.execute_sql("CREATE DOMAIN positive_int AS INT64 CHECK (VALUE > 0)");
+        executor.execute_sql("CREATE DOMAIN positive_int AS INTEGER CHECK (VALUE > 0)");
 
     if create_result.is_ok() {
         executor
@@ -1636,7 +1643,7 @@ fn test_domain_constraint() {
 fn test_domain_constraint_not_enforced() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("CREATE DOMAIN relaxed_positive AS INT64 CHECK (VALUE > 0) NOT ENFORCED");
+        .execute_sql("CREATE DOMAIN relaxed_positive AS INTEGER CHECK (VALUE > 0) NOT ENFORCED");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -1644,7 +1651,7 @@ fn test_domain_constraint_not_enforced() {
 fn test_constraint_trigger() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE trigger_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE trigger_test (id INTEGER, val INTEGER)")
         .unwrap();
     let result = executor.execute_sql(
         "CREATE CONSTRAINT TRIGGER check_val AFTER INSERT ON trigger_test FOR EACH ROW EXECUTE FUNCTION check_positive()"
@@ -1656,7 +1663,7 @@ fn test_constraint_trigger() {
 fn test_constraint_trigger_deferrable() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE def_trigger_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE def_trigger_test (id INTEGER, val INTEGER)")
         .unwrap();
     let result = executor.execute_sql(
         "CREATE CONSTRAINT TRIGGER check_val AFTER INSERT ON def_trigger_test DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION check_positive()"

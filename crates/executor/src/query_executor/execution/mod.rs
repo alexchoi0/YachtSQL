@@ -45,7 +45,7 @@ use yachtsql_optimizer::rules::{
     IndexSelectionRule, SubqueryFlattening, UnionOptimization, WindowOptimization,
 };
 use yachtsql_parser::DialectType;
-use yachtsql_storage::{Schema, SharedTransactionState};
+use yachtsql_storage::Schema;
 
 use self::session::SessionState;
 use self::transaction::SessionTransactionController;
@@ -156,48 +156,6 @@ impl QueryExecutor {
         self.optimizer = create_default_optimizer();
     }
 
-    pub fn with_shared_session(existing: &mut QueryExecutor) -> Self {
-        let shared_state = existing.ensure_shared_transaction_state();
-
-        let default_level = {
-            let tm = existing.transaction_manager.borrow_mut();
-            tm.default_isolation_level()
-        };
-
-        let mut transaction_manager =
-            yachtsql_storage::TransactionManager::with_shared_state(shared_state);
-        transaction_manager.set_default_isolation_level(default_level);
-
-        let temp_layout = {
-            let temp = existing.temporary_storage.borrow_mut();
-            temp.storage_layout()
-        };
-
-        let session = SessionState::with_registry(
-            existing.session.dialect(),
-            Rc::clone(existing.session.feature_registry()),
-        );
-
-        let mut executor = Self {
-            storage: Rc::clone(&existing.storage),
-            transaction_manager: Rc::new(RefCell::new(transaction_manager)),
-            temporary_storage: Rc::new(RefCell::new(yachtsql_storage::TempStorage::with_layout(
-                temp_layout,
-            ))),
-            session,
-            session_tx: SessionTransactionController::with_autocommit(
-                existing.session_tx.autocommit(),
-            ),
-            resource_limits: crate::resource_limits::ResourceLimitsConfig::default(),
-            optimizer: create_default_optimizer(),
-            plan_cache: Rc::clone(&existing.plan_cache),
-            memory_pool: existing.memory_pool.clone(),
-            query_registry: existing.query_registry.clone(),
-        };
-        executor.reset_session_diagnostics();
-        executor
-    }
-
     pub fn with_storage_and_transaction(
         storage: Rc<RefCell<yachtsql_storage::Storage>>,
         transaction_manager: Rc<RefCell<yachtsql_storage::TransactionManager>>,
@@ -271,28 +229,6 @@ impl QueryExecutor {
                 feature_id, feature_name
             )))
         }
-    }
-
-    fn ensure_shared_transaction_state(&mut self) -> SharedTransactionState {
-        if let Some(shared) = self.transaction_manager.borrow_mut().shared_state() {
-            return shared;
-        }
-
-        let default_level = {
-            let tm = self.transaction_manager.borrow_mut();
-            debug_assert!(
-                !tm.is_active(),
-                "Cannot enable shared state while a transaction is active"
-            );
-            tm.default_isolation_level()
-        };
-
-        let shared_state = SharedTransactionState::new();
-        let mut manager =
-            yachtsql_storage::TransactionManager::with_shared_state(shared_state.clone());
-        manager.set_default_isolation_level(default_level);
-        self.transaction_manager = Rc::new(RefCell::new(manager));
-        shared_state
     }
 
     pub fn clear_exception_diagnostic(&mut self) {

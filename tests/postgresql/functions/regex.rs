@@ -117,7 +117,7 @@ fn test_regexp_with_table() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE emails (email STRING)")
+        .execute_sql("CREATE TABLE emails (email TEXT)")
         .unwrap();
     executor
         .execute_sql(

@@ -4,7 +4,7 @@ use crate::common::create_executor;
 fn test_create_trigger_before_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE trigger_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE trigger_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -22,10 +22,10 @@ fn test_create_trigger_before_insert() {
 fn test_create_trigger_after_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE after_insert_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE after_insert_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE audit_log (action STRING, record_id INT64)")
+        .execute_sql("CREATE TABLE audit_log (action TEXT, record_id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -41,7 +41,7 @@ fn test_create_trigger_after_insert() {
 fn test_create_trigger_before_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE update_test (id INT64, val INT64, updated_at TIMESTAMP)")
+        .execute_sql("CREATE TABLE update_test (id INTEGER, val INTEGER, updated_at TIMESTAMP)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -57,7 +57,7 @@ fn test_create_trigger_before_update() {
 fn test_create_trigger_after_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE after_update_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE after_update_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -73,7 +73,7 @@ fn test_create_trigger_after_update() {
 fn test_create_trigger_before_delete() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE delete_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE delete_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -89,7 +89,7 @@ fn test_create_trigger_before_delete() {
 fn test_create_trigger_after_delete() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE after_delete_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE after_delete_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -105,7 +105,7 @@ fn test_create_trigger_after_delete() {
 fn test_create_trigger_instead_of() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE base_table (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE base_table (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW base_view AS SELECT * FROM base_table")
@@ -124,7 +124,7 @@ fn test_create_trigger_instead_of() {
 fn test_create_trigger_for_each_statement() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE stmt_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE stmt_trigger_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -140,7 +140,7 @@ fn test_create_trigger_for_each_statement() {
 fn test_create_trigger_with_when() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE conditional_trigger_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE conditional_trigger_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -157,7 +157,7 @@ fn test_create_trigger_with_when() {
 fn test_create_trigger_truncate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE truncate_test (id INT64)")
+        .execute_sql("CREATE TABLE truncate_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -173,7 +173,7 @@ fn test_create_trigger_truncate() {
 fn test_create_trigger_multiple_events() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE multi_event_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE multi_event_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -189,7 +189,7 @@ fn test_create_trigger_multiple_events() {
 fn test_create_trigger_update_of_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE column_trigger_test (id INT64, name STRING, val INT64)")
+        .execute_sql("CREATE TABLE column_trigger_test (id INTEGER, name TEXT, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -205,7 +205,7 @@ fn test_create_trigger_update_of_columns() {
 fn test_create_trigger_referencing_old_new() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ref_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE ref_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -222,7 +222,7 @@ fn test_create_trigger_referencing_old_new() {
 fn test_drop_trigger() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE drop_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE drop_trigger_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -241,7 +241,7 @@ fn test_drop_trigger() {
 fn test_drop_trigger_if_exists() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE drop_if_exists_test (id INT64)")
+        .execute_sql("CREATE TABLE drop_if_exists_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("DROP TRIGGER IF EXISTS nonexistent ON drop_if_exists_test");
@@ -252,7 +252,7 @@ fn test_drop_trigger_if_exists() {
 fn test_drop_trigger_cascade() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cascade_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE cascade_trigger_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -272,7 +272,7 @@ fn test_drop_trigger_cascade() {
 fn test_alter_trigger_rename() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rename_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE rename_trigger_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -292,7 +292,7 @@ fn test_alter_trigger_rename() {
 fn test_enable_trigger() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE enable_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE enable_trigger_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -311,7 +311,7 @@ fn test_enable_trigger() {
 fn test_disable_trigger() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE disable_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE disable_trigger_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -331,7 +331,7 @@ fn test_disable_trigger() {
 fn test_enable_all_triggers() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE all_triggers_test (id INT64)")
+        .execute_sql("CREATE TABLE all_triggers_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("ALTER TABLE all_triggers_test ENABLE TRIGGER ALL");
@@ -342,7 +342,7 @@ fn test_enable_all_triggers() {
 fn test_disable_all_triggers() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE disable_all_test (id INT64)")
+        .execute_sql("CREATE TABLE disable_all_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("ALTER TABLE disable_all_test DISABLE TRIGGER ALL");
@@ -353,7 +353,7 @@ fn test_disable_all_triggers() {
 fn test_enable_user_triggers() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE user_triggers_test (id INT64)")
+        .execute_sql("CREATE TABLE user_triggers_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("ALTER TABLE user_triggers_test ENABLE TRIGGER USER");
@@ -364,7 +364,7 @@ fn test_enable_user_triggers() {
 fn test_trigger_replica_mode() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE replica_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE replica_trigger_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -384,7 +384,7 @@ fn test_trigger_replica_mode() {
 fn test_trigger_always_mode() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE always_trigger_test (id INT64)")
+        .execute_sql("CREATE TABLE always_trigger_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -404,7 +404,7 @@ fn test_trigger_always_mode() {
 fn test_create_constraint_trigger() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE constraint_trigger_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE constraint_trigger_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(

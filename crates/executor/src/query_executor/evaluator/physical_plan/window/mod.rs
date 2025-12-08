@@ -196,6 +196,41 @@ impl WindowExec {
             }
         }
 
+        if frame_units.is_none() && !order_by.is_empty() {
+            let func_name_upper = name.to_uppercase();
+
+            let is_ranking_function = matches!(
+                func_name_upper.as_str(),
+                "ROW_NUMBER"
+                    | "RANK"
+                    | "DENSE_RANK"
+                    | "NTILE"
+                    | "PERCENT_RANK"
+                    | "CUME_DIST"
+                    | "LAG"
+                    | "LEAD"
+                    | "FIRST_VALUE"
+                    | "LAST_VALUE"
+                    | "NTH_VALUE"
+            );
+
+            if !is_ranking_function && registry.has_aggregate(&func_name_upper) {
+                Self::compute_range_frame_window(
+                    name,
+                    args,
+                    &indices,
+                    order_by,
+                    batch,
+                    results,
+                    None,
+                    Some(0),
+                    exclude,
+                    registry,
+                );
+                return;
+            }
+        }
+
         match name.to_uppercase().as_str() {
             "ROW_NUMBER" => Self::compute_row_number(&indices, results),
             "RANK" => Self::compute_rank(&indices, order_by, batch, results, false),

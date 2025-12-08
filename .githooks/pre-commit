@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+
+echo "Running cargo fmt..."
+cargo fmt --all
+
+# Re-stage any files that were modified by cargo fmt
+git diff --name-only | xargs -r git add
+
+echo "Running cargo clippy..."
+cargo clippy --workspace --all-targets -- -D warnings
+
+echo "Pre-commit checks passed!"

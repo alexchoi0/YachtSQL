@@ -164,6 +164,7 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
                     let geom = geography::parse_wkt(wkt)?;
                     let type_name = match geom {
                         geography::Geometry::Point { .. } => "ST_Point",
+                        geography::Geometry::MultiPoint { .. } => "ST_MultiPoint",
                         geography::Geometry::LineString { .. } => "ST_LineString",
                         geography::Geometry::Polygon { .. } => "ST_Polygon",
                         geography::Geometry::Empty => "ST_GeomCollection",

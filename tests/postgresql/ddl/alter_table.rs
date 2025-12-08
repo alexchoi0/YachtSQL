@@ -6,7 +6,7 @@ fn test_alter_table_add_column() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
 
     executor
@@ -14,7 +14,7 @@ fn test_alter_table_add_column() {
         .unwrap();
 
     executor
-        .execute_sql("ALTER TABLE users ADD COLUMN age INT64")
+        .execute_sql("ALTER TABLE users ADD COLUMN age INTEGER")
         .unwrap();
 
     executor
@@ -33,7 +33,7 @@ fn test_alter_table_drop_column() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT, age INTEGER)")
         .unwrap();
 
     executor
@@ -54,7 +54,7 @@ fn test_alter_table_rename_column() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
 
     executor
@@ -77,7 +77,7 @@ fn test_alter_table_rename_table() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE old_name (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE old_name (id INTEGER, name TEXT)")
         .unwrap();
 
     executor
@@ -98,7 +98,7 @@ fn test_alter_table_add_column_with_default() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
 
     executor
@@ -106,7 +106,7 @@ fn test_alter_table_add_column_with_default() {
         .unwrap();
 
     executor
-        .execute_sql("ALTER TABLE users ADD COLUMN status STRING DEFAULT 'active'")
+        .execute_sql("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
         .unwrap();
 
     let result = executor.execute_sql("SELECT * FROM users").unwrap();
@@ -119,7 +119,7 @@ fn test_alter_table_add_constraint() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, email STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, email TEXT)")
         .unwrap();
 
     executor
@@ -141,7 +141,7 @@ fn test_alter_table_drop_constraint() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, email STRING UNIQUE)")
+        .execute_sql("CREATE TABLE users (id INTEGER, email TEXT UNIQUE)")
         .unwrap();
 
     executor
@@ -161,7 +161,7 @@ fn test_alter_table_set_not_null() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
 
     executor
@@ -181,7 +181,7 @@ fn test_alter_table_drop_not_null() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING NOT NULL)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT NOT NULL)")
         .unwrap();
 
     executor
@@ -202,7 +202,7 @@ fn test_alter_table_set_default() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, status STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, status TEXT)")
         .unwrap();
 
     executor
@@ -223,7 +223,7 @@ fn test_alter_table_drop_default() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, status STRING DEFAULT 'active')")
+        .execute_sql("CREATE TABLE users (id INTEGER, status TEXT DEFAULT 'active')")
         .unwrap();
 
     executor

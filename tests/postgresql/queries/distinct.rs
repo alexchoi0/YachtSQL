@@ -5,7 +5,7 @@ use crate::common::create_executor;
 fn test_distinct_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (name STRING)")
+        .execute_sql("CREATE TABLE items (name TEXT)")
         .unwrap();
     executor
         .execute_sql(
@@ -23,7 +23,7 @@ fn test_distinct_basic() {
 fn test_distinct_integers() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nums (val INT64)")
+        .execute_sql("CREATE TABLE nums (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (1), (2), (1), (3), (2), (1)")
@@ -39,7 +39,7 @@ fn test_distinct_integers() {
 fn test_distinct_multiple_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pairs (a INT64, b INT64)")
+        .execute_sql("CREATE TABLE pairs (a INTEGER, b INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pairs VALUES (1, 1), (1, 2), (1, 1), (2, 1), (1, 2)")
@@ -55,7 +55,7 @@ fn test_distinct_multiple_columns() {
 fn test_distinct_with_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (category STRING, name STRING)")
+        .execute_sql("CREATE TABLE items (category TEXT, name TEXT)")
         .unwrap();
     executor.execute_sql("INSERT INTO items VALUES ('fruit', 'apple'), ('fruit', 'apple'), ('veg', 'carrot'), ('fruit', 'banana')").unwrap();
 
@@ -70,7 +70,7 @@ fn test_distinct_with_where() {
 fn test_distinct_all() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nums (val INT64)")
+        .execute_sql("CREATE TABLE nums (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (1), (2), (1), (3)")
@@ -86,7 +86,7 @@ fn test_distinct_all() {
 fn test_distinct_on_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE sales (product STRING, region STRING, amount INT64)")
+        .execute_sql("CREATE TABLE sales (product TEXT, region TEXT, amount INTEGER)")
         .unwrap();
     executor.execute_sql("INSERT INTO sales VALUES ('A', 'East', 100), ('A', 'West', 150), ('B', 'East', 200), ('B', 'West', 50)").unwrap();
 
@@ -98,7 +98,7 @@ fn test_distinct_on_basic() {
 fn test_distinct_with_order_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (name STRING, price INT64)")
+        .execute_sql("CREATE TABLE items (name TEXT, price INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -116,7 +116,7 @@ fn test_distinct_with_order_by() {
 fn test_distinct_with_limit() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nums (val INT64)")
+        .execute_sql("CREATE TABLE nums (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (3), (1), (2), (1), (3), (2)")
@@ -132,7 +132,7 @@ fn test_distinct_with_limit() {
 fn test_count_distinct() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (name STRING)")
+        .execute_sql("CREATE TABLE items (name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES ('a'), ('b'), ('a'), ('c'), ('b')")
@@ -148,7 +148,7 @@ fn test_count_distinct() {
 fn test_distinct_null_handling() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (val INT64)")
+        .execute_sql("CREATE TABLE items (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (1), (NULL), (2), (NULL), (1)")

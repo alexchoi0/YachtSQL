@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_map() {
     let mut executor = create_executor();
@@ -11,7 +10,6 @@ fn test_array_map() {
     assert_table_eq!(result, [[[2, 4, 6, 8, 10]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_map_string() {
     let mut executor = create_executor();
@@ -21,7 +19,6 @@ fn test_array_map_string() {
     assert_table_eq!(result, [[["HELLO", "WORLD"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_filter() {
     let mut executor = create_executor();
@@ -31,7 +28,6 @@ fn test_array_filter() {
     assert_table_eq!(result, [[[4, 5]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_filter_string() {
     let mut executor = create_executor();
@@ -41,7 +37,6 @@ fn test_array_filter_string() {
     assert_table_eq!(result, [[["hello", "world"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_exists() {
     let mut executor = create_executor();
@@ -51,7 +46,6 @@ fn test_array_exists() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_all() {
     let mut executor = create_executor();
@@ -61,7 +55,6 @@ fn test_array_all() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_first() {
     let mut executor = create_executor();
@@ -71,7 +64,6 @@ fn test_array_first() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_first_index() {
     let mut executor = create_executor();
@@ -81,7 +73,6 @@ fn test_array_first_index() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_last() {
     let mut executor = create_executor();
@@ -91,7 +82,6 @@ fn test_array_last() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_last_index() {
     let mut executor = create_executor();
@@ -101,7 +91,6 @@ fn test_array_last_index() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_count_matching() {
     let mut executor = create_executor();
@@ -111,7 +100,6 @@ fn test_array_count_matching() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_sum_lambda() {
     let mut executor = create_executor();
@@ -121,7 +109,6 @@ fn test_array_sum_lambda() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_avg_lambda() {
     let mut executor = create_executor();
@@ -131,7 +118,6 @@ fn test_array_avg_lambda() {
     assert_table_eq!(result, [[6.0]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_min_lambda() {
     let mut executor = create_executor();
@@ -141,7 +127,6 @@ fn test_array_min_lambda() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_max_lambda() {
     let mut executor = create_executor();
@@ -151,7 +136,6 @@ fn test_array_max_lambda() {
     assert_table_eq!(result, [[-1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_sort_lambda() {
     let mut executor = create_executor();
@@ -161,7 +145,6 @@ fn test_array_sort_lambda() {
     assert_table_eq!(result, [[[5, 4, 3, 1, 1]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_reverse_sort_lambda() {
     let mut executor = create_executor();
@@ -171,7 +154,6 @@ fn test_array_reverse_sort_lambda() {
     assert_table_eq!(result, [[[5, 4, 3, 1, 1]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_split() {
     let mut executor = create_executor();
@@ -181,7 +163,6 @@ fn test_array_split() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_reduce() {
     let mut executor = create_executor();
@@ -191,7 +172,6 @@ fn test_array_reduce() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_reduce_max() {
     let mut executor = create_executor();
@@ -201,7 +181,6 @@ fn test_array_reduce_max() {
     assert_table_eq!(result, [[20]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_reduce_avg() {
     let mut executor = create_executor();
@@ -211,7 +190,6 @@ fn test_array_reduce_avg() {
     assert_table_eq!(result, [[3.0]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_reduce_in_rows() {
     let mut executor = create_executor();
@@ -221,7 +199,6 @@ fn test_array_reduce_in_rows() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_fold() {
     let mut executor = create_executor();
@@ -231,7 +208,6 @@ fn test_array_fold() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_cumulative_sum() {
     let mut executor = create_executor();
@@ -241,7 +217,6 @@ fn test_array_cumulative_sum() {
     assert_table_eq!(result, [[[1, 3, 6, 10, 15]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_cumulative_sum_non_negative() {
     let mut executor = create_executor();
@@ -251,7 +226,6 @@ fn test_array_cumulative_sum_non_negative() {
     assert_table_eq!(result, [[[1, 0, 3, 0, 5]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_difference() {
     let mut executor = create_executor();
@@ -261,7 +235,6 @@ fn test_array_difference() {
     assert_table_eq!(result, [[[0, 2, 3, 4, 5]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_array_map() {
     let mut executor = create_executor();
@@ -271,7 +244,6 @@ fn test_multi_array_map() {
     assert_table_eq!(result, [[[11, 22, 33]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lambda_with_tuple() {
     let mut executor = create_executor();
@@ -281,7 +253,6 @@ fn test_lambda_with_tuple() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_nested_lambda() {
     let mut executor = create_executor();
@@ -291,7 +262,6 @@ fn test_nested_lambda() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lambda_column() {
     let mut executor = create_executor();
@@ -320,7 +290,6 @@ fn test_lambda_column() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_compact() {
     let mut executor = create_executor();
@@ -330,7 +299,6 @@ fn test_array_compact() {
     assert_table_eq!(result, [[[1, 2, 3, 1]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_zip() {
     let mut executor = create_executor();
@@ -340,7 +308,6 @@ fn test_array_zip() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_auc() {
     let mut executor = create_executor();

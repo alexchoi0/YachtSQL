@@ -2739,6 +2739,74 @@ impl<'a> ExpressionEvaluator<'a> {
                     })
                 }
             }
+
+            BinaryOperator::PGBitwiseShiftLeft => {
+                if left.as_range().is_some() && right.as_range().is_some() {
+                    yachtsql_functions::range::range_strictly_left(left, right)
+                } else {
+                    Err(Error::UnsupportedFeature(format!(
+                        "Binary operator not supported: PGBitwiseShiftLeft for {:?} and {:?}",
+                        left.data_type(),
+                        right.data_type()
+                    )))
+                }
+            }
+
+            BinaryOperator::PGBitwiseShiftRight => {
+                if left.as_range().is_some() && right.as_range().is_some() {
+                    yachtsql_functions::range::range_strictly_right(left, right)
+                } else {
+                    Err(Error::UnsupportedFeature(format!(
+                        "Binary operator not supported: PGBitwiseShiftRight for {:?} and {:?}",
+                        left.data_type(),
+                        right.data_type()
+                    )))
+                }
+            }
+
+            BinaryOperator::PGCustomBinaryOperator(op_parts) => {
+                let op_name = op_parts
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
+                match op_name.as_str() {
+                    "-|-" => {
+                        if left.as_range().is_some() && right.as_range().is_some() {
+                            yachtsql_functions::range::range_adjacent(left, right)
+                        } else {
+                            Err(Error::UnsupportedFeature(format!(
+                                "Operator -|- not supported for {:?} and {:?}",
+                                left.data_type(),
+                                right.data_type()
+                            )))
+                        }
+                    }
+                    _ => Err(Error::UnsupportedFeature(format!(
+                        "Custom binary operator not supported: {:?}",
+                        op_name
+                    ))),
+                }
+            }
+
+            BinaryOperator::Custom(op_name) => match op_name.as_str() {
+                "-|-" => {
+                    if left.as_range().is_some() && right.as_range().is_some() {
+                        yachtsql_functions::range::range_adjacent(left, right)
+                    } else {
+                        Err(Error::UnsupportedFeature(format!(
+                            "Operator -|- not supported for {:?} and {:?}",
+                            left.data_type(),
+                            right.data_type()
+                        )))
+                    }
+                }
+                _ => Err(Error::UnsupportedFeature(format!(
+                    "Custom binary operator not supported: {:?}",
+                    op_name
+                ))),
+            },
+
             _ => Err(Error::UnsupportedFeature(format!(
                 "Arithmetic operator {:?} not supported",
                 op
@@ -7386,6 +7454,7 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Inet => Some("inet"),
             DataType::Cidr => Some("cidr"),
             DataType::Hstore => Some("hstore"),
+            DataType::Map(_, _) => Some("map"),
             DataType::Custom(_) => Some("composite"),
             DataType::Unknown => None,
             DataType::MacAddr => Some("macaddr"),

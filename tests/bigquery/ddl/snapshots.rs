@@ -238,7 +238,7 @@ fn test_snapshot_complex_table() {
     executor
         .execute_sql(
             "INSERT INTO complex_source VALUES
-            (1, STRUCT('test', ARRAY[1, 2, 3], CURRENT_TIMESTAMP())",
+            (1, STRUCT('test', [1, 2, 3], CURRENT_TIMESTAMP())",
         )
         .unwrap();
 

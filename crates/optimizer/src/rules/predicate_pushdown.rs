@@ -182,6 +182,7 @@ impl PredicatePushdown {
                 refs.extend(Self::get_column_references(right));
                 refs
             }
+            Expr::Lambda { body, .. } => Self::get_column_references(body),
         }
     }
 

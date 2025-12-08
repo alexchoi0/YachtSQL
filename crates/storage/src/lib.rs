@@ -56,8 +56,7 @@ pub use table::{
 };
 pub use temp_storage::{OnCommitAction, TempStorage, TempTableMetadata};
 pub use transaction::{
-    IsolationLevel, PendingChanges, Savepoint, SharedTransactionState, Transaction,
-    TransactionManager, TransactionScope,
+    IsolationLevel, PendingChanges, Savepoint, Transaction, TransactionManager, TransactionScope,
 };
 pub use trigger::{TriggerEvent, TriggerLevel, TriggerMetadata, TriggerRegistry, TriggerTiming};
 pub use type_registry::{TypeDefinition, TypeRegistry, UserDefinedType};

@@ -7,6 +7,7 @@ pub enum Geometry {
     Point { lon: f64, lat: f64 },
     LineString { points: Vec<(f64, f64)> },
     Polygon { rings: Vec<Vec<(f64, f64)>> },
+    MultiPoint { points: Vec<(f64, f64)> },
     Empty,
 }
 
@@ -86,6 +87,16 @@ impl Geometry {
             Geometry::Point { lon, lat } => {
                 format!(r#"{{"type":"Point","coordinates":[{},{}]}}"#, lon, lat)
             }
+            Geometry::MultiPoint { points } => {
+                let coords: Vec<String> = points
+                    .iter()
+                    .map(|(lon, lat)| format!("[{},{}]", lon, lat))
+                    .collect();
+                format!(
+                    r#"{{"type":"MultiPoint","coordinates":[{}]}}"#,
+                    coords.join(",")
+                )
+            }
             Geometry::LineString { points } => {
                 let coords: Vec<String> = points
                     .iter()
@@ -145,6 +156,7 @@ impl Geometry {
     pub fn dimension(&self) -> i32 {
         match self {
             Geometry::Point { .. } => 0,
+            Geometry::MultiPoint { .. } => 0,
             Geometry::LineString { .. } => 1,
             Geometry::Polygon { .. } => 2,
             Geometry::Empty => -1,
@@ -154,7 +166,7 @@ impl Geometry {
     fn bounding_box(&self) -> (f64, f64, f64, f64) {
         match self {
             Geometry::Point { lon, lat } => (*lon, *lat, *lon, *lat),
-            Geometry::LineString { points } => {
+            Geometry::LineString { points } | Geometry::MultiPoint { points } => {
                 let mut min_lon = f64::MAX;
                 let mut min_lat = f64::MAX;
                 let mut max_lon = f64::MIN;
@@ -192,6 +204,12 @@ impl Geometry {
             Geometry::Point { lon, lat } => {
                 validate_longitude(*lon)?;
                 validate_latitude(*lat)?;
+            }
+            Geometry::MultiPoint { points } => {
+                for (lon, lat) in points {
+                    validate_longitude(*lon)?;
+                    validate_latitude(*lat)?;
+                }
             }
             Geometry::LineString { points } => {
                 if points.len() < 2 {
@@ -241,6 +259,13 @@ impl Geometry {
     pub fn to_wkt(&self) -> String {
         match self {
             Geometry::Point { lon, lat } => format!("POINT({} {})", lon, lat),
+            Geometry::MultiPoint { points } => {
+                let coords: Vec<String> = points
+                    .iter()
+                    .map(|(lon, lat)| format!("({} {})", lon, lat))
+                    .collect();
+                format!("MULTIPOINT({})", coords.join(", "))
+            }
             Geometry::LineString { points } => {
                 let coords: Vec<String> = points
                     .iter()
@@ -261,7 +286,7 @@ impl Geometry {
                     .collect();
                 format!("POLYGON({})", ring_strs.join(", "))
             }
-            Geometry::Empty => "POINT EMPTY".to_string(),
+            Geometry::Empty => "GEOMETRYCOLLECTION EMPTY".to_string(),
         }
     }
 }
@@ -413,7 +438,13 @@ fn parse_geojson_polygon(coords: &serde_json::Value) -> Result<Geometry> {
 pub fn parse_wkt(wkt: &str) -> Result<Geometry> {
     let wkt = wkt.trim();
 
-    if let Some(rest) = wkt.strip_prefix("POINT") {
+    if wkt.eq_ignore_ascii_case("GEOMETRYCOLLECTION EMPTY") {
+        return Ok(Geometry::Empty);
+    }
+
+    if let Some(rest) = wkt.strip_prefix("MULTIPOINT") {
+        parse_wkt_multipoint(rest.trim())
+    } else if let Some(rest) = wkt.strip_prefix("POINT") {
         parse_wkt_point(rest.trim())
     } else if let Some(rest) = wkt.strip_prefix("LINESTRING") {
         parse_wkt_linestring(rest.trim())
@@ -450,6 +481,38 @@ fn parse_wkt_point(rest: &str) -> Result<Geometry> {
         .map_err(|_| Error::invalid_query(format!("Invalid latitude value: '{}'", parts[1])))?;
 
     let geom = Geometry::Point { lon, lat };
+    geom.validate()?;
+    Ok(geom)
+}
+
+fn parse_wkt_multipoint(rest: &str) -> Result<Geometry> {
+    if rest.eq_ignore_ascii_case("EMPTY") {
+        return Ok(Geometry::Empty);
+    }
+
+    let rest = rest.trim();
+    let rest = rest.trim_start_matches('(').trim_end_matches(')');
+
+    let mut points = Vec::new();
+    for part in rest.split(',') {
+        let part = part.trim().trim_matches(|c| c == '(' || c == ')').trim();
+        let parts: Vec<&str> = part.split_whitespace().collect();
+        if parts.len() != 2 {
+            return Err(Error::invalid_query(format!(
+                "Invalid MULTIPOINT coordinate: '{}'",
+                part
+            )));
+        }
+        let lon: f64 = parts[0].parse().map_err(|_| {
+            Error::invalid_query(format!("Invalid longitude value: '{}'", parts[0]))
+        })?;
+        let lat: f64 = parts[1]
+            .parse()
+            .map_err(|_| Error::invalid_query(format!("Invalid latitude value: '{}'", parts[1])))?;
+        points.push((lon, lat));
+    }
+
+    let geom = Geometry::MultiPoint { points };
     geom.validate()?;
     Ok(geom)
 }

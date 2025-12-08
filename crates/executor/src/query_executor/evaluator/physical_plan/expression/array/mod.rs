@@ -12,6 +12,7 @@ mod array_sort;
 mod generate_array;
 mod generate_date_array;
 mod generate_timestamp_array;
+pub mod higher_order;
 
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::Value;

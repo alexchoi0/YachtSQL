@@ -33,7 +33,7 @@ fn test_decimal_type() {
 fn test_numeric_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE prices (id INT64, price NUMERIC(10,2))")
+        .execute_sql("CREATE TABLE prices (id INTEGER, price NUMERIC(10,2))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO prices VALUES (1, 99.99)")

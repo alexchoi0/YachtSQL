@@ -222,6 +222,7 @@ impl SortExec {
                 Self::validate_expr_columns(left, schema)?;
                 Self::validate_expr_columns(right, schema)
             }
+            Expr::Lambda { body, .. } => Self::validate_expr_columns(body, schema),
         }
     }
 

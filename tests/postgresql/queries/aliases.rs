@@ -35,7 +35,7 @@ fn test_multiple_column_aliases() {
 fn test_table_alias_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')")
@@ -51,7 +51,7 @@ fn test_table_alias_basic() {
 fn test_table_alias_with_as() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'Alice')")
@@ -67,10 +67,10 @@ fn test_table_alias_with_as() {
 fn test_table_alias_in_join() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, user_id INT64, amount INT64)")
+        .execute_sql("CREATE TABLE orders (id INTEGER, user_id INTEGER, amount INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')")
@@ -87,7 +87,7 @@ fn test_table_alias_in_join() {
 fn test_alias_in_order_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (val INT64)")
+        .execute_sql("CREATE TABLE items (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (3), (1), (2)")
@@ -104,7 +104,7 @@ fn test_alias_in_order_by() {
 fn test_alias_in_group_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE sales (category STRING, amount INT64)")
+        .execute_sql("CREATE TABLE sales (category TEXT, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO sales VALUES ('A', 100), ('B', 200), ('A', 150)")
@@ -122,7 +122,7 @@ fn test_alias_in_group_by() {
 fn test_subquery_alias() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nums (val INT64)")
+        .execute_sql("CREATE TABLE nums (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (1), (2), (3)")
@@ -138,7 +138,7 @@ fn test_subquery_alias() {
 fn test_expression_alias() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (price INT64, qty INT64)")
+        .execute_sql("CREATE TABLE items (price INTEGER, qty INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (10, 5), (20, 3)")
@@ -161,7 +161,7 @@ fn test_quoted_alias() {
 fn test_alias_with_aggregate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nums (val INT64)")
+        .execute_sql("CREATE TABLE nums (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (1), (2), (3), (4), (5)")

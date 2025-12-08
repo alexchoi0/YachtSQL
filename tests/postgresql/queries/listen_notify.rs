@@ -101,7 +101,7 @@ fn test_listen_multiple_channels() {
 fn test_notify_from_trigger() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE notify_test (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE notify_test (id INTEGER, data TEXT)")
         .ok();
 
     let result = executor.execute_sql(
@@ -119,7 +119,7 @@ fn test_notify_from_trigger() {
 fn test_notify_trigger_on_insert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE notify_ins (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE notify_ins (id INTEGER, data TEXT)")
         .ok();
     executor
         .execute_sql(
@@ -142,7 +142,7 @@ fn test_notify_trigger_on_insert() {
 fn test_notify_trigger_on_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE notify_upd (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE notify_upd (id INTEGER, data TEXT)")
         .ok();
     executor
         .execute_sql(
@@ -165,7 +165,7 @@ fn test_notify_trigger_on_update() {
 fn test_notify_trigger_on_delete() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE notify_del (id INT64, data TEXT)")
+        .execute_sql("CREATE TABLE notify_del (id INTEGER, data TEXT)")
         .ok();
     executor
         .execute_sql(
@@ -313,7 +313,7 @@ fn test_listen_in_procedure() {
 fn test_notify_row_to_json() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE notify_json (id INT64, name TEXT, value INT64)")
+        .execute_sql("CREATE TABLE notify_json (id INTEGER, name TEXT, value INTEGER)")
         .ok();
     executor
         .execute_sql("INSERT INTO notify_json VALUES (1, 'test', 100)")

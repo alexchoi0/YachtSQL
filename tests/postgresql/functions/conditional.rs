@@ -23,7 +23,7 @@ fn test_case_searched() {
 fn test_case_multiple_conditions() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
+        .execute_sql("CREATE TABLE scores (name TEXT, score INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO scores VALUES ('A', 95), ('B', 75), ('C', 55)")
@@ -125,7 +125,7 @@ fn test_if_with_expression() {
 fn test_case_in_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (name STRING, value INT64)")
+        .execute_sql("CREATE TABLE items (name TEXT, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES ('A', 10), ('B', 20), ('C', 30)")
@@ -150,7 +150,7 @@ fn test_nested_case() {
 fn test_coalesce_in_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (name STRING, value INT64)")
+        .execute_sql("CREATE TABLE items (name TEXT, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES ('A', NULL), ('B', 10), ('C', NULL)")

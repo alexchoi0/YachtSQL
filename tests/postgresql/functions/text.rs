@@ -263,7 +263,7 @@ fn test_starts_with_false() {
 fn test_string_agg() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE names (name STRING)")
+        .execute_sql("CREATE TABLE names (name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO names VALUES ('Alice'), ('Bob'), ('Charlie')")

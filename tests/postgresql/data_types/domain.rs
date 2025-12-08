@@ -4,21 +4,21 @@ use crate::common::create_executor;
 #[test]
 fn test_create_domain_basic() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("CREATE DOMAIN positive_int AS INT64 CHECK (VALUE > 0)");
+    let result = executor.execute_sql("CREATE DOMAIN positive_int AS INTEGER CHECK (VALUE > 0)");
     assert!(result.is_ok() || result.is_err());
 }
 
 #[test]
 fn test_domain_with_not_null() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("CREATE DOMAIN non_null_string AS STRING NOT NULL");
+    let result = executor.execute_sql("CREATE DOMAIN non_null_string AS TEXT NOT NULL");
     assert!(result.is_ok() || result.is_err());
 }
 
 #[test]
 fn test_domain_with_default() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("CREATE DOMAIN status_type AS STRING DEFAULT 'pending'");
+    let result = executor.execute_sql("CREATE DOMAIN status_type AS TEXT DEFAULT 'pending'");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -26,10 +26,10 @@ fn test_domain_with_default() {
 fn test_domain_in_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN email AS STRING CHECK (VALUE LIKE '%@%')")
+        .execute_sql("CREATE DOMAIN email AS TEXT CHECK (VALUE LIKE '%@%')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, email email)")
+        .execute_sql("CREATE TABLE users (id INTEGER, email email)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'test@example.com')")
@@ -43,10 +43,10 @@ fn test_domain_in_table() {
 fn test_domain_check_violation() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN positive AS INT64 CHECK (VALUE > 0)")
+        .execute_sql("CREATE DOMAIN positive AS INTEGER CHECK (VALUE > 0)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE pos_test (id INT64, val positive)")
+        .execute_sql("CREATE TABLE pos_test (id INTEGER, val positive)")
         .unwrap();
 
     let result = executor.execute_sql("INSERT INTO pos_test VALUES (1, -5)");
@@ -57,10 +57,10 @@ fn test_domain_check_violation() {
 fn test_domain_null_handling() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN nullable_pos AS INT64 CHECK (VALUE IS NULL OR VALUE > 0)")
+        .execute_sql("CREATE DOMAIN nullable_pos AS INTEGER CHECK (VALUE IS NULL OR VALUE > 0)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE null_pos (id INT64, val nullable_pos)")
+        .execute_sql("CREATE TABLE null_pos (id INTEGER, val nullable_pos)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO null_pos VALUES (1, NULL)")
@@ -74,7 +74,7 @@ fn test_domain_null_handling() {
 fn test_domain_multiple_checks() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE DOMAIN bounded_int AS INT64
+        "CREATE DOMAIN bounded_int AS INTEGER
          CHECK (VALUE >= 0)
          CHECK (VALUE <= 100)",
     );
@@ -85,7 +85,7 @@ fn test_domain_multiple_checks() {
 fn test_domain_named_constraint() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
-        "CREATE DOMAIN percentage AS INT64
+        "CREATE DOMAIN percentage AS INTEGER
          CONSTRAINT percentage_range CHECK (VALUE >= 0 AND VALUE <= 100)",
     );
     assert!(result.is_ok() || result.is_err());
@@ -95,7 +95,7 @@ fn test_domain_named_constraint() {
 fn test_drop_domain() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN temp_domain AS INT64")
+        .execute_sql("CREATE DOMAIN temp_domain AS INTEGER")
         .unwrap();
     let result = executor.execute_sql("DROP DOMAIN temp_domain");
     assert!(result.is_ok() || result.is_err());
@@ -105,10 +105,10 @@ fn test_drop_domain() {
 fn test_drop_domain_cascade() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN cascade_dom AS INT64")
+        .execute_sql("CREATE DOMAIN cascade_dom AS INTEGER")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE cascade_table (id INT64, val cascade_dom)")
+        .execute_sql("CREATE TABLE cascade_table (id INTEGER, val cascade_dom)")
         .unwrap();
     let result = executor.execute_sql("DROP DOMAIN cascade_dom CASCADE");
     assert!(result.is_ok() || result.is_err());
@@ -118,10 +118,10 @@ fn test_drop_domain_cascade() {
 fn test_drop_domain_restrict() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN restrict_dom AS INT64")
+        .execute_sql("CREATE DOMAIN restrict_dom AS INTEGER")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE restrict_table (id INT64, val restrict_dom)")
+        .execute_sql("CREATE TABLE restrict_table (id INTEGER, val restrict_dom)")
         .unwrap();
     let result = executor.execute_sql("DROP DOMAIN restrict_dom RESTRICT");
     assert!(result.is_err() || result.is_ok());
@@ -131,7 +131,7 @@ fn test_drop_domain_restrict() {
 fn test_alter_domain_add_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN alt_add AS INT64")
+        .execute_sql("CREATE DOMAIN alt_add AS INTEGER")
         .unwrap();
     let result =
         executor.execute_sql("ALTER DOMAIN alt_add ADD CONSTRAINT positive CHECK (VALUE > 0)");
@@ -142,7 +142,7 @@ fn test_alter_domain_add_constraint() {
 fn test_alter_domain_drop_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN alt_drop AS INT64 CONSTRAINT pos CHECK (VALUE > 0)")
+        .execute_sql("CREATE DOMAIN alt_drop AS INTEGER CONSTRAINT pos CHECK (VALUE > 0)")
         .unwrap();
     let result = executor.execute_sql("ALTER DOMAIN alt_drop DROP CONSTRAINT pos");
     assert!(result.is_ok() || result.is_err());
@@ -152,7 +152,7 @@ fn test_alter_domain_drop_constraint() {
 fn test_alter_domain_set_default() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN alt_def AS INT64")
+        .execute_sql("CREATE DOMAIN alt_def AS INTEGER")
         .unwrap();
     let result = executor.execute_sql("ALTER DOMAIN alt_def SET DEFAULT 0");
     assert!(result.is_ok() || result.is_err());
@@ -162,7 +162,7 @@ fn test_alter_domain_set_default() {
 fn test_alter_domain_drop_default() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN alt_drop_def AS INT64 DEFAULT 0")
+        .execute_sql("CREATE DOMAIN alt_drop_def AS INTEGER DEFAULT 0")
         .unwrap();
     let result = executor.execute_sql("ALTER DOMAIN alt_drop_def DROP DEFAULT");
     assert!(result.is_ok() || result.is_err());
@@ -172,7 +172,7 @@ fn test_alter_domain_drop_default() {
 fn test_alter_domain_set_not_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN alt_nn AS INT64")
+        .execute_sql("CREATE DOMAIN alt_nn AS INTEGER")
         .unwrap();
     let result = executor.execute_sql("ALTER DOMAIN alt_nn SET NOT NULL");
     assert!(result.is_ok() || result.is_err());
@@ -182,7 +182,7 @@ fn test_alter_domain_set_not_null() {
 fn test_alter_domain_drop_not_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN alt_drop_nn AS INT64 NOT NULL")
+        .execute_sql("CREATE DOMAIN alt_drop_nn AS INTEGER NOT NULL")
         .unwrap();
     let result = executor.execute_sql("ALTER DOMAIN alt_drop_nn DROP NOT NULL");
     assert!(result.is_ok() || result.is_err());
@@ -192,7 +192,7 @@ fn test_alter_domain_drop_not_null() {
 fn test_alter_domain_rename() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN old_name AS INT64")
+        .execute_sql("CREATE DOMAIN old_name AS INTEGER")
         .unwrap();
     let result = executor.execute_sql("ALTER DOMAIN old_name RENAME TO new_name");
     assert!(result.is_ok() || result.is_err());
@@ -202,7 +202,7 @@ fn test_alter_domain_rename() {
 fn test_domain_based_on_domain() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN base_dom AS INT64 CHECK (VALUE > 0)")
+        .execute_sql("CREATE DOMAIN base_dom AS INTEGER CHECK (VALUE > 0)")
         .unwrap();
     let result = executor.execute_sql("CREATE DOMAIN derived_dom AS base_dom CHECK (VALUE < 100)");
     assert!(result.is_ok() || result.is_err());
@@ -212,10 +212,10 @@ fn test_domain_based_on_domain() {
 fn test_domain_string_length() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN short_string AS STRING CHECK (LENGTH(VALUE) <= 10)")
+        .execute_sql("CREATE DOMAIN short_string AS TEXT CHECK (LENGTH(VALUE) <= 10)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE short_test (id INT64, val short_string)")
+        .execute_sql("CREATE TABLE short_test (id INTEGER, val short_string)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO short_test VALUES (1, 'short')")
@@ -230,10 +230,10 @@ fn test_domain_string_length() {
 fn test_domain_regex_check() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN zip_code AS STRING CHECK (VALUE ~ '^[0-9]{5}$')")
+        .execute_sql("CREATE DOMAIN zip_code AS TEXT CHECK (VALUE ~ '^[0-9]{5}$')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE addresses (id INT64, zip zip_code)")
+        .execute_sql("CREATE TABLE addresses (id INTEGER, zip zip_code)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO addresses VALUES (1, '12345')")
@@ -247,10 +247,10 @@ fn test_domain_regex_check() {
 fn test_domain_numeric_range() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN age AS INT64 CHECK (VALUE >= 0 AND VALUE <= 150)")
+        .execute_sql("CREATE DOMAIN age AS INTEGER CHECK (VALUE >= 0 AND VALUE <= 150)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE persons (id INT64, age age)")
+        .execute_sql("CREATE TABLE persons (id INTEGER, age age)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO persons VALUES (1, 25)")
@@ -264,11 +264,11 @@ fn test_domain_numeric_range() {
 fn test_domain_in_function_param() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN currency AS FLOAT64 CHECK (VALUE >= 0)")
+        .execute_sql("CREATE DOMAIN currency AS DOUBLE PRECISION CHECK (VALUE >= 0)")
         .unwrap();
 
     let result = executor.execute_sql(
-        "CREATE FUNCTION add_tax(amount currency) RETURNS FLOAT64
+        "CREATE FUNCTION add_tax(amount currency) RETURNS DOUBLE PRECISION
          AS $$ SELECT amount * 1.1; $$ LANGUAGE SQL",
     );
     assert!(result.is_ok() || result.is_err());
@@ -278,7 +278,7 @@ fn test_domain_in_function_param() {
 fn test_domain_cast() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN typed_int AS INT64")
+        .execute_sql("CREATE DOMAIN typed_int AS INTEGER")
         .unwrap();
 
     let result = executor.execute_sql("SELECT 42::typed_int");
@@ -289,10 +289,10 @@ fn test_domain_cast() {
 fn test_domain_array() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN score AS INT64 CHECK (VALUE >= 0 AND VALUE <= 100)")
+        .execute_sql("CREATE DOMAIN score AS INTEGER CHECK (VALUE >= 0 AND VALUE <= 100)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE exams (id INT64, scores score[])")
+        .execute_sql("CREATE TABLE exams (id INTEGER, scores score[])")
         .unwrap();
 
     let result = executor.execute_sql("INSERT INTO exams VALUES (1, ARRAY[85, 90, 95])");
@@ -303,7 +303,7 @@ fn test_domain_array() {
 fn test_domain_collation() {
     let mut executor = create_executor();
     let result =
-        executor.execute_sql("CREATE DOMAIN case_insensitive AS STRING COLLATE \"en_US.utf8\"");
+        executor.execute_sql("CREATE DOMAIN case_insensitive AS TEXT COLLATE \"en_US.utf8\"");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -311,10 +311,10 @@ fn test_domain_collation() {
 fn test_domain_validate_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN validate_dom AS INT64")
+        .execute_sql("CREATE DOMAIN validate_dom AS INTEGER")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE validate_table (id INT64, val validate_dom)")
+        .execute_sql("CREATE TABLE validate_table (id INTEGER, val validate_dom)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO validate_table VALUES (1, -5)")

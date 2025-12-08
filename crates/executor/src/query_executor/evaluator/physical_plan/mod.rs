@@ -85,6 +85,11 @@ pub trait SubqueryExecutor {
         &self,
         plan: &yachtsql_optimizer::plan::PlanNode,
     ) -> Result<Vec<yachtsql_core::types::Value>>;
+
+    fn execute_tuple_in_subquery(
+        &self,
+        plan: &yachtsql_optimizer::plan::PlanNode,
+    ) -> Result<Vec<Vec<yachtsql_core::types::Value>>>;
 }
 
 pub(crate) struct FeatureRegistryContextGuard {
@@ -1253,6 +1258,42 @@ impl TableValuedFunctionExec {
                     CastDataType::MacAddr8 => ast::DataType::Custom(
                         ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
                             "macaddr8",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Int4Range => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "int4range",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Int8Range => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "int8range",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::NumRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "numrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::TsRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "tsrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::TsTzRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "tstzrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::DateRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "daterange",
                         ))]),
                         vec![],
                     ),

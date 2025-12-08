@@ -3,7 +3,7 @@ use crate::common::create_executor;
 
 fn setup_table(executor: &mut yachtsql::QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE items (id INT64, name STRING, price INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER, name TEXT, price INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -93,7 +93,7 @@ fn test_offset_rows_fetch() {
 fn test_fetch_with_ties() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE scores (id INT64, score INT64)")
+        .execute_sql("CREATE TABLE scores (id INTEGER, score INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO scores VALUES (1, 100), (2, 90), (3, 90), (4, 80), (5, 80)")
@@ -124,7 +124,7 @@ fn test_fetch_first_percent() {
 fn test_fetch_first_percent_with_ties() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE percent_ties (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE percent_ties (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO percent_ties VALUES (1, 10), (2, 20), (3, 20), (4, 30)")
@@ -257,7 +257,7 @@ fn test_fetch_with_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE categories (item_id INT64, category STRING)")
+        .execute_sql("CREATE TABLE categories (item_id INTEGER, category TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO categories VALUES (1, 'Fruit'), (2, 'Fruit'), (3, 'Fruit')")

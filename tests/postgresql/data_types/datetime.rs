@@ -5,7 +5,7 @@ use crate::common::{create_executor, date};
 fn test_date_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (id INT64, event_date DATE)")
+        .execute_sql("CREATE TABLE events (id INTEGER, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES (1, '2024-01-15'), (2, '2024-06-30')")
@@ -21,7 +21,7 @@ fn test_date_column() {
 fn test_date_range_query() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES ('A', '2024-01-01'), ('B', '2024-03-15'), ('C', '2024-06-30'), ('D', '2024-12-31')")
@@ -37,7 +37,7 @@ fn test_date_range_query() {
 fn test_timestamp_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE logs (id INT64, created_at TIMESTAMP)")
+        .execute_sql("CREATE TABLE logs (id INTEGER, created_at TIMESTAMP)")
         .unwrap();
     executor
         .execute_sql(
@@ -53,7 +53,7 @@ fn test_timestamp_column() {
 fn test_date_null_handling() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql(
@@ -71,7 +71,7 @@ fn test_date_null_handling() {
 fn test_date_sorting() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES ('C', '2024-12-01'), ('A', '2024-01-01'), ('B', '2024-06-15')")
@@ -87,7 +87,7 @@ fn test_date_sorting() {
 fn test_date_group_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE sales (product STRING, sale_date DATE, amount INT64)")
+        .execute_sql("CREATE TABLE sales (product TEXT, sale_date DATE, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO sales VALUES ('A', '2024-01-01', 100), ('B', '2024-01-01', 150), ('C', '2024-01-02', 200)")
@@ -106,7 +106,7 @@ fn test_date_group_by() {
 fn test_timestamp_with_timezone_string() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE logs (message STRING, created_at TIMESTAMP)")
+        .execute_sql("CREATE TABLE logs (message TEXT, created_at TIMESTAMP)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO logs VALUES ('test', '2024-06-15 10:30:00')")
@@ -120,7 +120,7 @@ fn test_timestamp_with_timezone_string() {
 fn test_date_between() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES ('A', '2024-01-01'), ('B', '2024-03-15'), ('C', '2024-06-30'), ('D', '2024-12-31')")
@@ -136,7 +136,7 @@ fn test_date_between() {
 fn test_date_distinct() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES ('A', '2024-01-01'), ('B', '2024-01-01'), ('C', '2024-06-30')")

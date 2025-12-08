@@ -143,7 +143,7 @@ fn test_math_on_table() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE numbers (value INT64)")
+        .execute_sql("CREATE TABLE numbers (value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO numbers VALUES (10), (-5), (0)")

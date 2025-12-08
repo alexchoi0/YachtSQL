@@ -5,7 +5,7 @@ use crate::common::{create_executor, numeric};
 
 fn setup_users_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT, age INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -17,7 +17,7 @@ fn setup_users_table(executor: &mut QueryExecutor) {
 fn setup_products_table(executor: &mut QueryExecutor) {
     executor
         .execute_sql(
-            "CREATE TABLE products (id INT64, name STRING, price FLOAT64, in_stock BOOLEAN)",
+            "CREATE TABLE products (id INTEGER, name TEXT, price DOUBLE PRECISION, in_stock BOOLEAN)",
         )
         .unwrap();
     executor
@@ -27,7 +27,7 @@ fn setup_products_table(executor: &mut QueryExecutor) {
 
 fn setup_nullable_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE nullable_data (id INT64, value STRING)")
+        .execute_sql("CREATE TABLE nullable_data (id INTEGER, value TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable_data VALUES (1, 'a'), (2, NULL), (3, 'c')")
@@ -223,7 +223,7 @@ fn test_select_from_empty_table() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE empty_table (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE empty_table (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("SELECT * FROM empty_table").unwrap();

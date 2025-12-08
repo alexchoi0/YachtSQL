@@ -1585,6 +1585,14 @@ impl Accumulator for AvgAccumulator {
             return Ok(Value::null());
         }
 
+        if let Some(s) = self.sum.as_i64() {
+            return Ok(Value::float64(s as f64 / self.count as f64));
+        }
+
+        if let Some(s) = self.sum.as_f64() {
+            return Ok(Value::float64(s / self.count as f64));
+        }
+
         if let Some(s) = self.sum.as_numeric() {
             use rust_decimal::Decimal;
             let count_decimal = Decimal::from(self.count);
@@ -1595,14 +1603,6 @@ impl Accumulator for AvgAccumulator {
                 return Ok(Value::numeric(result));
             }
             return Ok(Value::numeric(result));
-        }
-
-        if let Some(s) = self.sum.as_i64() {
-            return Ok(Value::float64(s as f64 / self.count as f64));
-        }
-
-        if let Some(s) = self.sum.as_f64() {
-            return Ok(Value::float64(s / self.count as f64));
         }
 
         Ok(Value::null())

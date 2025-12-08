@@ -24,7 +24,7 @@ fn test_bytea_escape_literal() {
 fn test_bytea_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE binary_data (id INT64, data BYTES)")
+        .execute_sql("CREATE TABLE binary_data (id INTEGER, data BYTEA)")
         .unwrap();
     executor
         .execute_sql(r"INSERT INTO binary_data VALUES (1, B'\x48656c6c6f')")
@@ -96,7 +96,7 @@ fn test_bytea_comparison() {
 fn test_bytea_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bin_null (id INT64, data BYTES)")
+        .execute_sql("CREATE TABLE bin_null (id INTEGER, data BYTEA)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bin_null VALUES (1, NULL)")

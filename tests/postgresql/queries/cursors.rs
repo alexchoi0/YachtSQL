@@ -2,7 +2,7 @@ use crate::common::create_executor;
 
 fn setup_table(executor: &mut yachtsql::QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE cursor_data (id INT64, name STRING, val INT64)")
+        .execute_sql("CREATE TABLE cursor_data (id INTEGER, name TEXT, val INTEGER)")
         .unwrap();
     executor
         .execute_sql(

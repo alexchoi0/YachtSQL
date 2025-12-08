@@ -6,7 +6,7 @@ use crate::common::create_executor;
 fn test_information_schema_tables() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE info_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE info_test (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor
@@ -22,7 +22,7 @@ fn test_information_schema_tables() {
 fn test_information_schema_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE col_info (id INT64, name STRING, val FLOAT64)")
+        .execute_sql("CREATE TABLE col_info (id INTEGER, name TEXT, val DOUBLE PRECISION)")
         .unwrap();
 
     let result = executor
@@ -33,7 +33,11 @@ fn test_information_schema_columns() {
         .unwrap();
     assert_table_eq!(
         result,
-        [["id", "INT64"], ["name", "STRING"], ["val", "FLOAT64"],]
+        [
+            ["id", "INTEGER"],
+            ["name", "TEXT"],
+            ["val", "DOUBLE PRECISION"],
+        ]
     );
 }
 
@@ -42,7 +46,7 @@ fn test_information_schema_columns() {
 fn test_information_schema_column_ordinal() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ord_test (a INT64, b STRING, c BOOLEAN)")
+        .execute_sql("CREATE TABLE ord_test (a INTEGER, b TEXT, c BOOLEAN)")
         .unwrap();
 
     let result = executor
@@ -72,7 +76,7 @@ fn test_information_schema_schemata() {
 fn test_information_schema_views() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE view_base (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE view_base (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW info_view AS SELECT * FROM view_base")
@@ -89,7 +93,7 @@ fn test_information_schema_views() {
 fn test_information_schema_table_constraints() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE const_info (id INT64 PRIMARY KEY, name STRING UNIQUE)")
+        .execute_sql("CREATE TABLE const_info (id INTEGER PRIMARY KEY, name TEXT UNIQUE)")
         .unwrap();
 
     let result = executor
@@ -106,7 +110,7 @@ fn test_information_schema_table_constraints() {
 fn test_information_schema_key_column_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE key_info (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE key_info (id INTEGER PRIMARY KEY)")
         .unwrap();
 
     let result = executor
@@ -122,10 +126,12 @@ fn test_information_schema_key_column_usage() {
 fn test_information_schema_referential_constraints() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ref_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE ref_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE ref_child (id INT64, parent_id INT64 REFERENCES ref_parent(id))")
+        .execute_sql(
+            "CREATE TABLE ref_child (id INTEGER, parent_id INTEGER REFERENCES ref_parent(id))",
+        )
         .unwrap();
 
     let result = executor
@@ -140,7 +146,7 @@ fn test_information_schema_referential_constraints() {
 fn test_information_schema_check_constraints() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE check_info (id INT64, val INT64 CHECK (val > 0))")
+        .execute_sql("CREATE TABLE check_info (id INTEGER, val INTEGER CHECK (val > 0))")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -154,7 +160,7 @@ fn test_information_schema_check_constraints() {
 fn test_information_schema_column_privileges() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE priv_info (id INT64, secret STRING)")
+        .execute_sql("CREATE TABLE priv_info (id INTEGER, secret TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -168,7 +174,7 @@ fn test_information_schema_column_privileges() {
 fn test_information_schema_table_privileges() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tbl_priv (id INT64)")
+        .execute_sql("CREATE TABLE tbl_priv (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -183,7 +189,7 @@ fn test_information_schema_routines() {
     let mut executor = create_executor();
     executor
         .execute_sql(
-            "CREATE FUNCTION info_func(x INT64) RETURNS INT64 AS $$ SELECT x * 2 $$ LANGUAGE SQL",
+            "CREATE FUNCTION info_func(x INTEGER) RETURNS INTEGER AS $$ SELECT x * 2 $$ LANGUAGE SQL",
         )
         .unwrap();
 
@@ -198,7 +204,7 @@ fn test_information_schema_routines() {
 fn test_information_schema_parameters() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE FUNCTION param_func(a INT64, b STRING) RETURNS INT64 AS $$ SELECT a $$ LANGUAGE SQL"
+        "CREATE FUNCTION param_func(a INTEGER, b TEXT) RETURNS INTEGER AS $$ SELECT a $$ LANGUAGE SQL"
     ).unwrap();
 
     let result = executor.execute_sql(
@@ -212,7 +218,7 @@ fn test_information_schema_parameters() {
 fn test_information_schema_triggers() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE trig_base (id INT64)")
+        .execute_sql("CREATE TABLE trig_base (id INTEGER)")
         .unwrap();
     let _ = executor.execute_sql(
         "CREATE TRIGGER info_trigger BEFORE INSERT ON trig_base
@@ -244,7 +250,7 @@ fn test_information_schema_sequences() {
 fn test_information_schema_domains() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN positive_int AS INT64 CHECK (VALUE > 0)")
+        .execute_sql("CREATE DOMAIN positive_int AS INTEGER CHECK (VALUE > 0)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -258,10 +264,10 @@ fn test_information_schema_domains() {
 fn test_information_schema_column_domain_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE DOMAIN email AS STRING CHECK (VALUE LIKE '%@%')")
+        .execute_sql("CREATE DOMAIN email AS TEXT CHECK (VALUE LIKE '%@%')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE domain_usage (id INT64, contact email)")
+        .execute_sql("CREATE TABLE domain_usage (id INTEGER, contact email)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -275,7 +281,7 @@ fn test_information_schema_column_domain_usage() {
 fn test_information_schema_constraint_column_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ccu_test (id INT64 PRIMARY KEY, name STRING UNIQUE)")
+        .execute_sql("CREATE TABLE ccu_test (id INTEGER PRIMARY KEY, name TEXT UNIQUE)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -289,10 +295,12 @@ fn test_information_schema_constraint_column_usage() {
 fn test_information_schema_constraint_table_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ctu_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE ctu_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE ctu_child (id INT64, ref_id INT64 REFERENCES ctu_parent(id))")
+        .execute_sql(
+            "CREATE TABLE ctu_child (id INTEGER, ref_id INTEGER REFERENCES ctu_parent(id))",
+        )
         .unwrap();
 
     let result = executor.execute_sql(
@@ -306,7 +314,7 @@ fn test_information_schema_constraint_table_usage() {
 fn test_information_schema_element_types() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE arr_elem (id INT64, vals INT64[])")
+        .execute_sql("CREATE TABLE arr_elem (id INTEGER, vals INTEGER[])")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -320,7 +328,7 @@ fn test_information_schema_element_types() {
 fn test_information_schema_role_table_grants() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE role_grant (id INT64)")
+        .execute_sql("CREATE TABLE role_grant (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -334,7 +342,7 @@ fn test_information_schema_role_table_grants() {
 fn test_information_schema_role_column_grants() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE role_col_grant (id INT64, data STRING)")
+        .execute_sql("CREATE TABLE role_col_grant (id INTEGER, data TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -365,10 +373,10 @@ fn test_information_schema_applicable_roles() {
 fn test_information_schema_column_udt_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE my_type AS (x INT64, y INT64)")
+        .execute_sql("CREATE TYPE my_type AS (x INTEGER, y INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE udt_usage (id INT64, point my_type)")
+        .execute_sql("CREATE TABLE udt_usage (id INTEGER, point my_type)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -382,7 +390,7 @@ fn test_information_schema_column_udt_usage() {
 fn test_information_schema_user_defined_types() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE info_udt AS (a INT64, b STRING)")
+        .execute_sql("CREATE TYPE info_udt AS (a INTEGER, b TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -396,7 +404,7 @@ fn test_information_schema_user_defined_types() {
 fn test_information_schema_attributes() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE attr_type AS (field1 INT64, field2 STRING)")
+        .execute_sql("CREATE TYPE attr_type AS (field1 INTEGER, field2 TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -420,7 +428,7 @@ fn test_information_schema_data_type_privileges() {
 fn test_information_schema_routine_privileges() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION rout_priv() RETURNS INT64 AS $$ SELECT 1 $$ LANGUAGE SQL")
+        .execute_sql("CREATE FUNCTION rout_priv() RETURNS INTEGER AS $$ SELECT 1 $$ LANGUAGE SQL")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -448,7 +456,7 @@ fn test_information_schema_usage_privileges() {
 fn test_information_schema_udt_privileges() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TYPE udt_priv_type AS (x INT64)")
+        .execute_sql("CREATE TYPE udt_priv_type AS (x INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -462,7 +470,7 @@ fn test_information_schema_udt_privileges() {
 fn test_information_schema_view_column_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vcu_base (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE vcu_base (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW vcu_view AS SELECT id, name FROM vcu_base")
@@ -479,7 +487,7 @@ fn test_information_schema_view_column_usage() {
 fn test_information_schema_view_table_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vtu_base (id INT64)")
+        .execute_sql("CREATE TABLE vtu_base (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW vtu_view AS SELECT * FROM vtu_base")
@@ -497,7 +505,7 @@ fn test_information_schema_view_table_usage() {
 fn test_information_schema_view_routine_usage() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION vru_func() RETURNS INT64 AS $$ SELECT 42 $$ LANGUAGE SQL")
+        .execute_sql("CREATE FUNCTION vru_func() RETURNS INTEGER AS $$ SELECT 42 $$ LANGUAGE SQL")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW vru_view AS SELECT vru_func() AS val")
@@ -514,7 +522,7 @@ fn test_information_schema_view_routine_usage() {
 fn test_information_schema_column_options() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE col_opt (id INT64, data STRING)")
+        .execute_sql("CREATE TABLE col_opt (id INTEGER, data TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -660,7 +668,7 @@ fn test_information_schema_sql_sizing() {
 fn test_query_columns_by_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE query_cols (id INT64, name STRING, active BOOLEAN)")
+        .execute_sql("CREATE TABLE query_cols (id INTEGER, name TEXT, active BOOLEAN)")
         .unwrap();
 
     let result = executor
@@ -674,8 +682,8 @@ fn test_query_columns_by_table() {
     assert_table_eq!(
         result,
         [
-            ["id", "YES", "INT64"],
-            ["name", "YES", "STRING"],
+            ["id", "YES", "INTEGER"],
+            ["name", "YES", "TEXT"],
             ["active", "YES", "BOOLEAN"],
         ]
     );
@@ -686,10 +694,10 @@ fn test_query_columns_by_table() {
 fn test_query_tables_in_schema() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE schema_t1 (id INT64)")
+        .execute_sql("CREATE TABLE schema_t1 (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE schema_t2 (id INT64)")
+        .execute_sql("CREATE TABLE schema_t2 (id INTEGER)")
         .unwrap();
 
     let result = executor
@@ -710,7 +718,7 @@ fn test_query_tables_in_schema() {
 fn test_query_primary_keys() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pk_query (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE pk_query (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -727,10 +735,12 @@ fn test_query_primary_keys() {
 fn test_query_foreign_keys() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fk_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE fk_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE fk_child (id INT64, parent_id INT64 REFERENCES fk_parent(id))")
+        .execute_sql(
+            "CREATE TABLE fk_child (id INTEGER, parent_id INTEGER REFERENCES fk_parent(id))",
+        )
         .unwrap();
 
     let result = executor.execute_sql(
@@ -749,7 +759,7 @@ fn test_query_foreign_keys() {
 fn test_query_unique_constraints() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE unique_query (id INT64, email STRING UNIQUE)")
+        .execute_sql("CREATE TABLE unique_query (id INTEGER, email TEXT UNIQUE)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -766,7 +776,7 @@ fn test_query_unique_constraints() {
 fn test_query_check_constraints() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE check_query (id INT64, age INT64 CHECK (age >= 0))")
+        .execute_sql("CREATE TABLE check_query (id INTEGER, age INTEGER CHECK (age >= 0))")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -784,7 +794,7 @@ fn test_query_check_constraints() {
 fn test_column_defaults() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE def_query (id INT64, status STRING DEFAULT 'active')")
+        .execute_sql("CREATE TABLE def_query (id INTEGER, status TEXT DEFAULT 'active')")
         .unwrap();
 
     let result = executor
@@ -802,7 +812,7 @@ fn test_column_defaults() {
 fn test_nullable_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE null_query (id INT64 NOT NULL, name STRING)")
+        .execute_sql("CREATE TABLE null_query (id INTEGER NOT NULL, name TEXT)")
         .unwrap();
 
     let result = executor
@@ -820,7 +830,7 @@ fn test_nullable_columns() {
 fn test_information_schema_statistics() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE stat_query (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE stat_query (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX stat_idx ON stat_query (val)")
@@ -839,7 +849,7 @@ fn test_information_schema_statistics() {
 fn test_pg_catalog_pg_tables() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_tbl_test (id INT64)")
+        .execute_sql("CREATE TABLE pg_tbl_test (id INTEGER)")
         .unwrap();
 
     let result = executor
@@ -853,7 +863,7 @@ fn test_pg_catalog_pg_tables() {
 fn test_pg_catalog_pg_indexes() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_idx_base (id INT64)")
+        .execute_sql("CREATE TABLE pg_idx_base (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX pg_idx_test ON pg_idx_base (id)")
@@ -870,7 +880,7 @@ fn test_pg_catalog_pg_indexes() {
 fn test_pg_catalog_pg_views() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_view_base (id INT64)")
+        .execute_sql("CREATE TABLE pg_view_base (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW pg_view_test AS SELECT * FROM pg_view_base")
@@ -887,7 +897,7 @@ fn test_pg_catalog_pg_views() {
 fn test_pg_catalog_pg_class() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_class_test (id INT64)")
+        .execute_sql("CREATE TABLE pg_class_test (id INTEGER)")
         .unwrap();
 
     let result = executor
@@ -903,7 +913,7 @@ fn test_pg_catalog_pg_class() {
 fn test_pg_catalog_pg_attribute() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_attr_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE pg_attr_test (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor
@@ -943,7 +953,7 @@ fn test_pg_catalog_pg_type() {
 fn test_pg_catalog_pg_constraint() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_const_test (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE pg_const_test (id INTEGER PRIMARY KEY)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -958,7 +968,9 @@ fn test_pg_catalog_pg_constraint() {
 fn test_pg_catalog_pg_proc() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE FUNCTION pg_proc_test() RETURNS INT64 AS $$ SELECT 1 $$ LANGUAGE SQL")
+        .execute_sql(
+            "CREATE FUNCTION pg_proc_test() RETURNS INTEGER AS $$ SELECT 1 $$ LANGUAGE SQL",
+        )
         .unwrap();
 
     let result = executor
@@ -970,7 +982,7 @@ fn test_pg_catalog_pg_proc() {
 fn test_pg_catalog_pg_trigger() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_trig_base (id INT64)")
+        .execute_sql("CREATE TABLE pg_trig_base (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("SELECT tgname FROM pg_catalog.pg_trigger");
@@ -981,7 +993,7 @@ fn test_pg_catalog_pg_trigger() {
 fn test_pg_catalog_pg_index() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_index_base (id INT64)")
+        .execute_sql("CREATE TABLE pg_index_base (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX pg_index_test ON pg_index_base (id)")
@@ -1000,7 +1012,7 @@ fn test_pg_catalog_pg_index() {
 fn test_pg_catalog_pg_description() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE pg_desc_test (id INT64)")
+        .execute_sql("CREATE TABLE pg_desc_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("COMMENT ON TABLE pg_desc_test IS 'Test table'")

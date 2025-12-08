@@ -20,6 +20,7 @@ use super::super::expression_evaluator::ExpressionEvaluator;
 use super::super::window_functions::{WindowFunction, WindowFunctionType};
 use super::DdlExecutor;
 use crate::Table;
+use crate::information_schema::{InformationSchemaProvider, InformationSchemaTable};
 
 pub trait QueryExecutorTrait {
     fn execute_select(&mut self, stmt: &Statement, _original_sql: &str) -> Result<Table>;
@@ -1210,9 +1211,49 @@ impl QueryExecutor {
         let actual_table_id = self.resolve_table_name(&dataset_id, &table_id);
 
         if dataset_id.eq_ignore_ascii_case("information_schema") {
-            return Err(Error::unsupported_feature(
-                "information_schema is not supported".to_string(),
-            ));
+            debug_eprintln!(
+                "[executor::query] Handling information_schema query for table '{}'",
+                table_id
+            );
+            let info_table = InformationSchemaTable::from_str(&table_id)?;
+            let provider = InformationSchemaProvider::new(Rc::clone(&self.storage));
+            let (schema, rows) = provider.query(info_table)?;
+
+            let filtered_rows = if let Some(ref where_expr) = select.selection {
+                let evaluator = ExpressionEvaluator::new(&schema);
+                rows.into_iter()
+                    .filter(|row| evaluator.evaluate_where(where_expr, row).unwrap_or(false))
+                    .collect()
+            } else {
+                rows
+            };
+
+            let order_by_columns: Vec<String> = if let Some(order_by_clause) = order_by {
+                let expressions = match &order_by_clause.kind {
+                    OrderByKind::Expressions(exprs) => exprs,
+                    _ => &vec![],
+                };
+                let mut columns = Vec::new();
+                for order_expr in expressions {
+                    if let Ok(col_name) = self.extract_column_name(&order_expr.expr) {
+                        columns.push(col_name);
+                    } else {
+                        collect_column_refs_from_expr(&order_expr.expr, &mut columns);
+                    }
+                }
+                columns
+            } else {
+                vec![]
+            };
+
+            let (result_schema, result_rows) = self.project_rows_with_order_by(
+                filtered_rows,
+                &schema,
+                &select.projection,
+                &order_by_columns,
+            )?;
+
+            return self.rows_to_record_batch(result_schema, result_rows);
         }
 
         let view_info = {

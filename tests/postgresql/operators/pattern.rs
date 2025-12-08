@@ -71,7 +71,7 @@ fn test_ilike_with_wildcard() {
 fn test_like_in_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (name STRING)")
+        .execute_sql("CREATE TABLE items (name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES ('apple'), ('banana'), ('apricot'), ('cherry')")
@@ -87,7 +87,7 @@ fn test_like_in_where() {
 fn test_like_ends_with() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE files (name STRING)")
+        .execute_sql("CREATE TABLE files (name TEXT)")
         .unwrap();
     executor
         .execute_sql(
@@ -105,7 +105,7 @@ fn test_like_ends_with() {
 fn test_like_single_char() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE codes (code STRING)")
+        .execute_sql("CREATE TABLE codes (code TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO codes VALUES ('A1'), ('B2'), ('AB'), ('A12')")

@@ -148,6 +148,12 @@ impl ProjectionWithExprExec {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
+            CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
+            CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
+            CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
+            CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
+            CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
+            CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
             CastDataType::Custom(name, struct_fields) => {
                 if struct_fields.is_empty() {
                     DataType::Custom(name.clone())
@@ -174,9 +180,15 @@ impl ProjectionWithExprExec {
             | BinaryOp::GreaterThan
             | BinaryOp::GreaterThanOrEqual
             | BinaryOp::And
-            | BinaryOp::Or => Some(DataType::Bool),
+            | BinaryOp::Or
+            | BinaryOp::RangeAdjacent
+            | BinaryOp::RangeStrictlyLeft
+            | BinaryOp::RangeStrictlyRight => Some(DataType::Bool),
 
             BinaryOp::Add => match (&left_type, &right_type) {
+                (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
+                    Some(DataType::Range(rt.clone()))
+                }
                 (Some(DataType::Timestamp), Some(DataType::Interval))
                 | (Some(DataType::Interval), Some(DataType::Timestamp))
                 | (Some(DataType::TimestampTz), Some(DataType::Interval))
@@ -202,6 +214,9 @@ impl ProjectionWithExprExec {
                 (Some(DataType::Json), Some(DataType::String))
                 | (Some(DataType::Json), Some(DataType::Int64)) => Some(DataType::Json),
 
+                (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
+                    Some(DataType::Range(rt.clone()))
+                }
                 (Some(DataType::Timestamp), Some(DataType::Interval))
                 | (Some(DataType::TimestampTz), Some(DataType::Interval)) => {
                     Some(DataType::Timestamp)
@@ -228,6 +243,9 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
             BinaryOp::Multiply => match (&left_type, &right_type) {
+                (Some(DataType::Range(rt)), Some(DataType::Range(_))) => {
+                    Some(DataType::Range(rt.clone()))
+                }
                 (Some(DataType::Interval), Some(DataType::Int64))
                 | (Some(DataType::Interval), Some(DataType::Float64))
                 | (Some(DataType::Int64), Some(DataType::Interval))
@@ -513,9 +531,7 @@ impl ProjectionWithExprExec {
             | FunctionName::TrimRight
             | FunctionName::Replace
             | FunctionName::StrReplace
-            | FunctionName::Upper
             | FunctionName::Ucase
-            | FunctionName::Lower
             | FunctionName::Lcase
             | FunctionName::Substr
             | FunctionName::Substring
@@ -553,6 +569,59 @@ impl ProjectionWithExprExec {
                     }
                 } else {
                     Some(DataType::String)
+                }
+            }
+
+            FunctionName::Lower | FunctionName::Upper => {
+                if !args.is_empty() {
+                    match Self::infer_expr_type_with_schema(&args[0], schema) {
+                        Some(DataType::Range(range_type)) => match range_type {
+                            yachtsql_core::types::RangeType::Int4Range
+                            | yachtsql_core::types::RangeType::Int8Range => Some(DataType::Int64),
+                            yachtsql_core::types::RangeType::NumRange => Some(DataType::Float64),
+                            yachtsql_core::types::RangeType::DateRange => Some(DataType::Date),
+                            yachtsql_core::types::RangeType::TsRange
+                            | yachtsql_core::types::RangeType::TsTzRange => {
+                                Some(DataType::Timestamp)
+                            }
+                        },
+                        _ => Some(DataType::String),
+                    }
+                } else {
+                    Some(DataType::String)
+                }
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "LOWER_INC"
+                        | "UPPER_INC"
+                        | "LOWER_INF"
+                        | "UPPER_INF"
+                        | "ISEMPTY"
+                        | "RANGE_ISEMPTY"
+                        | "RANGE_CONTAINS"
+                        | "RANGE_CONTAINS_ELEM"
+                        | "RANGE_OVERLAPS"
+                        | "RANGE_ADJACENT"
+                        | "RANGE_STRICTLY_LEFT"
+                        | "RANGE_STRICTLY_RIGHT"
+                ) =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "RANGE_MERGE" | "RANGE_UNION" | "RANGE_INTERSECTION" | "RANGE_DIFFERENCE"
+                ) =>
+            {
+                if !args.is_empty() {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                } else {
+                    None
                 }
             }
 
@@ -767,6 +836,125 @@ impl ProjectionWithExprExec {
             FunctionName::ArrayConcat | FunctionName::ArrayCat => {
                 Self::infer_array_type_from_non_empty_array(args, schema)
             }
+
+            FunctionName::Custom(s)
+                if s == "ARRAYMAP"
+                    || s == "ARRAYFILTER"
+                    || s == "ARRAYSORT"
+                    || s == "ARRAYREVERSESORT" =>
+            {
+                if args.len() >= 2 {
+                    Self::infer_expr_type_with_schema(&args[1], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s)
+                if s == "ARRAYEXISTS"
+                    || s == "ARRAYALL"
+                    || s == "ARRAYCOUNT"
+                    || s == "ARRAYFIRSTINDEX"
+                    || s == "ARRAYLASTINDEX" =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYFIRST" || s == "ARRAYLAST" => {
+                if args.len() >= 2 {
+                    if let Some(DataType::Array(elem_type)) =
+                        Self::infer_expr_type_with_schema(&args[1], schema)
+                    {
+                        Some(*elem_type)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYSUM" || s == "ARRAYMIN" || s == "ARRAYMAX" => {
+                if args.len() >= 2 && matches!(&args[0], yachtsql_optimizer::Expr::Lambda { .. }) {
+                    Some(DataType::Int64)
+                } else if !args.is_empty() {
+                    if let Some(DataType::Array(elem_type)) =
+                        Self::infer_expr_type_with_schema(&args[0], schema)
+                    {
+                        Some(*elem_type)
+                    } else {
+                        Some(DataType::Int64)
+                    }
+                } else {
+                    Some(DataType::Int64)
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYAVG" => Some(DataType::Float64),
+
+            FunctionName::Custom(s) if s == "ARRAYFOLD" => {
+                if args.len() >= 3 {
+                    Self::infer_expr_type_with_schema(&args[2], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYREDUCE" => {
+                if args.len() >= 2 {
+                    if let Some(DataType::Array(elem_type)) =
+                        Self::infer_expr_type_with_schema(&args[1], schema)
+                    {
+                        Some(*elem_type)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYREDUCEINRANGES" => {
+                Some(DataType::Array(Box::new(DataType::Unknown)))
+            }
+
+            FunctionName::Custom(s)
+                if s == "ARRAYCUMSUM"
+                    || s == "ARRAYCUMSUMNONNEGATIVE"
+                    || s == "ARRAYDIFFERENCE" =>
+            {
+                Some(DataType::Array(Box::new(DataType::Int64)))
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYSPLIT" || s == "ARRAYREVERSESPLIT" => {
+                if args.len() >= 2 {
+                    if let Some(arr_type) = Self::infer_expr_type_with_schema(&args[1], schema) {
+                        Some(DataType::Array(Box::new(arr_type)))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::Array(Box::new(
+                            DataType::Unknown,
+                        )))))
+                    }
+                } else {
+                    Some(DataType::Array(Box::new(DataType::Array(Box::new(
+                        DataType::Unknown,
+                    )))))
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYCOMPACT" => {
+                if !args.is_empty() {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYZIP" => {
+                Some(DataType::Array(Box::new(DataType::Struct(vec![]))))
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYAUC" => Some(DataType::Float64),
 
             FunctionName::Greatest
             | FunctionName::MaxValue
@@ -1048,6 +1236,174 @@ impl ProjectionWithExprExec {
 
             FunctionName::Custom(s) if s == "POINT_X" || s == "POINT_Y" => Some(DataType::Float64),
 
+            FunctionName::Custom(s)
+                if s == "ST_GEOGPOINT"
+                    || s == "ST_GEOGFROMTEXT"
+                    || s == "ST_GEOGFROMGEOJSON"
+                    || s == "ST_MAKELINE"
+                    || s == "ST_MAKEPOLYGON"
+                    || s == "ST_CENTROID"
+                    || s == "ST_STARTPOINT"
+                    || s == "ST_ENDPOINT"
+                    || s == "ST_POINTN"
+                    || s == "ST_BOUNDARY"
+                    || s == "ST_BUFFER"
+                    || s == "ST_BUFFERWITHTOLERANCE"
+                    || s == "ST_CLOSESTPOINT"
+                    || s == "ST_CONVEXHULL"
+                    || s == "ST_DIFFERENCE"
+                    || s == "ST_INTERSECTION"
+                    || s == "ST_SIMPLIFY"
+                    || s == "ST_SNAPTOGRID"
+                    || s == "ST_UNION"
+                    || s == "ST_BOUNDINGBOX"
+                    || s == "ST_GEOGPOINTFROMGEOHASH" =>
+            {
+                Some(DataType::Geography)
+            }
+
+            FunctionName::Custom(s)
+                if s == "ST_X"
+                    || s == "ST_Y"
+                    || s == "ST_DISTANCE"
+                    || s == "ST_LENGTH"
+                    || s == "ST_AREA"
+                    || s == "ST_PERIMETER"
+                    || s == "ST_MAXDISTANCE"
+                    || s == "ST_AZIMUTH" =>
+            {
+                Some(DataType::Float64)
+            }
+
+            FunctionName::Custom(s)
+                if s == "ST_CONTAINS"
+                    || s == "ST_COVERS"
+                    || s == "ST_COVEREDBY"
+                    || s == "ST_DISJOINT"
+                    || s == "ST_DWITHIN"
+                    || s == "ST_EQUALS"
+                    || s == "ST_INTERSECTS"
+                    || s == "ST_TOUCHES"
+                    || s == "ST_WITHIN"
+                    || s == "ST_ISEMPTY"
+                    || s == "ST_ISCLOSED"
+                    || s == "ST_ISCOLLECTION" =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s)
+                if s == "ST_NUMPOINTS" || s == "ST_NPOINTS" || s == "ST_DIMENSION" =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if s == "ST_ASTEXT"
+                    || s == "ST_ASGEOJSON"
+                    || s == "ST_GEOMETRYTYPE"
+                    || s == "ST_GEOHASH" =>
+            {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if s == "ST_ASBINARY" => Some(DataType::Bytes),
+
+            FunctionName::Map => {
+                if args.len() >= 2 {
+                    let key_type = Self::infer_expr_type_with_schema(&args[0], schema)
+                        .unwrap_or(DataType::String);
+                    let value_type = Self::infer_expr_type_with_schema(&args[1], schema)
+                        .unwrap_or(DataType::String);
+                    Some(DataType::Map(Box::new(key_type), Box::new(value_type)))
+                } else {
+                    Some(DataType::Map(
+                        Box::new(DataType::String),
+                        Box::new(DataType::String),
+                    ))
+                }
+            }
+            FunctionName::MapFromArrays => {
+                if args.len() >= 2 {
+                    let key_type = Self::infer_expr_type_with_schema(&args[0], schema)
+                        .and_then(|dt| match dt {
+                            DataType::Array(elem) => Some(*elem),
+                            _ => None,
+                        })
+                        .unwrap_or(DataType::String);
+                    let value_type = Self::infer_expr_type_with_schema(&args[1], schema)
+                        .and_then(|dt| match dt {
+                            DataType::Array(elem) => Some(*elem),
+                            _ => None,
+                        })
+                        .unwrap_or(DataType::String);
+                    Some(DataType::Map(Box::new(key_type), Box::new(value_type)))
+                } else {
+                    Some(DataType::Map(
+                        Box::new(DataType::String),
+                        Box::new(DataType::String),
+                    ))
+                }
+            }
+            FunctionName::MapKeys => {
+                if !args.is_empty() {
+                    if let Some(DataType::Map(key_type, _)) =
+                        Self::infer_expr_type_with_schema(&args[0], schema)
+                    {
+                        Some(DataType::Array(key_type))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::String)))
+                    }
+                } else {
+                    Some(DataType::Array(Box::new(DataType::String)))
+                }
+            }
+            FunctionName::MapValues => {
+                if !args.is_empty() {
+                    if let Some(DataType::Map(_, value_type)) =
+                        Self::infer_expr_type_with_schema(&args[0], schema)
+                    {
+                        Some(DataType::Array(value_type))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::String)))
+                    }
+                } else {
+                    Some(DataType::Array(Box::new(DataType::String)))
+                }
+            }
+            FunctionName::MapContains => Some(DataType::Bool),
+            FunctionName::MapAdd
+            | FunctionName::MapSubtract
+            | FunctionName::MapUpdate
+            | FunctionName::MapConcat
+            | FunctionName::MapPopulateSeries
+            | FunctionName::MapFilter
+            | FunctionName::MapApply
+            | FunctionName::MapSort
+            | FunctionName::MapReverseSort
+            | FunctionName::MapPartialSort => {
+                if !args.is_empty() {
+                    let first_map_arg =
+                        if matches!(&args[0], yachtsql_optimizer::Expr::Lambda { .. }) {
+                            args.get(1)
+                        } else {
+                            args.first()
+                        };
+                    if let Some(arg) = first_map_arg {
+                        if let Some(map_type @ DataType::Map(_, _)) =
+                            Self::infer_expr_type_with_schema(arg, schema)
+                        {
+                            return Some(map_type);
+                        }
+                    }
+                }
+                Some(DataType::Map(
+                    Box::new(DataType::String),
+                    Box::new(DataType::Int64),
+                ))
+            }
+            FunctionName::MapExists | FunctionName::MapAll => Some(DataType::Bool),
+
             _ => None,
         }
     }
@@ -1151,6 +1507,7 @@ impl ProjectionWithExprExec {
             Expr::ArrayIndex { array, .. } => {
                 match Self::infer_expr_type_with_schema(array, schema)? {
                     DataType::Array(elem_type) => Some(*elem_type),
+                    DataType::Map(_, value_type) => Some(*value_type),
                     _ => None,
                 }
             }
@@ -1236,6 +1593,7 @@ impl ProjectionWithExprExec {
             },
             Expr::ArrayIndex { array, .. } => match Self::infer_expr_type(array)? {
                 DataType::Array(elem_type) => Some(*elem_type),
+                DataType::Map(_, value_type) => Some(*value_type),
                 _ => None,
             },
             Expr::ArraySlice { array, .. } => Self::infer_expr_type(array),

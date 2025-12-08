@@ -3,7 +3,7 @@ use crate::common::create_executor;
 
 fn setup_sales_table(executor: &mut yachtsql::QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE sales (region STRING, product STRING, year INT64, amount INT64)")
+        .execute_sql("CREATE TABLE sales (region TEXT, product TEXT, year INTEGER, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql(

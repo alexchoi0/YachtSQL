@@ -26,7 +26,7 @@ fn test_is_not_null() {
 fn test_null_in_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nullable (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE nullable (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable VALUES (1, 100), (2, NULL), (3, 300)")
@@ -88,7 +88,7 @@ fn test_nullif_not_equal() {
 fn test_null_in_where_clause() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, status STRING)")
+        .execute_sql("CREATE TABLE data (id INTEGER, status TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data VALUES (1, 'active'), (2, NULL), (3, 'inactive'), (4, NULL)")
@@ -104,7 +104,7 @@ fn test_null_in_where_clause() {
 fn test_null_order_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE data (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data VALUES (1, 100), (2, NULL), (3, 50)")
@@ -120,7 +120,7 @@ fn test_null_order_by() {
 fn test_null_order_by_last() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE data (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data VALUES (1, 100), (2, NULL), (3, 50)")
@@ -136,7 +136,7 @@ fn test_null_order_by_last() {
 fn test_count_ignores_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE data (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data VALUES (1, 100), (2, NULL), (3, 50)")
@@ -152,7 +152,7 @@ fn test_count_ignores_null() {
 fn test_count_star_includes_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE data (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data VALUES (1, 100), (2, NULL), (3, 50)")

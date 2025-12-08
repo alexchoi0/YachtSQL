@@ -6,7 +6,7 @@ use crate::common::create_executor;
 fn setup_tables(executor: &mut QueryExecutor) {
     executor
         .execute_sql(
-            "CREATE TABLE employees (id INT64, name STRING, manager_id INT64, salary INT64)",
+            "CREATE TABLE employees (id INTEGER, name TEXT, manager_id INTEGER, salary INTEGER)",
         )
         .unwrap();
     executor
@@ -109,7 +109,7 @@ fn test_recursive_cte_with_limit() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE numbers (n INT64)")
+        .execute_sql("CREATE TABLE numbers (n INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO numbers VALUES (1)")
@@ -160,7 +160,7 @@ fn test_cte_with_insert() {
     setup_tables(&mut executor);
 
     executor
-        .execute_sql("CREATE TABLE high_earners (name STRING, salary INT64)")
+        .execute_sql("CREATE TABLE high_earners (name TEXT, salary INTEGER)")
         .unwrap();
 
     executor

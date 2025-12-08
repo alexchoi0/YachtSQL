@@ -171,7 +171,7 @@ fn test_not_in_where() {
 fn test_is_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nullable (val INT64)")
+        .execute_sql("CREATE TABLE nullable (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable VALUES (1), (NULL), (3)")
@@ -187,7 +187,7 @@ fn test_is_null() {
 fn test_is_not_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nullable (val INT64)")
+        .execute_sql("CREATE TABLE nullable (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nullable VALUES (1), (NULL), (3)")

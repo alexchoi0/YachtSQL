@@ -169,7 +169,7 @@ fn test_string_functions_on_table() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE words (word STRING)")
+        .execute_sql("CREATE TABLE words (word TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO words VALUES ('Hello'), ('World')")

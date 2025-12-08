@@ -6,7 +6,7 @@ use crate::common::create_executor;
 fn test_system_column_ctid() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ctid_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE ctid_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ctid_test VALUES (1, 'Alice'), (2, 'Bob')")
@@ -23,7 +23,7 @@ fn test_system_column_ctid() {
 fn test_system_column_xmin() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE xmin_test (id INT64)")
+        .execute_sql("CREATE TABLE xmin_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO xmin_test VALUES (1)")
@@ -40,7 +40,7 @@ fn test_system_column_xmin() {
 fn test_system_column_xmax() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE xmax_test (id INT64)")
+        .execute_sql("CREATE TABLE xmax_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO xmax_test VALUES (1)")
@@ -57,7 +57,7 @@ fn test_system_column_xmax() {
 fn test_system_column_cmin() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cmin_test (id INT64)")
+        .execute_sql("CREATE TABLE cmin_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO cmin_test VALUES (1)")
@@ -74,7 +74,7 @@ fn test_system_column_cmin() {
 fn test_system_column_cmax() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cmax_test (id INT64)")
+        .execute_sql("CREATE TABLE cmax_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO cmax_test VALUES (1)")
@@ -91,7 +91,7 @@ fn test_system_column_cmax() {
 fn test_system_column_tableoid() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tableoid_test (id INT64)")
+        .execute_sql("CREATE TABLE tableoid_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tableoid_test VALUES (1)")
@@ -259,7 +259,7 @@ fn test_pg_xact_status() {
 fn test_xmin_after_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE xmin_update (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE xmin_update (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO xmin_update VALUES (1, 100)")
@@ -286,7 +286,7 @@ fn test_xmin_after_update() {
 fn test_ctid_changes_after_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE ctid_update (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE ctid_update (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO ctid_update VALUES (1, 100)")
@@ -312,7 +312,7 @@ fn test_ctid_changes_after_update() {
 fn test_transaction_isolation_snapshot() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE iso_snap (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE iso_snap (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO iso_snap VALUES (1, 100)")
@@ -336,7 +336,7 @@ fn test_transaction_isolation_snapshot() {
 fn test_select_for_update_locks_row() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE for_upd_lock (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE for_upd_lock (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO for_upd_lock VALUES (1, 100)")
@@ -358,7 +358,7 @@ fn test_select_for_update_locks_row() {
 fn test_select_for_share() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE for_share (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE for_share (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO for_share VALUES (1, 100)")
@@ -378,7 +378,7 @@ fn test_select_for_share() {
 fn test_select_for_no_key_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE for_no_key (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE for_no_key (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO for_no_key VALUES (1, 100)")
@@ -398,7 +398,7 @@ fn test_select_for_no_key_update() {
 fn test_select_for_key_share() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE for_key_share (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE for_key_share (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO for_key_share VALUES (1, 100)")
@@ -417,7 +417,7 @@ fn test_select_for_key_share() {
 fn test_select_for_update_nowait() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE for_upd_nowait (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE for_upd_nowait (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO for_upd_nowait VALUES (1, 100)")
@@ -437,7 +437,7 @@ fn test_select_for_update_nowait() {
 fn test_select_for_update_skip_locked() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE for_upd_skip (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE for_upd_skip (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO for_upd_skip VALUES (1, 100), (2, 200)")
@@ -453,10 +453,10 @@ fn test_select_for_update_skip_locked() {
 fn test_select_for_update_of_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE t1_lock (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE t1_lock (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE t2_lock (id INT64, ref_id INT64)")
+        .execute_sql("CREATE TABLE t2_lock (id INTEGER, ref_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO t1_lock VALUES (1, 100)")
@@ -476,7 +476,7 @@ fn test_select_for_update_of_table() {
 fn test_vacuum() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vacuum_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE vacuum_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO vacuum_test VALUES (1, 100)")
@@ -493,7 +493,7 @@ fn test_vacuum() {
 fn test_vacuum_full() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vacuum_full_test (id INT64)")
+        .execute_sql("CREATE TABLE vacuum_full_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO vacuum_full_test VALUES (1)")
@@ -507,7 +507,7 @@ fn test_vacuum_full() {
 fn test_vacuum_analyze() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vacuum_analyze (id INT64)")
+        .execute_sql("CREATE TABLE vacuum_analyze (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO vacuum_analyze VALUES (1)")
@@ -521,7 +521,7 @@ fn test_vacuum_analyze() {
 fn test_vacuum_verbose() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vacuum_verbose (id INT64)")
+        .execute_sql("CREATE TABLE vacuum_verbose (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("VACUUM VERBOSE vacuum_verbose");
@@ -532,7 +532,7 @@ fn test_vacuum_verbose() {
 fn test_vacuum_freeze() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vacuum_freeze (id INT64)")
+        .execute_sql("CREATE TABLE vacuum_freeze (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("VACUUM FREEZE vacuum_freeze");
@@ -543,7 +543,7 @@ fn test_vacuum_freeze() {
 fn test_analyze() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE analyze_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE analyze_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO analyze_test VALUES (1, 100), (2, 200)")
@@ -557,7 +557,7 @@ fn test_analyze() {
 fn test_analyze_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE analyze_col (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE analyze_col (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO analyze_col VALUES (1, 100)")
@@ -571,7 +571,7 @@ fn test_analyze_column() {
 fn test_pg_stat_get_dead_tuples() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE dead_tuples (id INT64)")
+        .execute_sql("CREATE TABLE dead_tuples (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO dead_tuples VALUES (1)")
@@ -588,7 +588,7 @@ fn test_pg_stat_get_dead_tuples() {
 fn test_pg_stat_get_live_tuples() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE live_tuples (id INT64)")
+        .execute_sql("CREATE TABLE live_tuples (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO live_tuples VALUES (1), (2)")
@@ -639,7 +639,7 @@ fn test_pg_last_committed_xact() {
 fn test_row_versioning_delete() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE row_ver_del (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE row_ver_del (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO row_ver_del VALUES (1, 100)")
@@ -667,7 +667,7 @@ fn test_row_versioning_delete() {
 fn test_visibility_map_functions() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vis_map (id INT64)")
+        .execute_sql("CREATE TABLE vis_map (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO vis_map VALUES (1)")
@@ -681,7 +681,7 @@ fn test_visibility_map_functions() {
 fn test_pg_freespace() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE freespace_test (id INT64)")
+        .execute_sql("CREATE TABLE freespace_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("SELECT * FROM pg_freespace('freespace_test'::regclass)");
@@ -692,7 +692,7 @@ fn test_pg_freespace() {
 fn test_hot_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE hot_test (id INT64 PRIMARY KEY, val INT64)")
+        .execute_sql("CREATE TABLE hot_test (id INTEGER PRIMARY KEY, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO hot_test VALUES (1, 100)")
@@ -712,7 +712,7 @@ fn test_hot_update() {
 fn test_concurrent_insert_visibility() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE concurrent_vis (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE concurrent_vis (id INTEGER, val INTEGER)")
         .unwrap();
 
     executor
@@ -738,7 +738,7 @@ fn test_concurrent_insert_visibility() {
 fn test_serializable_isolation() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE serial_iso (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE serial_iso (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO serial_iso VALUES (1, 100)")
@@ -762,7 +762,7 @@ fn test_serializable_isolation() {
 fn test_repeatable_read_isolation() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rr_iso (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE rr_iso (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO rr_iso VALUES (1, 100)")
@@ -786,7 +786,7 @@ fn test_repeatable_read_isolation() {
 fn test_read_committed_isolation() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rc_iso (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE rc_iso (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO rc_iso VALUES (1, 100)")
@@ -807,7 +807,7 @@ fn test_read_committed_isolation() {
 fn test_ctid_tid_scan() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE tid_scan (id INT64, val STRING)")
+        .execute_sql("CREATE TABLE tid_scan (id INTEGER, val TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tid_scan VALUES (1, 'first'), (2, 'second')")
@@ -821,7 +821,7 @@ fn test_ctid_tid_scan() {
 fn test_multiple_version_query() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE multi_ver (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE multi_ver (id INTEGER, val INTEGER)")
         .unwrap();
 
     executor
@@ -844,7 +844,7 @@ fn test_multiple_version_query() {
 fn test_vacuum_after_updates() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE vac_updates (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE vac_updates (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO vac_updates VALUES (1, 100)")
@@ -872,7 +872,7 @@ fn test_vacuum_after_updates() {
 fn test_pg_stat_all_tables() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE stat_tables (id INT64)")
+        .execute_sql("CREATE TABLE stat_tables (id INTEGER)")
         .unwrap();
 
     let result =
@@ -884,7 +884,7 @@ fn test_pg_stat_all_tables() {
 fn test_pg_stat_user_tables() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE stat_user (id INT64)")
+        .execute_sql("CREATE TABLE stat_user (id INTEGER)")
         .unwrap();
 
     let result =
@@ -896,7 +896,7 @@ fn test_pg_stat_user_tables() {
 fn test_pg_statio_all_tables() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE statio_tables (id INT64)")
+        .execute_sql("CREATE TABLE statio_tables (id INTEGER)")
         .unwrap();
 
     let result =

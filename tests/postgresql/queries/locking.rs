@@ -2,7 +2,7 @@ use crate::common::create_executor;
 
 fn setup_tables(executor: &mut yachtsql::QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE accounts (id INT64, balance INT64)")
+        .execute_sql("CREATE TABLE accounts (id INTEGER, balance INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO accounts VALUES (1, 1000), (2, 2000), (3, 3000)")
@@ -126,7 +126,7 @@ fn test_select_for_update_subquery() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
     executor
-        .execute_sql("CREATE TABLE transactions (id INT64, account_id INT64, amount INT64)")
+        .execute_sql("CREATE TABLE transactions (id INTEGER, account_id INTEGER, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO transactions VALUES (1, 1, 100), (2, 1, 200)")
@@ -145,7 +145,7 @@ fn test_select_for_share_with_join() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
     executor
-        .execute_sql("CREATE TABLE owners (id INT64, account_id INT64, name STRING)")
+        .execute_sql("CREATE TABLE owners (id INTEGER, account_id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO owners VALUES (1, 1, 'Alice'), (2, 2, 'Bob')")
@@ -168,7 +168,7 @@ fn test_select_for_update_of_specific_table() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
     executor
-        .execute_sql("CREATE TABLE refs (id INT64, account_id INT64)")
+        .execute_sql("CREATE TABLE refs (id INTEGER, account_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO refs VALUES (1, 1), (2, 2)")
@@ -191,7 +191,7 @@ fn test_select_for_share_of_multiple_tables() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
     executor
-        .execute_sql("CREATE TABLE details (id INT64, account_id INT64, info STRING)")
+        .execute_sql("CREATE TABLE details (id INTEGER, account_id INTEGER, info TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO details VALUES (1, 1, 'info1')")

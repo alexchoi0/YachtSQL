@@ -5,7 +5,7 @@ use crate::common::create_executor;
 
 fn setup_tables(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE sales (id INT64, employee STRING, department STRING, amount INT64, sale_date DATE)")
+        .execute_sql("CREATE TABLE sales (id INTEGER, employee TEXT, department TEXT, amount INTEGER, sale_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO sales VALUES (1, 'Alice', 'Electronics', 1000, '2024-01-01'), (2, 'Bob', 'Electronics', 1500, '2024-01-02'), (3, 'Alice', 'Electronics', 2000, '2024-01-03'), (4, 'Charlie', 'Clothing', 800, '2024-01-01'), (5, 'Diana', 'Clothing', 1200, '2024-01-02')")
@@ -63,7 +63,7 @@ fn test_rank() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
+        .execute_sql("CREATE TABLE scores (name TEXT, score INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO scores VALUES ('A', 100), ('B', 100), ('C', 90), ('D', 80)")
@@ -86,7 +86,7 @@ fn test_dense_rank() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
+        .execute_sql("CREATE TABLE scores (name TEXT, score INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO scores VALUES ('A', 100), ('B', 100), ('C', 90), ('D', 80)")

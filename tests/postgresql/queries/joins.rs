@@ -5,14 +5,14 @@ use crate::common::create_executor;
 
 fn setup_tables(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING, dept_id INT64)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT, dept_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Charlie', 1), (4, 'Diana', NULL)")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE departments (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE departments (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql(
@@ -116,12 +116,12 @@ fn test_full_outer_join() {
 fn test_cross_join() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE a (x INT64)").unwrap();
+    executor.execute_sql("CREATE TABLE a (x INTEGER)").unwrap();
     executor
         .execute_sql("INSERT INTO a VALUES (1), (2)")
         .unwrap();
 
-    executor.execute_sql("CREATE TABLE b (y INT64)").unwrap();
+    executor.execute_sql("CREATE TABLE b (y INTEGER)").unwrap();
     executor
         .execute_sql("INSERT INTO b VALUES (10), (20)")
         .unwrap();
@@ -139,7 +139,7 @@ fn test_self_join() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE employees (id INT64, name STRING, manager_id INT64)")
+        .execute_sql("CREATE TABLE employees (id INTEGER, name TEXT, manager_id INTEGER)")
         .unwrap();
     executor
         .execute_sql(
@@ -165,14 +165,14 @@ fn test_join_with_multiple_conditions() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, user_id INT64, amount INT64)")
+        .execute_sql("CREATE TABLE orders (id INTEGER, user_id INTEGER, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO orders VALUES (1, 1, 100), (2, 1, 200), (3, 2, 150)")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING, min_amount INT64)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT, min_amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'Alice', 150), (2, 'Bob', 100)")
@@ -193,21 +193,21 @@ fn test_join_three_tables() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, user_id INT64, product_id INT64)")
+        .execute_sql("CREATE TABLE orders (id INTEGER, user_id INTEGER, product_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO orders VALUES (1, 1, 1), (2, 1, 2), (3, 2, 1)")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE products (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE products (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO products VALUES (1, 'Widget'), (2, 'Gadget')")
@@ -231,14 +231,14 @@ fn test_natural_join() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE t1 (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE t1 (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO t1 VALUES (1, 'Alice'), (2, 'Bob')")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE t2 (id INT64, dept STRING)")
+        .execute_sql("CREATE TABLE t2 (id INTEGER, dept TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO t2 VALUES (1, 'Engineering'), (2, 'Sales')")
@@ -257,14 +257,14 @@ fn test_join_using() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE t1 (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE t1 (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO t1 VALUES (1, 'Alice'), (2, 'Bob')")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE t2 (id INT64, dept STRING)")
+        .execute_sql("CREATE TABLE t2 (id INTEGER, dept TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO t2 VALUES (1, 'Engineering'), (2, 'Sales')")

@@ -2,7 +2,7 @@ use crate::common::create_executor;
 
 fn setup_table(executor: &mut yachtsql::QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE explain_test (id INT64, name STRING, val INT64)")
+        .execute_sql("CREATE TABLE explain_test (id INTEGER, name TEXT, val INTEGER)")
         .unwrap();
     executor.execute_sql("INSERT INTO explain_test VALUES (1, 'Alice', 100), (2, 'Bob', 200), (3, 'Charlie', 300)").unwrap();
 }
@@ -144,7 +144,7 @@ fn test_explain_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_ref (id INT64, explain_id INT64)")
+        .execute_sql("CREATE TABLE explain_ref (id INTEGER, explain_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_ref VALUES (1, 1), (2, 2)")
@@ -388,7 +388,7 @@ fn test_explain_hash_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_large (id INT64, data STRING)")
+        .execute_sql("CREATE TABLE explain_large (id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql(
@@ -406,7 +406,7 @@ fn test_explain_merge_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_sorted (id INT64 PRIMARY KEY, data STRING)")
+        .execute_sql("CREATE TABLE explain_sorted (id INTEGER PRIMARY KEY, data TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_sorted VALUES (1, 'a'), (2, 'b'), (3, 'c')")
@@ -423,7 +423,7 @@ fn test_explain_nested_loop() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_small (id INT64)")
+        .execute_sql("CREATE TABLE explain_small (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_small VALUES (1)")
@@ -495,7 +495,7 @@ fn test_explain_exists_subquery() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_orders (id INT64, user_id INT64)")
+        .execute_sql("CREATE TABLE explain_orders (id INTEGER, user_id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_orders VALUES (1, 1), (2, 1)")
@@ -512,7 +512,7 @@ fn test_explain_in_subquery() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_ids (id INT64)")
+        .execute_sql("CREATE TABLE explain_ids (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_ids VALUES (1), (2)")
@@ -660,7 +660,7 @@ fn test_explain_left_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_optional (id INT64, extra STRING)")
+        .execute_sql("CREATE TABLE explain_optional (id INTEGER, extra TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_optional VALUES (1, 'extra1')")
@@ -679,7 +679,7 @@ fn test_explain_right_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_right (id INT64, data STRING)")
+        .execute_sql("CREATE TABLE explain_right (id INTEGER, data TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_right VALUES (1, 'r1'), (4, 'r4')")
@@ -698,7 +698,7 @@ fn test_explain_full_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_full (id INT64)")
+        .execute_sql("CREATE TABLE explain_full (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_full VALUES (1), (5)")
@@ -717,7 +717,7 @@ fn test_explain_cross_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_cross (x INT64)")
+        .execute_sql("CREATE TABLE explain_cross (x INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_cross VALUES (1), (2)")
@@ -734,7 +734,7 @@ fn test_explain_semi_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_semi (id INT64)")
+        .execute_sql("CREATE TABLE explain_semi (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_semi VALUES (1), (2)")
@@ -751,7 +751,7 @@ fn test_explain_anti_join() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_anti (id INT64)")
+        .execute_sql("CREATE TABLE explain_anti (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_anti VALUES (1)")
@@ -827,7 +827,7 @@ fn test_explain_case_expression() {
 fn test_explain_coalesce() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_null (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE explain_null (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_null VALUES (1, NULL), (2, 100)")
@@ -856,7 +856,7 @@ fn test_explain_cast() {
     setup_table(&mut executor);
 
     let result = executor
-        .execute_sql("EXPLAIN SELECT id, CAST(val AS FLOAT64) FROM explain_test")
+        .execute_sql("EXPLAIN SELECT id, CAST(val AS DOUBLE PRECISION) FROM explain_test")
         .unwrap();
     assert!(result.num_rows() >= 1);
 }
@@ -889,7 +889,7 @@ fn test_explain_math_functions() {
 fn test_explain_date_functions() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_dates (id INT64, dt TIMESTAMP)")
+        .execute_sql("CREATE TABLE explain_dates (id INTEGER, dt TIMESTAMP)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_dates VALUES (1, '2024-01-15 10:30:00')")
@@ -918,7 +918,7 @@ fn test_explain_filter_clause() {
 fn test_explain_json_operations() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_json (id INT64, data JSON)")
+        .execute_sql("CREATE TABLE explain_json (id INTEGER, data JSON)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_json VALUES (1, '{\"name\": \"test\"}')")
@@ -934,7 +934,7 @@ fn test_explain_json_operations() {
 fn test_explain_array_operations() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_arr (id INT64, arr INT64[])")
+        .execute_sql("CREATE TABLE explain_arr (id INTEGER, arr INTEGER[])")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_arr VALUES (1, ARRAY[1, 2, 3])")
@@ -962,7 +962,7 @@ fn test_explain_insert_select() {
     let mut executor = create_executor();
     setup_table(&mut executor);
     executor
-        .execute_sql("CREATE TABLE explain_copy (id INT64, name STRING, val INT64)")
+        .execute_sql("CREATE TABLE explain_copy (id INTEGER, name TEXT, val INTEGER)")
         .unwrap();
 
     let result = executor
@@ -1008,7 +1008,7 @@ fn test_explain_delete_returning() {
 fn test_explain_upsert() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_upsert (id INT64 PRIMARY KEY, name STRING, val INT64)")
+        .execute_sql("CREATE TABLE explain_upsert (id INTEGER PRIMARY KEY, name TEXT, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_upsert VALUES (1, 'Alice', 100)")
@@ -1027,10 +1027,10 @@ fn test_explain_upsert() {
 fn test_explain_merge() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_target (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE explain_target (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE explain_source (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE explain_source (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_target VALUES (1, 100)")
@@ -1052,7 +1052,7 @@ fn test_explain_merge() {
 fn test_explain_parallel_query() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_parallel (id INT64, data STRING)")
+        .execute_sql("CREATE TABLE explain_parallel (id INTEGER, data TEXT)")
         .unwrap();
 
     let result = executor
@@ -1065,7 +1065,7 @@ fn test_explain_parallel_query() {
 fn test_explain_partition_pruning() {
     let mut executor = create_executor();
     executor.execute_sql(
-        "CREATE TABLE explain_part (id INT64, created_at DATE, val INT64) PARTITION BY RANGE (created_at)"
+        "CREATE TABLE explain_part (id INTEGER, created_at DATE, val INTEGER) PARTITION BY RANGE (created_at)"
     ).unwrap();
 
     let result =
@@ -1077,7 +1077,7 @@ fn test_explain_partition_pruning() {
 fn test_explain_index_only_scan() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_ios (id INT64 PRIMARY KEY, val INT64)")
+        .execute_sql("CREATE TABLE explain_ios (id INTEGER PRIMARY KEY, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO explain_ios VALUES (1, 100), (2, 200)")
@@ -1093,11 +1093,11 @@ fn test_explain_index_only_scan() {
 fn test_explain_foreign_key_check() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE explain_parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE explain_parent (id INTEGER PRIMARY KEY)")
         .unwrap();
     executor
         .execute_sql(
-            "CREATE TABLE explain_child (id INT64, parent_id INT64 REFERENCES explain_parent(id))",
+            "CREATE TABLE explain_child (id INTEGER, parent_id INTEGER REFERENCES explain_parent(id))",
         )
         .unwrap();
     executor

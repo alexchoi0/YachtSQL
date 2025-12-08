@@ -194,6 +194,17 @@ impl ProjectionWithExprExec {
                 BinaryOp::And => Self::evaluate_and_internal(left, right, batch, row_idx, _dialect),
                 BinaryOp::Or => Self::evaluate_or_internal(left, right, batch, row_idx, _dialect),
                 _ => {
+                    if let (
+                        Expr::Tuple(left_exprs),
+                        Expr::Subquery { plan } | Expr::ScalarSubquery { subquery: plan },
+                    ) = (left.as_ref(), right.as_ref())
+                    {
+                        if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
+                            return Self::evaluate_row_comparison(
+                                left_exprs, op, plan, batch, row_idx,
+                            );
+                        }
+                    }
                     let left_val = Self::evaluate_expr_internal(left, batch, row_idx, _dialect)?;
                     let right_val = Self::evaluate_expr_internal(right, batch, row_idx, _dialect)?;
                     let enum_labels = Self::get_enum_labels_for_expr(left, batch.schema())
@@ -395,6 +406,11 @@ impl ProjectionWithExprExec {
                     is_distinct
                 }))
             }
+
+            Expr::Lambda { .. } => Err(Error::invalid_query(
+                "Lambda expressions can only be used as arguments to higher-order functions"
+                    .to_string(),
+            )),
 
             _ => Err(Error::unsupported_feature(format!(
                 "Expression evaluation not yet implemented for: {:?}",
@@ -757,6 +773,63 @@ impl ProjectionWithExprExec {
         if matches!(
             name,
             FunctionName::Custom(s) if matches!(s.as_str(),
+                "ST_GEOGPOINT"
+                | "ST_GEOGFROMTEXT"
+                | "ST_GEOGFROMGEOJSON"
+                | "ST_ASTEXT"
+                | "ST_ASGEOJSON"
+                | "ST_ASBINARY"
+                | "ST_X"
+                | "ST_Y"
+                | "ST_GEOMETRYTYPE"
+                | "ST_ISEMPTY"
+                | "ST_ISCLOSED"
+                | "ST_ISCOLLECTION"
+                | "ST_DIMENSION"
+                | "ST_NUMPOINTS"
+                | "ST_NPOINTS"
+                | "ST_POINTN"
+                | "ST_STARTPOINT"
+                | "ST_ENDPOINT"
+                | "ST_MAKELINE"
+                | "ST_MAKEPOLYGON"
+                | "ST_DISTANCE"
+                | "ST_LENGTH"
+                | "ST_AREA"
+                | "ST_PERIMETER"
+                | "ST_MAXDISTANCE"
+                | "ST_AZIMUTH"
+                | "ST_CENTROID"
+                | "ST_CONTAINS"
+                | "ST_COVERS"
+                | "ST_COVEREDBY"
+                | "ST_DISJOINT"
+                | "ST_DWITHIN"
+                | "ST_EQUALS"
+                | "ST_INTERSECTS"
+                | "ST_TOUCHES"
+                | "ST_WITHIN"
+                | "ST_BOUNDARY"
+                | "ST_BUFFER"
+                | "ST_BUFFERWITHTOLERANCE"
+                | "ST_CLOSESTPOINT"
+                | "ST_CONVEXHULL"
+                | "ST_DIFFERENCE"
+                | "ST_INTERSECTION"
+                | "ST_SIMPLIFY"
+                | "ST_SNAPTOGRID"
+                | "ST_UNION"
+                | "ST_BOUNDINGBOX"
+                | "ST_GEOHASH"
+                | "ST_GEOGPOINTFROMGEOHASH"
+            )
+        ) {
+            return Self::evaluate_geography_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
                 "TO_TSVECTOR"
                 | "TO_TSQUERY"
                 | "PLAINTO_TSQUERY"
@@ -821,6 +894,89 @@ impl ProjectionWithExprExec {
             )
         ) {
             return Self::evaluate_hstore_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
+                "ARRAYMAP"
+                | "ARRAYFILTER"
+                | "ARRAYEXISTS"
+                | "ARRAYALL"
+                | "ARRAYFIRST"
+                | "ARRAYLAST"
+                | "ARRAYFIRSTINDEX"
+                | "ARRAYLASTINDEX"
+                | "ARRAYCOUNT"
+                | "ARRAYSUM"
+                | "ARRAYAVG"
+                | "ARRAYMIN"
+                | "ARRAYMAX"
+                | "ARRAYSORT"
+                | "ARRAYREVERSESORT"
+                | "ARRAYFOLD"
+                | "ARRAYREDUCE"
+                | "ARRAYREDUCEINRANGES"
+                | "ARRAYCUMSUM"
+                | "ARRAYCUMSUMNONNEGATIVE"
+                | "ARRAYDIFFERENCE"
+                | "ARRAYSPLIT"
+                | "ARRAYREVERSESPLIT"
+                | "ARRAYCOMPACT"
+                | "ARRAYZIP"
+                | "ARRAYAUC"
+            )
+        ) {
+            return Self::evaluate_higher_order_function(func_name, args, batch, row_idx, dialect);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Map
+                | FunctionName::MapFromArrays
+                | FunctionName::MapKeys
+                | FunctionName::MapValues
+                | FunctionName::MapContains
+                | FunctionName::MapAdd
+                | FunctionName::MapSubtract
+                | FunctionName::MapUpdate
+                | FunctionName::MapConcat
+                | FunctionName::MapPopulateSeries
+                | FunctionName::MapFilter
+                | FunctionName::MapApply
+                | FunctionName::MapExists
+                | FunctionName::MapAll
+                | FunctionName::MapSort
+                | FunctionName::MapReverseSort
+                | FunctionName::MapPartialSort
+        ) {
+            return Self::evaluate_map_function(name, args, batch, row_idx, dialect);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
+                "LOWER"
+                | "UPPER"
+                | "LOWER_INC"
+                | "UPPER_INC"
+                | "LOWER_INF"
+                | "UPPER_INF"
+                | "ISEMPTY"
+                | "RANGE_MERGE"
+                | "RANGE_ISEMPTY"
+                | "RANGE_CONTAINS"
+                | "RANGE_CONTAINS_ELEM"
+                | "RANGE_OVERLAPS"
+                | "RANGE_UNION"
+                | "RANGE_INTERSECTION"
+                | "RANGE_ADJACENT"
+                | "RANGE_STRICTLY_LEFT"
+                | "RANGE_STRICTLY_RIGHT"
+                | "RANGE_DIFFERENCE"
+            )
+        ) {
+            return Self::evaluate_range_function(func_name, args, batch, row_idx);
         }
 
         Err(Error::unsupported_feature(format!(

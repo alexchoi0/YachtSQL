@@ -51,7 +51,7 @@ fn test_between_strings() {
 fn test_between_in_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE numbers (val INT64)")
+        .execute_sql("CREATE TABLE numbers (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO numbers VALUES (1), (5), (10), (15), (20)")
@@ -99,7 +99,7 @@ fn test_in_list_strings() {
 fn test_in_where_clause() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fruits (name STRING)")
+        .execute_sql("CREATE TABLE fruits (name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO fruits VALUES ('apple'), ('banana'), ('cherry'), ('date')")

@@ -89,16 +89,34 @@ impl LogicalPlanBuilder {
                 "@>" => Ok(BinaryOp::ArrayContains),
                 "<@" => Ok(BinaryOp::ArrayContainedBy),
                 "&&" => Ok(BinaryOp::ArrayOverlap),
+                "-|-" => Ok(BinaryOp::RangeAdjacent),
                 _ => Err(Error::unsupported_feature(format!(
                     "Custom binary operator not supported: {:?}",
                     op_str
                 ))),
             },
 
+            ast::BinaryOperator::PGCustomBinaryOperator(parts) => {
+                let op_name = parts
+                    .iter()
+                    .map(|p| p.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
+                match op_name.as_str() {
+                    "-|-" => Ok(BinaryOp::RangeAdjacent),
+                    _ => Err(Error::unsupported_feature(format!(
+                        "PG custom binary operator not supported: {:?}",
+                        op_name
+                    ))),
+                }
+            }
+
             ast::BinaryOperator::PGOverlap => Ok(BinaryOp::ArrayOverlap),
             ast::BinaryOperator::ArrowAt => Ok(BinaryOp::ArrayContainedBy),
             ast::BinaryOperator::LtDashGt => Ok(BinaryOp::VectorL2Distance),
             ast::BinaryOperator::HashMinus => Ok(BinaryOp::HashMinus),
+            ast::BinaryOperator::PGBitwiseShiftLeft => Ok(BinaryOp::RangeStrictlyLeft),
+            ast::BinaryOperator::PGBitwiseShiftRight => Ok(BinaryOp::RangeStrictlyRight),
             _ => Err(Error::unsupported_feature(format!(
                 "Binary operator not supported: {:?}",
                 op

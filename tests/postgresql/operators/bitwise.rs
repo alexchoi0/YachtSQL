@@ -69,7 +69,7 @@ fn test_bit_string_hex() {
 fn test_bit_varying() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bit_test (id INT64, flags BIT VARYING(8))")
+        .execute_sql("CREATE TABLE bit_test (id INTEGER, flags BIT VARYING(8))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bit_test VALUES (1, B'10101010')")
@@ -84,7 +84,7 @@ fn test_bit_varying() {
 fn test_bit_fixed() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fixed_bit (id INT64, code BIT(8))")
+        .execute_sql("CREATE TABLE fixed_bit (id INTEGER, code BIT(8))")
         .unwrap();
     executor
         .execute_sql("INSERT INTO fixed_bit VALUES (1, B'11111111')")
@@ -99,7 +99,7 @@ fn test_bit_fixed() {
 fn test_bit_and_aggregate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bits (val INT64)")
+        .execute_sql("CREATE TABLE bits (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bits VALUES (5), (7), (15)")
@@ -116,7 +116,7 @@ fn test_bit_and_aggregate() {
 fn test_bit_or_aggregate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bits_or (val INT64)")
+        .execute_sql("CREATE TABLE bits_or (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bits_or VALUES (1), (2), (4)")
@@ -133,7 +133,7 @@ fn test_bit_or_aggregate() {
 fn test_bit_xor_aggregate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE bits_xor (val INT64)")
+        .execute_sql("CREATE TABLE bits_xor (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO bits_xor VALUES (1), (3), (5)")
@@ -242,7 +242,7 @@ fn test_bitwise_in_expression() {
 fn test_bitwise_with_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE flags (id INT64, perms INT64)")
+        .execute_sql("CREATE TABLE flags (id INTEGER, perms INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO flags VALUES (1, 7), (2, 5)")

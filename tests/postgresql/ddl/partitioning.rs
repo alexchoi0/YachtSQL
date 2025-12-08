@@ -6,9 +6,9 @@ fn test_partition_by_range() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
         "CREATE TABLE sales (
-            id INT64,
+            id INTEGER,
             sale_date DATE,
-            amount INT64
+            amount INTEGER
         ) PARTITION BY RANGE (sale_date)",
     );
     assert!(result.is_ok() || result.is_err());
@@ -19,9 +19,9 @@ fn test_partition_by_list() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
         "CREATE TABLE orders (
-            id INT64,
-            region STRING,
-            amount INT64
+            id INTEGER,
+            region TEXT,
+            amount INTEGER
         ) PARTITION BY LIST (region)",
     );
     assert!(result.is_ok() || result.is_err());
@@ -32,8 +32,8 @@ fn test_partition_by_hash() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
         "CREATE TABLE logs (
-            id INT64,
-            message STRING
+            id INTEGER,
+            message TEXT
         ) PARTITION BY HASH (id)",
     );
     assert!(result.is_ok() || result.is_err());
@@ -45,9 +45,9 @@ fn test_create_range_partition() {
     executor
         .execute_sql(
             "CREATE TABLE measurements (
-            id INT64,
+            id INTEGER,
             logdate DATE,
-            value INT64
+            value INTEGER
         ) PARTITION BY RANGE (logdate)",
         )
         .unwrap();
@@ -65,9 +65,9 @@ fn test_create_list_partition() {
     executor
         .execute_sql(
             "CREATE TABLE customers (
-            id INT64,
-            country STRING,
-            name STRING
+            id INTEGER,
+            country TEXT,
+            name TEXT
         ) PARTITION BY LIST (country)",
         )
         .unwrap();
@@ -85,8 +85,8 @@ fn test_create_hash_partition() {
     executor
         .execute_sql(
             "CREATE TABLE events (
-            id INT64,
-            data STRING
+            id INTEGER,
+            data TEXT
         ) PARTITION BY HASH (id)",
         )
         .unwrap();
@@ -105,8 +105,8 @@ fn test_partition_default() {
     executor
         .execute_sql(
             "CREATE TABLE data (
-            id INT64,
-            category STRING
+            id INTEGER,
+            category TEXT
         ) PARTITION BY LIST (category)",
         )
         .unwrap();
@@ -128,9 +128,9 @@ fn test_partition_insert() {
     executor
         .execute_sql(
             "CREATE TABLE partitioned_sales (
-            id INT64,
-            quarter INT64,
-            amount INT64
+            id INTEGER,
+            quarter INTEGER,
+            amount INTEGER
         ) PARTITION BY LIST (quarter)",
         )
         .unwrap();
@@ -167,9 +167,9 @@ fn test_partition_query_routing() {
     executor
         .execute_sql(
             "CREATE TABLE routed_data (
-            id INT64,
-            type STRING,
-            value INT64
+            id INTEGER,
+            type TEXT,
+            value INTEGER
         ) PARTITION BY LIST (type)",
         )
         .unwrap();
@@ -200,10 +200,10 @@ fn test_partition_subpartition() {
     executor
         .execute_sql(
             "CREATE TABLE sub_part (
-            id INT64,
-            year INT64,
-            month INT64,
-            data STRING
+            id INTEGER,
+            year INTEGER,
+            month INTEGER,
+            data TEXT
         ) PARTITION BY RANGE (year)",
         )
         .unwrap();
@@ -222,16 +222,16 @@ fn test_attach_partition() {
     executor
         .execute_sql(
             "CREATE TABLE attach_parent (
-            id INT64,
-            category INT64
+            id INTEGER,
+            category INTEGER
         ) PARTITION BY LIST (category)",
         )
         .unwrap();
     executor
         .execute_sql(
             "CREATE TABLE attach_child (
-            id INT64,
-            category INT64
+            id INTEGER,
+            category INTEGER
         )",
         )
         .unwrap();
@@ -250,8 +250,8 @@ fn test_detach_partition() {
     executor
         .execute_sql(
             "CREATE TABLE detach_parent (
-            id INT64,
-            category INT64
+            id INTEGER,
+            category INTEGER
         ) PARTITION BY LIST (category)",
         )
         .unwrap();
@@ -273,8 +273,8 @@ fn test_detach_partition_concurrently() {
     executor
         .execute_sql(
             "CREATE TABLE detach_conc_parent (
-            id INT64,
-            val INT64
+            id INTEGER,
+            val INTEGER
         ) PARTITION BY RANGE (val)",
         )
         .unwrap();
@@ -298,9 +298,9 @@ fn test_partition_index() {
     executor
         .execute_sql(
             "CREATE TABLE idx_part (
-            id INT64,
-            category INT64,
-            value INT64
+            id INTEGER,
+            category INTEGER,
+            value INTEGER
         ) PARTITION BY LIST (category)",
         )
         .unwrap();
@@ -317,8 +317,8 @@ fn test_partition_unique_constraint() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
         "CREATE TABLE unique_part (
-            id INT64,
-            category INT64,
+            id INTEGER,
+            category INTEGER,
             UNIQUE (id, category)
         ) PARTITION BY LIST (category)",
     );
@@ -330,8 +330,8 @@ fn test_partition_primary_key() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
         "CREATE TABLE pk_part (
-            id INT64,
-            category INT64,
+            id INTEGER,
+            category INTEGER,
             PRIMARY KEY (id, category)
         ) PARTITION BY LIST (category)",
     );
@@ -342,14 +342,14 @@ fn test_partition_primary_key() {
 fn test_partition_foreign_key() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE fk_ref (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE fk_ref (id INTEGER PRIMARY KEY)")
         .unwrap();
 
     let result = executor.execute_sql(
         "CREATE TABLE fk_part (
-            id INT64,
-            ref_id INT64 REFERENCES fk_ref(id),
-            category INT64
+            id INTEGER,
+            ref_id INTEGER REFERENCES fk_ref(id),
+            category INTEGER
         ) PARTITION BY LIST (category)",
     );
     assert!(result.is_ok() || result.is_err());
@@ -362,8 +362,8 @@ fn test_partition_exclusion() {
     executor
         .execute_sql(
             "CREATE TABLE excl_part (
-            id INT64,
-            region INT64
+            id INTEGER,
+            region INTEGER
         ) PARTITION BY LIST (region)",
         )
         .unwrap();
@@ -388,8 +388,8 @@ fn test_partition_update_move_row() {
     executor
         .execute_sql(
             "CREATE TABLE move_part (
-            id INT64,
-            status INT64
+            id INTEGER,
+            status INTEGER
         ) PARTITION BY LIST (status)",
         )
         .unwrap();
@@ -417,8 +417,8 @@ fn test_partition_trigger() {
     executor
         .execute_sql(
             "CREATE TABLE trigger_part (
-            id INT64,
-            val INT64
+            id INTEGER,
+            val INTEGER
         ) PARTITION BY RANGE (val)",
         )
         .unwrap();
@@ -441,8 +441,8 @@ fn test_drop_partition() {
     executor
         .execute_sql(
             "CREATE TABLE drop_part_parent (
-            id INT64,
-            category INT64
+            id INTEGER,
+            category INTEGER
         ) PARTITION BY LIST (category)",
         )
         .unwrap();

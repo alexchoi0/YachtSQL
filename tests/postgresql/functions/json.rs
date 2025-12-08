@@ -50,7 +50,7 @@ fn test_json_nested_access() {
 fn test_json_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, data JSON)")
+        .execute_sql("CREATE TABLE users (id INTEGER, data JSON)")
         .unwrap();
     executor
         .execute_sql(r#"INSERT INTO users VALUES (1, '{"name": "Alice", "age": 30}')"#)

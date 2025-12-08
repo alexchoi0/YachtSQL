@@ -55,7 +55,7 @@ fn test_extract_day() {
 fn test_date_comparison() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES ('A', '2024-01-01'), ('B', '2024-06-15'), ('C', '2024-12-31')")
@@ -71,7 +71,7 @@ fn test_date_comparison() {
 fn test_date_ordering() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES ('C', '2024-12-31'), ('A', '2024-01-01'), ('B', '2024-06-15')")
@@ -123,7 +123,7 @@ fn test_extract_second() {
 fn test_date_with_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE events (name STRING, event_date DATE)")
+        .execute_sql("CREATE TABLE events (name TEXT, event_date DATE)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES ('A', '2024-01-01'), ('B', NULL)")
@@ -149,7 +149,7 @@ fn test_extract_dayofweek() {
 fn test_date_in_group_by() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE sales (product STRING, sale_date DATE, amount INT64)")
+        .execute_sql("CREATE TABLE sales (product TEXT, sale_date DATE, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO sales VALUES ('A', '2024-01-01', 100), ('B', '2024-01-01', 200), ('C', '2024-01-02', 150)")

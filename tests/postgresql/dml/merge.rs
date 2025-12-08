@@ -5,10 +5,10 @@ use crate::common::create_executor;
 
 fn setup_merge_tables(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE target (id INT64, name STRING, value INT64)")
+        .execute_sql("CREATE TABLE target (id INTEGER, name TEXT, value INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE source (id INT64, name STRING, value INT64)")
+        .execute_sql("CREATE TABLE source (id INTEGER, name TEXT, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO target VALUES (1, 'A', 100), (2, 'B', 200)")
@@ -126,10 +126,10 @@ fn test_merge_with_condition_on_matched() {
 fn test_merge_update_and_delete() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE target (id INT64, name STRING, active BOOL)")
+        .execute_sql("CREATE TABLE target (id INTEGER, name TEXT, active BOOL)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE source (id INT64, name STRING, active BOOL)")
+        .execute_sql("CREATE TABLE source (id INTEGER, name TEXT, active BOOL)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO target VALUES (1, 'A', TRUE), (2, 'B', TRUE)")
@@ -158,10 +158,10 @@ fn test_merge_update_and_delete() {
 fn test_merge_with_subquery_source() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE target (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE target (id INTEGER, value INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE updates (id INT64, delta INT64)")
+        .execute_sql("CREATE TABLE updates (id INTEGER, delta INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO target VALUES (1, 100), (2, 200)")

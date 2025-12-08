@@ -6,7 +6,7 @@ use crate::common::create_executor;
 fn test_array_length() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_length([1, 2, 3, 4, 5], 1)")
+        .execute_sql("SELECT array_length(ARRAY[1, 2, 3, 4, 5], 1)")
         .unwrap();
     assert_table_eq!(result, [[5]]);
 }
@@ -15,7 +15,9 @@ fn test_array_length() {
 #[ignore = "Implement me!"]
 fn test_array_length_empty() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT array_length([], 1)").unwrap();
+    let result = executor
+        .execute_sql("SELECT array_length(ARRAY[], 1)")
+        .unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
@@ -24,7 +26,7 @@ fn test_array_length_empty() {
 fn test_cardinality() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT cardinality([1, 2, 3])")
+        .execute_sql("SELECT cardinality(ARRAY[1, 2, 3])")
         .unwrap();
     assert_table_eq!(result, [[3]]);
 }
@@ -33,7 +35,7 @@ fn test_cardinality() {
 fn test_array_cat() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_cat([1, 2], [3, 4])")
+        .execute_sql("SELECT array_cat(ARRAY[1, 2], ARRAY[3, 4])")
         .unwrap();
     assert_table_eq!(result, [[[1, 2, 3, 4]]]);
 }
@@ -42,7 +44,7 @@ fn test_array_cat() {
 fn test_array_append() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_append([1, 2, 3], 4)")
+        .execute_sql("SELECT array_append(ARRAY[1, 2, 3], 4)")
         .unwrap();
     assert_table_eq!(result, [[[1, 2, 3, 4]]]);
 }
@@ -51,7 +53,7 @@ fn test_array_append() {
 fn test_array_prepend() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_prepend(0, [1, 2, 3])")
+        .execute_sql("SELECT array_prepend(0, ARRAY[1, 2, 3])")
         .unwrap();
     assert_table_eq!(result, [[[0, 1, 2, 3]]]);
 }
@@ -60,7 +62,7 @@ fn test_array_prepend() {
 fn test_array_remove() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_remove([1, 2, 3, 2, 4], 2)")
+        .execute_sql("SELECT array_remove(ARRAY[1, 2, 3, 2, 4], 2)")
         .unwrap();
     assert_table_eq!(result, [[[1, 3, 4]]]);
 }
@@ -69,7 +71,7 @@ fn test_array_remove() {
 fn test_array_replace() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_replace([1, 2, 3, 2], 2, 10)")
+        .execute_sql("SELECT array_replace(ARRAY[1, 2, 3, 2], 2, 10)")
         .unwrap();
     assert_table_eq!(result, [[[1, 10, 3, 10]]]);
 }
@@ -78,7 +80,7 @@ fn test_array_replace() {
 fn test_array_position() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_position([10, 20, 30, 40], 30)")
+        .execute_sql("SELECT array_position(ARRAY[10, 20, 30, 40], 30)")
         .unwrap();
     assert_table_eq!(result, [[3]]);
 }
@@ -87,7 +89,7 @@ fn test_array_position() {
 fn test_array_position_not_found() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_position([10, 20, 30], 50)")
+        .execute_sql("SELECT array_position(ARRAY[10, 20, 30], 50)")
         .unwrap();
     assert_table_eq!(result, [[null]]);
 }
@@ -96,7 +98,7 @@ fn test_array_position_not_found() {
 fn test_array_agg() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (category STRING, name STRING)")
+        .execute_sql("CREATE TABLE items (category TEXT, name TEXT)")
         .unwrap();
     executor
         .execute_sql(
@@ -119,7 +121,9 @@ fn test_array_agg() {
 #[ignore = "Implement me!"]
 fn test_unnest() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT unnest([1, 2, 3])").unwrap();
+    let result = executor
+        .execute_sql("SELECT unnest(ARRAY[1, 2, 3])")
+        .unwrap();
     assert_table_eq!(result, [[1], [2], [3]]);
 }
 
@@ -128,7 +132,7 @@ fn test_unnest() {
 fn test_array_to_string() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_to_string(['a', 'b', 'c'], ', ')")
+        .execute_sql("SELECT array_to_string(ARRAY['a', 'b', 'c'], ', ')")
         .unwrap();
     assert_table_eq!(result, [["a, b, c"]]);
 }
@@ -147,7 +151,7 @@ fn test_string_to_array() {
 fn test_array_dims() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT array_dims([[1,2], [3,4]])")
+        .execute_sql("SELECT array_dims(ARRAY[ARRAY[1,2], ARRAY[3,4]])")
         .unwrap();
     assert_table_eq!(result, [["[1:2][1:2]"]]);
 }

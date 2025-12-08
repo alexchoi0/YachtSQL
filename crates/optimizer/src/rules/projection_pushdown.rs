@@ -153,6 +153,9 @@ impl ProjectionPushdown {
                 Self::collect_column_references(left, refs);
                 Self::collect_column_references(right, refs);
             }
+            Expr::Lambda { body, .. } => {
+                Self::collect_column_references(body, refs);
+            }
         }
     }
 

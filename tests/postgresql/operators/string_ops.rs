@@ -239,7 +239,7 @@ fn test_starts_with_operator() {
 fn test_pattern_with_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE patterns (id INT64, val STRING)")
+        .execute_sql("CREATE TABLE patterns (id INTEGER, val TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO patterns VALUES (1, 'apple'), (2, 'apricot'), (3, 'banana')")
@@ -255,7 +255,7 @@ fn test_pattern_with_table() {
 fn test_regex_with_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE emails (id INT64, email STRING)")
+        .execute_sql("CREATE TABLE emails (id INTEGER, email TEXT)")
         .unwrap();
     executor.execute_sql("INSERT INTO emails VALUES (1, 'test@test.com'), (2, 'invalid'), (3, 'user@domain.org')").unwrap();
 

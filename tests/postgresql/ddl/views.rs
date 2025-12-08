@@ -5,7 +5,7 @@ use crate::common::create_executor;
 fn test_create_view_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING, active BOOL)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT, active BOOL)")
         .unwrap();
     executor
         .execute_sql(
@@ -26,10 +26,10 @@ fn test_create_view_basic() {
 fn test_create_view_with_join() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE orders (id INT64, user_id INT64, amount INT64)")
+        .execute_sql("CREATE TABLE orders (id INTEGER, user_id INTEGER, amount INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')")
@@ -49,7 +49,7 @@ fn test_create_view_with_join() {
 fn test_drop_view() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (id INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW items_view AS SELECT * FROM items")
@@ -75,7 +75,7 @@ fn test_drop_view_if_exists() {
 fn test_create_or_replace_view() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE items (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (1, 'A'), (2, 'B')")
@@ -97,7 +97,7 @@ fn test_create_or_replace_view() {
 fn test_view_with_aggregate() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE sales (product STRING, amount INT64)")
+        .execute_sql("CREATE TABLE sales (product TEXT, amount INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO sales VALUES ('A', 100), ('B', 200), ('A', 150)")
@@ -114,7 +114,7 @@ fn test_view_with_aggregate() {
 fn test_view_with_subquery() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE nums (val INT64)")
+        .execute_sql("CREATE TABLE nums (val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO nums VALUES (1), (2), (3), (4), (5)")
@@ -135,7 +135,7 @@ fn test_view_with_subquery() {
 fn test_nested_views() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE items (id INT64, category STRING, price INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER, category TEXT, price INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (1, 'A', 100), (2, 'B', 200), (3, 'A', 150)")

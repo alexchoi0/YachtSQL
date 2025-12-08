@@ -234,7 +234,7 @@ fn test_strip() {
 fn test_tsvector_column() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE documents (id INT64, content STRING, tsv TSVECTOR)")
+        .execute_sql("CREATE TABLE documents (id INTEGER, content TEXT, tsv TSVECTOR)")
         .unwrap();
     executor.execute_sql("INSERT INTO documents (id, content, tsv) VALUES (1, 'Hello world', TO_TSVECTOR('english', 'Hello world'))").unwrap();
 
@@ -249,7 +249,7 @@ fn test_tsvector_column() {
 fn test_tsvector_index() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE search_docs (id INT64, tsv TSVECTOR)")
+        .execute_sql("CREATE TABLE search_docs (id INTEGER, tsv TSVECTOR)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX search_idx ON search_docs USING GIN (tsv)")
@@ -315,9 +315,9 @@ fn test_tsvector_update_trigger() {
     executor
         .execute_sql(
             "CREATE TABLE trigger_docs (
-            id INT64,
-            title STRING,
-            body STRING,
+            id INTEGER,
+            title TEXT,
+            body TEXT,
             tsv TSVECTOR
         )",
         )

@@ -5,7 +5,7 @@ use crate::common::create_executor;
 
 fn setup_users_table(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT, age INTEGER)")
         .unwrap();
     executor
         .execute_sql(

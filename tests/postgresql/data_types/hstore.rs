@@ -14,7 +14,7 @@ fn test_hstore_column_type() {
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
 
-    let result = executor.execute_sql("CREATE TABLE hs_test (id INT64, data HSTORE)");
+    let result = executor.execute_sql("CREATE TABLE hs_test (id INTEGER, data HSTORE)");
     assert!(result.is_ok() || result.is_err());
 }
 
@@ -24,7 +24,7 @@ fn test_hstore_insert_literal() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_insert (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_insert (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         let result =
@@ -39,7 +39,7 @@ fn test_hstore_insert_with_quotes() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_quotes (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_quotes (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         let result = executor.execute_sql(
@@ -55,7 +55,7 @@ fn test_hstore_insert_null_value() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_null (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_null (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         let result = executor.execute_sql("INSERT INTO hs_null VALUES (1, 'key1=>NULL')");
@@ -69,7 +69,7 @@ fn test_hstore_arrow_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_arrow (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_arrow (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -86,7 +86,7 @@ fn test_hstore_contains_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_contains (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_contains (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -103,7 +103,7 @@ fn test_hstore_contained_by_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_contained (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_contained (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -120,7 +120,7 @@ fn test_hstore_has_key_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_haskey (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_haskey (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -137,7 +137,7 @@ fn test_hstore_has_any_keys_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_anykeys (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_anykeys (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -155,7 +155,7 @@ fn test_hstore_has_all_keys_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_allkeys (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_allkeys (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -173,7 +173,7 @@ fn test_hstore_concat_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_concat (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_concat (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -191,7 +191,7 @@ fn test_hstore_delete_key_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_delete (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_delete (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -209,7 +209,7 @@ fn test_hstore_delete_keys_operator() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_delkeys (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_delkeys (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -226,7 +226,7 @@ fn test_hstore_akeys_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_akeys (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_akeys (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -243,7 +243,7 @@ fn test_hstore_avals_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_avals (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_avals (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -260,7 +260,7 @@ fn test_hstore_skeys_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_skeys (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_skeys (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -277,7 +277,7 @@ fn test_hstore_svals_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_svals (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_svals (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -295,7 +295,7 @@ fn test_hstore_each_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_each (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_each (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -312,7 +312,7 @@ fn test_hstore_exist_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_exist (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_exist (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -329,7 +329,7 @@ fn test_hstore_defined_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_defined (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_defined (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -347,7 +347,7 @@ fn test_hstore_delete_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_delfunc (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_delfunc (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -364,7 +364,7 @@ fn test_hstore_slice_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_slice (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_slice (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -381,7 +381,7 @@ fn test_hstore_to_json_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_tojson (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_tojson (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -398,7 +398,7 @@ fn test_hstore_to_jsonb_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_tojsonb (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_tojsonb (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -415,7 +415,7 @@ fn test_hstore_to_array_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_toarr (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_toarr (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -432,7 +432,7 @@ fn test_hstore_to_matrix_function() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_tomat (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_tomat (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -494,7 +494,7 @@ fn test_hstore_gin_index() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_gin (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_gin (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         let result = executor.execute_sql("CREATE INDEX ON hs_gin USING GIN (data)");
@@ -508,7 +508,7 @@ fn test_hstore_gist_index() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_gist (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_gist (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         let result = executor.execute_sql("CREATE INDEX ON hs_gist USING GIST (data)");
@@ -522,7 +522,7 @@ fn test_hstore_btree_index() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_btree (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_btree (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         let result = executor.execute_sql("CREATE INDEX ON hs_btree USING BTREE (data)");
@@ -536,7 +536,7 @@ fn test_hstore_hash_index() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_hash (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_hash (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         let result = executor.execute_sql("CREATE INDEX ON hs_hash USING HASH (data)");
@@ -550,7 +550,7 @@ fn test_hstore_update() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_update (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_update (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -568,7 +568,7 @@ fn test_hstore_where_key_value() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_where (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_where (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -588,7 +588,7 @@ fn test_hstore_group_by() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_group (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_group (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -609,7 +609,7 @@ fn test_hstore_order_by() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_order (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_order (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor.execute_sql("INSERT INTO hs_order VALUES (1, 'priority=>3'), (2, 'priority=>1'), (3, 'priority=>2')").unwrap();
@@ -625,7 +625,7 @@ fn test_hstore_empty() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_empty (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_empty (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -642,7 +642,7 @@ fn test_hstore_null_column() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_nullcol (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_nullcol (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -660,7 +660,7 @@ fn test_hstore_coalesce() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_coal (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_coal (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -677,7 +677,7 @@ fn test_hstore_in_subquery() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_subq (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_subq (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -696,7 +696,7 @@ fn test_hstore_cte() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create_result = executor.execute_sql("CREATE TABLE hs_cte (id INT64, data HSTORE)");
+    let create_result = executor.execute_sql("CREATE TABLE hs_cte (id INTEGER, data HSTORE)");
 
     if create_result.is_ok() {
         executor
@@ -716,7 +716,7 @@ fn test_hstore_join() {
     executor
         .execute_sql("CREATE EXTENSION IF NOT EXISTS hstore")
         .ok();
-    let create1 = executor.execute_sql("CREATE TABLE hs_left (id INT64, data HSTORE)");
+    let create1 = executor.execute_sql("CREATE TABLE hs_left (id INTEGER, data HSTORE)");
     let create2 = executor.execute_sql("CREATE TABLE hs_right (code TEXT, description TEXT)");
 
     if create1.is_ok() && create2.is_ok() {

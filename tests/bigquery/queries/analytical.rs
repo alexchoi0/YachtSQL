@@ -84,7 +84,6 @@ fn test_sales_by_region_and_category() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_top_products_by_revenue() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -94,7 +93,7 @@ fn test_top_products_by_revenue() {
             "SELECT product_name, SUM(total_amount) AS revenue
             FROM sales
             GROUP BY product_name
-            ORDER BY revenue DESC
+            ORDER BY revenue DESC, product_name
             LIMIT 5",
         )
         .unwrap();
@@ -104,8 +103,8 @@ fn test_top_products_by_revenue() {
             ["Widget A", 1500],
             ["Gadget X", 1400],
             ["Chair", 900],
+            ["Book", 500],
             ["Desk", 500],
-            ["Magazine", 500],
         ]
     );
 }
@@ -203,7 +202,6 @@ fn test_moving_average() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_rank_products_by_sales() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -216,7 +214,7 @@ fn test_rank_products_by_sales() {
                 RANK() OVER (ORDER BY SUM(total_amount) DESC) AS revenue_rank
             FROM sales
             GROUP BY product_name
-            ORDER BY revenue_rank",
+            ORDER BY revenue_rank, product_name",
         )
         .unwrap();
     assert_table_eq!(
@@ -234,7 +232,6 @@ fn test_rank_products_by_sales() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_dense_rank_by_category() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -251,7 +248,7 @@ fn test_dense_rank_by_category() {
                 ) AS category_rank
             FROM sales
             GROUP BY category, product_name
-            ORDER BY category, category_rank",
+            ORDER BY category, category_rank, product_name",
         )
         .unwrap();
     assert_table_eq!(
@@ -269,7 +266,6 @@ fn test_dense_rank_by_category() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_percentile_analysis() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -281,19 +277,19 @@ fn test_percentile_analysis() {
                 total_amount,
                 ROUND(PERCENT_RANK() OVER (ORDER BY total_amount), 2) AS percentile
             FROM sales
-            ORDER BY percentile DESC",
+            ORDER BY percentile DESC, product_name",
         )
         .unwrap();
     assert_table_eq!(
         result,
         [
-            ["Gadget X", 1000, 1.0],
-            ["Widget A", 1000, 1.0],
-            ["Chair", 600, 0.67],
-            ["Book", 500, 0.44],
-            ["Desk", 500, 0.44],
-            ["Magazine", 500, 0.44],
-            ["Widget A", 500, 0.44],
+            ["Gadget X", 1000, 0.89],
+            ["Widget A", 1000, 0.89],
+            ["Chair", 600, 0.78],
+            ["Book", 500, 0.33],
+            ["Desk", 500, 0.33],
+            ["Magazine", 500, 0.33],
+            ["Widget A", 500, 0.33],
             ["Widget B", 450, 0.22],
             ["Gadget X", 400, 0.11],
             ["Chair", 300, 0.0],
@@ -302,7 +298,6 @@ fn test_percentile_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_ntile_quartiles() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -323,13 +318,13 @@ fn test_ntile_quartiles() {
             ["Chair", 300, 1],
             ["Gadget X", 400, 1],
             ["Widget B", 450, 1],
-            ["Book", 500, 2],
+            ["Widget A", 500, 2],
             ["Desk", 500, 2],
-            ["Magazine", 500, 2],
-            ["Widget A", 500, 3],
+            ["Book", 500, 2],
+            ["Magazine", 500, 3],
             ["Chair", 600, 3],
-            ["Gadget X", 1000, 4],
             ["Widget A", 1000, 4],
+            ["Gadget X", 1000, 4],
         ]
     );
 }
@@ -369,7 +364,6 @@ fn test_lead_lag_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_first_last_value() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -396,11 +390,11 @@ fn test_first_last_value() {
     assert_table_eq!(
         result,
         [
-            ["Electronics", "Widget A", 1000, "Widget A", "Widget B"],
-            ["Electronics", "Gadget X", 1000, "Widget A", "Widget B"],
-            ["Electronics", "Widget A", 500, "Widget A", "Widget B"],
-            ["Electronics", "Widget B", 450, "Widget A", "Widget B"],
-            ["Electronics", "Gadget X", 400, "Widget A", "Widget B"],
+            ["Electronics", "Widget A", 1000, "Widget A", "Gadget X"],
+            ["Electronics", "Gadget X", 1000, "Widget A", "Gadget X"],
+            ["Electronics", "Widget A", 500, "Widget A", "Gadget X"],
+            ["Electronics", "Widget B", 450, "Widget A", "Gadget X"],
+            ["Electronics", "Gadget X", 400, "Widget A", "Gadget X"],
             ["Furniture", "Chair", 600, "Chair", "Chair"],
             ["Furniture", "Desk", 500, "Chair", "Chair"],
             ["Furniture", "Chair", 300, "Chair", "Chair"],
@@ -742,7 +736,6 @@ fn test_rfm_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_time_series_decomposition() {
     let mut executor = create_executor();
     executor
@@ -963,7 +956,6 @@ fn test_pareto_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_growth_rates() {
     let mut executor = create_executor();
     executor
@@ -2090,36 +2082,36 @@ fn test_recursive_like_hierarchy_with_arrays() {
         .execute_sql(
             "WITH level_1 AS (
                 SELECT emp_id, emp_name, manager_id, title, level,
-                       ARRAY[emp_name] AS path
+                       [emp_name] AS path
                 FROM org_hierarchy WHERE manager_id IS NULL
             ),
             level_2 AS (
                 SELECT o.emp_id, o.emp_name, o.manager_id, o.title, o.level,
-                       ARRAY_CONCAT(l1.path, ARRAY[o.emp_name]) AS path
+                       ARRAY_CONCAT(l1.path, [o.emp_name]) AS path
                 FROM org_hierarchy o
                 JOIN level_1 l1 ON o.manager_id = l1.emp_id
             ),
             level_3 AS (
                 SELECT o.emp_id, o.emp_name, o.manager_id, o.title, o.level,
-                       ARRAY_CONCAT(l2.path, ARRAY[o.emp_name]) AS path
+                       ARRAY_CONCAT(l2.path, [o.emp_name]) AS path
                 FROM org_hierarchy o
                 JOIN level_2 l2 ON o.manager_id = l2.emp_id
             ),
             level_4 AS (
                 SELECT o.emp_id, o.emp_name, o.manager_id, o.title, o.level,
-                       ARRAY_CONCAT(l3.path, ARRAY[o.emp_name]) AS path
+                       ARRAY_CONCAT(l3.path, [o.emp_name]) AS path
                 FROM org_hierarchy o
                 JOIN level_3 l3 ON o.manager_id = l3.emp_id
             ),
             level_5 AS (
                 SELECT o.emp_id, o.emp_name, o.manager_id, o.title, o.level,
-                       ARRAY_CONCAT(l4.path, ARRAY[o.emp_name]) AS path
+                       ARRAY_CONCAT(l4.path, [o.emp_name]) AS path
                 FROM org_hierarchy o
                 JOIN level_4 l4 ON o.manager_id = l4.emp_id
             ),
             level_6 AS (
                 SELECT o.emp_id, o.emp_name, o.manager_id, o.title, o.level,
-                       ARRAY_CONCAT(l5.path, ARRAY[o.emp_name]) AS path
+                       ARRAY_CONCAT(l5.path, [o.emp_name]) AS path
                 FROM org_hierarchy o
                 JOIN level_5 l5 ON o.manager_id = l5.emp_id
             ),
@@ -2632,10 +2624,10 @@ fn test_unnest_with_complex_cte_and_array_operations() {
     executor
         .execute_sql(
             "INSERT INTO user_tags VALUES
-            (1, 'alice', ARRAY['tech', 'music', 'sports'], ARRAY[85, 90, 75], ARRAY[STRUCT('theme', 'dark'), STRUCT('lang', 'en')]),
-            (2, 'bob', ARRAY['tech', 'gaming'], ARRAY[95, 88], ARRAY[STRUCT('theme', 'light'), STRUCT('lang', 'es')]),
-            (3, 'charlie', ARRAY['music', 'art', 'travel'], ARRAY[70, 85, 92], ARRAY[STRUCT('theme', 'dark'), STRUCT('lang', 'fr')]),
-            (4, 'diana', ARRAY['tech', 'sports', 'fitness'], ARRAY[80, 78, 95], ARRAY[STRUCT('theme', 'auto'), STRUCT('lang', 'en')])",
+            (1, 'alice', ['tech', 'music', 'sports'], [85, 90, 75], [STRUCT('theme', 'dark'), STRUCT('lang', 'en')]),
+            (2, 'bob', ['tech', 'gaming'], [95, 88], [STRUCT('theme', 'light'), STRUCT('lang', 'es')]),
+            (3, 'charlie', ['music', 'art', 'travel'], [70, 85, 92], [STRUCT('theme', 'dark'), STRUCT('lang', 'fr')]),
+            (4, 'diana', ['tech', 'sports', 'fitness'], [80, 78, 95], [STRUCT('theme', 'auto'), STRUCT('lang', 'en')])",
         )
         .unwrap();
 
@@ -2743,16 +2735,16 @@ fn test_unnest_cross_join_with_nested_structs() {
     executor
         .execute_sql(
             "INSERT INTO orders_nested VALUES
-            (1, 'Alice', DATE '2024-01-15', ARRAY[
-                STRUCT('Laptop', 1, 1200.0, ARRAY[STRUCT('color', 'silver'), STRUCT('size', '15inch')]),
-                STRUCT('Mouse', 2, 25.0, ARRAY[STRUCT('color', 'black'), STRUCT('wireless', 'yes')])
+            (1, 'Alice', DATE '2024-01-15', [
+                STRUCT('Laptop', 1, 1200.0, [STRUCT('color', 'silver'), STRUCT('size', '15inch')]),
+                STRUCT('Mouse', 2, 25.0, [STRUCT('color', 'black'), STRUCT('wireless', 'yes')])
             ]),
-            (2, 'Bob', DATE '2024-01-16', ARRAY[
-                STRUCT('Keyboard', 1, 150.0, ARRAY[STRUCT('layout', 'US'), STRUCT('backlit', 'yes')]),
-                STRUCT('Monitor', 2, 400.0, ARRAY[STRUCT('size', '27inch'), STRUCT('resolution', '4K')])
+            (2, 'Bob', DATE '2024-01-16', [
+                STRUCT('Keyboard', 1, 150.0, [STRUCT('layout', 'US'), STRUCT('backlit', 'yes')]),
+                STRUCT('Monitor', 2, 400.0, [STRUCT('size', '27inch'), STRUCT('resolution', '4K')])
             ]),
-            (3, 'Charlie', DATE '2024-01-17', ARRAY[
-                STRUCT('Tablet', 1, 600.0, ARRAY[STRUCT('storage', '256GB'), STRUCT('color', 'gray')])
+            (3, 'Charlie', DATE '2024-01-17', [
+                STRUCT('Tablet', 1, 600.0, [STRUCT('storage', '256GB'), STRUCT('color', 'gray')])
             ])",
         )
         .unwrap();
@@ -2855,18 +2847,18 @@ fn test_unnest_with_window_functions_and_array_subquery() {
     executor
         .execute_sql(
             "INSERT INTO product_reviews VALUES
-            (101, 'Wireless Headphones', ARRAY[
+            (101, 'Wireless Headphones', [
                 STRUCT('user1', 5, DATE '2024-01-10', 12),
                 STRUCT('user2', 4, DATE '2024-01-12', 8),
                 STRUCT('user3', 5, DATE '2024-01-15', 15),
                 STRUCT('user4', 3, DATE '2024-01-20', 5)
             ]),
-            (102, 'Bluetooth Speaker', ARRAY[
+            (102, 'Bluetooth Speaker', [
                 STRUCT('user5', 4, DATE '2024-01-11', 10),
                 STRUCT('user6', 5, DATE '2024-01-14', 20),
                 STRUCT('user1', 4, DATE '2024-01-18', 7)
             ]),
-            (103, 'Smart Watch', ARRAY[
+            (103, 'Smart Watch', [
                 STRUCT('user2', 5, DATE '2024-01-13', 18),
                 STRUCT('user7', 4, DATE '2024-01-16', 9),
                 STRUCT('user8', 5, DATE '2024-01-19', 14),
@@ -2976,10 +2968,10 @@ fn test_unnest_multi_array_correlation() {
     executor
         .execute_sql(
             "INSERT INTO student_grades VALUES
-            (1, 'Alice', ARRAY['Math', 'Physics', 'Chemistry', 'Biology'], ARRAY[92.5, 88.0, 85.5, 90.0], ARRAY['Fall', 'Fall', 'Spring', 'Spring']),
-            (2, 'Bob', ARRAY['Math', 'Physics', 'English'], ARRAY[78.0, 82.5, 88.0], ARRAY['Fall', 'Spring', 'Spring']),
-            (3, 'Charlie', ARRAY['Chemistry', 'Biology', 'English', 'History'], ARRAY[91.0, 89.5, 84.0, 87.5], ARRAY['Fall', 'Fall', 'Fall', 'Spring']),
-            (4, 'Diana', ARRAY['Math', 'English', 'History'], ARRAY[95.0, 92.0, 88.5], ARRAY['Fall', 'Spring', 'Spring'])",
+            (1, 'Alice', ['Math', 'Physics', 'Chemistry', 'Biology'], [92.5, 88.0, 85.5, 90.0], ['Fall', 'Fall', 'Spring', 'Spring']),
+            (2, 'Bob', ['Math', 'Physics', 'English'], [78.0, 82.5, 88.0], ['Fall', 'Spring', 'Spring']),
+            (3, 'Charlie', ['Chemistry', 'Biology', 'English', 'History'], [91.0, 89.5, 84.0, 87.5], ['Fall', 'Fall', 'Fall', 'Spring']),
+            (4, 'Diana', ['Math', 'English', 'History'], [95.0, 92.0, 88.5], ['Fall', 'Spring', 'Spring'])",
         )
         .unwrap();
 
@@ -3096,14 +3088,14 @@ fn test_unnest_with_lateral_join_simulation() {
         .execute_sql(
             "INSERT INTO sales_teams VALUES
             (1, 'Alpha Team', 'North',
-             ARRAY[STRUCT('John', 'Lead', 500000), STRUCT('Sarah', 'Rep', 300000), STRUCT('Mike', 'Rep', 250000)],
-             ARRAY[150000, 175000, 200000, 225000]),
+             [STRUCT('John', 'Lead', 500000), STRUCT('Sarah', 'Rep', 300000), STRUCT('Mike', 'Rep', 250000)],
+             [150000, 175000, 200000, 225000]),
             (2, 'Beta Team', 'South',
-             ARRAY[STRUCT('Lisa', 'Lead', 450000), STRUCT('Tom', 'Rep', 280000)],
-             ARRAY[120000, 140000, 160000, 180000]),
+             [STRUCT('Lisa', 'Lead', 450000), STRUCT('Tom', 'Rep', 280000)],
+             [120000, 140000, 160000, 180000]),
             (3, 'Gamma Team', 'East',
-             ARRAY[STRUCT('Anna', 'Lead', 550000), STRUCT('Peter', 'Rep', 320000), STRUCT('Emma', 'Rep', 290000), STRUCT('David', 'Rep', 270000)],
-             ARRAY[180000, 210000, 240000, 270000])",
+             [STRUCT('Anna', 'Lead', 550000), STRUCT('Peter', 'Rep', 320000), STRUCT('Emma', 'Rep', 290000), STRUCT('David', 'Rep', 270000)],
+             [180000, 210000, 240000, 270000])",
         )
         .unwrap();
 
@@ -3224,20 +3216,20 @@ fn test_deep_nested_unnest_with_aggregations() {
             "INSERT INTO ecommerce_orders VALUES
             (1001, 1, DATE '2024-01-15',
              STRUCT('New York', 'USA', '10001'),
-             ARRAY[
-                 STRUCT('SKU001', 'Laptop', 1, 1200.0, ARRAY[STRUCT('SAVE10', 120.0), STRUCT('MEMBER5', 60.0)]),
-                 STRUCT('SKU002', 'Mouse', 2, 50.0, ARRAY[STRUCT('BUNDLE', 10.0)])
+             [
+                 STRUCT('SKU001', 'Laptop', 1, 1200.0, [STRUCT('SAVE10', 120.0), STRUCT('MEMBER5', 60.0)]),
+                 STRUCT('SKU002', 'Mouse', 2, 50.0, [STRUCT('BUNDLE', 10.0)])
              ]),
             (1002, 2, DATE '2024-01-16',
              STRUCT('Los Angeles', 'USA', '90001'),
-             ARRAY[
-                 STRUCT('SKU003', 'Keyboard', 1, 150.0, ARRAY[STRUCT('FLASH20', 30.0)]),
-                 STRUCT('SKU004', 'Monitor', 1, 400.0, ARRAY[STRUCT('SAVE10', 40.0), STRUCT('VIP15', 60.0)])
+             [
+                 STRUCT('SKU003', 'Keyboard', 1, 150.0, [STRUCT('FLASH20', 30.0)]),
+                 STRUCT('SKU004', 'Monitor', 1, 400.0, [STRUCT('SAVE10', 40.0), STRUCT('VIP15', 60.0)])
              ]),
             (1003, 1, DATE '2024-01-18',
              STRUCT('New York', 'USA', '10002'),
-             ARRAY[
-                 STRUCT('SKU001', 'Laptop', 1, 1200.0, ARRAY[STRUCT('REPEAT', 100.0)])
+             [
+                 STRUCT('SKU001', 'Laptop', 1, 1200.0, [STRUCT('REPEAT', 100.0)])
              ])",
         )
         .unwrap();

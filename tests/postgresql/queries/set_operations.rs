@@ -5,10 +5,10 @@ use crate::common::create_executor;
 
 fn setup_tables(executor: &mut QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE table_a (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE table_a (id INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE table_b (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE table_b (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO table_a VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
@@ -95,9 +95,9 @@ fn test_union_with_multiple_columns() {
 fn test_union_three_tables() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t1 (x INT64)").unwrap();
-    executor.execute_sql("CREATE TABLE t2 (x INT64)").unwrap();
-    executor.execute_sql("CREATE TABLE t3 (x INT64)").unwrap();
+    executor.execute_sql("CREATE TABLE t1 (x INTEGER)").unwrap();
+    executor.execute_sql("CREATE TABLE t2 (x INTEGER)").unwrap();
+    executor.execute_sql("CREATE TABLE t3 (x INTEGER)").unwrap();
     executor
         .execute_sql("INSERT INTO t1 VALUES (1), (2)")
         .unwrap();

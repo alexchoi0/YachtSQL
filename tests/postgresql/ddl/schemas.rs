@@ -46,7 +46,7 @@ fn test_drop_schema_cascade() {
         .execute_sql("CREATE SCHEMA cascade_schema")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE cascade_schema.test_table (id INT64)")
+        .execute_sql("CREATE TABLE cascade_schema.test_table (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("DROP SCHEMA cascade_schema CASCADE")
@@ -73,7 +73,7 @@ fn test_create_table_in_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA data").unwrap();
     executor
-        .execute_sql("CREATE TABLE data.users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE data.users (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO data.users VALUES (1, 'Alice')")
@@ -89,7 +89,7 @@ fn test_schema_qualified_name() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA app").unwrap();
     executor
-        .execute_sql("CREATE TABLE app.items (id INT64, value INT64)")
+        .execute_sql("CREATE TABLE app.items (id INTEGER, value INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO app.items VALUES (1, 100)")
@@ -107,7 +107,7 @@ fn test_set_search_path() {
     executor.execute_sql("CREATE SCHEMA myapp").unwrap();
     executor.execute_sql("SET search_path TO myapp").unwrap();
     executor
-        .execute_sql("CREATE TABLE items (id INT64)")
+        .execute_sql("CREATE TABLE items (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO items VALUES (1)")
@@ -140,7 +140,7 @@ fn test_current_schema() {
 fn test_information_schema_tables() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE info_test (id INT64)")
+        .execute_sql("CREATE TABLE info_test (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql(
@@ -155,7 +155,7 @@ fn test_information_schema_tables() {
 fn test_information_schema_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE col_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE col_test (id INTEGER, name TEXT)")
         .unwrap();
     let result = executor
         .execute_sql(
@@ -179,7 +179,7 @@ fn test_pg_catalog_schema() {
 fn test_public_schema() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE public.pub_test (id INT64)")
+        .execute_sql("CREATE TABLE public.pub_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO public.pub_test VALUES (1)")
@@ -240,7 +240,7 @@ fn test_schema_with_tables_and_indexes() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA indexed").unwrap();
     executor
-        .execute_sql("CREATE TABLE indexed.data (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE indexed.data (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_data_name ON indexed.data (name)")

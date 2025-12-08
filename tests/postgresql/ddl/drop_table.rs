@@ -5,7 +5,7 @@ fn test_drop_table() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE test_table (id INT64)")
+        .execute_sql("CREATE TABLE test_table (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("DROP TABLE test_table").unwrap();
@@ -23,7 +23,7 @@ fn test_drop_table_if_exists() {
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE existing_table (id INT64)")
+        .execute_sql("CREATE TABLE existing_table (id INTEGER)")
         .unwrap();
 
     executor
@@ -39,11 +39,11 @@ fn test_drop_multiple_tables() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE table1 (id INT64)")
+        .execute_sql("CREATE TABLE table1 (id INTEGER)")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE table2 (id INT64)")
+        .execute_sql("CREATE TABLE table2 (id INTEGER)")
         .unwrap();
 
     executor.execute_sql("DROP TABLE table1, table2").unwrap();
@@ -60,11 +60,11 @@ fn test_drop_table_cascade() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE parent (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE child (id INT64, parent_id INT64 REFERENCES parent(id))")
+        .execute_sql("CREATE TABLE child (id INTEGER, parent_id INTEGER REFERENCES parent(id))")
         .unwrap();
 
     executor.execute_sql("DROP TABLE parent CASCADE").unwrap();
@@ -78,7 +78,7 @@ fn test_drop_table_restrict() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE standalone (id INT64)")
+        .execute_sql("CREATE TABLE standalone (id INTEGER)")
         .unwrap();
 
     executor

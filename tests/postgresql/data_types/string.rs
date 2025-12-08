@@ -5,7 +5,7 @@ use crate::common::create_executor;
 fn test_string_basic() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES ('hello')")
         .unwrap();
@@ -18,7 +18,7 @@ fn test_string_basic() {
 fn test_string_empty() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor.execute_sql("INSERT INTO t VALUES ('')").unwrap();
 
     let result = executor.execute_sql("SELECT val FROM t").unwrap();
@@ -29,7 +29,7 @@ fn test_string_empty() {
 fn test_string_with_spaces() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES ('hello world')")
         .unwrap();
@@ -42,7 +42,7 @@ fn test_string_with_spaces() {
 fn test_string_null() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor.execute_sql("INSERT INTO t VALUES (NULL)").unwrap();
 
     let result = executor.execute_sql("SELECT val FROM t").unwrap();
@@ -53,7 +53,7 @@ fn test_string_null() {
 fn test_string_comparison() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES ('apple'), ('banana'), ('cherry')")
         .unwrap();
@@ -69,7 +69,7 @@ fn test_string_comparison() {
 fn test_string_equality() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES ('apple'), ('banana'), ('apple')")
         .unwrap();
@@ -85,7 +85,7 @@ fn test_string_equality() {
 fn test_string_like() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES ('apple'), ('application'), ('banana')")
         .unwrap();
@@ -101,7 +101,7 @@ fn test_string_like() {
 fn test_string_ordering() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES ('banana'), ('apple'), ('cherry')")
         .unwrap();
@@ -128,7 +128,7 @@ fn test_string_concat_operator() {
 fn test_string_in_list() {
     let mut executor = create_executor();
 
-    executor.execute_sql("CREATE TABLE t (val STRING)").unwrap();
+    executor.execute_sql("CREATE TABLE t (val TEXT)").unwrap();
     executor
         .execute_sql("INSERT INTO t VALUES ('a'), ('b'), ('c'), ('d')")
         .unwrap();

@@ -15,7 +15,7 @@ fn test_enum_in_table() {
         .execute_sql("CREATE TYPE status AS ENUM ('pending', 'active', 'completed')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE tasks (id INT64, status status)")
+        .execute_sql("CREATE TABLE tasks (id INTEGER, status status)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO tasks VALUES (1, 'pending')")
@@ -73,7 +73,7 @@ fn test_enum_order_by() {
         .execute_sql("CREATE TYPE rank AS ENUM ('bronze', 'silver', 'gold')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE players (id INT64, rank rank)")
+        .execute_sql("CREATE TABLE players (id INTEGER, rank rank)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO players VALUES (1, 'gold'), (2, 'bronze'), (3, 'silver')")
@@ -92,7 +92,7 @@ fn test_enum_where_clause() {
         .execute_sql("CREATE TYPE state AS ENUM ('draft', 'review', 'published')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE articles (id INT64, state state)")
+        .execute_sql("CREATE TABLE articles (id INTEGER, state state)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO articles VALUES (1, 'draft'), (2, 'published'), (3, 'review')")
@@ -111,7 +111,7 @@ fn test_enum_in_list() {
         .execute_sql("CREATE TYPE day AS ENUM ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE events (id INT64, day day)")
+        .execute_sql("CREATE TABLE events (id INTEGER, day day)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO events VALUES (1, 'mon'), (2, 'wed'), (3, 'fri')")
@@ -218,7 +218,7 @@ fn test_drop_type_cascade() {
         .execute_sql("CREATE TYPE cascade_enum AS ENUM ('a', 'b')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE cascade_table (id INT64, val cascade_enum)")
+        .execute_sql("CREATE TABLE cascade_table (id INTEGER, val cascade_enum)")
         .unwrap();
 
     let result = executor.execute_sql("DROP TYPE cascade_enum CASCADE");
@@ -232,7 +232,7 @@ fn test_enum_null() {
         .execute_sql("CREATE TYPE null_enum AS ENUM ('a', 'b')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE null_enum_table (id INT64, val null_enum)")
+        .execute_sql("CREATE TABLE null_enum_table (id INTEGER, val null_enum)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO null_enum_table VALUES (1, NULL)")
@@ -251,7 +251,7 @@ fn test_enum_default() {
         .execute_sql("CREATE TYPE def_enum AS ENUM ('default', 'other')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE def_enum_table (id INT64, val def_enum DEFAULT 'default')")
+        .execute_sql("CREATE TABLE def_enum_table (id INTEGER, val def_enum DEFAULT 'default')")
         .unwrap();
     executor
         .execute_sql("INSERT INTO def_enum_table (id) VALUES (1)")
@@ -294,7 +294,7 @@ fn test_enum_group_by() {
         .execute_sql("CREATE TYPE group_enum AS ENUM ('cat', 'dog')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE pets (id INT64, type group_enum)")
+        .execute_sql("CREATE TABLE pets (id INTEGER, type group_enum)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO pets VALUES (1, 'cat'), (2, 'cat'), (3, 'dog')")
@@ -313,7 +313,7 @@ fn test_enum_distinct() {
         .execute_sql("CREATE TYPE dist_enum AS ENUM ('x', 'y', 'z')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE dist_table (id INT64, val dist_enum)")
+        .execute_sql("CREATE TABLE dist_table (id INTEGER, val dist_enum)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO dist_table VALUES (1, 'x'), (2, 'x'), (3, 'y')")
@@ -332,7 +332,7 @@ fn test_enum_array() {
         .execute_sql("CREATE TYPE arr_enum AS ENUM ('a', 'b', 'c')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE arr_enum_table (id INT64, vals arr_enum[])")
+        .execute_sql("CREATE TABLE arr_enum_table (id INTEGER, vals arr_enum[])")
         .unwrap();
 
     let result =
@@ -347,7 +347,7 @@ fn test_enum_index() {
         .execute_sql("CREATE TYPE idx_enum AS ENUM ('pending', 'active', 'done')")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE idx_enum_table (id INT64, status idx_enum)")
+        .execute_sql("CREATE TABLE idx_enum_table (id INTEGER, status idx_enum)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_status ON idx_enum_table (status)")

@@ -6,7 +6,7 @@ fn test_create_simple_table() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE users (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE users (id INTEGER, name TEXT)")
         .unwrap();
 
     executor
@@ -23,7 +23,7 @@ fn test_create_table_with_multiple_columns() {
 
     executor
         .execute_sql(
-            "CREATE TABLE products (id INT64, name STRING, price FLOAT64, in_stock BOOLEAN)",
+            "CREATE TABLE products (id INTEGER, name TEXT, price DOUBLE PRECISION, in_stock BOOLEAN)",
         )
         .unwrap();
 
@@ -41,7 +41,7 @@ fn test_create_table_with_primary_key() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE items (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
 
     executor
@@ -59,7 +59,7 @@ fn test_create_table_with_not_null() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE required (id INT64, name STRING NOT NULL)")
+        .execute_sql("CREATE TABLE required (id INTEGER, name TEXT NOT NULL)")
         .unwrap();
 
     executor
@@ -75,7 +75,7 @@ fn test_create_table_with_default() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE defaults (id INT64, status STRING DEFAULT 'pending')")
+        .execute_sql("CREATE TABLE defaults (id INTEGER, status TEXT DEFAULT 'pending')")
         .unwrap();
 
     executor
@@ -91,7 +91,7 @@ fn test_create_table_with_unique() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE unique_emails (id INT64, email STRING UNIQUE)")
+        .execute_sql("CREATE TABLE unique_emails (id INTEGER, email TEXT UNIQUE)")
         .unwrap();
 
     executor
@@ -107,11 +107,11 @@ fn test_create_table_if_not_exists() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE test_table (id INT64)")
+        .execute_sql("CREATE TABLE test_table (id INTEGER)")
         .unwrap();
 
     executor
-        .execute_sql("CREATE TABLE IF NOT EXISTS test_table (id INT64)")
+        .execute_sql("CREATE TABLE IF NOT EXISTS test_table (id INTEGER)")
         .unwrap();
 
     executor
@@ -127,7 +127,7 @@ fn test_create_table_with_check_constraint() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE positive (id INT64, value INT64 CHECK (value > 0))")
+        .execute_sql("CREATE TABLE positive (id INTEGER, value INTEGER CHECK (value > 0))")
         .unwrap();
 
     executor
@@ -143,12 +143,12 @@ fn test_create_table_with_foreign_key() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE parent (id INT64 PRIMARY KEY, name STRING)")
+        .execute_sql("CREATE TABLE parent (id INTEGER PRIMARY KEY, name TEXT)")
         .unwrap();
 
     executor
         .execute_sql(
-            "CREATE TABLE child (id INT64 PRIMARY KEY, parent_id INT64 REFERENCES parent(id))",
+            "CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))",
         )
         .unwrap();
 
@@ -169,7 +169,7 @@ fn test_create_table_with_composite_primary_key() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE composite (a INT64, b INT64, c STRING, PRIMARY KEY (a, b))")
+        .execute_sql("CREATE TABLE composite (a INTEGER, b INTEGER, c TEXT, PRIMARY KEY (a, b))")
         .unwrap();
 
     executor
@@ -186,7 +186,7 @@ fn test_create_table_as_select() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE source (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE source (id INTEGER, name TEXT)")
         .unwrap();
 
     executor

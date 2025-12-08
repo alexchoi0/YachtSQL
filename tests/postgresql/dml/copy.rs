@@ -4,7 +4,7 @@ use crate::common::create_executor;
 fn test_copy_to_stdout_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE copy_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE copy_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO copy_test VALUES (1, 'Alice'), (2, 'Bob')")
@@ -18,7 +18,7 @@ fn test_copy_to_stdout_basic() {
 fn test_copy_to_stdout_csv() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE csv_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE csv_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO csv_test VALUES (1, 'Alice'), (2, 'Bob')")
@@ -34,7 +34,7 @@ fn test_copy_to_stdout_csv() {
 fn test_copy_to_stdout_csv_header() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE csv_header_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE csv_header_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO csv_header_test VALUES (1, 'Alice')")
@@ -50,7 +50,7 @@ fn test_copy_to_stdout_csv_header() {
 fn test_copy_to_stdout_delimiter() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE delim_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE delim_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO delim_test VALUES (1, 'Alice')")
@@ -66,7 +66,7 @@ fn test_copy_to_stdout_delimiter() {
 fn test_copy_to_stdout_columns() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE col_test (id INT64, name STRING, age INT64)")
+        .execute_sql("CREATE TABLE col_test (id INTEGER, name TEXT, age INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO col_test VALUES (1, 'Alice', 30)")
@@ -82,7 +82,7 @@ fn test_copy_to_stdout_columns() {
 fn test_copy_to_stdout_query() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE query_copy (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE query_copy (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO query_copy VALUES (1, 100), (2, 200), (3, 300)")
@@ -98,7 +98,7 @@ fn test_copy_to_stdout_query() {
 fn test_copy_to_stdout_null() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE null_copy (id INT64, val STRING)")
+        .execute_sql("CREATE TABLE null_copy (id INTEGER, val TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO null_copy VALUES (1, 'test'), (2, NULL)")
@@ -114,7 +114,7 @@ fn test_copy_to_stdout_null() {
 fn test_copy_to_stdout_quote() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE quote_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE quote_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO quote_test VALUES (1, 'Alice, Bob')")
@@ -130,7 +130,7 @@ fn test_copy_to_stdout_quote() {
 fn test_copy_to_stdout_escape() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE escape_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE escape_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO escape_test VALUES (1, 'Test \"quoted\"')")
@@ -146,7 +146,7 @@ fn test_copy_to_stdout_escape() {
 fn test_copy_to_stdout_force_quote() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE force_quote_test (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE force_quote_test (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO force_quote_test VALUES (1, 'Alice')")
@@ -162,7 +162,7 @@ fn test_copy_to_stdout_force_quote() {
 fn test_copy_from_stdin_basic() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE from_stdin (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE from_stdin (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("COPY from_stdin FROM STDIN");
@@ -173,7 +173,7 @@ fn test_copy_from_stdin_basic() {
 fn test_copy_from_stdin_csv() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE from_stdin_csv (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE from_stdin_csv (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("COPY from_stdin_csv FROM STDIN WITH (FORMAT CSV)");
@@ -184,7 +184,7 @@ fn test_copy_from_stdin_csv() {
 fn test_copy_binary() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE binary_copy (id INT64, data BYTEA)")
+        .execute_sql("CREATE TABLE binary_copy (id INTEGER, data BYTEA)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO binary_copy VALUES (1, '\\x0102')")
@@ -198,7 +198,7 @@ fn test_copy_binary() {
 fn test_copy_encoding() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE encoding_copy (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE encoding_copy (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO encoding_copy VALUES (1, 'Test')")
@@ -212,7 +212,7 @@ fn test_copy_encoding() {
 fn test_copy_freeze() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE freeze_copy (id INT64)")
+        .execute_sql("CREATE TABLE freeze_copy (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("COPY freeze_copy FROM STDIN WITH (FREEZE)");
@@ -223,7 +223,7 @@ fn test_copy_freeze() {
 fn test_copy_empty_table() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE empty_copy (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE empty_copy (id INTEGER, name TEXT)")
         .unwrap();
 
     let result = executor.execute_sql("COPY empty_copy TO STDOUT").unwrap();
@@ -234,7 +234,7 @@ fn test_copy_empty_table() {
 fn test_copy_all_types() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE types_copy (i INT64, f FLOAT64, s STRING, b BOOL)")
+        .execute_sql("CREATE TABLE types_copy (i INTEGER, f DOUBLE PRECISION, s TEXT, b BOOL)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO types_copy VALUES (1, 3.14, 'test', TRUE)")
@@ -250,7 +250,7 @@ fn test_copy_all_types() {
 fn test_copy_with_where() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE where_copy (id INT64, active BOOL)")
+        .execute_sql("CREATE TABLE where_copy (id INTEGER, active BOOL)")
         .unwrap();
     executor
         .execute_sql("INSERT INTO where_copy VALUES (1, TRUE), (2, FALSE), (3, TRUE)")

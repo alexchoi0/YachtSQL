@@ -105,7 +105,7 @@ fn test_pg_size_pretty() {
 fn test_pg_table_size() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE size_test (id INT64)")
+        .execute_sql("CREATE TABLE size_test (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT PG_TABLE_SIZE('size_test')")
@@ -118,7 +118,7 @@ fn test_pg_table_size() {
 fn test_pg_relation_size() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rel_size (id INT64)")
+        .execute_sql("CREATE TABLE rel_size (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT PG_RELATION_SIZE('rel_size')")
@@ -131,7 +131,7 @@ fn test_pg_relation_size() {
 fn test_pg_total_relation_size() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE total_size (id INT64)")
+        .execute_sql("CREATE TABLE total_size (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT PG_TOTAL_RELATION_SIZE('total_size')")
@@ -144,7 +144,7 @@ fn test_pg_total_relation_size() {
 fn test_pg_indexes_size() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE idx_size (id INT64)")
+        .execute_sql("CREATE TABLE idx_size (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT PG_INDEXES_SIZE('idx_size')")
@@ -167,7 +167,7 @@ fn test_pg_tablespace_size() {
 fn test_obj_description() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE desc_test (id INT64)")
+        .execute_sql("CREATE TABLE desc_test (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT OBJ_DESCRIPTION('desc_test'::regclass)")
@@ -180,7 +180,7 @@ fn test_obj_description() {
 fn test_col_description() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE col_desc (id INT64)")
+        .execute_sql("CREATE TABLE col_desc (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT COL_DESCRIPTION('col_desc'::regclass, 1)")
@@ -203,7 +203,7 @@ fn test_shobj_description() {
 fn test_has_table_privilege() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE priv_test (id INT64)")
+        .execute_sql("CREATE TABLE priv_test (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT HAS_TABLE_PRIVILEGE('priv_test', 'SELECT')")
@@ -236,7 +236,7 @@ fn test_has_database_privilege() {
 fn test_has_column_privilege() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE col_priv (id INT64)")
+        .execute_sql("CREATE TABLE col_priv (id INTEGER)")
         .unwrap();
     let result = executor
         .execute_sql("SELECT HAS_COLUMN_PRIVILEGE('col_priv', 'id', 'SELECT')")
@@ -249,7 +249,7 @@ fn test_has_column_privilege() {
 fn test_pg_get_viewdef() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE view_base (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE view_base (id INTEGER, name TEXT)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW test_view AS SELECT * FROM view_base")
@@ -264,7 +264,7 @@ fn test_pg_get_viewdef() {
 fn test_pg_get_constraintdef() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE const_def (id INT64 PRIMARY KEY)")
+        .execute_sql("CREATE TABLE const_def (id INTEGER PRIMARY KEY)")
         .unwrap();
     let result = executor.execute_sql("SELECT 1").unwrap();
     assert_eq!(result.num_rows(), 1);
@@ -274,7 +274,7 @@ fn test_pg_get_constraintdef() {
 fn test_pg_get_indexdef() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE idx_def (id INT64)")
+        .execute_sql("CREATE TABLE idx_def (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE INDEX idx_test ON idx_def (id)")

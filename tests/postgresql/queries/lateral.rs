@@ -3,10 +3,12 @@ use crate::common::create_executor;
 
 fn setup_tables(executor: &mut yachtsql::QueryExecutor) {
     executor
-        .execute_sql("CREATE TABLE departments (id INT64, name STRING)")
+        .execute_sql("CREATE TABLE departments (id INTEGER, name TEXT)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE employees (id INT64, name STRING, dept_id INT64, salary INT64)")
+        .execute_sql(
+            "CREATE TABLE employees (id INTEGER, name TEXT, dept_id INTEGER, salary INTEGER)",
+        )
         .unwrap();
     executor
         .execute_sql("INSERT INTO departments VALUES (1, 'Engineering'), (2, 'Sales'), (3, 'HR')")
@@ -156,7 +158,7 @@ fn test_lateral_unnest() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE arrays (id INT64, arr INT64[])")
+        .execute_sql("CREATE TABLE arrays (id INTEGER, arr INTEGER[])")
         .unwrap();
     executor
         .execute_sql("INSERT INTO arrays VALUES (1, [10, 20, 30]), (2, [40, 50])")
@@ -294,7 +296,7 @@ fn test_lateral_json_each() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE json_data (id INT64, data JSON)")
+        .execute_sql("CREATE TABLE json_data (id INTEGER, data JSON)")
         .unwrap();
     executor
         .execute_sql(r#"INSERT INTO json_data VALUES (1, '{"a": 1, "b": 2}')"#)
@@ -317,7 +319,7 @@ fn test_lateral_recursive_depth() {
     let mut executor = create_executor();
 
     executor
-        .execute_sql("CREATE TABLE tree (id INT64, parent_id INT64, name STRING)")
+        .execute_sql("CREATE TABLE tree (id INTEGER, parent_id INTEGER, name TEXT)")
         .unwrap();
     executor.execute_sql("INSERT INTO tree VALUES (1, NULL, 'root'), (2, 1, 'child1'), (3, 1, 'child2'), (4, 2, 'grandchild')").unwrap();
 

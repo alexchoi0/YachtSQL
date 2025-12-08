@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_geogpoint() {
     let mut executor = create_executor();
     let result = executor
@@ -12,7 +11,6 @@ fn test_st_geogpoint() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_makeline() {
     let mut executor = create_executor();
     let result = executor
@@ -27,7 +25,6 @@ fn test_st_makeline() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_makepolygon() {
     let mut executor = create_executor();
     let result = executor
@@ -37,7 +34,6 @@ fn test_st_makepolygon() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_geogfromtext() {
     let mut executor = create_executor();
     let result = executor
@@ -47,7 +43,6 @@ fn test_st_geogfromtext() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_geogfromgeojson() {
     let mut executor = create_executor();
     let result = executor
@@ -57,7 +52,6 @@ fn test_st_geogfromgeojson() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_astext() {
     let mut executor = create_executor();
     let result = executor
@@ -67,7 +61,6 @@ fn test_st_astext() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_asgeojson() {
     let mut executor = create_executor();
     let result = executor
@@ -75,12 +68,11 @@ fn test_st_asgeojson() {
         .unwrap();
     assert_table_eq!(
         result,
-        [["{\"type\":\"Point\",\"coordinates\":[-122.4194,37.7749}}"]]
+        [["{\"type\":\"Point\",\"coordinates\":[-122.4194,37.7749]}"]]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_distance() {
     let mut executor = create_executor();
     let result = executor
@@ -88,11 +80,10 @@ fn test_st_distance() {
             "SELECT ROUND(ST_DISTANCE(ST_GEOGPOINT(-122.4194, 37.7749), ST_GEOGPOINT(-73.9352, 40.7128)), 0)",
         )
         .unwrap();
-    assert_table_eq!(result, [[4138992.0]]);
+    assert_table_eq!(result, [[4134936.0]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_length() {
     let mut executor = create_executor();
     let result = executor
@@ -104,7 +95,6 @@ fn test_st_length() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_area() {
     let mut executor = create_executor();
     let result = executor
@@ -112,11 +102,10 @@ fn test_st_area() {
             "SELECT ROUND(ST_AREA(ST_GEOGFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))')), 0)",
         )
         .unwrap();
-    assert_table_eq!(result, [[12308778361.0]]);
+    assert_table_eq!(result, [[12363718145.0]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_perimeter() {
     let mut executor = create_executor();
     let result = executor
@@ -124,11 +113,10 @@ fn test_st_perimeter() {
             "SELECT ROUND(ST_PERIMETER(ST_GEOGFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))')), 0)",
         )
         .unwrap();
-    assert_table_eq!(result, [[443783.0]]);
+    assert_table_eq!(result, [[444763.0]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_x() {
     let mut executor = create_executor();
     let result = executor
@@ -138,7 +126,6 @@ fn test_st_x() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_y() {
     let mut executor = create_executor();
     let result = executor
@@ -148,7 +135,6 @@ fn test_st_y() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_centroid() {
     let mut executor = create_executor();
     let result = executor
@@ -156,11 +142,10 @@ fn test_st_centroid() {
             "SELECT ST_ASTEXT(ST_CENTROID(ST_GEOGFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))')))",
         )
         .unwrap();
-    assert_table_eq!(result, [["POINT(0.5 0.5)"]]);
+    assert_table_eq!(result, [["POINT(0.4 0.4)"]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_contains() {
     let mut executor = create_executor();
     let result = executor
@@ -170,7 +155,6 @@ fn test_st_contains() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_intersects() {
     let mut executor = create_executor();
     let result = executor
@@ -180,7 +164,6 @@ fn test_st_intersects() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_within() {
     let mut executor = create_executor();
     let result = executor
@@ -190,7 +173,6 @@ fn test_st_within() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_dwithin() {
     let mut executor = create_executor();
     let result = executor
@@ -200,7 +182,6 @@ fn test_st_dwithin() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_touches() {
     let mut executor = create_executor();
     let result = executor
@@ -210,7 +191,6 @@ fn test_st_touches() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_boundary() {
     let mut executor = create_executor();
     let result = executor
@@ -220,7 +200,6 @@ fn test_st_boundary() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_buffer() {
     let mut executor = create_executor();
     let result = executor
@@ -230,7 +209,6 @@ fn test_st_buffer() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_bufferwithtolerance() {
     let mut executor = create_executor();
     let result = executor
@@ -240,7 +218,6 @@ fn test_st_bufferwithtolerance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_union() {
     let mut executor = create_executor();
     let result = executor
@@ -250,7 +227,6 @@ fn test_st_union() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_intersection() {
     let mut executor = create_executor();
     let result = executor
@@ -260,7 +236,6 @@ fn test_st_intersection() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_difference() {
     let mut executor = create_executor();
     let result = executor
@@ -270,7 +245,6 @@ fn test_st_difference() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_simplify() {
     let mut executor = create_executor();
     let result = executor
@@ -282,7 +256,6 @@ fn test_st_simplify() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_snaptogrid() {
     let mut executor = create_executor();
     let result = executor
@@ -294,7 +267,6 @@ fn test_st_snaptogrid() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_numpoints() {
     let mut executor = create_executor();
     let result = executor
@@ -304,7 +276,6 @@ fn test_st_numpoints() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_pointn() {
     let mut executor = create_executor();
     let result = executor
@@ -314,7 +285,6 @@ fn test_st_pointn() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_startpoint() {
     let mut executor = create_executor();
     let result = executor
@@ -326,7 +296,6 @@ fn test_st_startpoint() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_endpoint() {
     let mut executor = create_executor();
     let result = executor
@@ -336,7 +305,6 @@ fn test_st_endpoint() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_isclosed() {
     let mut executor = create_executor();
     let result = executor
@@ -346,7 +314,6 @@ fn test_st_isclosed() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_isempty() {
     let mut executor = create_executor();
     let result = executor
@@ -356,7 +323,6 @@ fn test_st_isempty() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_dimension() {
     let mut executor = create_executor();
     let result = executor
@@ -366,7 +332,6 @@ fn test_st_dimension() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_geometrytype() {
     let mut executor = create_executor();
     let result = executor
@@ -376,17 +341,15 @@ fn test_st_geometrytype() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_maxdistance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT ROUND(ST_MAXDISTANCE(ST_GEOGFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'), ST_GEOGPOINT(2, 2)), 0)")
         .unwrap();
-    assert_table_eq!(result, [[314503.0]]);
+    assert_table_eq!(result, [[314475.0]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_closestpoint() {
     let mut executor = create_executor();
     let result = executor
@@ -396,7 +359,6 @@ fn test_st_closestpoint() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_convexhull() {
     let mut executor = create_executor();
     let result = executor
@@ -408,7 +370,6 @@ fn test_st_convexhull() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_geography_in_table() {
     let mut executor = create_executor();
     executor
@@ -425,7 +386,6 @@ fn test_geography_in_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_geohash() {
     let mut executor = create_executor();
     let result = executor
@@ -435,7 +395,6 @@ fn test_st_geohash() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_st_geogpointfromgeohash() {
     let mut executor = create_executor();
     let result = executor

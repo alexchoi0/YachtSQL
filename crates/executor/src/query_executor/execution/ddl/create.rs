@@ -572,6 +572,14 @@ impl DdlExecutor for QueryExecutor {
                 let inner_data_type = self.sql_type_to_data_type(dataset_id, inner_type)?;
                 Ok(DataType::Array(Box::new(inner_data_type)))
             }
+            SqlDataType::Map(key_type, value_type) => {
+                let key_data_type = self.sql_type_to_data_type(dataset_id, key_type)?;
+                let value_data_type = self.sql_type_to_data_type(dataset_id, value_type)?;
+                Ok(DataType::Map(
+                    Box::new(key_data_type),
+                    Box::new(value_data_type),
+                ))
+            }
             SqlDataType::JSON | SqlDataType::JSONB => Ok(DataType::Json),
             SqlDataType::Nullable(inner) => self.sql_type_to_data_type(dataset_id, inner),
             SqlDataType::Interval { .. } => Ok(DataType::Interval),
@@ -590,7 +598,7 @@ impl DdlExecutor for QueryExecutor {
                     ))),
                 }
             }
-            SqlDataType::Custom(name, _) => {
+            SqlDataType::Custom(name, modifiers) => {
                 let type_name = name
                     .0
                     .last()
@@ -598,6 +606,15 @@ impl DdlExecutor for QueryExecutor {
                     .map(|ident| ident.value.clone())
                     .unwrap_or_default();
                 let canonical = Sql2023Types::normalize_type_name(&type_name);
+                let type_upper = type_name.to_uppercase();
+
+                if type_upper == "VECTOR" {
+                    let dims = modifiers
+                        .first()
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(0);
+                    return Ok(DataType::Vector(dims));
+                }
 
                 {
                     let storage = self.storage.borrow_mut();

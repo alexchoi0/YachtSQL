@@ -4,7 +4,7 @@ use crate::common::create_executor;
 fn test_create_rule_nothing() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rule_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE rule_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result =
@@ -16,10 +16,10 @@ fn test_create_rule_nothing() {
 fn test_create_rule_instead() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE instead_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE instead_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE archive (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE archive (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -33,10 +33,10 @@ fn test_create_rule_instead() {
 fn test_create_rule_also() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE also_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE also_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE log_table (action STRING, record_id INT64)")
+        .execute_sql("CREATE TABLE log_table (action TEXT, record_id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -50,7 +50,7 @@ fn test_create_rule_also() {
 fn test_create_rule_with_condition() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cond_rule_test (id INT64, val INT64, active BOOL)")
+        .execute_sql("CREATE TABLE cond_rule_test (id INTEGER, val INTEGER, active BOOL)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -65,13 +65,13 @@ fn test_create_rule_with_condition() {
 fn test_create_rule_multiple_commands() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE multi_cmd_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE multi_cmd_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE audit1 (id INT64)")
+        .execute_sql("CREATE TABLE audit1 (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE audit2 (id INT64)")
+        .execute_sql("CREATE TABLE audit2 (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -87,7 +87,7 @@ fn test_create_rule_multiple_commands() {
 fn test_create_rule_select() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE select_rule_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE select_rule_test (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -101,7 +101,7 @@ fn test_create_rule_select() {
 fn test_create_rule_on_view() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE base_table (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE base_table (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW base_view AS SELECT * FROM base_table")
@@ -118,7 +118,7 @@ fn test_create_rule_on_view() {
 fn test_create_rule_on_view_update() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE view_base (id INT64, name STRING, val INT64)")
+        .execute_sql("CREATE TABLE view_base (id INTEGER, name TEXT, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW view_for_update AS SELECT id, name FROM view_base")
@@ -135,7 +135,7 @@ fn test_create_rule_on_view_update() {
 fn test_create_rule_on_view_delete() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE del_base (id INT64)")
+        .execute_sql("CREATE TABLE del_base (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW del_view AS SELECT * FROM del_base")
@@ -153,7 +153,7 @@ fn test_create_rule_on_view_delete() {
 fn test_drop_rule() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE drop_rule_test (id INT64)")
+        .execute_sql("CREATE TABLE drop_rule_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE RULE to_drop AS ON INSERT TO drop_rule_test DO NOTHING")
@@ -167,7 +167,7 @@ fn test_drop_rule() {
 fn test_drop_rule_if_exists() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE drop_if_exists_test (id INT64)")
+        .execute_sql("CREATE TABLE drop_if_exists_test (id INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql("DROP RULE IF EXISTS nonexistent ON drop_if_exists_test");
@@ -179,7 +179,7 @@ fn test_drop_rule_if_exists() {
 fn test_drop_rule_cascade() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE cascade_rule_test (id INT64)")
+        .execute_sql("CREATE TABLE cascade_rule_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE RULE cascade_rule AS ON INSERT TO cascade_rule_test DO NOTHING")
@@ -194,7 +194,7 @@ fn test_drop_rule_cascade() {
 fn test_alter_rule_rename() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE rename_rule_test (id INT64)")
+        .execute_sql("CREATE TABLE rename_rule_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE RULE old_rule_name AS ON INSERT TO rename_rule_test DO NOTHING")
@@ -210,7 +210,7 @@ fn test_alter_rule_rename() {
 fn test_create_or_replace_rule() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE replace_rule_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE replace_rule_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE RULE replace_rule AS ON INSERT TO replace_rule_test DO NOTHING")
@@ -227,10 +227,10 @@ fn test_create_or_replace_rule() {
 fn test_rule_with_returning() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE returning_rule_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE returning_rule_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE returning_target (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE returning_target (id INTEGER, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -244,10 +244,10 @@ fn test_rule_with_returning() {
 fn test_rule_using_old_new() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE old_new_test (id INT64, val INT64)")
+        .execute_sql("CREATE TABLE old_new_test (id INTEGER, val INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE history (old_val INT64, new_val INT64)")
+        .execute_sql("CREATE TABLE history (old_val INTEGER, new_val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -262,13 +262,13 @@ fn test_rule_using_old_new() {
 fn test_rule_priority() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE priority_test (id INT64)")
+        .execute_sql("CREATE TABLE priority_test (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE log1 (id INT64)")
+        .execute_sql("CREATE TABLE log1 (id INTEGER)")
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE log2 (id INT64)")
+        .execute_sql("CREATE TABLE log2 (id INTEGER)")
         .unwrap();
 
     executor.execute_sql(
@@ -285,7 +285,7 @@ fn test_rule_priority() {
 fn test_rule_system_default() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE sys_rule_test (id INT64)")
+        .execute_sql("CREATE TABLE sys_rule_test (id INTEGER)")
         .unwrap();
     executor
         .execute_sql("CREATE VIEW sys_rule_view AS SELECT * FROM sys_rule_test")
@@ -302,7 +302,7 @@ fn test_rule_system_default() {
 fn test_rule_no_action() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE no_action_test (id INT64, protected BOOL)")
+        .execute_sql("CREATE TABLE no_action_test (id INTEGER, protected BOOL)")
         .unwrap();
 
     let result = executor.execute_sql(
@@ -317,7 +317,7 @@ fn test_rule_no_action() {
 fn test_rule_complex_condition() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE complex_cond_test (id INT64, status STRING, val INT64)")
+        .execute_sql("CREATE TABLE complex_cond_test (id INTEGER, status TEXT, val INTEGER)")
         .unwrap();
 
     let result = executor.execute_sql(

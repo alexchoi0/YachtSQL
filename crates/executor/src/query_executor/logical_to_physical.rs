@@ -17,6 +17,8 @@ use super::evaluator::physical_plan::{
 use super::returning::{
     ReturningColumn, ReturningColumnOrigin, ReturningExpressionItem, ReturningSpec,
 };
+use crate::information_schema::{InformationSchemaProvider, InformationSchemaTable};
+use crate::system_schema::{SystemSchemaProvider, SystemTable};
 
 #[allow(dead_code)]
 pub struct LogicalToPhysicalPlanner {
@@ -460,6 +462,12 @@ impl LogicalToPhysicalPlanner {
                             "HSTORE" => CastDataType::Hstore,
                             "INTERVAL" => CastDataType::Interval,
                             "UUID" => CastDataType::Uuid,
+                            "INT4RANGE" => CastDataType::Int4Range,
+                            "INT8RANGE" => CastDataType::Int8Range,
+                            "NUMRANGE" => CastDataType::NumRange,
+                            "TSRANGE" => CastDataType::TsRange,
+                            "TSTZRANGE" => CastDataType::TsTzRange,
+                            "DATERANGE" => CastDataType::DateRange,
                             _ => {
                                 let composite_fields_cloned = {
                                     let storage = self.storage.borrow();
@@ -884,6 +892,42 @@ impl LogicalToPhysicalPlanner {
                     return Ok(Rc::new(SubqueryScanExec::new_with_schema(
                         view_exec,
                         view_schema,
+                    )));
+                }
+
+                if dataset_name.eq_ignore_ascii_case("information_schema") {
+                    debug_print::debug_eprintln!(
+                        "[executor::logical_to_physical] Handling information_schema query for table '{}'",
+                        table_id
+                    );
+                    let info_table = InformationSchemaTable::from_str(table_id)?;
+                    let provider = InformationSchemaProvider::new(Rc::clone(&self.storage));
+                    let (schema, rows) = provider.query(info_table)?;
+
+                    let source_table = alias.as_ref().unwrap_or(table_name);
+                    let schema_with_source = schema.with_source_table(source_table);
+                    let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
+                    return Ok(Rc::new(MaterializedViewScanExec::new(
+                        schema_with_source,
+                        batch,
+                    )));
+                }
+
+                if dataset_name.eq_ignore_ascii_case("system") {
+                    debug_print::debug_eprintln!(
+                        "[executor::logical_to_physical] Handling system query for table '{}'",
+                        table_id
+                    );
+                    let system_table = SystemTable::from_str(table_id)?;
+                    let provider = SystemSchemaProvider::new(Rc::clone(&self.storage));
+                    let (schema, rows) = provider.query(system_table)?;
+
+                    let source_table = alias.as_ref().unwrap_or(table_name);
+                    let schema_with_source = schema.with_source_table(source_table);
+                    let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
+                    return Ok(Rc::new(MaterializedViewScanExec::new(
+                        schema_with_source,
+                        batch,
                     )));
                 }
 
@@ -1531,6 +1575,12 @@ impl LogicalToPhysicalPlanner {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
+            CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
+            CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
+            CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
+            CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
+            CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
+            CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
             CastDataType::Custom(_, fields) => DataType::Struct(fields.clone()),
         }
     }
