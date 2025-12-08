@@ -130,6 +130,10 @@ pub enum Expr {
         right: Box<Expr>,
         negated: bool,
     },
+    Lambda {
+        params: Vec<String>,
+        body: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -324,6 +328,28 @@ impl LiteralValue {
             },
         }
     }
+
+    pub fn from_value(val: &yachtsql_core::types::Value) -> Self {
+        if val.is_null() {
+            LiteralValue::Null
+        } else if let Some(b) = val.as_bool() {
+            LiteralValue::Boolean(b)
+        } else if let Some(i) = val.as_i64() {
+            LiteralValue::Int64(i)
+        } else if let Some(f) = val.as_f64() {
+            LiteralValue::Float64(f)
+        } else if let Some(s) = val.as_str() {
+            LiteralValue::String(s.to_string())
+        } else if let Some(arr) = val.as_array() {
+            let elements: Vec<Expr> = arr
+                .iter()
+                .map(|v| Expr::Literal(LiteralValue::from_value(v)))
+                .collect();
+            LiteralValue::Array(elements)
+        } else {
+            LiteralValue::Null
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -436,6 +462,8 @@ impl Expr {
             Expr::IsDistinctFrom { left, right, .. } => {
                 left.contains_subquery() || right.contains_subquery()
             }
+
+            Expr::Lambda { body, .. } => body.contains_subquery(),
 
             Expr::Column { .. }
             | Expr::Literal(_)

@@ -560,6 +560,20 @@ impl LogicalPlanBuilder {
                 })
             }
 
+            ast::Expr::Lambda(lambda) => {
+                let params: Vec<String> = match &lambda.params {
+                    ast::OneOrManyWithParens::One(ident) => vec![ident.value.clone()],
+                    ast::OneOrManyWithParens::Many(idents) => {
+                        idents.iter().map(|i| i.value.clone()).collect()
+                    }
+                };
+                let body = self.sql_expr_to_expr(&lambda.body)?;
+                Ok(Expr::Lambda {
+                    params,
+                    body: Box::new(body),
+                })
+            }
+
             _ => Err(Error::unsupported_feature(format!(
                 "Expression type not supported: {:?}",
                 expr

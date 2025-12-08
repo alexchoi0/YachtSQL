@@ -396,6 +396,11 @@ impl ProjectionWithExprExec {
                 }))
             }
 
+            Expr::Lambda { .. } => Err(Error::invalid_query(
+                "Lambda expressions can only be used as arguments to higher-order functions"
+                    .to_string(),
+            )),
+
             _ => Err(Error::unsupported_feature(format!(
                 "Expression evaluation not yet implemented for: {:?}",
                 expr
@@ -810,6 +815,40 @@ impl ProjectionWithExprExec {
             )
         ) {
             return Self::evaluate_hstore_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
+                "ARRAYMAP"
+                | "ARRAYFILTER"
+                | "ARRAYEXISTS"
+                | "ARRAYALL"
+                | "ARRAYFIRST"
+                | "ARRAYLAST"
+                | "ARRAYFIRSTINDEX"
+                | "ARRAYLASTINDEX"
+                | "ARRAYCOUNT"
+                | "ARRAYSUM"
+                | "ARRAYAVG"
+                | "ARRAYMIN"
+                | "ARRAYMAX"
+                | "ARRAYSORT"
+                | "ARRAYREVERSESORT"
+                | "ARRAYFOLD"
+                | "ARRAYREDUCE"
+                | "ARRAYREDUCEINRANGES"
+                | "ARRAYCUMSUM"
+                | "ARRAYCUMSUMNONNEGATIVE"
+                | "ARRAYDIFFERENCE"
+                | "ARRAYSPLIT"
+                | "ARRAYREVERSESPLIT"
+                | "ARRAYCOMPACT"
+                | "ARRAYZIP"
+                | "ARRAYAUC"
+            )
+        ) {
+            return Self::evaluate_higher_order_function(func_name, args, batch, row_idx, dialect);
         }
 
         Err(Error::unsupported_feature(format!(

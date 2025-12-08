@@ -247,8 +247,7 @@ impl InformationSchemaProvider {
                         ]));
                     }
 
-                    for (idx, _unique_cols) in
-                        table_schema.unique_constraints().iter().enumerate()
+                    for (idx, _unique_cols) in table_schema.unique_constraints().iter().enumerate()
                     {
                         let constraint_name = format!("{}_unique_{}", table_name, idx);
                         rows.push(Row::from_values(vec![

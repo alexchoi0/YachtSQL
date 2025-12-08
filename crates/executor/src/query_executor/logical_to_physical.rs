@@ -5,7 +5,6 @@ use std::rc::Rc;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_ir::plan::{LogicalPlan, PlanNode};
 
-use crate::information_schema::{InformationSchemaProvider, InformationSchemaTable};
 use super::evaluator::physical_plan::{
     AggregateExec, AggregateStrategy, ArrayJoinExec, CteExec, DistinctExec, DistinctOnExec,
     EmptyRelationExec, ExceptExec, ExecutionPlan, FilterExec, HashJoinExec, IndexScanExec,
@@ -18,6 +17,7 @@ use super::evaluator::physical_plan::{
 use super::returning::{
     ReturningColumn, ReturningColumnOrigin, ReturningExpressionItem, ReturningSpec,
 };
+use crate::information_schema::{InformationSchemaProvider, InformationSchemaTable};
 
 #[allow(dead_code)]
 pub struct LogicalToPhysicalPlanner {

@@ -759,6 +759,125 @@ impl ProjectionWithExprExec {
                 Self::infer_array_type_from_non_empty_array(args, schema)
             }
 
+            FunctionName::Custom(s)
+                if s == "ARRAYMAP"
+                    || s == "ARRAYFILTER"
+                    || s == "ARRAYSORT"
+                    || s == "ARRAYREVERSESORT" =>
+            {
+                if args.len() >= 2 {
+                    Self::infer_expr_type_with_schema(&args[1], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s)
+                if s == "ARRAYEXISTS"
+                    || s == "ARRAYALL"
+                    || s == "ARRAYCOUNT"
+                    || s == "ARRAYFIRSTINDEX"
+                    || s == "ARRAYLASTINDEX" =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYFIRST" || s == "ARRAYLAST" => {
+                if args.len() >= 2 {
+                    if let Some(DataType::Array(elem_type)) =
+                        Self::infer_expr_type_with_schema(&args[1], schema)
+                    {
+                        Some(*elem_type)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYSUM" || s == "ARRAYMIN" || s == "ARRAYMAX" => {
+                if args.len() >= 2 && matches!(&args[0], yachtsql_optimizer::Expr::Lambda { .. }) {
+                    Some(DataType::Int64)
+                } else if !args.is_empty() {
+                    if let Some(DataType::Array(elem_type)) =
+                        Self::infer_expr_type_with_schema(&args[0], schema)
+                    {
+                        Some(*elem_type)
+                    } else {
+                        Some(DataType::Int64)
+                    }
+                } else {
+                    Some(DataType::Int64)
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYAVG" => Some(DataType::Float64),
+
+            FunctionName::Custom(s) if s == "ARRAYFOLD" => {
+                if args.len() >= 3 {
+                    Self::infer_expr_type_with_schema(&args[2], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYREDUCE" => {
+                if args.len() >= 2 {
+                    if let Some(DataType::Array(elem_type)) =
+                        Self::infer_expr_type_with_schema(&args[1], schema)
+                    {
+                        Some(*elem_type)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYREDUCEINRANGES" => {
+                Some(DataType::Array(Box::new(DataType::Unknown)))
+            }
+
+            FunctionName::Custom(s)
+                if s == "ARRAYCUMSUM"
+                    || s == "ARRAYCUMSUMNONNEGATIVE"
+                    || s == "ARRAYDIFFERENCE" =>
+            {
+                Some(DataType::Array(Box::new(DataType::Int64)))
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYSPLIT" || s == "ARRAYREVERSESPLIT" => {
+                if args.len() >= 2 {
+                    if let Some(arr_type) = Self::infer_expr_type_with_schema(&args[1], schema) {
+                        Some(DataType::Array(Box::new(arr_type)))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::Array(Box::new(
+                            DataType::Unknown,
+                        )))))
+                    }
+                } else {
+                    Some(DataType::Array(Box::new(DataType::Array(Box::new(
+                        DataType::Unknown,
+                    )))))
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYCOMPACT" => {
+                if !args.is_empty() {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYZIP" => {
+                Some(DataType::Array(Box::new(DataType::Struct(vec![]))))
+            }
+
+            FunctionName::Custom(s) if s == "ARRAYAUC" => Some(DataType::Float64),
+
             FunctionName::Greatest
             | FunctionName::MaxValue
             | FunctionName::Least
