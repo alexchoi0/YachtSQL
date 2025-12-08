@@ -7,6 +7,7 @@ mod hstore;
 mod operators;
 mod predicates;
 mod returning;
+mod sequence;
 mod subqueries;
 
 mod array;

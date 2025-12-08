@@ -1361,6 +1361,72 @@ impl Default for QueryExecutor {
     }
 }
 
+pub(crate) struct StorageSequenceExecutor {
+    storage: Rc<RefCell<yachtsql_storage::Storage>>,
+}
+
+impl StorageSequenceExecutor {
+    pub fn new(storage: Rc<RefCell<yachtsql_storage::Storage>>) -> Self {
+        Self { storage }
+    }
+
+    fn parse_table_name(name: &str) -> (String, String) {
+        if let Some((schema, table)) = name.split_once('.') {
+            (schema.to_string(), table.to_string())
+        } else {
+            ("default".to_string(), name.to_string())
+        }
+    }
+}
+
+impl crate::query_executor::evaluator::physical_plan::SequenceValueExecutor
+    for StorageSequenceExecutor
+{
+    fn nextval(&mut self, sequence_name: &str) -> Result<i64> {
+        let (dataset_id, seq_id) = Self::parse_table_name(sequence_name);
+
+        let mut storage = self.storage.borrow_mut();
+        let dataset = storage.get_dataset_mut(&dataset_id).ok_or_else(|| {
+            Error::invalid_query(format!("Sequence '{}' does not exist", sequence_name))
+        })?;
+
+        dataset.sequences_mut().nextval(&seq_id)
+    }
+
+    fn currval(&self, sequence_name: &str) -> Result<i64> {
+        let (dataset_id, seq_id) = Self::parse_table_name(sequence_name);
+
+        let storage = self.storage.borrow();
+        let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
+            Error::invalid_query(format!("Sequence '{}' does not exist", sequence_name))
+        })?;
+
+        dataset.sequences().currval(&seq_id)
+    }
+
+    fn setval(&mut self, sequence_name: &str, value: i64, is_called: bool) -> Result<i64> {
+        let (dataset_id, seq_id) = Self::parse_table_name(sequence_name);
+
+        let mut storage = self.storage.borrow_mut();
+        let dataset = storage.get_dataset_mut(&dataset_id).ok_or_else(|| {
+            Error::invalid_query(format!("Sequence '{}' does not exist", sequence_name))
+        })?;
+
+        dataset.sequences_mut().setval(&seq_id, value, is_called)
+    }
+
+    fn lastval(&self) -> Result<i64> {
+        let storage = self.storage.borrow();
+        let dataset = storage.get_dataset("default").ok_or_else(|| {
+            Error::InvalidOperation(
+                "LASTVAL: no sequences have been accessed in this session".to_string(),
+            )
+        })?;
+
+        dataset.sequences().lastval()
+    }
+}
+
 fn derive_output_name_from_expr(expr: &sqlparser::ast::Expr) -> String {
     match expr {
         sqlparser::ast::Expr::Identifier(ident) => ident.value.clone(),

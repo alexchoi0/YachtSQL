@@ -57,6 +57,11 @@ thread_local! {
 }
 
 thread_local! {
+    pub(crate) static SEQUENCE_EXECUTOR_CONTEXT: std::cell::RefCell<Option<Rc<RefCell<dyn SequenceValueExecutor>>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+thread_local! {
     pub(super) static CORRELATION_CONTEXT: std::cell::RefCell<Option<crate::CorrelationContext>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -90,6 +95,13 @@ pub trait SubqueryExecutor {
         &self,
         plan: &yachtsql_optimizer::plan::PlanNode,
     ) -> Result<Vec<Vec<yachtsql_core::types::Value>>>;
+}
+
+pub trait SequenceValueExecutor {
+    fn nextval(&mut self, sequence_name: &str) -> Result<i64>;
+    fn currval(&self, sequence_name: &str) -> Result<i64>;
+    fn setval(&mut self, sequence_name: &str, value: i64, is_called: bool) -> Result<i64>;
+    fn lastval(&self) -> Result<i64>;
 }
 
 pub(crate) struct FeatureRegistryContextGuard {
@@ -137,6 +149,31 @@ impl Drop for SubqueryExecutorContextGuard {
     fn drop(&mut self) {
         let previous = self.previous.clone();
         SUBQUERY_EXECUTOR_CONTEXT.with(|ctx| {
+            *ctx.borrow_mut() = previous;
+        });
+    }
+}
+
+pub(crate) struct SequenceExecutorContextGuard {
+    previous: Option<Rc<RefCell<dyn SequenceValueExecutor>>>,
+}
+
+impl SequenceExecutorContextGuard {
+    pub(crate) fn set(executor: Rc<RefCell<dyn SequenceValueExecutor>>) -> Self {
+        let previous = SEQUENCE_EXECUTOR_CONTEXT.with(|ctx| {
+            let mut slot = ctx.borrow_mut();
+            let prior = slot.clone();
+            *slot = Some(executor);
+            prior
+        });
+        Self { previous }
+    }
+}
+
+impl Drop for SequenceExecutorContextGuard {
+    fn drop(&mut self) {
+        let previous = self.previous.clone();
+        SEQUENCE_EXECUTOR_CONTEXT.with(|ctx| {
             *ctx.borrow_mut() = previous;
         });
     }

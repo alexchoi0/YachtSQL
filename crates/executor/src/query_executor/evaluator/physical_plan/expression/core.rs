@@ -979,6 +979,15 @@ impl ProjectionWithExprExec {
             return Self::evaluate_range_function(func_name, args, batch, row_idx);
         }
 
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
+                "NEXTVAL" | "CURRVAL" | "SETVAL" | "LASTVAL"
+            )
+        ) {
+            return Self::evaluate_sequence_function(func_name, args, batch, row_idx);
+        }
+
         Err(Error::unsupported_feature(format!(
             "Unknown function: {}",
             func_name

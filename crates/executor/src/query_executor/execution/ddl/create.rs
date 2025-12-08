@@ -7,6 +7,13 @@ use yachtsql_storage::{DefaultValue, Field, Schema, TableIndexOps};
 
 use super::super::QueryExecutor;
 
+#[derive(Debug, Clone, Copy)]
+enum SerialType {
+    SmallSerial,
+    Serial,
+    BigSerial,
+}
+
 pub trait DdlExecutor {
     fn execute_create_table(
         &mut self,
@@ -113,7 +120,20 @@ impl DdlExecutor for QueryExecutor {
                 }
             }
 
-            dataset.create_table(table_id.clone(), schema)?;
+            dataset.create_table(table_id.clone(), schema.clone())?;
+
+            for field in schema.fields() {
+                if let (Some(seq_name), Some(config)) = (
+                    &field.identity_sequence_name,
+                    &field.identity_sequence_config,
+                ) {
+                    dataset.sequences_mut().create_sequence(
+                        seq_name.clone(),
+                        config.clone(),
+                        true,
+                    )?;
+                }
+            }
         }
 
         self.plan_cache.borrow_mut().invalidate_all();
@@ -374,6 +394,8 @@ impl DdlExecutor for QueryExecutor {
             }
             let data_type = self.sql_type_to_data_type(dataset_id, &col.data_type)?;
 
+            let serial_type = self.detect_serial_type(&col.data_type);
+
             let domain_name = self.extract_domain_name(&col.data_type)?;
 
             let mut is_nullable = true;
@@ -385,6 +407,10 @@ impl DdlExecutor for QueryExecutor {
                 yachtsql_storage::schema::GenerationMode,
             )> = None;
             let mut default_value: Option<DefaultValue> = None;
+            let mut identity_info: Option<(
+                yachtsql_storage::IdentityGeneration,
+                yachtsql_storage::sequence::SequenceConfig,
+            )> = None;
 
             for opt in &col.options {
                 match &opt.option {
@@ -423,6 +449,25 @@ impl DdlExecutor for QueryExecutor {
                         };
 
                         generated_expr = Some((expr_sql, Vec::new(), mode));
+                    }
+                    ColumnOption::Generated {
+                        generated_as,
+                        sequence_options,
+                        generation_expr: None,
+                        ..
+                    } => {
+                        use sqlparser::ast::GeneratedAs;
+
+                        let identity_mode = match generated_as {
+                            GeneratedAs::Always => yachtsql_storage::IdentityGeneration::Always,
+                            GeneratedAs::ByDefault => {
+                                yachtsql_storage::IdentityGeneration::ByDefault
+                            }
+                            GeneratedAs::ExpStored => continue,
+                        };
+
+                        let seq_config = parse_sequence_options(sequence_options);
+                        identity_info = Some((identity_mode, seq_config));
                     }
                     ColumnOption::ForeignKey {
                         foreign_table,
@@ -492,6 +537,38 @@ impl DdlExecutor for QueryExecutor {
 
             if let Some(domain) = domain_name {
                 field = field.with_domain(domain);
+            }
+
+            if let Some(serial) = serial_type {
+                let seq_name = format!("{}_{}_seq", "table", field.name);
+                field = field.with_identity_by_default(
+                    seq_name,
+                    Some(yachtsql_storage::sequence::SequenceConfig {
+                        start_value: 1,
+                        increment: 1,
+                        min_value: Some(1),
+                        max_value: match serial {
+                            SerialType::SmallSerial => Some(i16::MAX as i64),
+                            SerialType::Serial => Some(i32::MAX as i64),
+                            SerialType::BigSerial => None,
+                        },
+                        cycle: false,
+                        cache: 1,
+                    }),
+                );
+                field.is_auto_increment = true;
+            }
+
+            if let Some((identity_mode, seq_config)) = identity_info {
+                let seq_name = format!("{}_{}_seq", "table", field.name);
+                field = match identity_mode {
+                    yachtsql_storage::IdentityGeneration::Always => {
+                        field.with_identity_always(seq_name, Some(seq_config))
+                    }
+                    yachtsql_storage::IdentityGeneration::ByDefault => {
+                        field.with_identity_by_default(seq_name, Some(seq_config))
+                    }
+                };
             }
 
             fields.push(field);
@@ -666,6 +743,9 @@ impl DdlExecutor for QueryExecutor {
                     "CIRCLE" => Ok(DataType::Circle),
                     "INET" => Ok(DataType::Inet),
                     "CIDR" => Ok(DataType::Cidr),
+                    "SERIAL" | "SERIAL4" => Ok(DataType::Int64),
+                    "BIGSERIAL" | "SERIAL8" => Ok(DataType::Int64),
+                    "SMALLSERIAL" | "SERIAL2" => Ok(DataType::Int64),
 
                     _ => Ok(DataType::Custom(type_name)),
                 }
@@ -674,6 +754,28 @@ impl DdlExecutor for QueryExecutor {
                 "Unsupported data type: {:?}",
                 sql_type
             ))),
+        }
+    }
+}
+
+impl QueryExecutor {
+    fn detect_serial_type(&self, sql_type: &SqlDataType) -> Option<SerialType> {
+        if let SqlDataType::Custom(name, _) = sql_type {
+            let type_name = name
+                .0
+                .last()
+                .and_then(|part| part.as_ident())
+                .map(|ident| ident.value.to_uppercase())
+                .unwrap_or_default();
+
+            match type_name.as_str() {
+                "SERIAL" | "SERIAL4" => Some(SerialType::Serial),
+                "BIGSERIAL" | "SERIAL8" => Some(SerialType::BigSerial),
+                "SMALLSERIAL" | "SERIAL2" => Some(SerialType::SmallSerial),
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 }
@@ -737,6 +839,68 @@ fn parse_column_default(expr: &sqlparser::ast::Expr) -> Result<DefaultValue> {
             expr
         ))),
     }
+}
+
+fn expr_to_i64(expr: &sqlparser::ast::Expr) -> Option<i64> {
+    use sqlparser::ast::{Expr, Value as SqlValue, ValueWithSpan as SqlValueWithSpan};
+
+    match expr {
+        Expr::Value(SqlValueWithSpan {
+            value: SqlValue::Number(n, _),
+            ..
+        }) => n.parse::<i64>().ok(),
+        Expr::UnaryOp {
+            op: sqlparser::ast::UnaryOperator::Minus,
+            expr,
+        } => expr_to_i64(expr).map(|v| -v),
+        _ => None,
+    }
+}
+
+fn parse_sequence_options(
+    options: &Option<Vec<sqlparser::ast::SequenceOptions>>,
+) -> yachtsql_storage::sequence::SequenceConfig {
+    use sqlparser::ast::SequenceOptions;
+
+    let mut config = yachtsql_storage::sequence::SequenceConfig::default();
+
+    if let Some(opts) = options {
+        for opt in opts {
+            match opt {
+                SequenceOptions::StartWith(start, _) => {
+                    if let Some(value) = expr_to_i64(start) {
+                        config.start_value = value;
+                    }
+                }
+                SequenceOptions::IncrementBy(inc, _) => {
+                    if let Some(value) = expr_to_i64(inc) {
+                        config.increment = value;
+                    }
+                }
+                SequenceOptions::MinValue(Some(min)) => {
+                    if let Some(value) = expr_to_i64(min) {
+                        config.min_value = Some(value);
+                    }
+                }
+                SequenceOptions::MaxValue(Some(max)) => {
+                    if let Some(value) = expr_to_i64(max) {
+                        config.max_value = Some(value);
+                    }
+                }
+                SequenceOptions::Cycle(cycle) => {
+                    config.cycle = *cycle;
+                }
+                SequenceOptions::Cache(cache) => {
+                    if let Some(value) = expr_to_i64(cache) {
+                        config.cache = value as u32;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    config
 }
 
 impl QueryExecutor {
