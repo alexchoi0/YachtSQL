@@ -1,12 +1,9 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use std::time::Instant;
 
 use yachtsql_core::error::Result;
 use yachtsql_core::types::Value;
 
-use crate::mvcc::VersionStore;
 use crate::{Row, Schema, Storage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -407,39 +404,12 @@ impl Transaction {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct SharedTransactionState {
-    version_store: Rc<RefCell<VersionStore>>,
-    global_timestamp: Rc<RefCell<u64>>,
-}
-
-impl SharedTransactionState {
-    pub fn new() -> Self {
-        Self {
-            version_store: Rc::new(RefCell::new(VersionStore::new())),
-            global_timestamp: Rc::new(RefCell::new(1)),
-        }
-    }
-
-    pub fn next_timestamp(&self) -> u64 {
-        let mut ts = self.global_timestamp.borrow_mut();
-        let current = *ts;
-        *ts += 1;
-        current
-    }
-
-    pub fn version_store(&self) -> Rc<RefCell<VersionStore>> {
-        Rc::clone(&self.version_store)
-    }
-}
-
 #[derive(Debug)]
 pub struct TransactionManager {
     active_transaction: Option<ActiveTransactionContext>,
     next_txn_id: u64,
     global_timestamp: u64,
     default_isolation_level: IsolationLevel,
-    shared_state: Option<SharedTransactionState>,
     committed_txns: HashSet<u64>,
     commit_timestamps: HashMap<u64, u64>,
 }
@@ -457,32 +427,15 @@ impl TransactionManager {
             next_txn_id: 1,
             global_timestamp: 1,
             default_isolation_level: IsolationLevel::default(),
-            shared_state: None,
-            committed_txns: HashSet::new(),
-            commit_timestamps: HashMap::new(),
-        }
-    }
-
-    pub fn with_shared_state(shared_state: SharedTransactionState) -> Self {
-        Self {
-            active_transaction: None,
-            next_txn_id: 1,
-            global_timestamp: 1,
-            default_isolation_level: IsolationLevel::default(),
-            shared_state: Some(shared_state),
             committed_txns: HashSet::new(),
             commit_timestamps: HashMap::new(),
         }
     }
 
     fn next_timestamp(&mut self) -> u64 {
-        if let Some(shared) = &self.shared_state {
-            shared.next_timestamp()
-        } else {
-            let ts = self.global_timestamp;
-            self.global_timestamp += 1;
-            ts
-        }
+        let ts = self.global_timestamp;
+        self.global_timestamp += 1;
+        ts
     }
 
     pub fn is_active(&self) -> bool {
@@ -530,10 +483,6 @@ impl TransactionManager {
 
     pub fn default_isolation_level(&self) -> IsolationLevel {
         self.default_isolation_level
-    }
-
-    pub fn shared_state(&self) -> Option<SharedTransactionState> {
-        self.shared_state.clone()
     }
 
     fn no_transaction_error(operation: &str) -> yachtsql_core::error::Error {
