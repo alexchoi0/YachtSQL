@@ -33,12 +33,12 @@ pub use utility::{
     infer_scalar_subquery_type_static, perform_cast, safe_add, safe_divide, safe_multiply,
     safe_negate, safe_subtract,
 };
+use yachtsql_capability::FeatureId;
 use yachtsql_capability::error::CapabilityError;
 use yachtsql_capability::feature_ids::{
     F781_SELF_REFERENCING_OPERATIONS, F782_COMMIT_STATEMENT, F783_ROLLBACK_STATEMENT,
     F784_SAVEPOINT_STATEMENT, F785_ROLLBACK_TO_SAVEPOINT_STATEMENT, F786_SAVEPOINTS,
 };
-use yachtsql_capability::FeatureId;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_optimizer::rules::{
@@ -49,8 +49,8 @@ use yachtsql_storage::Schema;
 
 use self::session::SessionState;
 use self::transaction::SessionTransactionController;
-use crate::catalog_adapter::SnapshotCatalog;
 use crate::Table;
+use crate::catalog_adapter::SnapshotCatalog;
 
 fn create_default_optimizer() -> yachtsql_optimizer::Optimizer {
     yachtsql_optimizer::Optimizer::new()
