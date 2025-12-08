@@ -38,6 +38,7 @@ pub trait DdlExecutor {
     fn parse_columns_to_schema(
         &self,
         dataset_id: &str,
+        table_name: &str,
         columns: &[ColumnDef],
     ) -> Result<(Schema, Vec<sqlparser::ast::TableConstraint>)>;
 
@@ -62,7 +63,7 @@ impl DdlExecutor for QueryExecutor {
         let (dataset_id, table_id) = self.parse_ddl_table_name(&table_name)?;
 
         let (mut schema, column_level_fks) =
-            self.parse_columns_to_schema(&dataset_id, &create_table.columns)?;
+            self.parse_columns_to_schema(&dataset_id, &table_id, &create_table.columns)?;
 
         let mut all_constraints = create_table.constraints.clone();
         all_constraints.extend(column_level_fks);
@@ -131,6 +132,11 @@ impl DdlExecutor for QueryExecutor {
                         seq_name.clone(),
                         config.clone(),
                         true,
+                    )?;
+                    dataset.sequences_mut().set_owned_by(
+                        seq_name,
+                        table_id.clone(),
+                        field.name.clone(),
                     )?;
                 }
             }
@@ -375,6 +381,7 @@ impl DdlExecutor for QueryExecutor {
     fn parse_columns_to_schema(
         &self,
         dataset_id: &str,
+        table_name: &str,
         columns: &[ColumnDef],
     ) -> Result<(Schema, Vec<sqlparser::ast::TableConstraint>)> {
         let mut fields = Vec::new();
@@ -540,7 +547,7 @@ impl DdlExecutor for QueryExecutor {
             }
 
             if let Some(serial) = serial_type {
-                let seq_name = format!("{}_{}_seq", "table", field.name);
+                let seq_name = format!("{}_{}_seq", table_name, field.name);
                 field = field.with_identity_by_default(
                     seq_name,
                     Some(yachtsql_storage::sequence::SequenceConfig {
@@ -560,7 +567,7 @@ impl DdlExecutor for QueryExecutor {
             }
 
             if let Some((identity_mode, seq_config)) = identity_info {
-                let seq_name = format!("{}_{}_seq", "table", field.name);
+                let seq_name = format!("{}_{}_seq", table_name, field.name);
                 field = match identity_mode {
                     yachtsql_storage::IdentityGeneration::Always => {
                         field.with_identity_always(seq_name, Some(seq_config))
