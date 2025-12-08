@@ -73,7 +73,7 @@ fn test_drop_index_if_exists() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_create_index_minmax() {
     let mut executor = create_executor();
@@ -86,7 +86,7 @@ fn test_create_index_minmax() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... syntax"]
 #[test]
 fn test_create_index_set() {
     let mut executor = create_executor();
@@ -98,7 +98,7 @@ fn test_create_index_set() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... syntax"]
 #[test]
 fn test_create_index_bloom_filter() {
     let mut executor = create_executor();
@@ -111,7 +111,7 @@ fn test_create_index_bloom_filter() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... syntax"]
 #[test]
 fn test_create_index_ngrambf() {
     let mut executor = create_executor();
@@ -124,7 +124,7 @@ fn test_create_index_ngrambf() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... syntax"]
 #[test]
 fn test_create_index_tokenbf() {
     let mut executor = create_executor();
@@ -137,7 +137,7 @@ fn test_create_index_tokenbf() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... syntax and numbers() function"]
 #[test]
 fn test_index_performance() {
     let mut executor = create_executor();
@@ -157,7 +157,7 @@ fn test_index_performance() {
     assert_table_eq!(result, [[50]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... syntax"]
 #[test]
 fn test_materialize_index() {
     let mut executor = create_executor();
@@ -175,7 +175,7 @@ fn test_materialize_index() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... syntax"]
 #[test]
 fn test_clear_index() {
     let mut executor = create_executor();
@@ -193,7 +193,7 @@ fn test_clear_index() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_create_index_inverted() {
     let mut executor = create_executor();
@@ -207,7 +207,7 @@ fn test_create_index_inverted() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_create_index_full_text() {
     let mut executor = create_executor();
@@ -221,7 +221,7 @@ fn test_create_index_full_text() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_create_index_annoy() {
     let mut executor = create_executor();
@@ -233,7 +233,7 @@ fn test_create_index_annoy() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_create_index_usearch() {
     let mut executor = create_executor();
@@ -247,7 +247,7 @@ fn test_create_index_usearch() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_create_index_hypothesis() {
     let mut executor = create_executor();
@@ -261,7 +261,7 @@ fn test_create_index_hypothesis() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_inline_minmax_index() {
     let mut executor = create_executor();
@@ -278,7 +278,7 @@ fn test_inline_minmax_index() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_inline_bloom_filter_index() {
     let mut executor = create_executor();
@@ -295,7 +295,7 @@ fn test_inline_bloom_filter_index() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_inline_multiple_indexes() {
     let mut executor = create_executor();
@@ -316,7 +316,7 @@ fn test_inline_multiple_indexes() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_index_with_expression() {
     let mut executor = create_executor();
@@ -329,7 +329,7 @@ fn test_index_with_expression() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support TYPE ... GRANULARITY syntax"]
 #[test]
 fn test_index_with_function() {
     let mut executor = create_executor();
@@ -343,7 +343,7 @@ fn test_index_with_function() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_bloom_filter_query() {
     let mut executor = create_executor();
@@ -373,7 +373,7 @@ fn test_bloom_filter_query() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_set_index_in_query() {
     let mut executor = create_executor();
@@ -401,7 +401,7 @@ fn test_set_index_in_query() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_fulltext_has_token() {
     let mut executor = create_executor();
@@ -431,7 +431,7 @@ fn test_fulltext_has_token() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_vector_l2_distance() {
     let mut executor = create_executor();
