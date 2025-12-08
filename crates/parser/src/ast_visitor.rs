@@ -352,11 +352,13 @@ impl LogicalPlanBuilder {
                 aliases.insert(alias.clone());
             }
 
-            PlanNode::TableValuedFunction { alias, .. } => {
-                if let Some(alias) = alias {
-                    aliases.insert(alias.clone());
-                }
+            PlanNode::TableValuedFunction {
+                alias: Some(alias), ..
+            } => {
+                aliases.insert(alias.clone());
             }
+
+            PlanNode::TableValuedFunction { alias: None, .. } => {}
 
             PlanNode::Join { left, right, .. } => {
                 Self::walk_plan_for_aliases(left, aliases);

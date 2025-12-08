@@ -18,14 +18,12 @@ impl LogicalPlanBuilder {
         expr: &ast::Expr,
         target_type: &CastDataType,
     ) -> Result<Expr> {
-        if matches!(target_type, CastDataType::Json) {
-            if let ast::Expr::Value(value) = expr {
-                if let ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) =
-                    &value.value
-                {
-                    return Ok(Expr::Literal(LiteralValue::String(s.clone())));
-                }
-            }
+        if matches!(target_type, CastDataType::Json)
+            && let ast::Expr::Value(value) = expr
+            && let ast::Value::SingleQuotedString(s) | ast::Value::DoubleQuotedString(s) =
+                &value.value
+        {
+            return Ok(Expr::Literal(LiteralValue::String(s.clone())));
         }
         self.sql_expr_to_expr(expr)
     }
