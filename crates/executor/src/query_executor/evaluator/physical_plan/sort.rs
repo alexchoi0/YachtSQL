@@ -3,6 +3,7 @@ use std::rc::Rc;
 use debug_print::debug_eprintln;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
+use yachtsql_ir::expr::LiteralValue;
 use yachtsql_optimizer::expr::{Expr, OrderByExpr};
 use yachtsql_storage::{Column, Schema};
 
@@ -22,6 +23,14 @@ pub struct SortExec {
 impl SortExec {
     pub fn new(input: Rc<dyn ExecutionPlan>, sort_exprs: Vec<OrderByExpr>) -> Result<Self> {
         let schema = input.schema().clone();
+
+        let sort_exprs = sort_exprs
+            .into_iter()
+            .map(|mut expr| {
+                expr.expr = Self::resolve_positional_reference(expr.expr, &schema);
+                expr
+            })
+            .collect::<Vec<_>>();
 
         for sort_expr in &sort_exprs {
             Self::validate_expr_columns(&sort_expr.expr, &schema)?;
@@ -53,6 +62,23 @@ impl SortExec {
             sort_exprs,
             enum_labels,
         })
+    }
+
+    fn resolve_positional_reference(expr: Expr, schema: &Schema) -> Expr {
+        match &expr {
+            Expr::Literal(LiteralValue::Int64(pos)) => {
+                let pos = *pos as usize;
+                if pos > 0 && pos <= schema.fields().len() {
+                    let field = &schema.fields()[pos - 1];
+                    return Expr::Column {
+                        name: field.name.clone(),
+                        table: None,
+                    };
+                }
+                expr
+            }
+            _ => expr,
+        }
     }
 
     fn get_enum_labels_for_expr(expr: &Expr, schema: &Schema) -> Option<Vec<String>> {

@@ -241,6 +241,8 @@ impl ComplexityAnalyzer {
             PlanNode::AlterTable { .. } => {}
 
             PlanNode::EmptyRelation => {}
+
+            PlanNode::Values { .. } => {}
         }
 
         self.current_depth -= 1;

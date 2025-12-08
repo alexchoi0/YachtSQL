@@ -163,6 +163,17 @@ impl LogicalPlanBuilder {
         match set_expr {
             ast::SetExpr::Select(select) => self.select_to_plan(select),
             ast::SetExpr::Query(query) => self.query_to_plan(query),
+            ast::SetExpr::Values(values) => {
+                let mut value_rows = Vec::new();
+                for row in &values.rows {
+                    let row_values = row
+                        .iter()
+                        .map(|expr| self.sql_expr_to_expr(expr))
+                        .collect::<Result<Vec<_>>>()?;
+                    value_rows.push(row_values);
+                }
+                Ok(LogicalPlan::new(PlanNode::Values { rows: value_rows }))
+            }
             ast::SetExpr::SetOperation {
                 op,
                 set_quantifier,

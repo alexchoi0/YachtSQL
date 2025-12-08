@@ -26,6 +26,7 @@ mod set_ops;
 mod sort;
 mod tablesample;
 mod type_inference;
+mod values;
 mod window;
 
 pub use aggregate::{AggregateExec, SortAggregateExec};
@@ -44,6 +45,7 @@ pub use pivot::{PivotAggregateFunction, PivotExec, UnpivotExec};
 pub use set_ops::{ExceptExec, IntersectExec, UnionExec};
 pub use sort::SortExec;
 pub use tablesample::{SampleSize, SamplingMethod, TableSampleExec};
+pub use values::{ValuesExec, infer_values_schema};
 pub use window::WindowExec;
 
 thread_local! {

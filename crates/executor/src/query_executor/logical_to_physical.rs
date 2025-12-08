@@ -12,7 +12,7 @@ use super::evaluator::physical_plan::{
     MergeJoinExec, NestedLoopJoinExec, PhysicalPlan, PivotAggregateFunction, PivotExec,
     ProjectionWithExprExec, SampleSize, SamplingMethod, SortAggregateExec, SortExec,
     SubqueryScanExec, TableSampleExec, TableScanExec, TableValuedFunctionExec, UnionExec,
-    UnnestExec, UnpivotExec, WindowExec,
+    UnnestExec, UnpivotExec, ValuesExec, WindowExec, infer_values_schema,
 };
 use super::returning::{
     ReturningColumn, ReturningColumnOrigin, ReturningExpressionItem, ReturningSpec,
@@ -1276,6 +1276,11 @@ impl LogicalToPhysicalPlanner {
             PlanNode::EmptyRelation => {
                 let schema = yachtsql_storage::Schema::from_fields(vec![]);
                 Ok(Rc::new(EmptyRelationExec::new(schema)))
+            }
+
+            PlanNode::Values { rows } => {
+                let schema = infer_values_schema(rows);
+                Ok(Rc::new(ValuesExec::new(schema, rows.clone())))
             }
 
             PlanNode::Window {

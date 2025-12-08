@@ -176,6 +176,12 @@ impl PhysicalPlanner {
                 Ok(Rc::new(EmptyRelationExec::new(schema)))
             }
 
+            PlanNode::Values { rows } => {
+                use super::physical_plan::{infer_values_schema, ValuesExec};
+                let schema = infer_values_schema(rows);
+                Ok(Rc::new(ValuesExec::new(schema, rows.clone())))
+            }
+
             PlanNode::TableSample {
                 input,
                 method,

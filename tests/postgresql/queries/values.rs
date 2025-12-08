@@ -4,7 +4,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_basic() {
     let mut executor = create_executor();
     let result = executor.execute_sql("VALUES (1), (2), (3)").unwrap();
@@ -12,7 +11,6 @@ fn test_values_basic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_multiple_columns() {
     let mut executor = create_executor();
     let result = executor
@@ -22,7 +20,6 @@ fn test_values_multiple_columns() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_as_subquery() {
     let mut executor = create_executor();
     let result = executor
@@ -32,7 +29,6 @@ fn test_values_as_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_with_order_by() {
     let mut executor = create_executor();
     let result = executor
@@ -42,7 +38,6 @@ fn test_values_with_order_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_with_limit() {
     let mut executor = create_executor();
     let result = executor
@@ -52,7 +47,6 @@ fn test_values_with_limit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_with_offset() {
     let mut executor = create_executor();
     let result = executor
@@ -62,7 +56,6 @@ fn test_values_with_offset() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_union() {
     let mut executor = create_executor();
     let result = executor
@@ -72,7 +65,6 @@ fn test_values_union() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_union_all() {
     let mut executor = create_executor();
     let result = executor
@@ -82,7 +74,6 @@ fn test_values_union_all() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_intersect() {
     let mut executor = create_executor();
     let result = executor
@@ -92,7 +83,6 @@ fn test_values_intersect() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_except() {
     let mut executor = create_executor();
     let result = executor
@@ -102,7 +92,6 @@ fn test_values_except() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_in_cte() {
     let mut executor = create_executor();
     let result = executor
@@ -115,21 +104,15 @@ fn test_values_in_cte() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_join() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql(
-            "SELECT t1.column1, t2.column1
-             FROM (VALUES (1), (2)) AS t1
-             CROSS JOIN (VALUES ('a'), ('b')) AS t2",
-        )
+        .execute_sql("SELECT * FROM (VALUES (1), (2)) AS t1 CROSS JOIN (VALUES ('a'), ('b')) AS t2")
         .unwrap();
     assert_table_eq!(result, [[1, "a"], [1, "b"], [2, "a"], [2, "b"]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_with_null() {
     let mut executor = create_executor();
     let result = executor
@@ -139,7 +122,6 @@ fn test_values_with_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_mixed_types() {
     let mut executor = create_executor();
     let result = executor
@@ -149,7 +131,6 @@ fn test_values_mixed_types() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_expressions() {
     let mut executor = create_executor();
     let result = executor
@@ -159,7 +140,6 @@ fn test_values_expressions() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_insert_from() {
     let mut executor = create_executor();
     executor
@@ -176,7 +156,6 @@ fn test_values_insert_from() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_single_row() {
     let mut executor = create_executor();
     let result = executor.execute_sql("VALUES (42)").unwrap();
@@ -184,7 +163,6 @@ fn test_values_single_row() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_many_columns() {
     let mut executor = create_executor();
     let result = executor
@@ -194,7 +172,6 @@ fn test_values_many_columns() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_where_exists() {
     let mut executor = create_executor();
     executor
@@ -214,7 +191,6 @@ fn test_values_where_exists() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_values_in_clause() {
     let mut executor = create_executor();
     executor

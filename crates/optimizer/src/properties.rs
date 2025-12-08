@@ -50,7 +50,8 @@ pub fn infer_output_columns(node: &PlanNode) -> Option<HashSet<String>> {
         | PlanNode::Unnest { .. }
         | PlanNode::TableValuedFunction { .. }
         | PlanNode::ArrayJoin { .. }
-        | PlanNode::EmptyRelation => None,
+        | PlanNode::EmptyRelation
+        | PlanNode::Values { .. } => None,
     }
 }
 

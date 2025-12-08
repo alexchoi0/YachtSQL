@@ -1,132 +1,84 @@
-# Work Stream 7: Constraint Enforcement on UPDATE
+# Worker 5: VALUES Clause
 
-## Overview
-Implement constraint checking during UPDATE and enhance DELETE constraint enforcement.
+## Objective
+Implement the standalone VALUES clause to remove `#[ignore]` tags from `tests/postgresql/queries/values.rs`.
 
-## Tests to Enable
-**File:** `tests/postgresql/ddl/constraints.rs`
-- `test_check_constraint_enforcement_on_update`
-- `test_unique_enforcement_on_update`
-- `test_foreign_key_violation_update`
-- `test_foreign_key_on_delete_restrict`
-- `test_foreign_key_on_delete_no_action`
-- `test_foreign_key_on_update_restrict`
+## Test File
+- `tests/postgresql/queries/values.rs` (20 ignored tests)
 
-## Constraints to Enforce
+## Features to Implement
 
-### CHECK Constraint on UPDATE
-```sql
-CREATE TABLE t (id INT, age INT CHECK (age >= 0));
-INSERT INTO t VALUES (1, 25);
-UPDATE t SET age = -5 WHERE id = 1;  -- ERROR: violates check constraint
-```
-- Evaluate CHECK expression against new row values
-- Error if constraint violated
+### 1. Basic VALUES Statement
+- `VALUES (1), (2), (3)` - Standalone VALUES returning rows
+- `VALUES (1, 'a'), (2, 'b')` - Multiple columns
+- Returns a virtual table with columns named `column1`, `column2`, etc.
 
-### UNIQUE Constraint on UPDATE
-```sql
-CREATE TABLE t (id INT, email TEXT UNIQUE);
-INSERT INTO t VALUES (1, 'a@b.com'), (2, 'c@d.com');
-UPDATE t SET email = 'a@b.com' WHERE id = 2;  -- ERROR: duplicate key
-```
-- Check if new value conflicts with existing rows
-- Exclude the row being updated from check
+### 2. VALUES with Clauses
+- `VALUES (...) ORDER BY 1` - Order results
+- `VALUES (...) LIMIT n` - Limit rows
+- `VALUES (...) OFFSET n` - Skip rows
 
-### Foreign Key on UPDATE (child table)
-```sql
-CREATE TABLE parent (id INT PRIMARY KEY);
-CREATE TABLE child (id INT, pid INT REFERENCES parent(id));
-INSERT INTO parent VALUES (1);
-INSERT INTO child VALUES (1, 1);
-UPDATE child SET pid = 999 WHERE id = 1;  -- ERROR: FK violation
-```
-- Verify new foreign key value exists in parent table
+### 3. VALUES as Subquery
+- `SELECT * FROM (VALUES (1, 'a'), (2, 'b')) AS t(id, name)`
+- Column aliasing with AS clause
 
-### ON DELETE RESTRICT
-```sql
-CREATE TABLE child (pid INT REFERENCES parent(id) ON DELETE RESTRICT);
-DELETE FROM parent WHERE id = 1;  -- ERROR if child rows exist
-```
-- Prevent delete if any child rows reference this row
-- Check immediately (not at statement end)
+### 4. VALUES in Set Operations
+- `VALUES (1) UNION VALUES (2)` - Union with VALUES
+- `VALUES (1) UNION ALL VALUES (1)` - Union all
+- `VALUES (1), (2) INTERSECT VALUES (2), (3)` - Intersect
+- `VALUES (1), (2) EXCEPT VALUES (2)` - Except
 
-### ON DELETE NO ACTION
-```sql
-CREATE TABLE child (pid INT REFERENCES parent(id) ON DELETE NO ACTION);
-DELETE FROM parent WHERE id = 1;  -- ERROR if child rows exist
-```
-- Same as RESTRICT but checked at statement end
-- Allows other triggers/rules to fix the reference first
+### 5. VALUES in CTE
+- `WITH data AS (VALUES (1, 'a')) SELECT * FROM data`
 
-### ON UPDATE RESTRICT
-```sql
-CREATE TABLE child (pid INT REFERENCES parent(id) ON UPDATE RESTRICT);
-UPDATE parent SET id = 2 WHERE id = 1;  -- ERROR if child rows exist
-```
-- Prevent update of referenced column if child rows exist
+### 6. VALUES with Expressions
+- `VALUES (1 + 2), (3 * 4)` - Expressions in VALUES
+- `VALUES (1, NULL)` - NULL values
+- Mixed types inferred from values
+
+### 7. VALUES in INSERT
+- `INSERT INTO t SELECT * FROM (VALUES ...) AS v(cols)`
+
+### 8. VALUES with EXISTS/IN
+- `WHERE id IN (SELECT column1 FROM (VALUES (1), (2)) AS v)`
+- `WHERE EXISTS (SELECT 1 FROM (VALUES ...) AS v WHERE ...)`
+
+## Implementation Steps
+
+1. **Parser Changes**
+   - Parse `VALUES` as a standalone statement
+   - Parse `VALUES` in FROM clause as table expression
+   - Handle `AS alias(col1, col2)` syntax
+
+2. **Logical Plan**
+   - Create `LogicalPlan::Values` node
+   - Store list of row expressions
+   - Infer column types from values
+
+3. **Physical Plan**
+   - Create `PhysicalPlan::Values` operator
+   - Evaluate each row's expressions
+   - Produce result batches
+
+4. **Query Execution**
+   - Execute VALUES as a table source
+   - Support ORDER BY, LIMIT, OFFSET on VALUES
+   - Integrate with set operations (UNION, INTERSECT, EXCEPT)
+
+5. **Column Naming**
+   - Default names: `column1`, `column2`, ...
+   - Apply aliases from AS clause
 
 ## Key Files to Modify
+- `crates/parser/src/` - VALUES parsing
+- `crates/executor/src/query_executor/` - Logical/physical plan
+- Set operation handling
 
-### UPDATE Execution
-- `crates/executor/src/query_executor/execution/dml/update.rs`
-- Before updating each row:
-  1. Evaluate CHECK constraints on new values
-  2. Check UNIQUE constraints (excluding current row)
-  3. Verify FK references exist in parent tables
-
-### DELETE Execution
-- `crates/executor/src/query_executor/execution/dml/delete.rs`
-- Before deleting each row:
-  1. Check for RESTRICT foreign keys referencing this row
-  2. For NO ACTION, defer check to statement end
-
-### Constraint Checking Utilities
-- `crates/storage/src/constraints.rs` or new module
-- `check_constraint(table, row, constraint) -> Result<()>`
-- `check_unique(table, row, columns, exclude_row) -> Result<()>`
-- `check_foreign_key(child_table, row, fk) -> Result<()>`
-- `check_references(parent_table, row, pk_columns) -> Result<()>`
-
-## Implementation Notes
-
-1. **CHECK on UPDATE**
-   - Get constraint expression
-   - Bind new row values to expression variables
-   - Evaluate expression, error if false
-
-2. **UNIQUE on UPDATE**
-   - Query for existing rows with same values
-   - Exclude the row being updated (by primary key or row ID)
-   - Error if any matches found
-
-3. **FK on UPDATE (child)**
-   - Get parent table and referenced columns
-   - Query parent table for matching row
-   - Error if not found
-
-4. **RESTRICT vs NO ACTION**
-   - RESTRICT: check immediately per-row
-   - NO ACTION: collect checks, verify at statement end
-   - In practice, often behave the same
-
-5. **Performance considerations**
-   - May want to batch constraint checks
-   - Index lookups for FK and UNIQUE checks
-
-## Test Commands
+## Testing
 ```bash
-cargo test --test postgresql test_check_constraint_enforcement_on_update
-cargo test --test postgresql test_unique_enforcement_on_update
-cargo test --test postgresql test_foreign_key_violation_update
-cargo test --test postgresql test_foreign_key_on_delete_restrict
-cargo test --test postgresql test_foreign_key_on_delete_no_action
-cargo test --test postgresql test_foreign_key_on_update_restrict
+cargo test --test postgresql queries::values
 ```
 
-## Dependencies
-None - extends existing constraint checking (INSERT already has some)
-
-## Coordination
-- Work Stream 6 (DROP CONSTRAINT) adds `is_valid` flag - check it before enforcing
-- Work Stream 8 (Deferred Constraints) needs these checks to defer
-- Share constraint checking utilities
+## Notes
+- VALUES is essentially an inline table constructor
+- Should work anywhere a SELECT can appear
