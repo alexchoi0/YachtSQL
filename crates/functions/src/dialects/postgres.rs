@@ -219,6 +219,10 @@ pub fn postgres_scalar_functions() -> Vec<&'static str> {
         "TRIM_SCALE",
         "WIDTH_BUCKET",
         "SETSEED",
+        "BIT_COUNT",
+        "GET_BIT",
+        "SET_BIT",
+        "OCTET_LENGTH",
     ]
 }
 

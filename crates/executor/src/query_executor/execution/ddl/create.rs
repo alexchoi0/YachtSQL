@@ -630,6 +630,7 @@ impl DdlExecutor for QueryExecutor {
             | SqlDataType::Char(_)
             | SqlDataType::Text => Ok(DataType::String),
             SqlDataType::Bytea | SqlDataType::Bytes(_) => Ok(DataType::Bytes),
+            SqlDataType::Bit(_) | SqlDataType::BitVarying(_) => Ok(DataType::Bytes),
             SqlDataType::Date => Ok(DataType::Date),
             SqlDataType::Timestamp(_, _) => Ok(DataType::Timestamp),
             SqlDataType::Decimal(info) | SqlDataType::Numeric(info) => {

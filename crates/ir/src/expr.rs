@@ -216,6 +216,8 @@ pub enum BinaryOp {
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
+    ShiftLeft,
+    ShiftRight,
     Like,
     NotLike,
     ILike,
@@ -252,6 +254,7 @@ pub enum UnaryOp {
     Plus,
     IsNull,
     IsNotNull,
+    BitwiseNot,
 }
 
 #[derive(Debug, Clone, PartialEq)]

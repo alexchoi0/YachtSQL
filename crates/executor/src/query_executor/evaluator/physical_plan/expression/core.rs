@@ -500,6 +500,10 @@ impl ProjectionWithExprExec {
                 | "CASEFOLD"
                 | "SPLITBYCHAR"
                 | "SPLITBYSTRING"
+                | "BIT_COUNT"
+                | "GET_BIT"
+                | "SET_BIT"
+                | "OCTET_LENGTH"
             )
         ) {
             return Self::evaluate_string_function(func_name, args, batch, row_idx);

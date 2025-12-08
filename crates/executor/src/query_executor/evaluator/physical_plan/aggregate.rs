@@ -477,6 +477,14 @@ impl AggregateExec {
 
                 FunctionName::WindowFunnel => Some(DataType::Int64),
 
+                FunctionName::BitAnd | FunctionName::BitOr | FunctionName::BitXor => {
+                    Some(DataType::Int64)
+                }
+
+                FunctionName::BoolAnd | FunctionName::BoolOr | FunctionName::Every => {
+                    Some(DataType::Bool)
+                }
+
                 FunctionName::Custom(s)
                     if s == "JSON_AGG"
                         || s == "JSONB_AGG"
@@ -1528,6 +1536,66 @@ impl AggregateExec {
                         Value::array(result)
                     }
                     FunctionName::WindowFunnel => Value::int64(0),
+                    FunctionName::BitAnd => {
+                        let mut result: Option<i64> = None;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                result = Some(match result {
+                                    None => i,
+                                    Some(prev) => prev & i,
+                                });
+                            }
+                        }
+                        result.map(Value::int64).unwrap_or(Value::null())
+                    }
+                    FunctionName::BitOr => {
+                        let mut result: Option<i64> = None;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                result = Some(match result {
+                                    None => i,
+                                    Some(prev) => prev | i,
+                                });
+                            }
+                        }
+                        result.map(Value::int64).unwrap_or(Value::null())
+                    }
+                    FunctionName::BitXor => {
+                        let mut result: Option<i64> = None;
+                        for val in &values {
+                            if let Some(i) = val.as_i64() {
+                                result = Some(match result {
+                                    None => i,
+                                    Some(prev) => prev ^ i,
+                                });
+                            }
+                        }
+                        result.map(Value::int64).unwrap_or(Value::null())
+                    }
+                    FunctionName::BoolAnd | FunctionName::Every => {
+                        let mut result: Option<bool> = None;
+                        for val in &values {
+                            if let Some(b) = val.as_bool() {
+                                result = Some(match result {
+                                    None => b,
+                                    Some(prev) => prev && b,
+                                });
+                            }
+                        }
+                        result.map(Value::bool_val).unwrap_or(Value::null())
+                    }
+                    FunctionName::BoolOr => {
+                        let mut result: Option<bool> = None;
+                        for val in &values {
+                            if let Some(b) = val.as_bool() {
+                                result = Some(match result {
+                                    None => b,
+                                    Some(prev) => prev || b,
+                                });
+                            }
+                        }
+                        result.map(Value::bool_val).unwrap_or(Value::null())
+                    }
                     FunctionName::Custom(s) if s == "JSON_AGG" || s == "JSONB_AGG" => {
                         let non_null_values: Vec<serde_json::Value> = values
                             .iter()

@@ -85,10 +85,60 @@ impl ProjectionWithExprExec {
             "QUOTE_IDENT" => Self::evaluate_quote_ident(args, batch, row_idx),
             "QUOTE_LITERAL" => Self::evaluate_quote_literal(args, batch, row_idx),
             "CASEFOLD" => Self::evaluate_casefold(args, batch, row_idx),
+            "BIT_COUNT" => Self::evaluate_bit_count(args, batch, row_idx),
+            "GET_BIT" => Self::evaluate_get_bit(args, batch, row_idx),
+            "SET_BIT" => Self::evaluate_set_bit(args, batch, row_idx),
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown string function: {}",
                 name
             ))),
         }
+    }
+}
+
+impl ProjectionWithExprExec {
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_bit_count(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("BIT_COUNT", args, 1)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        yachtsql_functions::scalar::eval_bit_count(&val)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_get_bit(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("GET_BIT", args, 2)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let position = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        let pos = position.as_i64().ok_or_else(|| Error::TypeMismatch {
+            expected: "INT64".to_string(),
+            actual: position.data_type().to_string(),
+        })?;
+        yachtsql_functions::scalar::eval_get_bit(&val, pos)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_set_bit(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("SET_BIT", args, 3)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let position = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        let new_value = Self::evaluate_expr(&args[2], batch, row_idx)?;
+        let pos = position.as_i64().ok_or_else(|| Error::TypeMismatch {
+            expected: "INT64".to_string(),
+            actual: position.data_type().to_string(),
+        })?;
+        let new_val = new_value.as_i64().ok_or_else(|| Error::TypeMismatch {
+            expected: "INT64".to_string(),
+            actual: new_value.data_type().to_string(),
+        })?;
+        yachtsql_functions::scalar::eval_set_bit(&val, pos, new_val)
     }
 }

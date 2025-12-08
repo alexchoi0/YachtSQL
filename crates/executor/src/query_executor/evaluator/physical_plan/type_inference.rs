@@ -314,6 +314,15 @@ impl ProjectionWithExprExec {
                 _ => None,
             },
 
+            BinaryOp::BitwiseAnd | BinaryOp::BitwiseOr | BinaryOp::BitwiseXor => {
+                Some(DataType::Int64)
+            }
+
+            BinaryOp::ShiftLeft | BinaryOp::ShiftRight => match (&left_type, &right_type) {
+                (Some(DataType::Range(_)), Some(DataType::Range(_))) => Some(DataType::Bool),
+                _ => Some(DataType::Int64),
+            },
+
             _ => None,
         }
     }
@@ -328,6 +337,7 @@ impl ProjectionWithExprExec {
         match op {
             UnaryOp::IsNull | UnaryOp::IsNotNull | UnaryOp::Not => Some(DataType::Bool),
             UnaryOp::Negate | UnaryOp::Plus => operand_type,
+            UnaryOp::BitwiseNot => Some(DataType::Int64),
         }
     }
 
@@ -1192,6 +1202,14 @@ impl ProjectionWithExprExec {
             FunctionName::Custom(s) if s == "BIT_AND" || s == "BIT_OR" || s == "BIT_XOR" => {
                 Some(DataType::Int64)
             }
+
+            FunctionName::Custom(s)
+                if s == "BIT_COUNT" || s == "GET_BIT" || s == "OCTET_LENGTH" =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s) if s == "SET_BIT" => Some(DataType::Bytes),
 
             FunctionName::Custom(s) if s == "BOOL_AND" || s == "BOOL_OR" || s == "EVERY" => {
                 Some(DataType::Bool)

@@ -107,6 +107,17 @@ impl ProjectionWithExprExec {
             BinaryOp::Modulo => Err(crate::error::Error::ExecutionError(
                 "Modulo by zero".to_string(),
             )),
+            BinaryOp::BitwiseAnd => Ok(Value::int64(l & r)),
+            BinaryOp::BitwiseOr => Ok(Value::int64(l | r)),
+            BinaryOp::BitwiseXor => Ok(Value::int64(l ^ r)),
+            BinaryOp::ShiftLeft => {
+                let shift = r as u32;
+                Ok(Value::int64(l.wrapping_shl(shift)))
+            }
+            BinaryOp::ShiftRight => {
+                let shift = r as u32;
+                Ok(Value::int64(l.wrapping_shr(shift)))
+            }
             _ => Err(crate::error::Error::unsupported_feature(format!(
                 "Operator {:?} not supported for Int64 arithmetic",
                 op
@@ -766,10 +777,10 @@ impl ProjectionWithExprExec {
                 }
                 BinaryOp::ArrayOverlap => yachtsql_functions::range::range_overlaps(left, right),
                 BinaryOp::RangeAdjacent => yachtsql_functions::range::range_adjacent(left, right),
-                BinaryOp::RangeStrictlyLeft => {
+                BinaryOp::RangeStrictlyLeft | BinaryOp::ShiftLeft => {
                     yachtsql_functions::range::range_strictly_left(left, right)
                 }
-                BinaryOp::RangeStrictlyRight => {
+                BinaryOp::RangeStrictlyRight | BinaryOp::ShiftRight => {
                     yachtsql_functions::range::range_strictly_right(left, right)
                 }
                 BinaryOp::Add => yachtsql_functions::range::range_union(left, right),
@@ -928,6 +939,18 @@ impl ProjectionWithExprExec {
                 }
                 Err(crate::error::Error::TypeMismatch {
                     expected: "numeric".to_string(),
+                    actual: operand.data_type().to_string(),
+                })
+            }
+            UnaryOp::BitwiseNot => {
+                if operand.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(i) = operand.as_i64() {
+                    return Ok(Value::int64(!i));
+                }
+                Err(crate::error::Error::TypeMismatch {
+                    expected: "integer".to_string(),
                     actual: operand.data_type().to_string(),
                 })
             }

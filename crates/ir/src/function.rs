@@ -37,6 +37,13 @@ pub enum FunctionName {
     CovarSamp,
     CountIf,
 
+    BoolAnd,
+    BoolOr,
+    Every,
+    BitAnd,
+    BitOr,
+    BitXor,
+
     ApproxCountDistinct,
     ApproxDistinct,
     ApproxQuantiles,
@@ -345,6 +352,13 @@ impl FunctionName {
             "COVAR_POP" => Self::CovarPop,
             "COVAR_SAMP" => Self::CovarSamp,
             "COUNTIF" => Self::CountIf,
+
+            "BOOL_AND" => Self::BoolAnd,
+            "BOOL_OR" => Self::BoolOr,
+            "EVERY" => Self::Every,
+            "BIT_AND" => Self::BitAnd,
+            "BIT_OR" => Self::BitOr,
+            "BIT_XOR" => Self::BitXor,
 
             "APPROX_COUNT_DISTINCT" => Self::ApproxCountDistinct,
             "APPROX_DISTINCT" => Self::ApproxDistinct,
@@ -687,6 +701,13 @@ impl FunctionName {
             Self::CovarSamp => "COVAR_SAMP",
             Self::CountIf => "COUNTIF",
 
+            Self::BoolAnd => "BOOL_AND",
+            Self::BoolOr => "BOOL_OR",
+            Self::Every => "EVERY",
+            Self::BitAnd => "BIT_AND",
+            Self::BitOr => "BIT_OR",
+            Self::BitXor => "BIT_XOR",
+
             Self::ApproxCountDistinct => "APPROX_COUNT_DISTINCT",
             Self::ApproxDistinct => "APPROX_DISTINCT",
             Self::ApproxQuantiles => "APPROX_QUANTILES",
@@ -993,6 +1014,12 @@ impl FunctionName {
             | Self::CovarPop
             | Self::CovarSamp
             | Self::CountIf
+            | Self::BoolAnd
+            | Self::BoolOr
+            | Self::Every
+            | Self::BitAnd
+            | Self::BitOr
+            | Self::BitXor
             | Self::ApproxCountDistinct
             | Self::ApproxDistinct
             | Self::ApproxQuantiles

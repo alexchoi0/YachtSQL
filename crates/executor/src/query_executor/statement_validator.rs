@@ -270,6 +270,7 @@ impl<'a> StatementValidator<'a> {
                 | "EVERY"
                 | "BIT_AND"
                 | "BIT_OR"
+                | "BIT_XOR"
                 | "STDDEV"
                 | "STDDEV_POP"
                 | "STDDEV_SAMP"
