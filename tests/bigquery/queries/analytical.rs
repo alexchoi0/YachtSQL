@@ -84,7 +84,6 @@ fn test_sales_by_region_and_category() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_top_products_by_revenue() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -94,7 +93,7 @@ fn test_top_products_by_revenue() {
             "SELECT product_name, SUM(total_amount) AS revenue
             FROM sales
             GROUP BY product_name
-            ORDER BY revenue DESC
+            ORDER BY revenue DESC, product_name
             LIMIT 5",
         )
         .unwrap();
@@ -104,8 +103,8 @@ fn test_top_products_by_revenue() {
             ["Widget A", 1500],
             ["Gadget X", 1400],
             ["Chair", 900],
+            ["Book", 500],
             ["Desk", 500],
-            ["Magazine", 500],
         ]
     );
 }
@@ -203,7 +202,6 @@ fn test_moving_average() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_rank_products_by_sales() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -216,7 +214,7 @@ fn test_rank_products_by_sales() {
                 RANK() OVER (ORDER BY SUM(total_amount) DESC) AS revenue_rank
             FROM sales
             GROUP BY product_name
-            ORDER BY revenue_rank",
+            ORDER BY revenue_rank, product_name",
         )
         .unwrap();
     assert_table_eq!(
@@ -234,7 +232,6 @@ fn test_rank_products_by_sales() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_dense_rank_by_category() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -251,7 +248,7 @@ fn test_dense_rank_by_category() {
                 ) AS category_rank
             FROM sales
             GROUP BY category, product_name
-            ORDER BY category, category_rank",
+            ORDER BY category, category_rank, product_name",
         )
         .unwrap();
     assert_table_eq!(
@@ -269,7 +266,6 @@ fn test_dense_rank_by_category() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_percentile_analysis() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -281,19 +277,19 @@ fn test_percentile_analysis() {
                 total_amount,
                 ROUND(PERCENT_RANK() OVER (ORDER BY total_amount), 2) AS percentile
             FROM sales
-            ORDER BY percentile DESC",
+            ORDER BY percentile DESC, product_name",
         )
         .unwrap();
     assert_table_eq!(
         result,
         [
-            ["Gadget X", 1000, 1.0],
-            ["Widget A", 1000, 1.0],
-            ["Chair", 600, 0.67],
-            ["Book", 500, 0.44],
-            ["Desk", 500, 0.44],
-            ["Magazine", 500, 0.44],
-            ["Widget A", 500, 0.44],
+            ["Gadget X", 1000, 0.89],
+            ["Widget A", 1000, 0.89],
+            ["Chair", 600, 0.78],
+            ["Book", 500, 0.33],
+            ["Desk", 500, 0.33],
+            ["Magazine", 500, 0.33],
+            ["Widget A", 500, 0.33],
             ["Widget B", 450, 0.22],
             ["Gadget X", 400, 0.11],
             ["Chair", 300, 0.0],
@@ -302,7 +298,6 @@ fn test_percentile_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_ntile_quartiles() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -323,13 +318,13 @@ fn test_ntile_quartiles() {
             ["Chair", 300, 1],
             ["Gadget X", 400, 1],
             ["Widget B", 450, 1],
-            ["Book", 500, 2],
+            ["Widget A", 500, 2],
             ["Desk", 500, 2],
-            ["Magazine", 500, 2],
-            ["Widget A", 500, 3],
+            ["Book", 500, 2],
+            ["Magazine", 500, 3],
             ["Chair", 600, 3],
-            ["Gadget X", 1000, 4],
             ["Widget A", 1000, 4],
+            ["Gadget X", 1000, 4],
         ]
     );
 }
@@ -369,7 +364,6 @@ fn test_lead_lag_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_first_last_value() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -396,11 +390,11 @@ fn test_first_last_value() {
     assert_table_eq!(
         result,
         [
-            ["Electronics", "Widget A", 1000, "Widget A", "Widget B"],
-            ["Electronics", "Gadget X", 1000, "Widget A", "Widget B"],
-            ["Electronics", "Widget A", 500, "Widget A", "Widget B"],
-            ["Electronics", "Widget B", 450, "Widget A", "Widget B"],
-            ["Electronics", "Gadget X", 400, "Widget A", "Widget B"],
+            ["Electronics", "Widget A", 1000, "Widget A", "Gadget X"],
+            ["Electronics", "Gadget X", 1000, "Widget A", "Gadget X"],
+            ["Electronics", "Widget A", 500, "Widget A", "Gadget X"],
+            ["Electronics", "Widget B", 450, "Widget A", "Gadget X"],
+            ["Electronics", "Gadget X", 400, "Widget A", "Gadget X"],
             ["Furniture", "Chair", 600, "Chair", "Chair"],
             ["Furniture", "Desk", 500, "Chair", "Chair"],
             ["Furniture", "Chair", 300, "Chair", "Chair"],
@@ -742,7 +736,6 @@ fn test_rfm_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_time_series_decomposition() {
     let mut executor = create_executor();
     executor
@@ -963,7 +956,6 @@ fn test_pareto_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_growth_rates() {
     let mut executor = create_executor();
     executor

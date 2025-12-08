@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_int4range_literal() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '[1,10)'::INT4RANGE").unwrap();
@@ -10,7 +9,6 @@ fn test_int4range_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_int8range_literal() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '[1,100)'::INT8RANGE").unwrap();
@@ -18,7 +16,6 @@ fn test_int8range_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numrange_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -28,7 +25,6 @@ fn test_numrange_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tsrange_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -48,7 +44,6 @@ fn test_tstzrange_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_daterange_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -58,7 +53,7 @@ fn test_daterange_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Parser treats '[1,10]' as a vector instead of a range"]
 fn test_range_inclusive_exclusive() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '[1,10]'::INT4RANGE").unwrap();
@@ -66,7 +61,6 @@ fn test_range_inclusive_exclusive() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_exclusive_inclusive() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '(1,10]'::INT4RANGE").unwrap();
@@ -74,7 +68,6 @@ fn test_range_exclusive_inclusive() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_both_exclusive() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '(1,10)'::INT4RANGE").unwrap();
@@ -82,7 +75,6 @@ fn test_range_both_exclusive() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_empty() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 'empty'::INT4RANGE").unwrap();
@@ -90,7 +82,6 @@ fn test_range_empty() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_unbounded_lower() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '(,10)'::INT4RANGE").unwrap();
@@ -98,7 +89,6 @@ fn test_range_unbounded_lower() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_unbounded_upper() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '[1,)'::INT4RANGE").unwrap();
@@ -106,7 +96,6 @@ fn test_range_unbounded_upper() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_unbounded_both() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '(,)'::INT4RANGE").unwrap();
@@ -114,7 +103,6 @@ fn test_range_unbounded_both() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_contains_element() {
     let mut executor = create_executor();
     let result = executor
@@ -124,7 +112,6 @@ fn test_range_contains_element() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_element_contained() {
     let mut executor = create_executor();
     let result = executor
@@ -134,7 +121,6 @@ fn test_range_element_contained() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_contains_range() {
     let mut executor = create_executor();
     let result = executor
@@ -144,7 +130,6 @@ fn test_range_contains_range() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_overlaps() {
     let mut executor = create_executor();
     let result = executor
@@ -154,7 +139,6 @@ fn test_range_overlaps() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_strictly_left() {
     let mut executor = create_executor();
     let result = executor
@@ -164,7 +148,6 @@ fn test_range_strictly_left() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_strictly_right() {
     let mut executor = create_executor();
     let result = executor
@@ -174,7 +157,6 @@ fn test_range_strictly_right() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_adjacent() {
     let mut executor = create_executor();
     let result = executor
@@ -184,7 +166,6 @@ fn test_range_adjacent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_union() {
     let mut executor = create_executor();
     let result = executor
@@ -194,7 +175,6 @@ fn test_range_union() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_intersection() {
     let mut executor = create_executor();
     let result = executor
@@ -204,7 +184,6 @@ fn test_range_intersection() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_difference() {
     let mut executor = create_executor();
     let result = executor
@@ -214,7 +193,6 @@ fn test_range_difference() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lower_function() {
     let mut executor = create_executor();
     let result = executor
@@ -224,7 +202,6 @@ fn test_lower_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_upper_function() {
     let mut executor = create_executor();
     let result = executor
@@ -234,7 +211,6 @@ fn test_upper_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_isempty_function() {
     let mut executor = create_executor();
     let result = executor
@@ -244,7 +220,6 @@ fn test_isempty_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lower_inc_function() {
     let mut executor = create_executor();
     let result = executor
@@ -254,7 +229,6 @@ fn test_lower_inc_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_upper_inc_function() {
     let mut executor = create_executor();
     let result = executor
@@ -264,7 +238,6 @@ fn test_upper_inc_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lower_inf_function() {
     let mut executor = create_executor();
     let result = executor
@@ -274,7 +247,6 @@ fn test_lower_inf_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_upper_inf_function() {
     let mut executor = create_executor();
     let result = executor
@@ -284,7 +256,6 @@ fn test_upper_inf_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_range_merge_function() {
     let mut executor = create_executor();
     let result = executor

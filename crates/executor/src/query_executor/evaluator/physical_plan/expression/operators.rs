@@ -594,6 +594,49 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(_l), Some(_r)) = (left.as_json(), right.as_json()) {
+            return match op {
+                BinaryOp::ArrayContains => yachtsql_functions::json::jsonb_contains(left, right),
+                BinaryOp::ArrayContainedBy => yachtsql_functions::json::jsonb_contains(right, left),
+                BinaryOp::Concat => yachtsql_functions::json::jsonb_concat(left, right),
+                BinaryOp::Equal => {
+                    let left_val = left.as_json();
+                    let right_val = right.as_json();
+                    Ok(Value::bool_val(left_val == right_val))
+                }
+                BinaryOp::NotEqual => {
+                    let left_val = left.as_json();
+                    let right_val = right.as_json();
+                    Ok(Value::bool_val(left_val != right_val))
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for JSON",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_json().is_some() && (right.as_str().is_some() || right.as_i64().is_some()) {
+            return match op {
+                BinaryOp::Subtract => yachtsql_functions::json::jsonb_delete(left, right),
+                BinaryOp::HashMinus => yachtsql_functions::json::jsonb_delete_path(left, right),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for JSON - STRING/INT",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_json().is_some() && right.as_array().is_some() {
+            return match op {
+                BinaryOp::HashMinus => yachtsql_functions::json::jsonb_delete_path(left, right),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for JSON - ARRAY",
+                    op
+                ))),
+            };
+        }
+
         if let (Some(_l), Some(_r)) = (left.as_hstore(), right.as_hstore()) {
             return match op {
                 BinaryOp::Concat => yachtsql_functions::hstore::hstore_concat(left, right),
@@ -670,6 +713,58 @@ impl ProjectionWithExprExec {
                 BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for MACADDR8",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_range(), right.as_range()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::ArrayContains => {
+                    yachtsql_functions::range::range_contains_range(left, right)
+                }
+                BinaryOp::ArrayContainedBy => {
+                    yachtsql_functions::range::range_contains_range(right, left)
+                }
+                BinaryOp::ArrayOverlap => yachtsql_functions::range::range_overlaps(left, right),
+                BinaryOp::RangeAdjacent => yachtsql_functions::range::range_adjacent(left, right),
+                BinaryOp::RangeStrictlyLeft => {
+                    yachtsql_functions::range::range_strictly_left(left, right)
+                }
+                BinaryOp::RangeStrictlyRight => {
+                    yachtsql_functions::range::range_strictly_right(left, right)
+                }
+                BinaryOp::Add => yachtsql_functions::range::range_union(left, right),
+                BinaryOp::Multiply => yachtsql_functions::range::range_intersection(left, right),
+                BinaryOp::Subtract => yachtsql_functions::range::range_difference(left, right),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for RANGE",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_range().is_some() && right.as_range().is_none() {
+            return match op {
+                BinaryOp::ArrayContains => {
+                    yachtsql_functions::range::range_contains_elem(left, right)
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for RANGE @> element",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_range().is_none() && right.as_range().is_some() {
+            return match op {
+                BinaryOp::ArrayContainedBy => {
+                    yachtsql_functions::range::range_contains_elem(right, left)
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for element <@ RANGE",
                     op
                 ))),
             };

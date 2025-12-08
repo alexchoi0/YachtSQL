@@ -732,7 +732,6 @@ fn test_string_agg_with_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_agg() {
     let mut executor = create_executor();
     setup_table(&mut executor);
@@ -744,7 +743,6 @@ fn test_json_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_agg() {
     let mut executor = create_executor();
     setup_table(&mut executor);
@@ -756,7 +754,6 @@ fn test_jsonb_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_object_agg() {
     let mut executor = create_executor();
     executor
@@ -773,7 +770,6 @@ fn test_json_object_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_object_agg() {
     let mut executor = create_executor();
     executor

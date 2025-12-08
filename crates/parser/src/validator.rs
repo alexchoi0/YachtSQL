@@ -88,6 +88,23 @@ pub enum CustomStatement {
         cascade: bool,
         restrict: bool,
     },
+
+    SetConstraints {
+        mode: SetConstraintsMode,
+        constraints: SetConstraintsTarget,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetConstraintsMode {
+    Immediate,
+    Deferred,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SetConstraintsTarget {
+    All,
+    Named(Vec<String>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,7 +216,13 @@ impl StatementValidator {
                 restrict,
                 ..
             } => self.validate_drop_type(names, *cascade, *restrict),
+            CustomStatement::SetConstraints { .. } => self.validate_set_constraints(),
         }
+    }
+
+    fn validate_set_constraints(&self) -> Result<()> {
+        self.require_postgresql("SET CONSTRAINTS")?;
+        Ok(())
     }
 
     fn validate_create_domain(&self, name: &sqlparser::ast::ObjectName) -> Result<()> {

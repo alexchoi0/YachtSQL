@@ -221,7 +221,18 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.is_set_constraints(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                CustomStatementParser::parse_set_constraints(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         Ok(None)
+    }
+
+    fn is_set_constraints(&self, tokens: &[&Token]) -> bool {
+        self.matches_keyword_sequence(tokens, &["SET", "CONSTRAINTS"])
     }
 
     fn strip_merge_returning_clauses(sql: &str) -> (String, Vec<Option<String>>) {

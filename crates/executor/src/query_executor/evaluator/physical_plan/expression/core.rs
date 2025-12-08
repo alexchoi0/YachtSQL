@@ -194,6 +194,17 @@ impl ProjectionWithExprExec {
                 BinaryOp::And => Self::evaluate_and_internal(left, right, batch, row_idx, _dialect),
                 BinaryOp::Or => Self::evaluate_or_internal(left, right, batch, row_idx, _dialect),
                 _ => {
+                    if let (
+                        Expr::Tuple(left_exprs),
+                        Expr::Subquery { plan } | Expr::ScalarSubquery { subquery: plan },
+                    ) = (left.as_ref(), right.as_ref())
+                    {
+                        if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
+                            return Self::evaluate_row_comparison(
+                                left_exprs, op, plan, batch, row_idx,
+                            );
+                        }
+                    }
                     let left_val = Self::evaluate_expr_internal(left, batch, row_idx, _dialect)?;
                     let right_val = Self::evaluate_expr_internal(right, batch, row_idx, _dialect)?;
                     let enum_labels = Self::get_enum_labels_for_expr(left, batch.schema())
@@ -648,7 +659,18 @@ impl ProjectionWithExprExec {
 
         {
             let s = name.as_str();
-            if s.starts_with("JSON") || s.starts_with("IS_JSON") || s.starts_with("IS_NOT_JSON") {
+            let is_json_aggregate = matches!(
+                s,
+                "JSON_AGG" | "JSONB_AGG" | "JSON_OBJECT_AGG" | "JSONB_OBJECT_AGG"
+            );
+            if !is_json_aggregate
+                && (s.starts_with("JSON")
+                    || s.starts_with("IS_JSON")
+                    || s.starts_with("IS_NOT_JSON")
+                    || s == "TO_JSON"
+                    || s == "TO_JSONB"
+                    || s == "PARSE_JSON")
+            {
                 return Self::evaluate_json_function(func_name, args, batch, row_idx);
             }
         }
@@ -906,6 +928,64 @@ impl ProjectionWithExprExec {
             )
         ) {
             return Self::evaluate_higher_order_function(func_name, args, batch, row_idx, dialect);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Map
+                | FunctionName::MapFromArrays
+                | FunctionName::MapKeys
+                | FunctionName::MapValues
+                | FunctionName::MapContains
+                | FunctionName::MapAdd
+                | FunctionName::MapSubtract
+                | FunctionName::MapUpdate
+                | FunctionName::MapConcat
+                | FunctionName::MapPopulateSeries
+                | FunctionName::MapFilter
+                | FunctionName::MapApply
+                | FunctionName::MapExists
+                | FunctionName::MapAll
+                | FunctionName::MapSort
+                | FunctionName::MapReverseSort
+                | FunctionName::MapPartialSort
+        ) {
+            return Self::evaluate_map_function(name, args, batch, row_idx, dialect);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
+                "LOWER"
+                | "UPPER"
+                | "LOWER_INC"
+                | "UPPER_INC"
+                | "LOWER_INF"
+                | "UPPER_INF"
+                | "ISEMPTY"
+                | "RANGE_MERGE"
+                | "RANGE_ISEMPTY"
+                | "RANGE_CONTAINS"
+                | "RANGE_CONTAINS_ELEM"
+                | "RANGE_OVERLAPS"
+                | "RANGE_UNION"
+                | "RANGE_INTERSECTION"
+                | "RANGE_ADJACENT"
+                | "RANGE_STRICTLY_LEFT"
+                | "RANGE_STRICTLY_RIGHT"
+                | "RANGE_DIFFERENCE"
+            )
+        ) {
+            return Self::evaluate_range_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Custom(s) if matches!(s.as_str(),
+                "NEXTVAL" | "CURRVAL" | "SETVAL" | "LASTVAL"
+            )
+        ) {
+            return Self::evaluate_sequence_function(func_name, args, batch, row_idx);
         }
 
         Err(Error::unsupported_feature(format!(

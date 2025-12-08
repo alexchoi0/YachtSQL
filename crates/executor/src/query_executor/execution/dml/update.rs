@@ -1,6 +1,6 @@
 use debug_print::debug_eprintln;
 use indexmap::IndexMap;
-use sqlparser::ast::{Assignment, Expr as SqlExpr, Statement};
+use sqlparser::ast::{Assignment, Expr as SqlExpr, Statement, Value as SqlValue};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_storage::{Row, Schema, TableIndexOps, TableSchemaOps};
@@ -8,6 +8,7 @@ use yachtsql_storage::{Row, Schema, TableIndexOps, TableSchemaOps};
 use super::super::super::QueryExecutor;
 use super::super::super::expression_evaluator::ExpressionEvaluator;
 use super::super::DdlExecutor;
+use super::super::query::QueryExecutorTrait;
 use crate::Table;
 use crate::query_executor::returning::DmlRowContext;
 
@@ -110,15 +111,28 @@ impl DmlUpdateExecutor for QueryExecutor {
         let mut changed_row_indices: Vec<usize> = Vec::new();
 
         if let Some(where_expr) = selection {
+            let processed_where = self.preprocess_subqueries_in_update_expr(where_expr)?;
             let evaluator = ExpressionEvaluator::new(&schema);
             for (row_idx, row) in all_rows.iter().enumerate() {
-                if evaluator.evaluate_where(where_expr, &row).unwrap_or(false) {
+                if evaluator
+                    .evaluate_where(&processed_where, &row)
+                    .unwrap_or(false)
+                {
                     let updated_row_map = self.apply_update_to_row_with_exprs(
                         &row,
                         &parsed_assignments_with_exprs,
                         &schema,
                     )?;
                     let new_row = Row::from_named_values(updated_row_map.clone());
+
+                    self.validate_update_constraints(
+                        &dataset_id,
+                        &table_id,
+                        &schema,
+                        &new_row,
+                        row_idx,
+                        &all_rows,
+                    )?;
 
                     self.validate_view_check_option_update(
                         &dataset_id,
@@ -155,6 +169,15 @@ impl DmlUpdateExecutor for QueryExecutor {
                     &schema,
                 )?;
                 let new_row = Row::from_named_values(updated_row_map.clone());
+
+                self.validate_update_constraints(
+                    &dataset_id,
+                    &table_id,
+                    &schema,
+                    &new_row,
+                    row_idx,
+                    &all_rows,
+                )?;
 
                 self.validate_view_check_option_update(&dataset_id, &table_id, &new_row, &schema)?;
 
@@ -686,6 +709,277 @@ impl QueryExecutor {
                 "WITH CHECK OPTION violation: updated row does not satisfy view WHERE clause ({})",
                 where_clause_sql
             )));
+        }
+
+        Ok(())
+    }
+
+    fn preprocess_subqueries_in_update_expr(&mut self, expr: &SqlExpr) -> Result<SqlExpr> {
+        match expr {
+            SqlExpr::Subquery(query) => {
+                let sql = query.to_string();
+                let result = self.execute_sql(&sql)?;
+
+                if result.num_rows() == 0 {
+                    return Ok(SqlExpr::Value(SqlValue::Null.into()));
+                }
+
+                if result.num_rows() > 1 {
+                    return Err(Error::InvalidQuery(
+                        "Scalar subquery returned more than one row".to_string(),
+                    ));
+                }
+
+                if result.num_columns() != 1 {
+                    return Err(Error::InvalidQuery(format!(
+                        "Scalar subquery must return exactly one column, got {}",
+                        result.num_columns()
+                    )));
+                }
+
+                let column = result.column(0).ok_or_else(|| {
+                    Error::InternalError("Subquery result has no column".to_string())
+                })?;
+                let value = column.get(0)?;
+                let sql_value = Self::value_to_sql_value_for_update(&value)?;
+                Ok(SqlExpr::Value(sql_value.into()))
+            }
+
+            SqlExpr::InSubquery {
+                expr: left_expr,
+                subquery,
+                negated,
+            } => {
+                let sql = subquery.to_string();
+                let result = self.execute_sql(&sql)?;
+
+                if result.num_columns() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "IN subquery must return exactly one column".to_string(),
+                    ));
+                }
+
+                let column = result.column(0).ok_or_else(|| {
+                    Error::InternalError("IN subquery result has no column".to_string())
+                })?;
+
+                let mut list_values = Vec::new();
+                for i in 0..result.num_rows() {
+                    let value = column.get(i)?;
+                    let sql_value = Self::value_to_sql_value_for_update(&value)?;
+                    list_values.push(SqlExpr::Value(sql_value.into()));
+                }
+
+                let processed_left = self.preprocess_subqueries_in_update_expr(left_expr)?;
+
+                Ok(SqlExpr::InList {
+                    expr: Box::new(processed_left),
+                    list: list_values,
+                    negated: *negated,
+                })
+            }
+
+            SqlExpr::Exists { subquery, negated } => {
+                let sql = subquery.to_string();
+                let result = self.execute_sql(&sql)?;
+
+                let exists = result.num_rows() > 0;
+                let bool_result = if *negated { !exists } else { exists };
+
+                Ok(SqlExpr::Value(SqlValue::Boolean(bool_result).into()))
+            }
+
+            SqlExpr::BinaryOp { left, op, right } => {
+                let processed_left = self.preprocess_subqueries_in_update_expr(left)?;
+                let processed_right = self.preprocess_subqueries_in_update_expr(right)?;
+                Ok(SqlExpr::BinaryOp {
+                    left: Box::new(processed_left),
+                    op: op.clone(),
+                    right: Box::new(processed_right),
+                })
+            }
+
+            SqlExpr::UnaryOp { op, expr: inner } => {
+                let processed = self.preprocess_subqueries_in_update_expr(inner)?;
+                Ok(SqlExpr::UnaryOp {
+                    op: op.clone(),
+                    expr: Box::new(processed),
+                })
+            }
+
+            SqlExpr::Nested(inner) => {
+                let processed = self.preprocess_subqueries_in_update_expr(inner)?;
+                Ok(SqlExpr::Nested(Box::new(processed)))
+            }
+
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    fn value_to_sql_value_for_update(value: &Value) -> Result<SqlValue> {
+        if value.is_null() {
+            return Ok(SqlValue::Null);
+        }
+
+        if let Some(b) = value.as_bool() {
+            return Ok(SqlValue::Boolean(b));
+        }
+
+        if let Some(i) = value.as_i64() {
+            return Ok(SqlValue::Number(i.to_string(), false));
+        }
+
+        if let Some(f) = value.as_f64() {
+            return Ok(SqlValue::Number(f.to_string(), false));
+        }
+
+        if let Some(s) = value.as_str() {
+            return Ok(SqlValue::SingleQuotedString(s.to_string()));
+        }
+
+        Ok(SqlValue::SingleQuotedString(format!("{:?}", value)))
+    }
+
+    fn validate_update_constraints(
+        &self,
+        dataset_id: &str,
+        table_id: &str,
+        schema: &Schema,
+        new_row: &Row,
+        current_row_idx: usize,
+        all_rows: &[Row],
+    ) -> Result<()> {
+        let mut schema_with_evaluator = schema.clone();
+        if schema_with_evaluator.check_evaluator().is_none() {
+            let evaluator = super::build_check_evaluator();
+            schema_with_evaluator.set_check_evaluator(evaluator);
+        }
+
+        yachtsql_storage::constraints::validate_check_constraints(&schema_with_evaluator, new_row)?;
+
+        self.validate_unique_constraints_for_update(
+            &schema_with_evaluator,
+            new_row,
+            current_row_idx,
+            all_rows,
+        )?;
+
+        {
+            let storage = self.storage.borrow();
+            let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
+            let table_full_name = format!("{}.{}", dataset_id, table_id);
+            enforcer.validate_update(&table_full_name, new_row, &storage)?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_unique_constraints_for_update(
+        &self,
+        schema: &Schema,
+        new_row: &Row,
+        current_row_idx: usize,
+        all_rows: &[Row],
+    ) -> Result<()> {
+        let other_rows: Vec<&Row> = all_rows
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| *idx != current_row_idx)
+            .map(|(_, row)| row)
+            .collect();
+
+        if let Some(pk_columns) = schema.primary_key() {
+            let new_pk_values: Vec<yachtsql_core::types::Value> = pk_columns
+                .iter()
+                .filter_map(|col| {
+                    schema
+                        .field_index(col)
+                        .map(|idx| new_row.values()[idx].clone())
+                })
+                .collect();
+
+            if new_pk_values.iter().any(|v| v.is_null()) {
+                return Err(Error::NotNullViolation {
+                    column: pk_columns.join(", "),
+                });
+            }
+
+            for other_row in &other_rows {
+                let other_pk_values: Vec<yachtsql_core::types::Value> = pk_columns
+                    .iter()
+                    .filter_map(|col| {
+                        schema
+                            .field_index(col)
+                            .map(|idx| other_row.values()[idx].clone())
+                    })
+                    .collect();
+
+                if new_pk_values == other_pk_values {
+                    return Err(Error::UniqueConstraintViolation(format!(
+                        "PRIMARY KEY constraint violation: duplicate key value violates unique constraint on columns: {}",
+                        pk_columns.join(", ")
+                    )));
+                }
+            }
+        }
+
+        for unique_cols in schema.unique_constraints() {
+            let new_unique_values: Vec<yachtsql_core::types::Value> = unique_cols
+                .iter()
+                .filter_map(|col| {
+                    schema
+                        .field_index(col)
+                        .map(|idx| new_row.values()[idx].clone())
+                })
+                .collect();
+
+            if new_unique_values.iter().any(|v| v.is_null()) {
+                continue;
+            }
+
+            for other_row in &other_rows {
+                let other_unique_values: Vec<yachtsql_core::types::Value> = unique_cols
+                    .iter()
+                    .filter_map(|col| {
+                        schema
+                            .field_index(col)
+                            .map(|idx| other_row.values()[idx].clone())
+                    })
+                    .collect();
+
+                if other_unique_values.iter().any(|v| v.is_null()) {
+                    continue;
+                }
+
+                if new_unique_values == other_unique_values {
+                    return Err(Error::UniqueConstraintViolation(format!(
+                        "UNIQUE constraint violation: duplicate key value on columns: {}",
+                        unique_cols.join(", ")
+                    )));
+                }
+            }
+        }
+
+        for (idx, field) in schema.fields().iter().enumerate() {
+            if !field.is_unique {
+                continue;
+            }
+
+            let new_value = &new_row.values()[idx];
+
+            if new_value.is_null() {
+                continue;
+            }
+
+            for other_row in &other_rows {
+                let other_value = &other_row.values()[idx];
+                if !other_value.is_null() && new_value == other_value {
+                    return Err(Error::UniqueConstraintViolation(format!(
+                        "UNIQUE constraint violation: duplicate value in column '{}'",
+                        field.name
+                    )));
+                }
+            }
         }
 
         Ok(())

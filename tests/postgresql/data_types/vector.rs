@@ -52,7 +52,6 @@ fn test_vector_type_dimension_1536() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_insert_vector_literal() {
     let mut executor = create_executor();
     executor
@@ -82,7 +81,6 @@ fn test_insert_vector_array_syntax() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_insert_multiple_vectors() {
     let mut executor = create_executor();
     executor
@@ -99,7 +97,6 @@ fn test_insert_multiple_vectors() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_select_vector() {
     let mut executor = create_executor();
     executor

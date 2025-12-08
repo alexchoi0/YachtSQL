@@ -35,13 +35,17 @@ impl ProjectionWithExprExec {
             "JSON_VALUE" | "JSON_VALUE_TEXT" => Self::evaluate_json_value(args, batch, row_idx),
             "JSON_QUERY" => Self::evaluate_json_query(args, batch, row_idx),
             "JSON_EXISTS" => Self::evaluate_json_exists(args, batch, row_idx),
-            "JSON_ARRAY" => Self::evaluate_json_array(args, batch, row_idx),
-            "JSON_OBJECT" => Self::evaluate_json_object(args, batch, row_idx),
-            "TO_JSON" | "TO_JSON_STRING" => Self::evaluate_to_json(args, batch, row_idx),
+            "JSON_ARRAY" | "JSON_BUILD_ARRAY" => Self::evaluate_json_array(args, batch, row_idx),
+            "JSON_OBJECT" | "JSON_BUILD_OBJECT" => Self::evaluate_json_object(args, batch, row_idx),
+            "TO_JSON" | "TO_JSONB" | "TO_JSON_STRING" => {
+                Self::evaluate_to_json(args, batch, row_idx)
+            }
             "PARSE_JSON" => Self::evaluate_parse_json(args, batch, row_idx),
             "JSON_KEYS" => Self::evaluate_json_keys(args, batch, row_idx),
-            "JSON_LENGTH" => Self::evaluate_json_length(args, batch, row_idx),
-            "JSON_TYPE" => Self::evaluate_json_type(args, batch, row_idx),
+            "JSON_OBJECT_KEYS" => Self::evaluate_json_object_keys(args, batch, row_idx),
+            "JSON_LENGTH" | "JSON_ARRAY_LENGTH" => Self::evaluate_json_length(args, batch, row_idx),
+            "JSON_TYPE" | "JSON_TYPEOF" => Self::evaluate_json_type(args, batch, row_idx),
+            "JSON_STRIP_NULLS" => Self::evaluate_json_strip_nulls(args, batch, row_idx),
             "IS_JSON_VALUE" | "IS_JSON_ARRAY" | "IS_JSON_OBJECT" | "IS_JSON_SCALAR" => {
                 Self::evaluate_is_json_predicate(name, args, batch, row_idx)
             }
@@ -60,5 +64,15 @@ impl ProjectionWithExprExec {
                 name
             ))),
         }
+    }
+
+    fn evaluate_json_strip_nulls(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.is_empty() {
+            return Err(Error::invalid_query(
+                "JSON_STRIP_NULLS requires at least 1 argument".to_string(),
+            ));
+        }
+        let json_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        yachtsql_functions::json::json_strip_nulls(&json_val)
     }
 }

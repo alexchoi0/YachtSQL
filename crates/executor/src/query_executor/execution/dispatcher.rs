@@ -187,9 +187,16 @@ impl Dispatcher {
                         operation: TxOperation::Commit,
                     }),
 
-                    SqlStatement::Rollback { .. } => Ok(StatementJob::Transaction {
-                        operation: TxOperation::Rollback,
-                    }),
+                    SqlStatement::Rollback { savepoint, .. } => match savepoint {
+                        Some(name) => Ok(StatementJob::Transaction {
+                            operation: TxOperation::RollbackToSavepoint {
+                                name: name.to_string(),
+                            },
+                        }),
+                        None => Ok(StatementJob::Transaction {
+                            operation: TxOperation::Rollback,
+                        }),
+                    },
 
                     SqlStatement::Savepoint { name } => Ok(StatementJob::Transaction {
                         operation: TxOperation::Savepoint {
@@ -685,6 +692,38 @@ mod tests {
                 assert_eq!(name, "sp1");
             }
             other => panic!("Expected Savepoint, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dispatch_rollback_to_savepoint() {
+        let mut dispatcher = Dispatcher::new();
+        let result = dispatcher.dispatch("ROLLBACK TO SAVEPOINT sp1");
+        assert!(result.is_ok());
+
+        match result.unwrap() {
+            StatementJob::Transaction {
+                operation: TxOperation::RollbackToSavepoint { name },
+            } => {
+                assert_eq!(name, "sp1");
+            }
+            other => panic!("Expected RollbackToSavepoint, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dispatch_rollback_to_savepoint_short_form() {
+        let mut dispatcher = Dispatcher::new();
+        let result = dispatcher.dispatch("ROLLBACK TO sp1");
+        assert!(result.is_ok());
+
+        match result.unwrap() {
+            StatementJob::Transaction {
+                operation: TxOperation::RollbackToSavepoint { name },
+            } => {
+                assert_eq!(name, "sp1");
+            }
+            other => panic!("Expected RollbackToSavepoint, got {:?}", other),
         }
     }
 

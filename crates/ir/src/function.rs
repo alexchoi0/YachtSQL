@@ -285,6 +285,24 @@ pub enum FunctionName {
     Retention,
     WindowFunnel,
 
+    Map,
+    MapFromArrays,
+    MapKeys,
+    MapValues,
+    MapContains,
+    MapAdd,
+    MapSubtract,
+    MapUpdate,
+    MapConcat,
+    MapPopulateSeries,
+    MapFilter,
+    MapApply,
+    MapExists,
+    MapAll,
+    MapSort,
+    MapReverseSort,
+    MapPartialSort,
+
     Custom(String),
 }
 
@@ -608,6 +626,24 @@ impl FunctionName {
             "WINDOW_FUNNEL" => Self::WindowFunnel,
             "WINDOWFUNNEL" => Self::WindowFunnel,
 
+            "MAP" => Self::Map,
+            "MAPFROMARRAYS" => Self::MapFromArrays,
+            "MAPKEYS" | "MAP_KEYS" => Self::MapKeys,
+            "MAPVALUES" | "MAP_VALUES" => Self::MapValues,
+            "MAPCONTAINS" | "MAP_CONTAINS" => Self::MapContains,
+            "MAPADD" | "MAP_ADD" => Self::MapAdd,
+            "MAPSUBTRACT" | "MAP_SUBTRACT" => Self::MapSubtract,
+            "MAPUPDATE" | "MAP_UPDATE" => Self::MapUpdate,
+            "MAPCONCAT" | "MAP_CONCAT" => Self::MapConcat,
+            "MAPPOPULATESERIES" | "MAP_POPULATE_SERIES" => Self::MapPopulateSeries,
+            "MAPFILTER" | "MAP_FILTER" => Self::MapFilter,
+            "MAPAPPLY" | "MAP_APPLY" => Self::MapApply,
+            "MAPEXISTS" | "MAP_EXISTS" => Self::MapExists,
+            "MAPALL" | "MAP_ALL" => Self::MapAll,
+            "MAPSORT" | "MAP_SORT" => Self::MapSort,
+            "MAPREVERSESORT" | "MAP_REVERSE_SORT" => Self::MapReverseSort,
+            "MAPPARTIALSORT" | "MAP_PARTIAL_SORT" => Self::MapPartialSort,
+
             _ => Self::Custom(s.to_uppercase()),
         }
     }
@@ -899,90 +935,117 @@ impl FunctionName {
             Self::Retention => "RETENTION",
             Self::WindowFunnel => "WINDOW_FUNNEL",
 
+            Self::Map => "MAP",
+            Self::MapFromArrays => "MAPFROMARRAYS",
+            Self::MapKeys => "MAPKEYS",
+            Self::MapValues => "MAPVALUES",
+            Self::MapContains => "MAPCONTAINS",
+            Self::MapAdd => "MAPADD",
+            Self::MapSubtract => "MAPSUBTRACT",
+            Self::MapUpdate => "MAPUPDATE",
+            Self::MapConcat => "MAPCONCAT",
+            Self::MapPopulateSeries => "MAPPOPULATESERIES",
+            Self::MapFilter => "MAPFILTER",
+            Self::MapApply => "MAPAPPLY",
+            Self::MapExists => "MAPEXISTS",
+            Self::MapAll => "MAPALL",
+            Self::MapSort => "MAPSORT",
+            Self::MapReverseSort => "MAPREVERSESORT",
+            Self::MapPartialSort => "MAPPARTIALSORT",
+
             Self::Custom(name) => name,
         }
     }
 
     pub fn is_aggregate(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::Count
-                | Self::Sum
-                | Self::Avg
-                | Self::Average
-                | Self::Min
-                | Self::Minimum
-                | Self::Max
-                | Self::Maximum
-                | Self::StringAgg
-                | Self::GroupConcat
-                | Self::ListAgg
-                | Self::ArrayAgg
-                | Self::Collect
-                | Self::StddevPop
-                | Self::Stddevp
-                | Self::StddevSamp
-                | Self::Stddevs
-                | Self::Stddev
-                | Self::Stdev
-                | Self::StandardDeviation
-                | Self::VarPop
-                | Self::Varp
-                | Self::VarSamp
-                | Self::Vars
-                | Self::Variance
-                | Self::Var
-                | Self::Median
-                | Self::PercentileCont
-                | Self::PercentileDisc
-                | Self::Mode
-                | Self::Corr
-                | Self::CovarPop
-                | Self::CovarSamp
-                | Self::CountIf
-                | Self::ApproxCountDistinct
-                | Self::ApproxDistinct
-                | Self::ApproxQuantiles
-                | Self::ApproxTopCount
-                | Self::ApproxTopSum
-                | Self::Ndv
-                | Self::Uniq
-                | Self::UniqExact
-                | Self::UniqHll12
-                | Self::UniqCombined
-                | Self::UniqCombined64
-                | Self::UniqThetaSketch
-                | Self::UniqArray
-                | Self::Quantile
-                | Self::QuantileExact
-                | Self::QuantileTDigest
-                | Self::QuantileTiming
-                | Self::QuantilesTDigest
-                | Self::QuantilesTiming
-                | Self::ArgMin
-                | Self::ArgMax
-                | Self::GroupArray
-                | Self::GroupArrayMovingAvg
-                | Self::GroupArrayMovingSum
-                | Self::Any
-                | Self::AnyLast
-                | Self::AnyHeavy
-                | Self::TopK
-                | Self::GroupUniqArray
-                | Self::SumWithOverflow
-                | Self::SumMap
-                | Self::MinMap
-                | Self::MaxMap
-                | Self::GroupBitmap
-                | Self::GroupBitmapAnd
-                | Self::GroupBitmapOr
-                | Self::GroupBitmapXor
-                | Self::RankCorr
-                | Self::ExponentialMovingAverage
-                | Self::IntervalLengthSum
-                | Self::Retention
-                | Self::WindowFunnel
-        )
+            | Self::Sum
+            | Self::Avg
+            | Self::Average
+            | Self::Min
+            | Self::Minimum
+            | Self::Max
+            | Self::Maximum
+            | Self::StringAgg
+            | Self::GroupConcat
+            | Self::ListAgg
+            | Self::ArrayAgg
+            | Self::Collect
+            | Self::StddevPop
+            | Self::Stddevp
+            | Self::StddevSamp
+            | Self::Stddevs
+            | Self::Stddev
+            | Self::Stdev
+            | Self::StandardDeviation
+            | Self::VarPop
+            | Self::Varp
+            | Self::VarSamp
+            | Self::Vars
+            | Self::Variance
+            | Self::Var
+            | Self::Median
+            | Self::PercentileCont
+            | Self::PercentileDisc
+            | Self::Mode
+            | Self::Corr
+            | Self::CovarPop
+            | Self::CovarSamp
+            | Self::CountIf
+            | Self::ApproxCountDistinct
+            | Self::ApproxDistinct
+            | Self::ApproxQuantiles
+            | Self::ApproxTopCount
+            | Self::ApproxTopSum
+            | Self::Ndv
+            | Self::Uniq
+            | Self::UniqExact
+            | Self::UniqHll12
+            | Self::UniqCombined
+            | Self::UniqCombined64
+            | Self::UniqThetaSketch
+            | Self::UniqArray
+            | Self::Quantile
+            | Self::QuantileExact
+            | Self::QuantileTDigest
+            | Self::QuantileTiming
+            | Self::QuantilesTDigest
+            | Self::QuantilesTiming
+            | Self::ArgMin
+            | Self::ArgMax
+            | Self::GroupArray
+            | Self::GroupArrayMovingAvg
+            | Self::GroupArrayMovingSum
+            | Self::Any
+            | Self::AnyLast
+            | Self::AnyHeavy
+            | Self::TopK
+            | Self::GroupUniqArray
+            | Self::SumWithOverflow
+            | Self::SumMap
+            | Self::MinMap
+            | Self::MaxMap
+            | Self::GroupBitmap
+            | Self::GroupBitmapAnd
+            | Self::GroupBitmapOr
+            | Self::GroupBitmapXor
+            | Self::RankCorr
+            | Self::ExponentialMovingAverage
+            | Self::IntervalLengthSum
+            | Self::Retention
+            | Self::WindowFunnel => true,
+            Self::Custom(name) => matches!(
+                name.as_str(),
+                "JSON_AGG"
+                    | "JSONB_AGG"
+                    | "JSON_OBJECT_AGG"
+                    | "JSONB_OBJECT_AGG"
+                    | "JSON_ARRAYAGG"
+                    | "JSON_OBJECTAGG"
+            ),
+            _ => false,
+        }
     }
 
     pub fn is_window(&self) -> bool {

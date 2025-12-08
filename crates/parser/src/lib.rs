@@ -19,7 +19,7 @@ pub use parser::{
 };
 pub use sql_json::Sql2023Json;
 pub use sql_types::Sql2023Types;
-pub use validator::CustomStatement;
+pub use validator::{CustomStatement, SetConstraintsMode, SetConstraintsTarget};
 
 #[macro_export]
 macro_rules! aggregate_function_names {
@@ -45,8 +45,10 @@ macro_rules! aggregate_function_names {
             | "COVAR_POP"
             | "COVAR_SAMP"
             | "JSON_AGG"
+            | "JSONB_AGG"
             | "JSON_ARRAYAGG"
             | "JSON_OBJECT_AGG"
+            | "JSONB_OBJECT_AGG"
             | "JSON_OBJECTAGG"
             | "BIT_AND"
             | "BIT_OR"

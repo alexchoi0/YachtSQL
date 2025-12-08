@@ -67,8 +67,8 @@ impl LogicalPlanBuilder {
         data_type: &ast::DataType,
         kind: &ast::CastKind,
     ) -> Result<Expr> {
-        let inner_expr = Box::new(self.sql_expr_to_expr(expr)?);
         let cast_type = Self::sql_datatype_to_cast_type(data_type)?;
+        let inner_expr = Box::new(self.sql_expr_to_expr_for_cast(expr, &cast_type)?);
 
         let result_expr = match kind {
             ast::CastKind::TryCast | ast::CastKind::SafeCast => Expr::TryCast {
@@ -342,6 +342,18 @@ impl LogicalPlanBuilder {
             Ok(CastDataType::MacAddr8)
         } else if data_type_str.contains("MACADDR") {
             Ok(CastDataType::MacAddr)
+        } else if data_type_str.contains("INT4RANGE") {
+            Ok(CastDataType::Int4Range)
+        } else if data_type_str.contains("INT8RANGE") {
+            Ok(CastDataType::Int8Range)
+        } else if data_type_str.contains("NUMRANGE") {
+            Ok(CastDataType::NumRange)
+        } else if data_type_str.contains("TSTZRANGE") {
+            Ok(CastDataType::TsTzRange)
+        } else if data_type_str.contains("TSRANGE") {
+            Ok(CastDataType::TsRange)
+        } else if data_type_str.contains("DATERANGE") {
+            Ok(CastDataType::DateRange)
         } else {
             Err(Error::unsupported_feature(format!(
                 "Data type not supported in CAST: {:?}",

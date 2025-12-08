@@ -894,7 +894,29 @@ impl QueryExecutor {
                 let storage = self.storage.borrow_mut();
                 let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
                 let table_full_name = format!("{}.{}", dataset_id, table_id);
-                enforcer.validate_insert(&table_full_name, &row, &storage)?;
+
+                let deferred_state = {
+                    let tm = self.transaction_manager.borrow();
+                    tm.get_active_transaction()
+                        .map(|txn| txn.deferred_fk_state().clone())
+                };
+
+                let deferred_checks = enforcer.validate_insert_with_deferral(
+                    &table_full_name,
+                    &row,
+                    &storage,
+                    deferred_state.as_ref(),
+                )?;
+
+                if !deferred_checks.is_empty() {
+                    drop(storage);
+                    let mut tm = self.transaction_manager.borrow_mut();
+                    if let Some(txn) = tm.get_active_transaction_mut() {
+                        for check in deferred_checks {
+                            txn.deferred_fk_state_mut().defer_check(check);
+                        }
+                    }
+                }
             }
 
             {

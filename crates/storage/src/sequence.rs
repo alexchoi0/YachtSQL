@@ -238,12 +238,21 @@ impl Sequence {
         }
     }
 
-    fn handle_limit_reached(&self, is_max_limit: bool, min: i64, max: i64) -> Result<i64> {
+    fn handle_limit_reached(&self, is_max_limit: bool, _min: i64, _max: i64) -> Result<i64> {
         if self.config.cycle {
-            Ok(if is_max_limit { min } else { max })
+            let cycle_to = if is_max_limit {
+                self.config.min_value.unwrap_or(1)
+            } else {
+                self.config.max_value.unwrap_or(-1)
+            };
+            Ok(cycle_to)
         } else {
             let limit_type = if is_max_limit { "maximum" } else { "minimum" };
-            let limit_value = if is_max_limit { max } else { min };
+            let limit_value = if is_max_limit {
+                self.config.max()
+            } else {
+                self.config.min()
+            };
             Err(Error::InvalidOperation(format!(
                 "Sequence '{}' has reached its {} value ({})",
                 self.name, limit_type, limit_value

@@ -35,6 +35,7 @@ pub enum DataType {
     Hstore,
     Struct(Vec<StructField>),
     Array(Box<DataType>),
+    Map(Box<DataType>, Box<DataType>),
     Uuid,
     Serial,
     BigSerial,
@@ -105,6 +106,9 @@ impl fmt::Display for DataType {
                 write!(f, ">")
             }
             DataType::Array(inner) => write!(f, "ARRAY<{}>", inner),
+            DataType::Map(key_type, value_type) => {
+                write!(f, "MAP<{}, {}>", key_type, value_type)
+            }
             DataType::Uuid => write!(f, "UUID"),
             DataType::Serial => write!(f, "SERIAL"),
             DataType::BigSerial => write!(f, "BIGSERIAL"),
@@ -485,6 +489,7 @@ fn unescape_hstore(s: &str) -> String {
 }
 const TAG_MACADDR: u8 = 146;
 const TAG_MACADDR8: u8 = 147;
+const TAG_MAP: u8 = 148;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct Interval {
@@ -1206,6 +1211,21 @@ impl Value {
     }
 
     #[inline]
+    pub fn map(entries: Vec<(Value, Value)>) -> Self {
+        let rc = Rc::new(entries);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_MAP,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
     pub fn inet(value: network::InetAddr) -> Self {
         let rc = Rc::new(value);
         let ptr = Rc::into_raw(rc) as *mut u8;
@@ -1433,6 +1453,18 @@ impl Value {
                     }
                     TAG_JSON => DataType::Json,
                     TAG_HSTORE => DataType::Hstore,
+                    TAG_MAP => {
+                        let heap = self.as_heap();
+                        let map_ptr = heap.ptr as *const Vec<(Value, Value)>;
+                        let entries = &*map_ptr;
+                        if entries.is_empty() {
+                            DataType::Map(Box::new(DataType::Unknown), Box::new(DataType::Unknown))
+                        } else {
+                            let key_type = entries[0].0.data_type();
+                            let value_type = entries[0].1.data_type();
+                            DataType::Map(Box::new(key_type), Box::new(value_type))
+                        }
+                    }
                     TAG_UUID => DataType::Uuid,
                     TAG_VECTOR => {
                         let heap = self.as_heap();
@@ -1747,6 +1779,22 @@ impl Value {
         }
     }
 
+    pub fn is_map(&self) -> bool {
+        self.tag() == TAG_MAP
+    }
+
+    pub fn as_map(&self) -> Option<&Vec<(Value, Value)>> {
+        unsafe {
+            if self.tag() == TAG_MAP {
+                let heap = self.as_heap();
+                let map_ptr = heap.ptr as *const Vec<(Value, Value)>;
+                Some(&*map_ptr)
+            } else {
+                None
+            }
+        }
+    }
+
     pub fn as_vector(&self) -> Option<&Vec<f64>> {
         unsafe {
             if self.tag() == TAG_VECTOR {
@@ -1933,6 +1981,9 @@ impl Drop for Value {
                     }
                     TAG_HSTORE => {
                         let _ = Rc::from_raw(heap.ptr as *const IndexMap<String, Option<String>>);
+                    }
+                    TAG_MAP => {
+                        let _ = Rc::from_raw(heap.ptr as *const Vec<(Value, Value)>);
                     }
                     TAG_MACADDR | TAG_MACADDR8 => {
                         let _ = Rc::from_raw(heap.ptr as *const MacAddress);
@@ -2232,6 +2283,22 @@ impl Clone for Value {
                             },
                         }
                     }
+                    TAG_MAP => {
+                        let arc_ptr = heap.ptr as *const Vec<(Value, Value)>;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_MAP,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
                     TAG_DEFAULT => Self::default_value(),
                     _ => Self::null(),
                 }
@@ -2338,6 +2405,11 @@ impl PartialEq for Value {
                         let self_circle = &*(self_heap.ptr as *const PgCircle);
                         let other_circle = &*(other_heap.ptr as *const PgCircle);
                         self_circle == other_circle
+                    }
+                    TAG_MAP => {
+                        let self_map = &*(self_heap.ptr as *const Vec<(Value, Value)>);
+                        let other_map = &*(other_heap.ptr as *const Vec<(Value, Value)>);
+                        self_map == other_map
                     }
                     TAG_DEFAULT => true,
 
@@ -2496,6 +2568,15 @@ impl std::hash::Hash for Value {
                             c.hash(state);
                         }
                     }
+                    TAG_MAP => {
+                        if let Some(entries) = self.as_map() {
+                            entries.len().hash(state);
+                            for (k, v) in entries {
+                                k.hash(state);
+                                v.hash(state);
+                            }
+                        }
+                    }
                     TAG_DEFAULT => {}
                     TAG_MACADDR | TAG_MACADDR8 => {
                         if let Some(mac) = self.as_macaddr().or_else(|| self.as_macaddr8()) {
@@ -2545,6 +2626,10 @@ impl std::fmt::Debug for Value {
                     TAG_STRUCT => {
                         let map = &*(heap.ptr as *const IndexMap<String, Value>);
                         write!(f, "Value::struct_val({:?})", map)
+                    }
+                    TAG_MAP => {
+                        let entries = &*(heap.ptr as *const Vec<(Value, Value)>);
+                        write!(f, "Value::map({:?})", entries)
                     }
                     TAG_UUID => {
                         let uuid = &*(heap.ptr as *const Uuid);
@@ -3023,6 +3108,17 @@ impl fmt::Display for Value {
                             }
                         }
                         write!(f, "'")
+                    }
+                    TAG_MAP => {
+                        let entries = &*(heap.ptr as *const Vec<(Value, Value)>);
+                        write!(f, "{{")?;
+                        for (i, (k, v)) in entries.iter().enumerate() {
+                            if i > 0 {
+                                write!(f, ", ")?;
+                            }
+                            write!(f, "{}:{}", k, v)?;
+                        }
+                        write!(f, "}}")
                     }
                     TAG_DEFAULT => write!(f, "DEFAULT"),
                     TAG_MACADDR | TAG_MACADDR8 => {

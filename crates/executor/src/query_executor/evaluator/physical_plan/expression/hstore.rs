@@ -17,9 +17,13 @@ impl ProjectionWithExprExec {
                 if args.len() != 2 {
                     return Err(Error::invalid_query("HSTORE_EXISTS requires 2 arguments"));
                 }
-                let hstore = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let key = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                yachtsql_functions::hstore::hstore_exists(&hstore, &key)
+                if value.as_json().is_some() {
+                    yachtsql_functions::json::predicates::jsonb_key_exists(&value, &key)
+                } else {
+                    yachtsql_functions::hstore::hstore_exists(&value, &key)
+                }
             }
             "HSTORE_EXISTS_ALL" => {
                 if args.len() != 2 {
@@ -27,9 +31,13 @@ impl ProjectionWithExprExec {
                         "HSTORE_EXISTS_ALL requires 2 arguments",
                     ));
                 }
-                let hstore = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let keys = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                yachtsql_functions::hstore::hstore_exists_all(&hstore, &keys)
+                if value.as_json().is_some() {
+                    yachtsql_functions::json::predicates::jsonb_keys_all_exist(&value, &keys)
+                } else {
+                    yachtsql_functions::hstore::hstore_exists_all(&value, &keys)
+                }
             }
             "HSTORE_EXISTS_ANY" => {
                 if args.len() != 2 {
@@ -37,9 +45,13 @@ impl ProjectionWithExprExec {
                         "HSTORE_EXISTS_ANY requires 2 arguments",
                     ));
                 }
-                let hstore = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let keys = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                yachtsql_functions::hstore::hstore_exists_any(&hstore, &keys)
+                if value.as_json().is_some() {
+                    yachtsql_functions::json::predicates::jsonb_keys_any_exist(&value, &keys)
+                } else {
+                    yachtsql_functions::hstore::hstore_exists_any(&value, &keys)
+                }
             }
             "HSTORE_CONCAT" => {
                 if args.len() != 2 {

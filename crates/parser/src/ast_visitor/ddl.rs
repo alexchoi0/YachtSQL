@@ -102,7 +102,7 @@ impl LogicalPlanBuilder {
                 };
                 Ok(DataType::Array(Box::new(inner_type)))
             }
-            ast::DataType::Custom(name, _) => {
+            ast::DataType::Custom(name, modifiers) => {
                 let type_name = name
                     .0
                     .last()
@@ -115,6 +115,13 @@ impl LogicalPlanBuilder {
                 match type_upper.as_str() {
                     "MACADDR" => return Ok(DataType::MacAddr),
                     "MACADDR8" => return Ok(DataType::MacAddr8),
+                    "VECTOR" => {
+                        let dims = modifiers
+                            .first()
+                            .and_then(|s| s.parse::<usize>().ok())
+                            .unwrap_or(0);
+                        return Ok(DataType::Vector(dims));
+                    }
                     _ => {}
                 }
 

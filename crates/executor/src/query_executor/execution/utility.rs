@@ -273,6 +273,24 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
         yachtsql_optimizer::expr::CastDataType::Hstore => DataType::Hstore,
         yachtsql_optimizer::expr::CastDataType::MacAddr => DataType::MacAddr,
         yachtsql_optimizer::expr::CastDataType::MacAddr8 => DataType::MacAddr8,
+        yachtsql_optimizer::expr::CastDataType::Int4Range => {
+            DataType::Range(yachtsql_core::types::RangeType::Int4Range)
+        }
+        yachtsql_optimizer::expr::CastDataType::Int8Range => {
+            DataType::Range(yachtsql_core::types::RangeType::Int8Range)
+        }
+        yachtsql_optimizer::expr::CastDataType::NumRange => {
+            DataType::Range(yachtsql_core::types::RangeType::NumRange)
+        }
+        yachtsql_optimizer::expr::CastDataType::TsRange => {
+            DataType::Range(yachtsql_core::types::RangeType::TsRange)
+        }
+        yachtsql_optimizer::expr::CastDataType::TsTzRange => {
+            DataType::Range(yachtsql_core::types::RangeType::TsTzRange)
+        }
+        yachtsql_optimizer::expr::CastDataType::DateRange => {
+            DataType::Range(yachtsql_core::types::RangeType::DateRange)
+        }
         yachtsql_optimizer::expr::CastDataType::Custom(name, _) => DataType::Custom(name.clone()),
     }
 }
@@ -926,11 +944,23 @@ pub fn perform_cast(
         CastDataType::Vector(_dims) => {
             if let Some(vec) = value.as_vector() {
                 Ok(Value::vector(vec.clone()))
+            } else if let Some(arr) = value.as_array() {
+                let values: Result<Vec<f64>> = arr
+                    .iter()
+                    .map(|v| {
+                        v.as_f64()
+                            .or_else(|| v.as_i64().map(|i| i as f64))
+                            .ok_or_else(|| {
+                                Error::InvalidOperation(format!(
+                                    "Cannot convert {:?} to vector element",
+                                    v
+                                ))
+                            })
+                    })
+                    .collect();
+                Ok(Value::vector(values?))
             } else if let Some(s) = value.as_str() {
-                Err(Error::InvalidOperation(format!(
-                    "Cannot cast '{}' to VECTOR (not yet implemented)",
-                    s
-                )))
+                parse_vector_from_string(s)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "Vector".to_string(),
@@ -1017,6 +1047,78 @@ pub fn perform_cast(
                 })
             }
         }
+        CastDataType::Int4Range => {
+            if let Some(range) = value.as_range() {
+                Ok(Value::range(range.clone()))
+            } else if let Some(s) = value.as_str() {
+                parse_range_from_string(s, yachtsql_core::types::RangeType::Int4Range)
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "INT4RANGE".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Int8Range => {
+            if let Some(range) = value.as_range() {
+                Ok(Value::range(range.clone()))
+            } else if let Some(s) = value.as_str() {
+                parse_range_from_string(s, yachtsql_core::types::RangeType::Int8Range)
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "INT8RANGE".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::NumRange => {
+            if let Some(range) = value.as_range() {
+                Ok(Value::range(range.clone()))
+            } else if let Some(s) = value.as_str() {
+                parse_range_from_string(s, yachtsql_core::types::RangeType::NumRange)
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "NUMRANGE".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::TsRange => {
+            if let Some(range) = value.as_range() {
+                Ok(Value::range(range.clone()))
+            } else if let Some(s) = value.as_str() {
+                parse_range_from_string(s, yachtsql_core::types::RangeType::TsRange)
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "TSRANGE".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::TsTzRange => {
+            if let Some(range) = value.as_range() {
+                Ok(Value::range(range.clone()))
+            } else if let Some(s) = value.as_str() {
+                parse_range_from_string(s, yachtsql_core::types::RangeType::TsTzRange)
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "TSTZRANGE".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::DateRange => {
+            if let Some(range) = value.as_range() {
+                Ok(Value::range(range.clone()))
+            } else if let Some(s) = value.as_str() {
+                parse_range_from_string(s, yachtsql_core::types::RangeType::DateRange)
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "DATERANGE".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
         CastDataType::Custom(_name, struct_fields) => {
             if let Some(struct_val) = value.as_struct() {
                 if struct_fields.is_empty() {
@@ -1044,6 +1146,128 @@ pub fn perform_cast(
             }
         }
     }
+}
+
+fn parse_range_from_string(s: &str, range_type: yachtsql_core::types::RangeType) -> Result<Value> {
+    use yachtsql_core::types::{Range, RangeType};
+
+    let s = s.trim();
+
+    if s == "empty" || s.is_empty() {
+        return Ok(Value::range(Range {
+            range_type,
+            lower: None,
+            upper: None,
+            lower_inclusive: false,
+            upper_inclusive: false,
+        }));
+    }
+
+    if s.len() < 3 {
+        return Err(Error::InvalidOperation(format!(
+            "Invalid range format: '{}'",
+            s
+        )));
+    }
+
+    let lower_inclusive = s.starts_with('[');
+    let upper_inclusive = s.ends_with(']');
+
+    let inner = &s[1..s.len() - 1];
+    let comma_pos = inner.find(',').ok_or_else(|| {
+        Error::InvalidOperation(format!("Invalid range format (no comma): '{}'", s))
+    })?;
+
+    let lower_str = inner[..comma_pos].trim();
+    let upper_str = inner[comma_pos + 1..].trim();
+
+    let lower = if lower_str.is_empty() {
+        None
+    } else {
+        Some(parse_range_bound(lower_str, &range_type)?)
+    };
+
+    let upper = if upper_str.is_empty() {
+        None
+    } else {
+        Some(parse_range_bound(upper_str, &range_type)?)
+    };
+
+    Ok(Value::range(Range {
+        range_type,
+        lower,
+        upper,
+        lower_inclusive,
+        upper_inclusive,
+    }))
+}
+
+fn parse_range_bound(s: &str, range_type: &yachtsql_core::types::RangeType) -> Result<Value> {
+    use yachtsql_core::types::RangeType;
+
+    match range_type {
+        RangeType::Int4Range | RangeType::Int8Range => {
+            let val: i64 = s.parse().map_err(|_| {
+                Error::InvalidOperation(format!("Invalid integer in range: '{}'", s))
+            })?;
+            Ok(Value::int64(val))
+        }
+        RangeType::NumRange => {
+            let val: f64 = s.parse().map_err(|_| {
+                Error::InvalidOperation(format!("Invalid number in range: '{}'", s))
+            })?;
+            Ok(Value::float64(val))
+        }
+        RangeType::DateRange => {
+            use chrono::NaiveDate;
+            let date = NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d")
+                .map_err(|_| Error::InvalidOperation(format!("Invalid date in range: '{}'", s)))?;
+            Ok(Value::date(date))
+        }
+        RangeType::TsRange | RangeType::TsTzRange => {
+            use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
+            let s = s.trim();
+            let dt = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f"))
+                .or_else(|_| {
+                    NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap())
+                })
+                .or_else(|_| {
+                    DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%z").map(|dt| dt.naive_utc())
+                })
+                .or_else(|_| {
+                    let s_no_tz =
+                        s.trim_end_matches(|c: char| c == '+' || c == '-' || c.is_numeric());
+                    NaiveDateTime::parse_from_str(s_no_tz.trim(), "%Y-%m-%d %H:%M:%S")
+                })
+                .map_err(|_| {
+                    Error::InvalidOperation(format!("Invalid timestamp in range: '{}'", s))
+                })?;
+            Ok(Value::timestamp(Utc.from_utc_datetime(&dt)))
+        }
+    }
+}
+
+pub fn parse_vector_from_string(s: &str) -> Result<Value> {
+    let s = s.trim();
+
+    let inner = if s.starts_with('[') && s.ends_with(']') {
+        &s[1..s.len() - 1]
+    } else {
+        s
+    };
+
+    let values: Result<Vec<f64>> = inner
+        .split(',')
+        .map(|part| {
+            part.trim()
+                .parse::<f64>()
+                .map_err(|_| Error::InvalidOperation(format!("Invalid vector element: '{}'", part)))
+        })
+        .collect();
+
+    Ok(Value::vector(values?))
 }
 
 pub fn evaluate_numeric_op(

@@ -292,7 +292,6 @@ fn test_lateral_with_cte() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lateral_json_each() {
     let mut executor = create_executor();
 

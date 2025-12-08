@@ -342,7 +342,139 @@ impl LogicalPlanBuilder {
                 });
             }
 
-            {
+            if has_window_functions {
+                let mut all_windows: Vec<(Expr, String)> = Vec::new();
+                let mut counter = 0usize;
+
+                for (expr, alias) in &projection_exprs {
+                    if self.is_window_function(expr) {
+                        let rewritten_window = self.rewrite_window_order_by_aggregates(expr);
+                        let col_name = alias.clone().unwrap_or_else(|| match expr {
+                            Expr::WindowFunction { name, .. } => format!("{}(...)", name.as_str()),
+                            _ => "window_result".to_string(),
+                        });
+                        all_windows.push((rewritten_window, col_name));
+                    } else if self.has_window_function(expr) {
+                        self.extract_window_functions_with_aggregate_rewrite(
+                            expr,
+                            &mut all_windows,
+                            &mut counter,
+                        );
+                    }
+                }
+
+                if !all_windows.is_empty() {
+                    let window_exprs: Vec<(Expr, Option<String>)> = all_windows
+                        .iter()
+                        .map(|(expr, col_name)| (expr.clone(), Some(col_name.clone())))
+                        .collect();
+
+                    plan = LogicalPlan::new(PlanNode::Window {
+                        window_exprs,
+                        input: plan.root,
+                    });
+                }
+
+                let final_projection: Vec<(Expr, Option<String>)> = projection_exprs
+                    .iter()
+                    .map(|(expr, alias)| {
+                        if let Some(group_expr_ref) =
+                            self.rewrite_group_by_expr_to_column(expr, &group_by_exprs)
+                        {
+                            return (group_expr_ref, alias.clone());
+                        }
+
+                        if self.is_window_function(expr) {
+                            let col_name = alias.clone().unwrap_or_else(|| match expr {
+                                Expr::WindowFunction { name, .. } => {
+                                    format!("{}(...)", name.as_str())
+                                }
+                                _ => "window_result".to_string(),
+                            });
+                            return (
+                                Expr::Column {
+                                    name: col_name,
+                                    table: None,
+                                },
+                                alias.clone(),
+                            );
+                        }
+
+                        if self.has_window_function(expr) {
+                            let replaced = self.replace_window_functions(expr, &all_windows);
+                            return (replaced, alias.clone());
+                        }
+
+                        match expr {
+                            Expr::Function { name, args } if self.is_aggregate(expr) => {
+                                let first_is_wildcard =
+                                    args.first().is_some_and(|expr| expr.is_wildcard());
+                                let col_name = if args.is_empty() || first_is_wildcard {
+                                    format!("{}(*)", name.as_str())
+                                } else if let Some(Expr::Column { name: col_name, .. }) =
+                                    args.first()
+                                {
+                                    format!("{}({})", name.as_str(), col_name)
+                                } else {
+                                    format!("{}(...)", name.as_str())
+                                };
+                                (
+                                    Expr::Column {
+                                        name: col_name,
+                                        table: None,
+                                    },
+                                    alias.clone(),
+                                )
+                            }
+                            Expr::Aggregate {
+                                name,
+                                args,
+                                distinct,
+                                ..
+                            } => {
+                                let first_is_wildcard =
+                                    args.first().is_some_and(|expr| expr.is_wildcard());
+                                let col_name = if args.is_empty() || first_is_wildcard {
+                                    if *distinct {
+                                        format!("{}(DISTINCT *)", name.as_str())
+                                    } else {
+                                        format!("{}(*)", name.as_str())
+                                    }
+                                } else if let Some(Expr::Column { name: col_name, .. }) =
+                                    args.first()
+                                {
+                                    if *distinct {
+                                        format!("{}(DISTINCT {})", name.as_str(), col_name)
+                                    } else {
+                                        format!("{}({})", name.as_str(), col_name)
+                                    }
+                                } else if *distinct {
+                                    format!("{}(DISTINCT ...)", name.as_str())
+                                } else {
+                                    format!("{}(...)", name.as_str())
+                                };
+                                (
+                                    Expr::Column {
+                                        name: col_name,
+                                        table: None,
+                                    },
+                                    alias.clone(),
+                                )
+                            }
+
+                            _ => (
+                                self.rewrite_post_aggregate_expr(expr, &group_by_exprs),
+                                alias.clone(),
+                            ),
+                        }
+                    })
+                    .collect();
+
+                plan = LogicalPlan::new(PlanNode::Projection {
+                    expressions: final_projection,
+                    input: plan.root,
+                });
+            } else {
                 let final_projection: Vec<(Expr, Option<String>)> = projection_exprs
                     .iter()
                     .map(|(expr, alias)| {
@@ -426,13 +558,27 @@ impl LogicalPlanBuilder {
             }
         } else if !projection_exprs.iter().all(|(e, _)| e.is_wildcard()) {
             if has_window_functions {
-                let window_exprs: Vec<(Expr, Option<String>)> = projection_exprs
-                    .iter()
-                    .filter(|(expr, _)| self.is_window_function(expr))
-                    .cloned()
-                    .collect();
+                let mut all_windows: Vec<(Expr, String)> = Vec::new();
+                let mut counter = 0usize;
 
-                if !window_exprs.is_empty() {
+                for (expr, alias) in &projection_exprs {
+                    if self.is_window_function(expr) {
+                        let col_name = alias.clone().unwrap_or_else(|| match expr {
+                            Expr::WindowFunction { name, .. } => format!("{}(...)", name.as_str()),
+                            _ => "window_result".to_string(),
+                        });
+                        all_windows.push((expr.clone(), col_name));
+                    } else if self.has_window_function(expr) {
+                        self.extract_window_functions(expr, &mut all_windows, &mut counter);
+                    }
+                }
+
+                if !all_windows.is_empty() {
+                    let window_exprs: Vec<(Expr, Option<String>)> = all_windows
+                        .iter()
+                        .map(|(expr, col_name)| (expr.clone(), Some(col_name.clone())))
+                        .collect();
+
                     plan = LogicalPlan::new(PlanNode::Window {
                         window_exprs,
                         input: plan.root,
@@ -443,12 +589,12 @@ impl LogicalPlanBuilder {
                     .iter()
                     .map(|(expr, alias)| {
                         if self.is_window_function(expr) {
-                            let col_name = match expr {
-                                Expr::WindowFunction { name, .. } => alias
-                                    .clone()
-                                    .unwrap_or_else(|| format!("{}(...)", name.as_str())),
-                                _ => alias.clone().unwrap_or_else(|| "window_result".to_string()),
-                            };
+                            let col_name = alias.clone().unwrap_or_else(|| match expr {
+                                Expr::WindowFunction { name, .. } => {
+                                    format!("{}(...)", name.as_str())
+                                }
+                                _ => "window_result".to_string(),
+                            });
                             (
                                 Expr::Column {
                                     name: col_name,
@@ -456,6 +602,9 @@ impl LogicalPlanBuilder {
                                 },
                                 alias.clone(),
                             )
+                        } else if self.has_window_function(expr) {
+                            let replaced = self.replace_window_functions(expr, &all_windows);
+                            (replaced, alias.clone())
                         } else {
                             (expr.clone(), alias.clone())
                         }
@@ -883,7 +1032,309 @@ impl LogicalPlanBuilder {
                         .as_ref()
                         .is_some_and(|e| self.has_window_function(e))
             }
+            Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => self.has_window_function(expr),
             _ => false,
+        }
+    }
+
+    #[allow(clippy::only_used_in_recursion)]
+    fn extract_window_functions(
+        &self,
+        expr: &Expr,
+        windows: &mut Vec<(Expr, String)>,
+        counter: &mut usize,
+    ) {
+        match expr {
+            Expr::WindowFunction { name, .. } => {
+                let col_name = format!("__window_{}_{}", name.as_str().to_lowercase(), *counter);
+                *counter += 1;
+                windows.push((expr.clone(), col_name));
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.extract_window_functions(left, windows, counter);
+                self.extract_window_functions(right, windows, counter);
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                self.extract_window_functions(inner, windows, counter);
+            }
+            Expr::Function { args, .. } | Expr::Aggregate { args, .. } => {
+                for arg in args {
+                    self.extract_window_functions(arg, windows, counter);
+                }
+            }
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
+                if let Some(o) = operand {
+                    self.extract_window_functions(o, windows, counter);
+                }
+                for (w, t) in when_then {
+                    self.extract_window_functions(w, windows, counter);
+                    self.extract_window_functions(t, windows, counter);
+                }
+                if let Some(e) = else_expr {
+                    self.extract_window_functions(e, windows, counter);
+                }
+            }
+            Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
+                self.extract_window_functions(inner, windows, counter);
+            }
+            _ => {}
+        }
+    }
+
+    #[allow(clippy::only_used_in_recursion)]
+    fn replace_window_functions(&self, expr: &Expr, windows: &[(Expr, String)]) -> Expr {
+        match expr {
+            Expr::WindowFunction { .. } => {
+                if let Some((_, col_name)) = windows.iter().find(|(w, _)| w == expr) {
+                    Expr::Column {
+                        name: col_name.clone(),
+                        table: None,
+                    }
+                } else {
+                    expr.clone()
+                }
+            }
+            Expr::BinaryOp { op, left, right } => Expr::BinaryOp {
+                op: *op,
+                left: Box::new(self.replace_window_functions(left, windows)),
+                right: Box::new(self.replace_window_functions(right, windows)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: *op,
+                expr: Box::new(self.replace_window_functions(inner, windows)),
+            },
+            Expr::Function { name, args } => Expr::Function {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|arg| self.replace_window_functions(arg, windows))
+                    .collect(),
+            },
+            Expr::Aggregate {
+                name,
+                args,
+                distinct,
+                order_by,
+                filter,
+            } => Expr::Aggregate {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|arg| self.replace_window_functions(arg, windows))
+                    .collect(),
+                distinct: *distinct,
+                order_by: order_by.clone(),
+                filter: filter.clone(),
+            },
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => Expr::Case {
+                operand: operand
+                    .as_ref()
+                    .map(|o| Box::new(self.replace_window_functions(o, windows))),
+                when_then: when_then
+                    .iter()
+                    .map(|(w, t)| {
+                        (
+                            self.replace_window_functions(w, windows),
+                            self.replace_window_functions(t, windows),
+                        )
+                    })
+                    .collect(),
+                else_expr: else_expr
+                    .as_ref()
+                    .map(|e| Box::new(self.replace_window_functions(e, windows))),
+            },
+            Expr::Cast {
+                expr: inner,
+                data_type,
+            } => Expr::Cast {
+                expr: Box::new(self.replace_window_functions(inner, windows)),
+                data_type: data_type.clone(),
+            },
+            Expr::TryCast {
+                expr: inner,
+                data_type,
+            } => Expr::TryCast {
+                expr: Box::new(self.replace_window_functions(inner, windows)),
+                data_type: data_type.clone(),
+            },
+            _ => expr.clone(),
+        }
+    }
+
+    fn rewrite_window_order_by_aggregates(&self, expr: &Expr) -> Expr {
+        let Expr::WindowFunction {
+            name,
+            args,
+            partition_by,
+            order_by,
+            frame_units,
+            frame_start_offset,
+            frame_end_offset,
+            exclude,
+            null_treatment,
+        } = expr
+        else {
+            return expr.clone();
+        };
+
+        let rewritten_order_by: Vec<yachtsql_ir::expr::OrderByExpr> = order_by
+            .iter()
+            .map(|ob| {
+                let rewritten_expr = self.rewrite_aggregate_to_column(&ob.expr);
+                yachtsql_ir::expr::OrderByExpr {
+                    expr: rewritten_expr,
+                    asc: ob.asc,
+                    nulls_first: ob.nulls_first,
+                    collation: ob.collation.clone(),
+                }
+            })
+            .collect();
+
+        Expr::WindowFunction {
+            name: name.clone(),
+            args: args.clone(),
+            partition_by: partition_by.clone(),
+            order_by: rewritten_order_by,
+            frame_units: *frame_units,
+            frame_start_offset: *frame_start_offset,
+            frame_end_offset: *frame_end_offset,
+            exclude: *exclude,
+            null_treatment: *null_treatment,
+        }
+    }
+
+    fn rewrite_aggregate_to_column(&self, expr: &Expr) -> Expr {
+        match expr {
+            Expr::Aggregate {
+                name,
+                args,
+                distinct,
+                ..
+            } => {
+                let first_is_wildcard = args.first().is_some_and(|e| e.is_wildcard());
+                let col_name = if args.is_empty() || first_is_wildcard {
+                    if *distinct {
+                        format!("{}(DISTINCT *)", name.as_str())
+                    } else {
+                        format!("{}(*)", name.as_str())
+                    }
+                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
+                    if *distinct {
+                        format!("{}(DISTINCT {})", name.as_str(), col_name)
+                    } else {
+                        format!("{}({})", name.as_str(), col_name)
+                    }
+                } else if *distinct {
+                    format!("{}(DISTINCT ...)", name.as_str())
+                } else {
+                    format!("{}(...)", name.as_str())
+                };
+                Expr::Column {
+                    name: col_name,
+                    table: None,
+                }
+            }
+            Expr::Function { name, args } if self.is_aggregate(expr) => {
+                let first_is_wildcard = args.first().is_some_and(|e| e.is_wildcard());
+                let col_name = if args.is_empty() || first_is_wildcard {
+                    format!("{}(*)", name.as_str())
+                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
+                    format!("{}({})", name.as_str(), col_name)
+                } else {
+                    format!("{}(...)", name.as_str())
+                };
+                Expr::Column {
+                    name: col_name,
+                    table: None,
+                }
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(self.rewrite_aggregate_to_column(left)),
+                op: *op,
+                right: Box::new(self.rewrite_aggregate_to_column(right)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: *op,
+                expr: Box::new(self.rewrite_aggregate_to_column(inner)),
+            },
+            Expr::Function { name, args } => Expr::Function {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|arg| self.rewrite_aggregate_to_column(arg))
+                    .collect(),
+            },
+            Expr::Cast {
+                expr: inner,
+                data_type,
+            } => Expr::Cast {
+                expr: Box::new(self.rewrite_aggregate_to_column(inner)),
+                data_type: data_type.clone(),
+            },
+            Expr::TryCast {
+                expr: inner,
+                data_type,
+            } => Expr::TryCast {
+                expr: Box::new(self.rewrite_aggregate_to_column(inner)),
+                data_type: data_type.clone(),
+            },
+            _ => expr.clone(),
+        }
+    }
+
+    fn extract_window_functions_with_aggregate_rewrite(
+        &self,
+        expr: &Expr,
+        windows: &mut Vec<(Expr, String)>,
+        counter: &mut usize,
+    ) {
+        match expr {
+            Expr::WindowFunction { name, .. } => {
+                let rewritten_window = self.rewrite_window_order_by_aggregates(expr);
+                let col_name = format!("__window_{}_{}", name.as_str().to_lowercase(), *counter);
+                *counter += 1;
+                windows.push((rewritten_window, col_name));
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.extract_window_functions_with_aggregate_rewrite(left, windows, counter);
+                self.extract_window_functions_with_aggregate_rewrite(right, windows, counter);
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                self.extract_window_functions_with_aggregate_rewrite(inner, windows, counter);
+            }
+            Expr::Function { args, .. } | Expr::Aggregate { args, .. } => {
+                for arg in args {
+                    self.extract_window_functions_with_aggregate_rewrite(arg, windows, counter);
+                }
+            }
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
+                if let Some(o) = operand {
+                    self.extract_window_functions_with_aggregate_rewrite(o, windows, counter);
+                }
+                for (w, t) in when_then {
+                    self.extract_window_functions_with_aggregate_rewrite(w, windows, counter);
+                    self.extract_window_functions_with_aggregate_rewrite(t, windows, counter);
+                }
+                if let Some(e) = else_expr {
+                    self.extract_window_functions_with_aggregate_rewrite(e, windows, counter);
+                }
+            }
+            Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
+                self.extract_window_functions_with_aggregate_rewrite(inner, windows, counter);
+            }
+            _ => {}
         }
     }
 
@@ -1415,13 +1866,23 @@ impl LogicalPlanBuilder {
         }
 
         for table_with_joins in from.iter().skip(1) {
-            let right_plan = self.table_factor_to_plan(&table_with_joins.relation)?;
-            plan = LogicalPlan::new(PlanNode::Join {
-                left: plan.root,
-                right: right_plan.root,
-                on: Expr::Literal(LiteralValue::Boolean(true)),
-                join_type: JoinType::Cross,
-            });
+            let is_lateral = Self::is_lateral_derived_table(&table_with_joins.relation);
+            let right_plan = self.plan_join_relation(&table_with_joins.relation, &plan)?;
+            plan = if is_lateral {
+                LogicalPlan::new(PlanNode::LateralJoin {
+                    left: plan.root,
+                    right: right_plan.root,
+                    on: Expr::Literal(LiteralValue::Boolean(true)),
+                    join_type: JoinType::Cross,
+                })
+            } else {
+                LogicalPlan::new(PlanNode::Join {
+                    left: plan.root,
+                    right: right_plan.root,
+                    on: Expr::Literal(LiteralValue::Boolean(true)),
+                    join_type: JoinType::Cross,
+                })
+            };
 
             for join in &table_with_joins.joins {
                 let is_lateral = Self::is_lateral_derived_table(&join.relation);
@@ -1608,6 +2069,32 @@ impl LogicalPlanBuilder {
                     alias: table_alias,
                     with_offset: has_position_column,
                     offset_alias: offset_alias_name,
+                }))
+            }
+            ast::TableFactor::Function {
+                name, args, alias, ..
+            } => {
+                let function_name = Self::object_name_to_string(name);
+                let table_alias = alias.as_ref().map(|a| a.name.value.clone());
+
+                let converted_args = args
+                    .iter()
+                    .filter_map(|arg| match arg {
+                        ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => {
+                            Some(self.sql_expr_to_expr(expr))
+                        }
+                        ast::FunctionArg::Named {
+                            arg: ast::FunctionArgExpr::Expr(expr),
+                            ..
+                        } => Some(self.sql_expr_to_expr(expr)),
+                        _ => None,
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                Ok(LogicalPlan::new(PlanNode::TableValuedFunction {
+                    function_name,
+                    args: converted_args,
+                    alias: table_alias,
                 }))
             }
             _ => Err(Error::unsupported_feature(

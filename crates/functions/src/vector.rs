@@ -29,6 +29,61 @@ pub fn l2_distance(vec1: &Value, vec2: &Value) -> Result<Value> {
     Ok(Value::float64(sum_squared_diff.sqrt()))
 }
 
+pub fn l1_distance(vec1: &Value, vec2: &Value) -> Result<Value> {
+    if vec1.is_null() || vec2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let v1 = vec1.as_vector().ok_or_else(|| Error::TypeMismatch {
+        expected: "VECTOR".to_string(),
+        actual: vec1.data_type().to_string(),
+    })?;
+
+    let v2 = vec2.as_vector().ok_or_else(|| Error::TypeMismatch {
+        expected: "VECTOR".to_string(),
+        actual: vec2.data_type().to_string(),
+    })?;
+
+    if v1.len() != v2.len() {
+        return Err(Error::invalid_query(format!(
+            "Vector dimension mismatch: {} vs {}",
+            v1.len(),
+            v2.len()
+        )));
+    }
+
+    let sum_abs_diff: f64 = v1.iter().zip(v2.iter()).map(|(a, b)| (a - b).abs()).sum();
+
+    Ok(Value::float64(sum_abs_diff))
+}
+
+pub fn negative_inner_product(vec1: &Value, vec2: &Value) -> Result<Value> {
+    if vec1.is_null() || vec2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let v1 = vec1.as_vector().ok_or_else(|| Error::TypeMismatch {
+        expected: "VECTOR".to_string(),
+        actual: vec1.data_type().to_string(),
+    })?;
+
+    let v2 = vec2.as_vector().ok_or_else(|| Error::TypeMismatch {
+        expected: "VECTOR".to_string(),
+        actual: vec2.data_type().to_string(),
+    })?;
+
+    if v1.len() != v2.len() {
+        return Err(Error::invalid_query(format!(
+            "Vector dimension mismatch: {} vs {}",
+            v1.len(),
+            v2.len()
+        )));
+    }
+
+    let product: f64 = v1.iter().zip(v2.iter()).map(|(a, b)| a * b).sum();
+    Ok(Value::float64(-product))
+}
+
 pub fn cosine_similarity(vec1: &Value, vec2: &Value) -> Result<Value> {
     if vec1.is_null() || vec2.is_null() {
         return Ok(Value::null());

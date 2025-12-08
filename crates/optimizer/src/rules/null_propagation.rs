@@ -104,7 +104,8 @@ impl NullPropagation {
                         | BinaryOp::BitwiseAnd
                         | BinaryOp::BitwiseOr
                         | BinaryOp::BitwiseXor
-                        | BinaryOp::Concat => return Expr::Literal(LiteralValue::Null),
+                        | BinaryOp::Concat
+                        | BinaryOp::HashMinus => return Expr::Literal(LiteralValue::Null),
 
                         BinaryOp::Equal
                         | BinaryOp::NotEqual
@@ -131,7 +132,10 @@ impl NullPropagation {
                         | BinaryOp::GeometricDistance
                         | BinaryOp::GeometricContains
                         | BinaryOp::GeometricContainedBy
-                        | BinaryOp::GeometricOverlap => return Expr::Literal(LiteralValue::Null),
+                        | BinaryOp::GeometricOverlap
+                        | BinaryOp::RangeAdjacent
+                        | BinaryOp::RangeStrictlyLeft
+                        | BinaryOp::RangeStrictlyRight => return Expr::Literal(LiteralValue::Null),
 
                         BinaryOp::In | BinaryOp::NotIn => return Expr::Literal(LiteralValue::Null),
 

@@ -76,8 +76,7 @@ impl ProjectionWithExprExec {
             .collect();
         let left_values = left_values?;
 
-        let values = executor.execute_in_subquery(plan)?;
-        let right_tuples: Vec<Vec<Value>> = values.into_iter().map(|v| vec![v]).collect();
+        let right_tuples = executor.execute_tuple_in_subquery(plan)?;
 
         Self::evaluate_tuple_in_expression(&left_values, &right_tuples, negated)
     }
@@ -125,6 +124,89 @@ impl ProjectionWithExprExec {
             }
 
             _ => Self::extract_array_for_quantified_op(right, batch, row_idx),
+        }
+    }
+
+    pub(super) fn evaluate_row_comparison(
+        left_exprs: &[Expr],
+        op: &BinaryOp,
+        plan: &PlanNode,
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        let executor = SUBQUERY_EXECUTOR_CONTEXT
+            .with(|ctx| ctx.borrow().clone())
+            .ok_or_else(|| {
+                Error::InternalError(
+                    "Subquery executor context not available - subqueries must be executed through QueryExecutor".to_string()
+                )
+            })?;
+
+        let subquery_result = executor.execute_tuple_in_subquery(plan)?;
+
+        if subquery_result.is_empty() {
+            return Ok(Value::null());
+        }
+
+        if subquery_result.len() > 1 {
+            return Err(Error::InvalidQuery(
+                "Row subquery returned more than one row".to_string(),
+            ));
+        }
+
+        let right_values = &subquery_result[0];
+
+        if left_exprs.len() != right_values.len() {
+            return Err(Error::InvalidQuery(format!(
+                "Row comparison arity mismatch: left has {} columns, right has {}",
+                left_exprs.len(),
+                right_values.len()
+            )));
+        }
+
+        let left_values: Result<Vec<Value>> = left_exprs
+            .iter()
+            .map(|e| Self::evaluate_expr(e, batch, row_idx))
+            .collect();
+        let left_values = left_values?;
+
+        let mut has_null = false;
+        let mut all_equal = true;
+
+        for (l, r) in left_values.iter().zip(right_values.iter()) {
+            if l.is_null() || r.is_null() {
+                has_null = true;
+                continue;
+            }
+            if !Self::values_equal(l, r) {
+                all_equal = false;
+                break;
+            }
+        }
+
+        match op {
+            BinaryOp::Equal => {
+                if !all_equal {
+                    Ok(Value::bool_val(false))
+                } else if has_null {
+                    Ok(Value::null())
+                } else {
+                    Ok(Value::bool_val(true))
+                }
+            }
+            BinaryOp::NotEqual => {
+                if !all_equal {
+                    Ok(Value::bool_val(true))
+                } else if has_null {
+                    Ok(Value::null())
+                } else {
+                    Ok(Value::bool_val(false))
+                }
+            }
+            _ => Err(Error::UnsupportedFeature(format!(
+                "Row comparison with operator {:?} not supported",
+                op
+            ))),
         }
     }
 }

@@ -153,4 +153,140 @@ fn register_utility(registry: &mut FunctionRegistry) {
             evaluator: |args| range::range_is_empty(&args[0]),
         }),
     );
+
+    registry.register_scalar(
+        "RANGE_LOWER".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "RANGE_LOWER".to_string(),
+            arg_types: vec![DataType::Range(RangeType::Int4Range)],
+            return_type: DataType::Int64,
+            variadic: false,
+            evaluator: |args| range::range_lower(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "RANGE_UPPER".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "RANGE_UPPER".to_string(),
+            arg_types: vec![DataType::Range(RangeType::Int4Range)],
+            return_type: DataType::Int64,
+            variadic: false,
+            evaluator: |args| range::range_upper(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "LOWER_INC".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "LOWER_INC".to_string(),
+            arg_types: vec![DataType::Range(RangeType::Int4Range)],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| range::range_lower_inc(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "UPPER_INC".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "UPPER_INC".to_string(),
+            arg_types: vec![DataType::Range(RangeType::Int4Range)],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| range::range_upper_inc(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "LOWER_INF".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "LOWER_INF".to_string(),
+            arg_types: vec![DataType::Range(RangeType::Int4Range)],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| range::range_lower_inf(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "UPPER_INF".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "UPPER_INF".to_string(),
+            arg_types: vec![DataType::Range(RangeType::Int4Range)],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| range::range_upper_inf(&args[0]),
+        }),
+    );
+
+    registry.register_scalar(
+        "RANGE_MERGE".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "RANGE_MERGE".to_string(),
+            arg_types: vec![
+                DataType::Range(RangeType::Int4Range),
+                DataType::Range(RangeType::Int4Range),
+            ],
+            return_type: DataType::Range(RangeType::Int4Range),
+            variadic: false,
+            evaluator: |args| range::range_merge(&args[0], &args[1]),
+        }),
+    );
+
+    registry.register_scalar(
+        "RANGE_ADJACENT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "RANGE_ADJACENT".to_string(),
+            arg_types: vec![
+                DataType::Range(RangeType::Int4Range),
+                DataType::Range(RangeType::Int4Range),
+            ],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| range::range_adjacent(&args[0], &args[1]),
+        }),
+    );
+
+    registry.register_scalar(
+        "RANGE_STRICTLY_LEFT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "RANGE_STRICTLY_LEFT".to_string(),
+            arg_types: vec![
+                DataType::Range(RangeType::Int4Range),
+                DataType::Range(RangeType::Int4Range),
+            ],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| range::range_strictly_left(&args[0], &args[1]),
+        }),
+    );
+
+    registry.register_scalar(
+        "RANGE_STRICTLY_RIGHT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "RANGE_STRICTLY_RIGHT".to_string(),
+            arg_types: vec![
+                DataType::Range(RangeType::Int4Range),
+                DataType::Range(RangeType::Int4Range),
+            ],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| range::range_strictly_right(&args[0], &args[1]),
+        }),
+    );
+
+    registry.register_scalar(
+        "RANGE_DIFFERENCE".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "RANGE_DIFFERENCE".to_string(),
+            arg_types: vec![
+                DataType::Range(RangeType::Int4Range),
+                DataType::Range(RangeType::Int4Range),
+            ],
+            return_type: DataType::Range(RangeType::Int4Range),
+            variadic: false,
+            evaluator: |args| range::range_difference(&args[0], &args[1]),
+        }),
+    );
 }

@@ -1,4 +1,5 @@
 use rust_decimal::prelude::ToPrimitive;
+use serde::Serialize;
 use serde_json::{Map, Value as JsonValue};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::Value;
@@ -429,6 +430,122 @@ pub fn json_type(json: &Value) -> Result<Value> {
     };
 
     Ok(Value::string(type_name.to_string()))
+}
+
+pub fn jsonb_insert(
+    target: &Value,
+    path: &Value,
+    new_value: &Value,
+    insert_after: bool,
+) -> Result<Value> {
+    return_null_if_null!(target);
+
+    let base_json = get_json_value(target)?;
+
+    let path_text = path
+        .as_str()
+        .ok_or_else(|| Error::invalid_query("jsonb_insert path argument must be TEXT"))?;
+    let tokens = parse_jsonb_path(path_text)?;
+
+    let replacement = coerce_to_jsonb(new_value)?;
+
+    let updated = apply_jsonb_insert(&base_json, &tokens, &replacement, insert_after)?;
+    Ok(Value::json(updated))
+}
+
+fn apply_jsonb_insert(
+    current: &JsonValue,
+    path: &[JsonbPathElement],
+    new_value: &JsonValue,
+    insert_after: bool,
+) -> Result<JsonValue> {
+    if path.is_empty() {
+        return Ok(new_value.clone());
+    }
+
+    match &path[0] {
+        JsonbPathElement::Key(key) => {
+            let mut object = match current {
+                JsonValue::Object(map) => map.clone(),
+                _ => Map::new(),
+            };
+
+            if path.len() == 1 {
+                object.insert(key.clone(), new_value.clone());
+            } else {
+                let existing = object.get(key).cloned().unwrap_or(JsonValue::Null);
+                let updated_value =
+                    apply_jsonb_insert(&existing, &path[1..], new_value, insert_after)?;
+                object.insert(key.clone(), updated_value);
+            }
+            Ok(JsonValue::Object(object))
+        }
+        JsonbPathElement::Index(idx) => {
+            let mut array = match current {
+                JsonValue::Array(arr) => arr.clone(),
+                _ => Vec::new(),
+            };
+
+            if path.len() == 1 {
+                let insert_idx = if insert_after {
+                    (*idx + 1).min(array.len())
+                } else {
+                    (*idx).min(array.len())
+                };
+                array.insert(insert_idx, new_value.clone());
+            } else if *idx < array.len() {
+                let existing = array[*idx].clone();
+                let updated_child =
+                    apply_jsonb_insert(&existing, &path[1..], new_value, insert_after)?;
+                array[*idx] = updated_child;
+            }
+
+            Ok(JsonValue::Array(array))
+        }
+    }
+}
+
+pub fn jsonb_pretty(json: &Value) -> Result<Value> {
+    return_null_if_null!(json);
+
+    let json_val = get_json_value(json)?;
+
+    let mut buf = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+    let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+    json_val
+        .serialize(&mut ser)
+        .map_err(|e| Error::ExecutionError(format!("Failed to pretty print JSON: {}", e)))?;
+
+    let pretty_str = String::from_utf8(buf)
+        .map_err(|e| Error::ExecutionError(format!("Invalid UTF-8 in JSON output: {}", e)))?;
+
+    Ok(Value::string(pretty_str))
+}
+
+pub fn json_strip_nulls(json: &Value) -> Result<Value> {
+    return_null_if_null!(json);
+
+    let json_val = get_json_value(json)?;
+    let stripped = strip_nulls_recursive(&json_val);
+
+    Ok(Value::json(stripped))
+}
+
+fn strip_nulls_recursive(json: &JsonValue) -> JsonValue {
+    match json {
+        JsonValue::Object(map) => {
+            let mut new_map = Map::new();
+            for (key, value) in map {
+                if !value.is_null() {
+                    new_map.insert(key.clone(), strip_nulls_recursive(value));
+                }
+            }
+            JsonValue::Object(new_map)
+        }
+        JsonValue::Array(arr) => JsonValue::Array(arr.iter().map(strip_nulls_recursive).collect()),
+        _ => json.clone(),
+    }
 }
 
 #[cfg(test)]

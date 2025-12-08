@@ -57,6 +57,11 @@ thread_local! {
 }
 
 thread_local! {
+    pub(crate) static SEQUENCE_EXECUTOR_CONTEXT: std::cell::RefCell<Option<Rc<RefCell<dyn SequenceValueExecutor>>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+thread_local! {
     pub(super) static CORRELATION_CONTEXT: std::cell::RefCell<Option<crate::CorrelationContext>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -85,6 +90,18 @@ pub trait SubqueryExecutor {
         &self,
         plan: &yachtsql_optimizer::plan::PlanNode,
     ) -> Result<Vec<yachtsql_core::types::Value>>;
+
+    fn execute_tuple_in_subquery(
+        &self,
+        plan: &yachtsql_optimizer::plan::PlanNode,
+    ) -> Result<Vec<Vec<yachtsql_core::types::Value>>>;
+}
+
+pub trait SequenceValueExecutor {
+    fn nextval(&mut self, sequence_name: &str) -> Result<i64>;
+    fn currval(&self, sequence_name: &str) -> Result<i64>;
+    fn setval(&mut self, sequence_name: &str, value: i64, is_called: bool) -> Result<i64>;
+    fn lastval(&self) -> Result<i64>;
 }
 
 pub(crate) struct FeatureRegistryContextGuard {
@@ -132,6 +149,31 @@ impl Drop for SubqueryExecutorContextGuard {
     fn drop(&mut self) {
         let previous = self.previous.clone();
         SUBQUERY_EXECUTOR_CONTEXT.with(|ctx| {
+            *ctx.borrow_mut() = previous;
+        });
+    }
+}
+
+pub(crate) struct SequenceExecutorContextGuard {
+    previous: Option<Rc<RefCell<dyn SequenceValueExecutor>>>,
+}
+
+impl SequenceExecutorContextGuard {
+    pub(crate) fn set(executor: Rc<RefCell<dyn SequenceValueExecutor>>) -> Self {
+        let previous = SEQUENCE_EXECUTOR_CONTEXT.with(|ctx| {
+            let mut slot = ctx.borrow_mut();
+            let prior = slot.clone();
+            *slot = Some(executor);
+            prior
+        });
+        Self { previous }
+    }
+}
+
+impl Drop for SequenceExecutorContextGuard {
+    fn drop(&mut self) {
+        let previous = self.previous.clone();
+        SEQUENCE_EXECUTOR_CONTEXT.with(|ctx| {
             *ctx.borrow_mut() = previous;
         });
     }
@@ -696,7 +738,10 @@ impl ProjectionWithExprExec {
         match expr {
             Expr::Function { name, .. } => {
                 let fn_name = name.as_str();
-                matches!(fn_name, "SKEYS" | "SVALS")
+                matches!(
+                    fn_name,
+                    "SKEYS" | "SVALS" | "JSON_OBJECT_KEYS" | "JSONB_OBJECT_KEYS"
+                )
             }
             Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => {
                 Self::is_set_returning_function(expr)
@@ -1114,9 +1159,11 @@ impl TableValuedFunctionExec {
     }
 
     fn evaluate_args(&self) -> Result<Vec<crate::types::Value>> {
+        use yachtsql_ir::expr::{Expr, LiteralValue};
         use yachtsql_storage::row::Row;
 
         use crate::query_executor::expression_evaluator::ExpressionEvaluator;
+        use crate::types::Value;
 
         let empty_schema = Schema::from_fields(vec![]);
         let evaluator = ExpressionEvaluator::new(&empty_schema);
@@ -1125,6 +1172,12 @@ impl TableValuedFunctionExec {
         self.args
             .iter()
             .map(|expr| {
+                if let Expr::Literal(LiteralValue::Json(s)) = expr {
+                    return match serde_json::from_str(s) {
+                        Ok(json) => Ok(Value::json(json)),
+                        Err(_) => Ok(Value::null()),
+                    };
+                }
                 let ast_expr = self.ir_expr_to_sql_expr(expr);
                 evaluator.evaluate_expr(&ast_expr, &empty_row)
             })
@@ -1150,6 +1203,12 @@ impl TableValuedFunctionExec {
                 LiteralValue::Int64(i) => value_expr(AstValue::Number(i.to_string(), false)),
                 LiteralValue::Float64(f) => value_expr(AstValue::Number(f.to_string(), false)),
                 LiteralValue::String(s) => value_expr(AstValue::SingleQuotedString(s.clone())),
+                LiteralValue::Json(s) => ast::Expr::Cast {
+                    kind: ast::CastKind::Cast,
+                    expr: Box::new(value_expr(AstValue::SingleQuotedString(s.clone()))),
+                    data_type: ast::DataType::JSON,
+                    format: None,
+                },
                 _ => value_expr(AstValue::Null),
             },
             Expr::Column { name, table } => {
@@ -1236,6 +1295,42 @@ impl TableValuedFunctionExec {
                     CastDataType::MacAddr8 => ast::DataType::Custom(
                         ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
                             "macaddr8",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Int4Range => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "int4range",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Int8Range => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "int8range",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::NumRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "numrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::TsRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "tsrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::TsTzRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "tstzrange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::DateRange => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "daterange",
                         ))]),
                         vec![],
                     ),
@@ -1373,6 +1468,63 @@ impl TableValuedFunctionExec {
 
         Table::new(self.schema.clone(), columns)
     }
+
+    fn execute_json_each(&self, args: &[crate::types::Value], as_text: bool) -> Result<Table> {
+        use yachtsql_core::error::Error;
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        if args.len() != 1 {
+            return Err(Error::InvalidQuery(
+                "json_each() requires exactly 1 argument".to_string(),
+            ));
+        }
+
+        let json_val = args[0]
+            .as_json()
+            .ok_or_else(|| Error::TypeMismatch {
+                expected: "JSON".to_string(),
+                actual: args[0].data_type().to_string(),
+            })?
+            .clone();
+
+        let obj = match json_val {
+            serde_json::Value::Object(map) => map,
+            _ => {
+                return Err(Error::InvalidQuery(
+                    "json_each() requires a JSON object".to_string(),
+                ));
+            }
+        };
+
+        let num_rows = obj.len();
+        let mut key_col = Column::new(&DataType::String, num_rows);
+        let value_type = if as_text {
+            DataType::String
+        } else {
+            DataType::Json
+        };
+        let mut val_col = Column::new(&value_type, num_rows);
+
+        for (k, v) in obj.iter() {
+            key_col.push(Value::string(k.clone()))?;
+            if as_text {
+                let text_val = match v {
+                    serde_json::Value::String(s) => Value::string(s.clone()),
+                    serde_json::Value::Null => Value::null(),
+                    serde_json::Value::Number(n) => Value::string(n.to_string()),
+                    serde_json::Value::Bool(b) => Value::string(b.to_string()),
+                    _ => Value::string(v.to_string()),
+                };
+                val_col.push(text_val)?;
+            } else {
+                val_col.push(Value::json(v.clone()))?;
+            }
+        }
+
+        Table::new(self.schema.clone(), vec![key_col, val_col])
+    }
 }
 
 impl ExecutionPlan for TableValuedFunctionExec {
@@ -1387,6 +1539,8 @@ impl ExecutionPlan for TableValuedFunctionExec {
 
         let batch = match self.function_name.to_uppercase().as_str() {
             "EACH" => self.execute_each(&args)?,
+            "JSON_EACH" | "JSONB_EACH" => self.execute_json_each(&args, false)?,
+            "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => self.execute_json_each(&args, true)?,
             "SKEYS" => self.execute_skeys(&args)?,
             "SVALS" => self.execute_svals(&args)?,
             "POPULATE_RECORD" => self.execute_populate_record(&args)?,

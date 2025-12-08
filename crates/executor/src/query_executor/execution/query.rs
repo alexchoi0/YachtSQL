@@ -458,6 +458,14 @@ impl QueryExecutor {
 
         resource_tracker.check_timeout()?;
 
+        let sequence_executor = Rc::new(RefCell::new(super::StorageSequenceExecutor::new(
+            Rc::clone(&self.storage),
+        )));
+        let _sequence_guard =
+            crate::query_executor::evaluator::physical_plan::SequenceExecutorContextGuard::set(
+                sequence_executor,
+            );
+
         let batches = physical_plan.execute()?;
 
         for batch in &batches {
@@ -5201,7 +5209,10 @@ impl QueryExecutor {
                             "NEXTVAL" | "CURRVAL" | "SETVAL" | "LASTVAL"
                         ) {
                             (self.evaluate_sequence_function(&func_name, func)?, false)
-                        } else if matches!(func_name.as_str(), "SKEYS" | "SVALS") {
+                        } else if matches!(
+                            func_name.as_str(),
+                            "SKEYS" | "SVALS" | "JSON_OBJECT_KEYS" | "JSONB_OBJECT_KEYS"
+                        ) {
                             (evaluator.evaluate_expr(expr, &dummy_row)?, true)
                         } else {
                             (evaluator.evaluate_expr(expr, &dummy_row)?, false)

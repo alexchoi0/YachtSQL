@@ -440,7 +440,6 @@ fn test_foreign_key_composite() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_on_delete_restrict() {
     let mut executor = create_executor();
     executor
@@ -461,7 +460,6 @@ fn test_foreign_key_on_delete_restrict() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_on_delete_no_action() {
     let mut executor = create_executor();
     executor
@@ -482,7 +480,6 @@ fn test_foreign_key_on_delete_no_action() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_on_update_restrict() {
     let mut executor = create_executor();
     executor
@@ -575,7 +572,7 @@ fn test_foreign_key_self_referencing() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Implement recursive CASCADE DELETE for self-referencing foreign keys"]
 fn test_foreign_key_self_referencing_cascade() {
     let mut executor = create_executor();
     executor.execute_sql(
@@ -678,7 +675,6 @@ fn test_foreign_key_violation_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_violation_update() {
     let mut executor = create_executor();
     executor
@@ -782,7 +778,6 @@ fn test_foreign_key_deferrable_initially_immediate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_deferred_insert() {
     let mut executor = create_executor();
     executor
@@ -1294,7 +1289,6 @@ fn test_check_constraint_enforcement_on_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_check_constraint_enforcement_on_update() {
     let mut executor = create_executor();
     executor
@@ -1323,7 +1317,6 @@ fn test_unique_enforcement_on_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unique_enforcement_on_update() {
     let mut executor = create_executor();
     executor
@@ -1517,7 +1510,6 @@ fn test_constraint_nullif() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_deferred_constraint_violation_at_commit() {
     let mut executor = create_executor();
     executor
@@ -1536,7 +1528,6 @@ fn test_deferred_constraint_violation_at_commit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_set_constraints_named() {
     let mut executor = create_executor();
     executor

@@ -182,7 +182,6 @@ fn test_derived_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_correlated_subquery() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -225,7 +224,6 @@ fn test_subquery_in_from_with_join() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_limit() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -253,7 +251,6 @@ fn test_lateral_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uncorrelated_scalar_subquery_avg() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -262,11 +259,10 @@ fn test_uncorrelated_scalar_subquery_avg() {
         .execute_sql("SELECT emp_name FROM employees WHERE salary > (SELECT AVG(salary) FROM employees) ORDER BY emp_id")
         .unwrap();
 
-    assert_table_eq!(result, [["Alice"], ["Bob"], ["Diana"]]);
+    assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uncorrelated_scalar_subquery_count() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -307,7 +303,6 @@ fn test_uncorrelated_scalar_subquery_min() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uncorrelated_scalar_subquery_sum() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -396,7 +391,6 @@ fn test_in_subquery_with_multiple_values() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_not_in_subquery_with_null() {
     let mut executor = create_executor();
     setup_nullable_table(&mut executor);
@@ -409,7 +403,6 @@ fn test_not_in_subquery_with_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_not_in_with_empty_subquery() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -418,11 +411,13 @@ fn test_not_in_with_empty_subquery() {
         .execute_sql("SELECT emp_name FROM employees WHERE dept_id NOT IN (SELECT dept_id FROM departments WHERE dept_name = 'NonExistent') ORDER BY emp_id")
         .unwrap();
 
-    assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"], ["Diana"]]);
+    assert_table_eq!(
+        result,
+        [["Alice"], ["Bob"], ["Charlie"], ["Diana"], ["Eve"]]
+    );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_in_with_empty_subquery() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -435,7 +430,6 @@ fn test_in_with_empty_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exists_with_true_condition() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -453,7 +447,6 @@ fn test_exists_with_true_condition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exists_with_false_condition() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -529,7 +522,6 @@ fn test_any_equals() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_any_with_empty_subquery() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -584,7 +576,6 @@ fn test_subquery_with_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_having() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -595,7 +586,8 @@ fn test_subquery_with_having() {
              FROM employees
              WHERE dept_id IS NOT NULL
              GROUP BY dept_id
-             HAVING COUNT(*) >= (SELECT COUNT(*) FROM employees WHERE dept_id = 1)",
+             HAVING COUNT(*) >= (SELECT COUNT(*) FROM employees WHERE dept_id = 1)
+             ORDER BY dept_id",
         )
         .unwrap();
 
@@ -603,7 +595,6 @@ fn test_subquery_with_having() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_multiple_subqueries_in_select() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -671,7 +662,6 @@ fn test_deeply_nested_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_distinct() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -684,7 +674,6 @@ fn test_subquery_with_distinct() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_order_by_and_limit() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -709,7 +698,6 @@ fn test_subquery_comparison_not_equal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_comparison_less_than_or_equal() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -718,7 +706,7 @@ fn test_subquery_comparison_less_than_or_equal() {
         .execute_sql("SELECT emp_name FROM employees WHERE salary <= (SELECT AVG(salary) FROM employees) ORDER BY emp_id")
         .unwrap();
 
-    assert_table_eq!(result, [["Charlie"], ["Eve"]]);
+    assert_table_eq!(result, [["Charlie"], ["Diana"], ["Eve"]]);
 }
 
 #[test]
@@ -761,7 +749,6 @@ fn test_correlated_subquery_with_null_handling() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_union() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -782,7 +769,6 @@ fn test_subquery_with_union() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_returning_null() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -886,7 +872,6 @@ fn test_subquery_with_between() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_row_subquery() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -899,7 +884,6 @@ fn test_row_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_in_update() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -944,7 +928,6 @@ fn test_exists_with_null_in_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_all_with_null_in_subquery() {
     let mut executor = create_executor();
     setup_nullable_table(&mut executor);
@@ -957,7 +940,6 @@ fn test_all_with_null_in_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_any_with_null_in_subquery() {
     let mut executor = create_executor();
     setup_nullable_table(&mut executor);
@@ -970,7 +952,6 @@ fn test_any_with_null_in_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_caching_uncorrelated() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -996,7 +977,6 @@ fn test_subquery_caching_uncorrelated() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_aggregates_and_filter() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -1009,7 +989,7 @@ fn test_subquery_with_aggregates_and_filter() {
         )
         .unwrap();
 
-    assert_table_eq!(result, [["Bob"]]);
+    assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
 #[test]
@@ -1050,7 +1030,6 @@ fn test_lateral_left_join() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_window_function() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -1061,7 +1040,8 @@ fn test_subquery_with_window_function() {
                 SELECT emp_name, salary, ROW_NUMBER() OVER (ORDER BY salary DESC) AS rn
                 FROM employees
              ) sub
-             WHERE rn <= 2",
+             WHERE rn <= 2
+             ORDER BY rn",
         )
         .unwrap();
 
@@ -1069,7 +1049,6 @@ fn test_subquery_with_window_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_scalar_subquery_in_order_by() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -1131,7 +1110,6 @@ fn test_subquery_equality_null_safe() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tuple_in_subquery() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);

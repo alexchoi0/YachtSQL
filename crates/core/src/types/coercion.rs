@@ -2,7 +2,104 @@ use chrono::TimeZone;
 use rust_decimal::Decimal;
 
 use crate::error::{Error, Result};
-use crate::types::{DataType, Value};
+use crate::types::{DataType, Range, RangeType, Value};
+
+fn parse_range_string(s: &str, range_type: RangeType) -> Result<Value> {
+    let s = s.trim();
+
+    if s == "empty" || s.is_empty() {
+        return Ok(Value::range(Range {
+            range_type,
+            lower: None,
+            upper: None,
+            lower_inclusive: false,
+            upper_inclusive: false,
+        }));
+    }
+
+    if s.len() < 3 {
+        return Err(Error::invalid_query(format!(
+            "Invalid range format: '{}'",
+            s
+        )));
+    }
+
+    let lower_inclusive = s.starts_with('[');
+    let upper_inclusive = s.ends_with(']');
+
+    let inner = &s[1..s.len() - 1];
+    let comma_pos = inner
+        .find(',')
+        .ok_or_else(|| Error::invalid_query(format!("Invalid range format (no comma): '{}'", s)))?;
+
+    let lower_str = inner[..comma_pos].trim();
+    let upper_str = inner[comma_pos + 1..].trim();
+
+    let lower = if lower_str.is_empty() {
+        None
+    } else {
+        Some(parse_range_bound(lower_str, &range_type)?)
+    };
+
+    let upper = if upper_str.is_empty() {
+        None
+    } else {
+        Some(parse_range_bound(upper_str, &range_type)?)
+    };
+
+    Ok(Value::range(Range {
+        range_type,
+        lower,
+        upper,
+        lower_inclusive,
+        upper_inclusive,
+    }))
+}
+
+fn parse_range_bound(s: &str, range_type: &RangeType) -> Result<Value> {
+    match range_type {
+        RangeType::Int4Range | RangeType::Int8Range => {
+            let val: i64 = s
+                .parse()
+                .map_err(|_| Error::invalid_query(format!("Invalid integer in range: '{}'", s)))?;
+            Ok(Value::int64(val))
+        }
+        RangeType::NumRange => {
+            let val: f64 = s
+                .parse()
+                .map_err(|_| Error::invalid_query(format!("Invalid number in range: '{}'", s)))?;
+            Ok(Value::float64(val))
+        }
+        RangeType::DateRange => {
+            use chrono::NaiveDate;
+            let date = NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d")
+                .map_err(|_| Error::invalid_query(format!("Invalid date in range: '{}'", s)))?;
+            Ok(Value::date(date))
+        }
+        RangeType::TsRange | RangeType::TsTzRange => {
+            use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+            let s = s.trim();
+            let dt = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f"))
+                .or_else(|_| {
+                    NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap())
+                })
+                .or_else(|_| {
+                    DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%z").map(|dt| dt.naive_utc())
+                })
+                .or_else(|_| {
+                    let s_no_tz =
+                        s.trim_end_matches(|c: char| c == '+' || c == '-' || c.is_numeric());
+                    NaiveDateTime::parse_from_str(s_no_tz.trim(), "%Y-%m-%d %H:%M:%S")
+                })
+                .map_err(|_| {
+                    Error::invalid_query(format!("Invalid timestamp in range: '{}'", s))
+                })?;
+            Ok(Value::timestamp(Utc.from_utc_datetime(&dt)))
+        }
+    }
+}
 
 fn apply_numeric_precision(value: Decimal, precision_scale: Option<(u8, u8)>) -> Result<Decimal> {
     let Some((precision, scale)) = precision_scale else {
@@ -85,6 +182,10 @@ impl CoercionRules {
             (DataType::String, DataType::Enum { .. }) => true,
 
             (DataType::Array(inner), DataType::Vector(_)) if **inner == DataType::Float64 => true,
+
+            (DataType::String, DataType::Vector(_)) => true,
+
+            (DataType::String, DataType::Range(_)) => true,
 
             (DataType::Array(from_elem), DataType::Array(to_elem)) => {
                 if **to_elem == DataType::Unknown || **from_elem == DataType::Unknown {
@@ -478,6 +579,46 @@ impl CoercionRules {
             (DataType::TimestampTz, DataType::Timestamp) => Ok(value),
 
             (DataType::Array(_), DataType::Vector(_)) => Ok(value),
+
+            (DataType::String, DataType::Vector(_)) => {
+                if let Some(s) = value.as_str() {
+                    let s = s.trim();
+                    let inner = if s.starts_with('[') && s.ends_with(']') {
+                        &s[1..s.len() - 1]
+                    } else {
+                        s
+                    };
+                    let values: std::result::Result<Vec<f64>, _> = inner
+                        .split(',')
+                        .map(|part| part.trim().parse::<f64>())
+                        .collect();
+                    match values {
+                        Ok(v) => Ok(Value::vector(v)),
+                        Err(_) => Err(Error::invalid_query(format!(
+                            "Invalid VECTOR string '{}'",
+                            s
+                        ))),
+                    }
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::String, DataType::Range(range_type)) => {
+                if let Some(s) = value.as_str() {
+                    parse_range_string(s, range_type.clone())
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
 
             (DataType::Array(_from_elem), DataType::Array(to_elem)) => {
                 if let Some(arr) = value.as_array() {

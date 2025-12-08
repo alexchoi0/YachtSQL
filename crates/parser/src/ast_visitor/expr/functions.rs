@@ -5,49 +5,11 @@ use yachtsql_ir::expr::{Expr, LiteralValue};
 use super::super::LogicalPlanBuilder;
 
 impl LogicalPlanBuilder {
-    pub(super) fn build_json_arrow_path(expr: &ast::Expr) -> Result<String> {
-        match expr {
-            ast::Expr::BinaryOp {
-                left,
-                op: ast::BinaryOperator::Arrow,
-                right,
-            } => {
-                let left_path = Self::build_json_arrow_path(left)?;
-                let right_key = match right.as_ref() {
-                    ast::Expr::Value(ast::ValueWithSpan {
-                        value: ast::Value::SingleQuotedString(s),
-                        ..
-                    }) => s.clone(),
-                    ast::Expr::Value(ast::ValueWithSpan {
-                        value: ast::Value::Number(n, _),
-                        ..
-                    }) => n.to_string(),
-                    _ => {
-                        return Err(Error::invalid_query(
-                            "JSON arrow operator right side must be string or number".to_string(),
-                        ));
-                    }
-                };
-
-                if left_path.is_empty() {
-                    Ok(Self::format_json_path_key(&right_key))
-                } else {
-                    Ok(format!(
-                        "{}.{}",
-                        left_path,
-                        Self::format_json_path_key(&right_key)
-                    ))
-                }
-            }
-            _ => Ok(String::new()),
-        }
-    }
-
     pub(super) fn format_json_path_key(key: &str) -> String {
         if key.parse::<usize>().is_ok() {
-            format!("[{}]", key)
+            format!("$[{}]", key)
         } else {
-            key.to_string()
+            format!("$.{}", key)
         }
     }
 
@@ -58,7 +20,6 @@ impl LogicalPlanBuilder {
         right: &ast::Expr,
     ) -> Result<Expr> {
         let json_col = self.sql_expr_to_expr(left)?;
-        let path = Self::build_json_arrow_path(left)?;
         let key = match right {
             ast::Expr::Value(ast::ValueWithSpan {
                 value: ast::Value::SingleQuotedString(s),
@@ -74,14 +35,10 @@ impl LogicalPlanBuilder {
                 ));
             }
         };
-        let full_path = if path.is_empty() {
-            Self::format_json_path_key(&key)
-        } else {
-            format!("{}.{}", path, Self::format_json_path_key(&key))
-        };
+        let path = Self::format_json_path_key(&key);
         Ok(Expr::Function {
             name: yachtsql_ir::FunctionName::parse(func_name),
-            args: vec![json_col, Expr::Literal(LiteralValue::String(full_path))],
+            args: vec![json_col, Expr::Literal(LiteralValue::String(path))],
         })
     }
 

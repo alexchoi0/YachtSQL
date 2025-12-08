@@ -41,18 +41,31 @@ pub struct DeferredFKState {
     pub pending_checks: Vec<DeferredFKCheck>,
 
     pub constraint_timings: HashMap<String, ConstraintTiming>,
+
+    pub default_mode: Option<ConstraintTiming>,
 }
 
 impl DeferredFKState {
     pub fn get_timing(&self, constraint_name: &str, initial: ConstraintTiming) -> ConstraintTiming {
-        self.constraint_timings
-            .get(constraint_name)
-            .copied()
-            .unwrap_or(initial)
+        if let Some(timing) = self.constraint_timings.get(constraint_name) {
+            return *timing;
+        }
+        if let Some(default) = self.default_mode {
+            return default;
+        }
+        initial
     }
 
     pub fn set_timing(&mut self, constraint_name: String, timing: ConstraintTiming) {
         self.constraint_timings.insert(constraint_name, timing);
+    }
+
+    pub fn set_default_mode(&mut self, timing: ConstraintTiming) {
+        self.default_mode = Some(timing);
+    }
+
+    pub fn pending_checks(&self) -> &[DeferredFKCheck] {
+        &self.pending_checks
     }
 
     pub fn defer_check(&mut self, check: DeferredFKCheck) {
@@ -70,6 +83,11 @@ impl DeferredFKState {
     pub fn clear(&mut self) {
         self.pending_checks.clear();
         self.constraint_timings.clear();
+        self.default_mode = None;
+    }
+
+    pub fn clear_pending_checks(&mut self) {
+        self.pending_checks.clear();
     }
 
     pub fn remove_checks_for_constraints<S: AsRef<str>>(&mut self, constraint_names: &[S]) {
@@ -397,6 +415,14 @@ impl Transaction {
         self.savepoints.truncate(sp_idx);
 
         Ok(())
+    }
+
+    pub fn deferred_fk_state(&self) -> &DeferredFKState {
+        &self.deferred_fk_state
+    }
+
+    pub fn deferred_fk_state_mut(&mut self) -> &mut DeferredFKState {
+        &mut self.deferred_fk_state
     }
 
     pub fn elapsed(&self) -> std::time::Duration {

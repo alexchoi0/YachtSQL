@@ -5,12 +5,75 @@ use super::helpers::ParserHelpers;
 use crate::pattern_matcher::{PatternMatcher, TokenPattern};
 use crate::validator::{
     AlterDomainAction, CompositeTypeField, CustomStatement, DiagnosticsAssignment, DiagnosticsItem,
-    DiagnosticsScope, DomainConstraint,
+    DiagnosticsScope, DomainConstraint, SetConstraintsMode, SetConstraintsTarget,
 };
 
 pub struct CustomStatementParser;
 
 impl CustomStatementParser {
+    pub fn parse_set_constraints(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "SET") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CONSTRAINTS") {
+            return Ok(None);
+        }
+
+        let constraints = if ParserHelpers::consume_keyword(tokens, &mut idx, "ALL") {
+            SetConstraintsTarget::All
+        } else {
+            let mut names = Vec::new();
+            loop {
+                let name = match tokens.get(idx) {
+                    Some(Token::Word(word)) => {
+                        idx += 1;
+                        word.value.clone()
+                    }
+                    _ => {
+                        if names.is_empty() {
+                            return Err(Error::parse_error(
+                                "SET CONSTRAINTS requires ALL or constraint name(s)".to_string(),
+                            ));
+                        }
+                        break;
+                    }
+                };
+                names.push(name);
+
+                if matches!(tokens.get(idx), Some(Token::Comma)) {
+                    idx += 1;
+                    continue;
+                }
+                break;
+            }
+            SetConstraintsTarget::Named(names)
+        };
+
+        let mode = if ParserHelpers::consume_keyword(tokens, &mut idx, "DEFERRED") {
+            SetConstraintsMode::Deferred
+        } else if ParserHelpers::consume_keyword(tokens, &mut idx, "IMMEDIATE") {
+            SetConstraintsMode::Immediate
+        } else {
+            return Err(Error::parse_error(
+                "SET CONSTRAINTS requires DEFERRED or IMMEDIATE".to_string(),
+            ));
+        };
+
+        if matches!(tokens.get(idx), Some(Token::SemiColon)) {
+            idx += 1;
+        }
+
+        if idx < tokens.len() {
+            return Err(Error::parse_error(
+                "Unexpected tokens after SET CONSTRAINTS statement".to_string(),
+            ));
+        }
+
+        Ok(Some(CustomStatement::SetConstraints { mode, constraints }))
+    }
+
     pub fn parse_refresh_materialized_view(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
         let pattern = vec![
             TokenPattern::Keyword("REFRESH"),

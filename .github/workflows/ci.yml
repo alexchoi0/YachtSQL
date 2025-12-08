@@ -258,3 +258,15 @@ jobs:
         uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [check, fmt, clippy, test-crate, test-macos, test-clickhouse, doc, bench-compile, security-audit]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            exit 1
+          fi

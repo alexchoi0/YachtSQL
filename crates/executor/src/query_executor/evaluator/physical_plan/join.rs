@@ -634,6 +634,39 @@ impl LateralJoinExec {
                 Ok(Schema::from_fields(fields))
             }
 
+            PlanNode::TableValuedFunction {
+                function_name,
+                alias,
+                ..
+            } => {
+                let fn_upper = function_name.to_uppercase();
+                let mut schema = match fn_upper.as_str() {
+                    "JSON_EACH" | "JSONB_EACH" => Schema::from_fields(vec![
+                        Field::nullable("key", yachtsql_core::types::DataType::String),
+                        Field::nullable("value", yachtsql_core::types::DataType::Json),
+                    ]),
+                    "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => Schema::from_fields(vec![
+                        Field::nullable("key", yachtsql_core::types::DataType::String),
+                        Field::nullable("value", yachtsql_core::types::DataType::String),
+                    ]),
+                    "UNNEST" => Schema::from_fields(vec![Field::nullable(
+                        "unnest",
+                        yachtsql_core::types::DataType::String,
+                    )]),
+                    "GENERATE_SERIES" => Schema::from_fields(vec![Field::nullable(
+                        "generate_series",
+                        yachtsql_core::types::DataType::Int64,
+                    )]),
+                    _ => Schema::from_fields(vec![]),
+                };
+                if let Some(table_alias) = alias {
+                    for field in schema.fields_mut() {
+                        field.source_table = Some(table_alias.clone());
+                    }
+                }
+                Ok(schema)
+            }
+
             _ => Ok(Schema::from_fields(vec![])),
         }
     }
@@ -737,6 +770,22 @@ impl LateralJoinExec {
                 })
             }
 
+            PlanNode::TableValuedFunction {
+                function_name,
+                args,
+                alias,
+            } => {
+                let substituted_args: Vec<_> = args
+                    .iter()
+                    .map(|arg| self.substitute_expr(arg, left_row, left_schema))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(PlanNode::TableValuedFunction {
+                    function_name: function_name.clone(),
+                    args: substituted_args,
+                    alias: alias.clone(),
+                })
+            }
+
             _ => Ok(node.clone()),
         }
     }
@@ -762,6 +811,10 @@ impl LateralJoinExec {
 
         if let Some(s) = value.as_str() {
             return Ok(LiteralValue::String(s.to_string()));
+        }
+
+        if let Some(json) = value.as_json() {
+            return Ok(LiteralValue::Json(json.to_string()));
         }
 
         Ok(LiteralValue::String(format!("{}", value)))

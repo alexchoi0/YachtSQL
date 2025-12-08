@@ -503,10 +503,197 @@ impl QueryExecutor {
     }
 
     fn validate_deferred_fk_constraints(&self) -> Result<()> {
+        let pending_checks: Vec<yachtsql_storage::DeferredFKCheck> = {
+            let manager = self.transaction_manager.borrow();
+            match manager.get_active_transaction() {
+                Some(txn) => txn.deferred_fk_state().pending_checks().to_vec(),
+                None => Vec::new(),
+            }
+        };
+
+        for check in &pending_checks {
+            self.validate_single_deferred_fk_check(check)?;
+        }
+
         Ok(())
     }
 
     fn apply_on_commit_actions(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn execute_set_constraints(
+        &mut self,
+        custom_stmt: &yachtsql_parser::validator::CustomStatement,
+    ) -> Result<crate::Table> {
+        use yachtsql_parser::validator::{
+            CustomStatement, SetConstraintsMode, SetConstraintsTarget,
+        };
+        use yachtsql_storage::ConstraintTiming;
+
+        let (mode, constraints) = match custom_stmt {
+            CustomStatement::SetConstraints { mode, constraints } => (mode, constraints),
+            _ => {
+                return Err(Error::internal(
+                    "execute_set_constraints called with wrong statement type",
+                ));
+            }
+        };
+
+        let timing = match mode {
+            SetConstraintsMode::Immediate => ConstraintTiming::Immediate,
+            SetConstraintsMode::Deferred => ConstraintTiming::Deferred,
+        };
+
+        let mut manager = self.transaction_manager.borrow_mut();
+
+        if !manager.is_active() {
+            drop(manager);
+            return Self::empty_result();
+        }
+
+        let txn = match manager.get_active_transaction_mut() {
+            Some(t) => t,
+            None => {
+                drop(manager);
+                return Self::empty_result();
+            }
+        };
+
+        match constraints {
+            SetConstraintsTarget::All => {
+                txn.deferred_fk_state_mut().set_default_mode(timing);
+            }
+            SetConstraintsTarget::Named(names) => {
+                for name in names {
+                    txn.deferred_fk_state_mut().set_timing(name.clone(), timing);
+                }
+            }
+        }
+
+        if timing == ConstraintTiming::Immediate {
+            let pending_checks: Vec<_> = txn.deferred_fk_state().pending_checks().to_vec();
+            let checks_to_run: Vec<_> = match constraints {
+                SetConstraintsTarget::All => pending_checks,
+                SetConstraintsTarget::Named(names) => pending_checks
+                    .into_iter()
+                    .filter(|c| {
+                        names
+                            .iter()
+                            .any(|n| n.eq_ignore_ascii_case(&c.constraint_name))
+                    })
+                    .collect(),
+            };
+
+            drop(manager);
+
+            for check in &checks_to_run {
+                self.validate_single_deferred_fk_check(check)?;
+            }
+
+            let mut manager = self.transaction_manager.borrow_mut();
+            if let Some(txn) = manager.get_active_transaction_mut() {
+                match constraints {
+                    SetConstraintsTarget::All => {
+                        txn.deferred_fk_state_mut().clear_pending_checks();
+                    }
+                    SetConstraintsTarget::Named(names) => {
+                        txn.deferred_fk_state_mut()
+                            .remove_checks_for_constraints(names);
+                    }
+                }
+            }
+        }
+
+        Self::empty_result()
+    }
+
+    fn validate_single_deferred_fk_check(
+        &self,
+        check: &yachtsql_storage::DeferredFKCheck,
+    ) -> Result<()> {
+        use yachtsql_storage::DMLOperation;
+
+        let storage = self.storage.borrow();
+
+        let (parent_dataset, parent_table_name) = self.parse_table_name(&check.parent_table);
+        let parent_dataset = parent_dataset.unwrap_or_else(|| "default".to_string());
+
+        let parent_dataset_obj = storage.get_dataset(&parent_dataset).ok_or_else(|| {
+            Error::DatasetNotFound(format!("Dataset '{}' not found", parent_dataset))
+        })?;
+
+        let parent_table = parent_dataset_obj
+            .get_table(&parent_table_name)
+            .ok_or_else(|| {
+                Error::TableNotFound(format!(
+                    "Table '{}.{}' not found",
+                    parent_dataset, parent_table_name
+                ))
+            })?;
+
+        let parent_full_name = format!("{}.{}", parent_dataset, parent_table_name);
+
+        let pending_inserts: Vec<yachtsql_storage::Row> = {
+            let manager = self.transaction_manager.borrow();
+            manager
+                .get_active_transaction()
+                .and_then(|txn| txn.pending_changes())
+                .and_then(|changes| changes.get_table_delta(&parent_full_name))
+                .map(|delta| delta.inserted_rows.clone())
+                .unwrap_or_default()
+        };
+
+        match check.operation {
+            DMLOperation::Insert | DMLOperation::Update => {
+                let committed_rows = parent_table.get_all_rows();
+
+                let all_rows: Vec<_> = committed_rows.into_iter().chain(pending_inserts).collect();
+
+                let mut found = false;
+                for row in all_rows {
+                    let mut all_match = true;
+                    for (i, parent_col) in check.parent_columns.iter().enumerate() {
+                        let parent_idx = parent_table
+                            .schema()
+                            .fields()
+                            .iter()
+                            .position(|f| f.name.eq_ignore_ascii_case(parent_col));
+
+                        if let Some(idx) = parent_idx {
+                            let parent_val = row.values().get(idx);
+                            let fk_val = check.fk_values.get(i);
+
+                            if parent_val != fk_val {
+                                all_match = false;
+                                break;
+                            }
+                        } else {
+                            all_match = false;
+                            break;
+                        }
+                    }
+
+                    if all_match {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if !found {
+                    let fk_display: Vec<String> =
+                        check.fk_values.iter().map(|v| format!("{}", v)).collect();
+                    return Err(Error::constraint_violation(format!(
+                        "Foreign key constraint '{}' violated: key ({}) is not present in table '{}'",
+                        check.constraint_name,
+                        fk_display.join(", "),
+                        check.parent_table
+                    )));
+                }
+            }
+            DMLOperation::Delete => {}
+        }
+
         Ok(())
     }
 }
