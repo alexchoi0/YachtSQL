@@ -41,7 +41,8 @@ impl ProjectionWithExprExec {
                 Self::evaluate_to_json(args, batch, row_idx)
             }
             "PARSE_JSON" => Self::evaluate_parse_json(args, batch, row_idx),
-            "JSON_KEYS" | "JSON_OBJECT_KEYS" => Self::evaluate_json_keys(args, batch, row_idx),
+            "JSON_KEYS" => Self::evaluate_json_keys(args, batch, row_idx),
+            "JSON_OBJECT_KEYS" => Self::evaluate_json_object_keys(args, batch, row_idx),
             "JSON_LENGTH" | "JSON_ARRAY_LENGTH" => Self::evaluate_json_length(args, batch, row_idx),
             "JSON_TYPE" | "JSON_TYPEOF" => Self::evaluate_json_type(args, batch, row_idx),
             "JSON_STRIP_NULLS" => Self::evaluate_json_strip_nulls(args, batch, row_idx),

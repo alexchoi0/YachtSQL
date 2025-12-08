@@ -904,85 +904,94 @@ impl FunctionName {
     }
 
     pub fn is_aggregate(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::Count
-                | Self::Sum
-                | Self::Avg
-                | Self::Average
-                | Self::Min
-                | Self::Minimum
-                | Self::Max
-                | Self::Maximum
-                | Self::StringAgg
-                | Self::GroupConcat
-                | Self::ListAgg
-                | Self::ArrayAgg
-                | Self::Collect
-                | Self::StddevPop
-                | Self::Stddevp
-                | Self::StddevSamp
-                | Self::Stddevs
-                | Self::Stddev
-                | Self::Stdev
-                | Self::StandardDeviation
-                | Self::VarPop
-                | Self::Varp
-                | Self::VarSamp
-                | Self::Vars
-                | Self::Variance
-                | Self::Var
-                | Self::Median
-                | Self::PercentileCont
-                | Self::PercentileDisc
-                | Self::Mode
-                | Self::Corr
-                | Self::CovarPop
-                | Self::CovarSamp
-                | Self::CountIf
-                | Self::ApproxCountDistinct
-                | Self::ApproxDistinct
-                | Self::ApproxQuantiles
-                | Self::ApproxTopCount
-                | Self::ApproxTopSum
-                | Self::Ndv
-                | Self::Uniq
-                | Self::UniqExact
-                | Self::UniqHll12
-                | Self::UniqCombined
-                | Self::UniqCombined64
-                | Self::UniqThetaSketch
-                | Self::UniqArray
-                | Self::Quantile
-                | Self::QuantileExact
-                | Self::QuantileTDigest
-                | Self::QuantileTiming
-                | Self::QuantilesTDigest
-                | Self::QuantilesTiming
-                | Self::ArgMin
-                | Self::ArgMax
-                | Self::GroupArray
-                | Self::GroupArrayMovingAvg
-                | Self::GroupArrayMovingSum
-                | Self::Any
-                | Self::AnyLast
-                | Self::AnyHeavy
-                | Self::TopK
-                | Self::GroupUniqArray
-                | Self::SumWithOverflow
-                | Self::SumMap
-                | Self::MinMap
-                | Self::MaxMap
-                | Self::GroupBitmap
-                | Self::GroupBitmapAnd
-                | Self::GroupBitmapOr
-                | Self::GroupBitmapXor
-                | Self::RankCorr
-                | Self::ExponentialMovingAverage
-                | Self::IntervalLengthSum
-                | Self::Retention
-                | Self::WindowFunnel
-        )
+            | Self::Sum
+            | Self::Avg
+            | Self::Average
+            | Self::Min
+            | Self::Minimum
+            | Self::Max
+            | Self::Maximum
+            | Self::StringAgg
+            | Self::GroupConcat
+            | Self::ListAgg
+            | Self::ArrayAgg
+            | Self::Collect
+            | Self::StddevPop
+            | Self::Stddevp
+            | Self::StddevSamp
+            | Self::Stddevs
+            | Self::Stddev
+            | Self::Stdev
+            | Self::StandardDeviation
+            | Self::VarPop
+            | Self::Varp
+            | Self::VarSamp
+            | Self::Vars
+            | Self::Variance
+            | Self::Var
+            | Self::Median
+            | Self::PercentileCont
+            | Self::PercentileDisc
+            | Self::Mode
+            | Self::Corr
+            | Self::CovarPop
+            | Self::CovarSamp
+            | Self::CountIf
+            | Self::ApproxCountDistinct
+            | Self::ApproxDistinct
+            | Self::ApproxQuantiles
+            | Self::ApproxTopCount
+            | Self::ApproxTopSum
+            | Self::Ndv
+            | Self::Uniq
+            | Self::UniqExact
+            | Self::UniqHll12
+            | Self::UniqCombined
+            | Self::UniqCombined64
+            | Self::UniqThetaSketch
+            | Self::UniqArray
+            | Self::Quantile
+            | Self::QuantileExact
+            | Self::QuantileTDigest
+            | Self::QuantileTiming
+            | Self::QuantilesTDigest
+            | Self::QuantilesTiming
+            | Self::ArgMin
+            | Self::ArgMax
+            | Self::GroupArray
+            | Self::GroupArrayMovingAvg
+            | Self::GroupArrayMovingSum
+            | Self::Any
+            | Self::AnyLast
+            | Self::AnyHeavy
+            | Self::TopK
+            | Self::GroupUniqArray
+            | Self::SumWithOverflow
+            | Self::SumMap
+            | Self::MinMap
+            | Self::MaxMap
+            | Self::GroupBitmap
+            | Self::GroupBitmapAnd
+            | Self::GroupBitmapOr
+            | Self::GroupBitmapXor
+            | Self::RankCorr
+            | Self::ExponentialMovingAverage
+            | Self::IntervalLengthSum
+            | Self::Retention
+            | Self::WindowFunnel => true,
+            Self::Custom(name) => matches!(
+                name.as_str(),
+                "JSON_AGG"
+                    | "JSONB_AGG"
+                    | "JSON_OBJECT_AGG"
+                    | "JSONB_OBJECT_AGG"
+                    | "JSON_ARRAYAGG"
+                    | "JSON_OBJECTAGG"
+            ),
+            _ => false,
+        }
     }
 
     pub fn is_window(&self) -> bool {

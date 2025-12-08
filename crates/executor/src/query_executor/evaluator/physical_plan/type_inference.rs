@@ -840,7 +840,12 @@ impl ProjectionWithExprExec {
             | FunctionName::CovarPop
             | FunctionName::CovarSamp => Some(DataType::Float64),
 
-            FunctionName::Custom(s) if s == "JSON_AGG" || s == "JSON_OBJECT_AGG" => {
+            FunctionName::Custom(s)
+                if s == "JSON_AGG"
+                    || s == "JSONB_AGG"
+                    || s == "JSON_OBJECT_AGG"
+                    || s == "JSONB_OBJECT_AGG" =>
+            {
                 Some(DataType::Json)
             }
 
@@ -883,7 +888,11 @@ impl ProjectionWithExprExec {
 
             FunctionName::Custom(s) if s == "TO_JSON_STRING" => Some(DataType::String),
             FunctionName::Custom(s) if s == "JSONB_PRETTY" => Some(DataType::String),
-            FunctionName::Custom(s) if s == "JSON_OBJECT_KEYS" => Some(DataType::String),
+            FunctionName::Custom(s)
+                if s == "JSON_OBJECT_KEYS" || s == "JSONB_OBJECT_KEYS" =>
+            {
+                Some(DataType::String)
+            }
 
             FunctionName::JsonQuery => Some(DataType::Json),
             FunctionName::JsonType | FunctionName::JsonTypeof => Some(DataType::String),

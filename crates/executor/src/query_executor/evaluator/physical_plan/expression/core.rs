@@ -643,12 +643,17 @@ impl ProjectionWithExprExec {
 
         {
             let s = name.as_str();
-            if s.starts_with("JSON")
-                || s.starts_with("IS_JSON")
-                || s.starts_with("IS_NOT_JSON")
-                || s == "TO_JSON"
-                || s == "TO_JSONB"
-                || s == "PARSE_JSON"
+            let is_json_aggregate = matches!(
+                s,
+                "JSON_AGG" | "JSONB_AGG" | "JSON_OBJECT_AGG" | "JSONB_OBJECT_AGG"
+            );
+            if !is_json_aggregate
+                && (s.starts_with("JSON")
+                    || s.starts_with("IS_JSON")
+                    || s.starts_with("IS_NOT_JSON")
+                    || s == "TO_JSON"
+                    || s == "TO_JSONB"
+                    || s == "PARSE_JSON")
             {
                 return Self::evaluate_json_function(func_name, args, batch, row_idx);
             }

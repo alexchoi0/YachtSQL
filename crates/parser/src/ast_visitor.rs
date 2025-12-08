@@ -352,6 +352,12 @@ impl LogicalPlanBuilder {
                 aliases.insert(alias.clone());
             }
 
+            PlanNode::TableValuedFunction { alias, .. } => {
+                if let Some(alias) = alias {
+                    aliases.insert(alias.clone());
+                }
+            }
+
             PlanNode::Join { left, right, .. } => {
                 Self::walk_plan_for_aliases(left, aliases);
                 Self::walk_plan_for_aliases(right, aliases);
@@ -389,7 +395,11 @@ impl LogicalPlanBuilder {
     }
 
     fn is_lateral_derived_table(factor: &ast::TableFactor) -> bool {
-        matches!(factor, ast::TableFactor::Derived { lateral: true, .. })
+        matches!(
+            factor,
+            ast::TableFactor::Derived { lateral: true, .. }
+                | ast::TableFactor::Function { lateral: true, .. }
+        )
     }
 
     fn object_name_to_string(name: &ast::ObjectName) -> String {

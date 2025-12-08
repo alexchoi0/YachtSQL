@@ -339,6 +339,10 @@ impl<'a> StatementValidator<'a> {
                 | "SUMWITHOVERFLOW"
                 | "WINDOW_FUNNEL"
                 | "WINDOWFUNNEL"
+                | "JSON_AGG"
+                | "JSONB_AGG"
+                | "JSON_OBJECT_AGG"
+                | "JSONB_OBJECT_AGG"
         )
     }
 

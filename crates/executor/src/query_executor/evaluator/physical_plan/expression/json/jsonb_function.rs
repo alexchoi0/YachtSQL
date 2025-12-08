@@ -14,7 +14,7 @@ impl ProjectionWithExprExec {
     ) -> Result<Value> {
         match name {
             "JSONB_ARRAY_LENGTH" => Self::evaluate_json_length(args, batch, row_idx),
-            "JSONB_OBJECT_KEYS" => Self::evaluate_json_keys(args, batch, row_idx),
+            "JSONB_OBJECT_KEYS" => Self::evaluate_json_object_keys(args, batch, row_idx),
             "JSONB_TYPEOF" => Self::evaluate_json_type(args, batch, row_idx),
             "JSONB_BUILD_ARRAY" => Self::evaluate_json_array(args, batch, row_idx),
             "JSONB_BUILD_OBJECT" => Self::evaluate_json_object(args, batch, row_idx),

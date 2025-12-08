@@ -696,7 +696,10 @@ impl ProjectionWithExprExec {
         match expr {
             Expr::Function { name, .. } => {
                 let fn_name = name.as_str();
-                matches!(fn_name, "SKEYS" | "SVALS")
+                matches!(
+                    fn_name,
+                    "SKEYS" | "SVALS" | "JSON_OBJECT_KEYS" | "JSONB_OBJECT_KEYS"
+                )
             }
             Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => {
                 Self::is_set_returning_function(expr)
@@ -1373,6 +1376,63 @@ impl TableValuedFunctionExec {
 
         Table::new(self.schema.clone(), columns)
     }
+
+    fn execute_json_each(&self, args: &[crate::types::Value], as_text: bool) -> Result<Table> {
+        use yachtsql_core::error::Error;
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        if args.len() != 1 {
+            return Err(Error::InvalidQuery(
+                "json_each() requires exactly 1 argument".to_string(),
+            ));
+        }
+
+        let json_val = args[0]
+            .as_json()
+            .ok_or_else(|| Error::TypeMismatch {
+                expected: "JSON".to_string(),
+                actual: args[0].data_type().to_string(),
+            })?
+            .clone();
+
+        let obj = match json_val {
+            serde_json::Value::Object(map) => map,
+            _ => {
+                return Err(Error::InvalidQuery(
+                    "json_each() requires a JSON object".to_string(),
+                ));
+            }
+        };
+
+        let num_rows = obj.len();
+        let mut key_col = Column::new(&DataType::String, num_rows);
+        let value_type = if as_text {
+            DataType::String
+        } else {
+            DataType::Json
+        };
+        let mut val_col = Column::new(&value_type, num_rows);
+
+        for (k, v) in obj.iter() {
+            key_col.push(Value::string(k.clone()))?;
+            if as_text {
+                let text_val = match v {
+                    serde_json::Value::String(s) => Value::string(s.clone()),
+                    serde_json::Value::Null => Value::null(),
+                    serde_json::Value::Number(n) => Value::string(n.to_string()),
+                    serde_json::Value::Bool(b) => Value::string(b.to_string()),
+                    _ => Value::string(v.to_string()),
+                };
+                val_col.push(text_val)?;
+            } else {
+                val_col.push(Value::json(v.clone()))?;
+            }
+        }
+
+        Table::new(self.schema.clone(), vec![key_col, val_col])
+    }
 }
 
 impl ExecutionPlan for TableValuedFunctionExec {
@@ -1387,6 +1447,8 @@ impl ExecutionPlan for TableValuedFunctionExec {
 
         let batch = match self.function_name.to_uppercase().as_str() {
             "EACH" => self.execute_each(&args)?,
+            "JSON_EACH" | "JSONB_EACH" => self.execute_json_each(&args, false)?,
+            "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => self.execute_json_each(&args, true)?,
             "SKEYS" => self.execute_skeys(&args)?,
             "SVALS" => self.execute_svals(&args)?,
             "POPULATE_RECORD" => self.execute_populate_record(&args)?,

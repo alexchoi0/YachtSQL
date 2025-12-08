@@ -1340,6 +1340,14 @@ impl LogicalToPhysicalPlanner {
                         Field::nullable("key", yachtsql_core::types::DataType::String),
                         Field::nullable("value", yachtsql_core::types::DataType::String),
                     ]),
+                    "JSON_EACH" | "JSONB_EACH" => Schema::from_fields(vec![
+                        Field::nullable("key", yachtsql_core::types::DataType::String),
+                        Field::nullable("value", yachtsql_core::types::DataType::Json),
+                    ]),
+                    "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => Schema::from_fields(vec![
+                        Field::nullable("key", yachtsql_core::types::DataType::String),
+                        Field::nullable("value", yachtsql_core::types::DataType::String),
+                    ]),
                     "SKEYS" => Schema::from_fields(vec![Field::nullable(
                         "key",
                         yachtsql_core::types::DataType::String,

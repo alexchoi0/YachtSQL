@@ -1415,13 +1415,23 @@ impl LogicalPlanBuilder {
         }
 
         for table_with_joins in from.iter().skip(1) {
-            let right_plan = self.table_factor_to_plan(&table_with_joins.relation)?;
-            plan = LogicalPlan::new(PlanNode::Join {
-                left: plan.root,
-                right: right_plan.root,
-                on: Expr::Literal(LiteralValue::Boolean(true)),
-                join_type: JoinType::Cross,
-            });
+            let is_lateral = Self::is_lateral_derived_table(&table_with_joins.relation);
+            let right_plan = self.plan_join_relation(&table_with_joins.relation, &plan)?;
+            plan = if is_lateral {
+                LogicalPlan::new(PlanNode::LateralJoin {
+                    left: plan.root,
+                    right: right_plan.root,
+                    on: Expr::Literal(LiteralValue::Boolean(true)),
+                    join_type: JoinType::Cross,
+                })
+            } else {
+                LogicalPlan::new(PlanNode::Join {
+                    left: plan.root,
+                    right: right_plan.root,
+                    on: Expr::Literal(LiteralValue::Boolean(true)),
+                    join_type: JoinType::Cross,
+                })
+            };
 
             for join in &table_with_joins.joins {
                 let is_lateral = Self::is_lateral_derived_table(&join.relation);
@@ -1608,6 +1618,35 @@ impl LogicalPlanBuilder {
                     alias: table_alias,
                     with_offset: has_position_column,
                     offset_alias: offset_alias_name,
+                }))
+            }
+            ast::TableFactor::Function {
+                name,
+                args,
+                alias,
+                ..
+            } => {
+                let function_name = Self::object_name_to_string(name);
+                let table_alias = alias.as_ref().map(|a| a.name.value.clone());
+
+                let converted_args = args
+                    .iter()
+                    .filter_map(|arg| match arg {
+                        ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => {
+                            Some(self.sql_expr_to_expr(expr))
+                        }
+                        ast::FunctionArg::Named {
+                            arg: ast::FunctionArgExpr::Expr(expr),
+                            ..
+                        } => Some(self.sql_expr_to_expr(expr)),
+                        _ => None,
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                Ok(LogicalPlan::new(PlanNode::TableValuedFunction {
+                    function_name,
+                    args: converted_args,
+                    alias: table_alias,
                 }))
             }
             _ => Err(Error::unsupported_feature(

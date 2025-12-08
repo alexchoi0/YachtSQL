@@ -255,7 +255,6 @@ fn test_json_array_length() {
 }
 
 #[test]
-#[ignore = "JSON_OBJECT_KEYS is a set-returning function that requires special handling"]
 fn test_json_object_keys() {
     let mut executor = create_executor();
     let result = executor

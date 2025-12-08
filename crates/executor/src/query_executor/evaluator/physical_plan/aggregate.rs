@@ -157,7 +157,7 @@ impl AggregateExec {
                             | FunctionName::ArgMax
                             | FunctionName::TopK
                             | FunctionName::WindowFunnel
-                    ) || matches!(name, FunctionName::Custom(s) if s == "REGR_SLOPE" || s == "REGR_INTERCEPT");
+                    ) || matches!(name, FunctionName::Custom(s) if s == "REGR_SLOPE" || s == "REGR_INTERCEPT" || s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG");
                     if needs_array {
                         let mut values = Vec::with_capacity(args.len());
                         for arg in args {
@@ -458,6 +458,15 @@ impl AggregateExec {
                 }
 
                 FunctionName::WindowFunnel => Some(DataType::Int64),
+
+                FunctionName::Custom(s)
+                    if s == "JSON_AGG"
+                        || s == "JSONB_AGG"
+                        || s == "JSON_OBJECT_AGG"
+                        || s == "JSONB_OBJECT_AGG" =>
+                {
+                    Some(DataType::Json)
+                }
 
                 _ => Some(DataType::Float64),
             },
@@ -1501,6 +1510,42 @@ impl AggregateExec {
                         Value::array(result)
                     }
                     FunctionName::WindowFunnel => Value::int64(0),
+                    FunctionName::Custom(s) if s == "JSON_AGG" || s == "JSONB_AGG" => {
+                        let non_null_values: Vec<serde_json::Value> = values
+                            .iter()
+                            .filter(|v| !v.is_null())
+                            .map(|v| value_to_json(v))
+                            .collect();
+                        if non_null_values.is_empty() {
+                            Value::null()
+                        } else {
+                            Value::json(serde_json::Value::Array(non_null_values))
+                        }
+                    }
+                    FunctionName::Custom(s) if s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG" => {
+                        let mut obj = serde_json::Map::new();
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            if let Some(arr) = val.as_array() {
+                                if arr.len() >= 2 {
+                                    if let Some(key) = arr[0].as_str() {
+                                        let json_val = value_to_json(&arr[1]);
+                                        obj.insert(key.to_string(), json_val);
+                                    } else if let Some(key) = arr[0].as_i64() {
+                                        let json_val = value_to_json(&arr[1]);
+                                        obj.insert(key.to_string(), json_val);
+                                    }
+                                }
+                            }
+                        }
+                        if obj.is_empty() {
+                            Value::null()
+                        } else {
+                            Value::json(serde_json::Value::Object(obj))
+                        }
+                    }
                     _ => Value::null(),
                 },
                 _ => Value::null(),
@@ -1516,6 +1561,41 @@ impl AggregateExec {
 fn serialize_key(key: &[Value]) -> Vec<u8> {
     let serialized = serde_json::to_string(key).unwrap_or_default();
     serialized.into_bytes()
+}
+
+fn value_to_json(value: &Value) -> serde_json::Value {
+    if value.is_null() {
+        return serde_json::Value::Null;
+    }
+    if let Some(b) = value.as_bool() {
+        return serde_json::Value::Bool(b);
+    }
+    if let Some(i) = value.as_i64() {
+        return serde_json::Value::Number(serde_json::Number::from(i));
+    }
+    if let Some(f) = value.as_f64() {
+        if let Some(n) = serde_json::Number::from_f64(f) {
+            return serde_json::Value::Number(n);
+        }
+        return serde_json::Value::Null;
+    }
+    if let Some(s) = value.as_str() {
+        return serde_json::Value::String(s.to_string());
+    }
+    if let Some(arr) = value.as_array() {
+        let json_arr: Vec<serde_json::Value> = arr.iter().map(|v| value_to_json(v)).collect();
+        return serde_json::Value::Array(json_arr);
+    }
+    if let Some(json) = value.as_json() {
+        return json.clone();
+    }
+    if let Some(numeric) = value.as_numeric() {
+        if let Some(n) = serde_json::Number::from_f64(numeric.to_string().parse().unwrap_or(0.0)) {
+            return serde_json::Value::Number(n);
+        }
+        return serde_json::Value::String(numeric.to_string());
+    }
+    serde_json::Value::String(format!("{:?}", value))
 }
 
 #[derive(Debug)]
@@ -1629,7 +1709,7 @@ impl SortAggregateExec {
                             | FunctionName::ArgMax
                             | FunctionName::TopK
                             | FunctionName::WindowFunnel
-                    ) || matches!(name, FunctionName::Custom(s) if s == "REGR_SLOPE" || s == "REGR_INTERCEPT");
+                    ) || matches!(name, FunctionName::Custom(s) if s == "REGR_SLOPE" || s == "REGR_INTERCEPT" || s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG");
                     if needs_array {
                         let mut values = Vec::with_capacity(args.len());
                         for arg in args {

@@ -38,7 +38,6 @@ fn test_json_array_text() {
 }
 
 #[test]
-#[ignore = "Chained JSON operators (-> followed by ->>) require special handling"]
 fn test_json_nested_access() {
     let mut executor = create_executor();
     let result = executor
