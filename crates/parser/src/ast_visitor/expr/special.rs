@@ -354,6 +354,8 @@ impl LogicalPlanBuilder {
             Ok(CastDataType::TsRange)
         } else if data_type_str.contains("DATERANGE") {
             Ok(CastDataType::DateRange)
+        } else if data_type_str.contains("UUID") {
+            Ok(CastDataType::Uuid)
         } else {
             Err(Error::unsupported_feature(format!(
                 "Data type not supported in CAST: {:?}",

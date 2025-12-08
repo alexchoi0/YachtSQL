@@ -579,6 +579,18 @@ impl Column {
                     data.push(*v);
                     nulls.push(true);
                     Ok(())
+                } else if let Some(s) = value.as_str() {
+                    match uuid::Uuid::parse_str(s) {
+                        Ok(uuid_val) => {
+                            data.push(uuid_val);
+                            nulls.push(true);
+                            Ok(())
+                        }
+                        Err(e) => Err(Error::invalid_query(format!(
+                            "Invalid UUID string '{}': {}",
+                            s, e
+                        ))),
+                    }
                 } else {
                     Err(Error::invalid_query(format!(
                         "type mismatch: expected {}, got {}",

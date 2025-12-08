@@ -718,6 +718,21 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(l), Some(r)) = (left.as_uuid(), right.as_uuid()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for UUID",
+                    op
+                ))),
+            };
+        }
+
         if let (Some(l), Some(r)) = (left.as_range(), right.as_range()) {
             return match op {
                 BinaryOp::Equal => Ok(Value::bool_val(l == r)),

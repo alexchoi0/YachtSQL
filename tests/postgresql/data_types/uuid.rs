@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -12,7 +11,6 @@ fn test_uuid_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_column() {
     let mut executor = create_executor();
     executor
@@ -29,7 +27,6 @@ fn test_uuid_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_comparison() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
@@ -39,7 +36,6 @@ fn test_uuid_comparison() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_not_equal() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
@@ -49,7 +45,6 @@ fn test_uuid_not_equal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_null() {
     let mut executor = create_executor();
     executor
@@ -66,7 +61,6 @@ fn test_uuid_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_ordering() {
     let mut executor = create_executor();
     executor
@@ -96,7 +90,6 @@ fn test_gen_random_uuid() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_in_where() {
     let mut executor = create_executor();
     executor
@@ -118,7 +111,6 @@ fn test_uuid_in_where() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_uppercase() {
     let mut executor = create_executor();
     let result = executor
@@ -128,7 +120,6 @@ fn test_uuid_uppercase() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_distinct() {
     let mut executor = create_executor();
     executor
@@ -157,7 +148,6 @@ fn test_uuid_distinct() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_uuid_group_by() {
     let mut executor = create_executor();
     executor

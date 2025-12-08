@@ -665,6 +665,7 @@ impl DdlExecutor for QueryExecutor {
                 ))
             }
             SqlDataType::JSON | SqlDataType::JSONB => Ok(DataType::Json),
+            SqlDataType::Uuid => Ok(DataType::Uuid),
             SqlDataType::Nullable(inner) => self.sql_type_to_data_type(dataset_id, inner),
             SqlDataType::Interval { .. } => Ok(DataType::Interval),
             SqlDataType::GeometricType(kind) => {
