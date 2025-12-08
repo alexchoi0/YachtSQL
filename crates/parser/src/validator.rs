@@ -88,6 +88,14 @@ pub enum CustomStatement {
         cascade: bool,
         restrict: bool,
     },
+
+    ExistsTable {
+        name: sqlparser::ast::ObjectName,
+    },
+
+    ExistsDatabase {
+        name: sqlparser::ast::ObjectName,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,6 +207,7 @@ impl StatementValidator {
                 restrict,
                 ..
             } => self.validate_drop_type(names, *cascade, *restrict),
+            CustomStatement::ExistsTable { .. } | CustomStatement::ExistsDatabase { .. } => Ok(()),
         }
     }
 
