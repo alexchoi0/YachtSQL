@@ -128,5 +128,7 @@ pub fn core_aggregate_functions() -> Vec<&'static str> {
         "FIRST_VALUE",
         "LAST_VALUE",
         "NTH_VALUE",
+        "GROUPING",
+        "GROUPING_ID",
     ]
 }

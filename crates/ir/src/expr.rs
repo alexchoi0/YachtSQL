@@ -122,6 +122,9 @@ pub enum Expr {
     Grouping {
         column: String,
     },
+    GroupingId {
+        columns: Vec<String>,
+    },
     Excluded {
         column: String,
     },
@@ -483,6 +486,7 @@ impl Expr {
             | Expr::Wildcard
             | Expr::QualifiedWildcard { .. }
             | Expr::Grouping { .. }
+            | Expr::GroupingId { .. }
             | Expr::Excluded { .. } => false,
         }
     }

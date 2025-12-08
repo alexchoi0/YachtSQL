@@ -1524,6 +1524,7 @@ impl ProjectionWithExprExec {
             | Expr::TupleInList { .. }
             | Expr::TupleInSubquery { .. }
             | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
+            Expr::Grouping { .. } | Expr::GroupingId { .. } => Some(DataType::Int64),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());
                 for field in fields {
@@ -1639,6 +1640,7 @@ impl ProjectionWithExprExec {
             | Expr::TupleInList { .. }
             | Expr::TupleInSubquery { .. }
             | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
+            Expr::Grouping { .. } | Expr::GroupingId { .. } => Some(DataType::Int64),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());
                 for field in fields {

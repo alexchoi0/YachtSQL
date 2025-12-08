@@ -104,6 +104,11 @@ impl ProjectionPushdown {
             Expr::Grouping { column } => {
                 refs.insert(column.clone());
             }
+            Expr::GroupingId { columns } => {
+                for col in columns {
+                    refs.insert(col.clone());
+                }
+            }
             Expr::Exists { .. } => {}
             Expr::InSubquery { expr, .. } => {
                 Self::collect_column_references(expr, refs);

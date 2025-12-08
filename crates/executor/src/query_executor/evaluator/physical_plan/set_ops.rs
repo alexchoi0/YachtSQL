@@ -32,6 +32,7 @@ impl UnionExec {
             )));
         }
 
+        let mut merged_fields = Vec::with_capacity(left_schema.fields().len());
         for (i, (left_field, right_field)) in left_schema
             .fields()
             .iter()
@@ -46,9 +47,14 @@ impl UnionExec {
                     right_field.data_type
                 )));
             }
+            let merged_type =
+                Self::pick_more_specific_type(&left_field.data_type, &right_field.data_type);
+            let mut merged_field = left_field.clone();
+            merged_field.data_type = merged_type;
+            merged_fields.push(merged_field);
         }
 
-        let schema = left_schema.clone();
+        let schema = Schema::from_fields(merged_fields);
 
         Ok(Self {
             left,
@@ -76,7 +82,37 @@ impl UnionExec {
                 | (DataType::Numeric(_), DataType::Int64)
                 | (DataType::Float64, DataType::Numeric(_))
                 | (DataType::Numeric(_), DataType::Float64)
+                | (DataType::String, DataType::Int64)
+                | (DataType::Int64, DataType::String)
+                | (DataType::String, DataType::Float64)
+                | (DataType::Float64, DataType::String)
+                | (DataType::String, DataType::Date)
+                | (DataType::Date, DataType::String)
+                | (DataType::String, DataType::Timestamp)
+                | (DataType::Timestamp, DataType::String)
+                | (DataType::String, DataType::Time)
+                | (DataType::Time, DataType::String)
         )
+    }
+
+    fn pick_more_specific_type(
+        left: &yachtsql_core::types::DataType,
+        right: &yachtsql_core::types::DataType,
+    ) -> yachtsql_core::types::DataType {
+        use yachtsql_core::types::DataType;
+
+        if left == right {
+            return left.clone();
+        }
+
+        match (left, right) {
+            (DataType::String, other) | (other, DataType::String) => other.clone(),
+            (DataType::Float64, DataType::Int64) | (DataType::Int64, DataType::Float64) => {
+                DataType::Float64
+            }
+            (DataType::Numeric(p), _) | (_, DataType::Numeric(p)) => DataType::Numeric(*p),
+            _ => left.clone(),
+        }
     }
 }
 
