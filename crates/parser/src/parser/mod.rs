@@ -228,6 +228,20 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.is_exists_table(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                CustomStatementParser::parse_exists_table(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.is_exists_database(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                CustomStatementParser::parse_exists_database(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         Ok(None)
     }
 
@@ -365,6 +379,14 @@ impl Parser {
 
     fn is_drop_type(&self, tokens: &[&Token]) -> bool {
         self.matches_keyword_sequence(tokens, &["DROP", "TYPE"])
+    }
+
+    fn is_exists_table(&self, tokens: &[&Token]) -> bool {
+        self.matches_keyword_sequence(tokens, &["EXISTS", "TABLE"])
+    }
+
+    fn is_exists_database(&self, tokens: &[&Token]) -> bool {
+        self.matches_keyword_sequence(tokens, &["EXISTS", "DATABASE"])
     }
 
     fn rewrite_json_item_methods(&self, sql: &str) -> Result<String> {
