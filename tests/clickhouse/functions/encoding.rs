@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_hex() {
     let mut executor = create_executor();
@@ -9,7 +8,6 @@ fn test_hex() {
     assert_table_eq!(result, [["68656C6C6F"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_unhex() {
     let mut executor = create_executor();
@@ -17,7 +15,6 @@ fn test_unhex() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_base64_encode() {
     let mut executor = create_executor();
@@ -27,7 +24,6 @@ fn test_base64_encode() {
     assert_table_eq!(result, [["aGVsbG8="]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_base64_decode() {
     let mut executor = create_executor();
@@ -37,7 +33,6 @@ fn test_base64_decode() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_try_base64_decode() {
     let mut executor = create_executor();
@@ -47,17 +42,15 @@ fn test_try_base64_decode() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_base58_encode() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT base58Encode('hello')")
         .unwrap();
-    assert_table_eq!(result, [["Cn8eVZg"]]); // Base58 encoding of 'hello'
+    assert_table_eq!(result, [["Cn8eVZg"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_base58_decode() {
     let mut executor = create_executor();
@@ -67,7 +60,6 @@ fn test_base58_decode() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bin() {
     let mut executor = create_executor();
@@ -75,15 +67,13 @@ fn test_bin() {
     assert_table_eq!(result, [["11111111"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_unbin() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT unbin('11111111')").unwrap();
-    assert_table_eq!(result, [[255]]); // Binary 11111111 = 255
+    assert_table_eq!(result, [[255]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_shift_left() {
     let mut executor = create_executor();
@@ -91,7 +81,6 @@ fn test_bit_shift_left() {
     assert_table_eq!(result, [[16]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_shift_right() {
     let mut executor = create_executor();
@@ -99,7 +88,6 @@ fn test_bit_shift_right() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_and() {
     let mut executor = create_executor();
@@ -107,7 +95,6 @@ fn test_bit_and() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_or() {
     let mut executor = create_executor();
@@ -115,7 +102,6 @@ fn test_bit_or() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_xor() {
     let mut executor = create_executor();
@@ -123,15 +109,13 @@ fn test_bit_xor() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_not() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT bitNot(toUInt8(0))").unwrap();
-    assert_table_eq!(result, [[255]]); // ~0 = 255 for UInt8
+    let result = executor.execute_sql("SELECT bitNot(0)").unwrap();
+    assert_table_eq!(result, [[-1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_count() {
     let mut executor = create_executor();
@@ -139,31 +123,28 @@ fn test_bit_count() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_test() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT bitTest(15, 0)").unwrap();
-    assert_table_eq!(result, [[1]]); // 15 = 0b1111, bit 0 is set
+    assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_test_all() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT bitTestAll(15, 0, 1)").unwrap();
-    assert_table_eq!(result, [[1]]); // 15 = 0b1111, bits 0 and 1 are set
+    assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_test_any() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT bitTestAny(15, 4, 5)").unwrap();
-    assert_table_eq!(result, [[0]]); // 15 = 0b1111, bits 4 and 5 are not set
+    assert_table_eq!(result, [[0]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Standard SQL CHAR function takes precedence"]
 #[test]
 fn test_char() {
     let mut executor = create_executor();

@@ -17,6 +17,7 @@ pub mod approximate;
 pub mod array;
 pub mod datetime;
 pub mod dialects;
+pub mod encoding;
 #[cfg(feature = "encryption")]
 pub mod encryption;
 pub mod fulltext;
@@ -27,6 +28,7 @@ pub mod hstore;
 pub mod interval;
 #[cfg(feature = "json")]
 pub mod json;
+pub mod misc;
 #[cfg(feature = "network")]
 pub mod network;
 pub mod polymorphic_table_functions;

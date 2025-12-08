@@ -1496,3 +1496,1482 @@ fn decode_geohash(hash: &str) -> Result<(f64, f64)> {
 
     Ok(((min_lon + max_lon) / 2.0, (min_lat + max_lat) / 2.0))
 }
+
+impl ProjectionWithExprExec {
+    pub(super) fn evaluate_custom_function(
+        name: &str,
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        match name {
+            "GREATCIRCLEDISTANCE" => {
+                if args.len() != 4 {
+                    return Err(Error::invalid_query(
+                        "greatCircleDistance requires 4 arguments (lat1, lon1, lat2, lon2)"
+                            .to_string(),
+                    ));
+                }
+                let lat1 = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lon1 = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lat2 = Self::evaluate_expr(&args[2], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lon2 = Self::evaluate_expr(&args[3], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                yachtsql_functions::geography::great_circle_distance(lat1, lon1, lat2, lon2)
+            }
+            "GEODISTANCE" => {
+                if args.len() != 4 {
+                    return Err(Error::invalid_query(
+                        "geoDistance requires 4 arguments (lat1, lon1, lat2, lon2)".to_string(),
+                    ));
+                }
+                let lat1 = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lon1 = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lat2 = Self::evaluate_expr(&args[2], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lon2 = Self::evaluate_expr(&args[3], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                yachtsql_functions::geography::geo_distance(lat1, lon1, lat2, lon2)
+            }
+            "POINTINELLIPSES" => {
+                if args.len() < 6 || (args.len() - 2) % 4 != 0 {
+                    return Err(Error::invalid_query(
+                        "pointInEllipses requires (x, y, x_center, y_center, a, b, ...)"
+                            .to_string(),
+                    ));
+                }
+                let x = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let y = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let mut ellipses = Vec::new();
+                for arg in args.iter().skip(2) {
+                    let v = Self::evaluate_expr(arg, batch, row_idx)?
+                        .as_f64()
+                        .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                    ellipses.push(v);
+                }
+                yachtsql_functions::geography::point_in_ellipses_fn(x, y, &ellipses)
+            }
+            "POINTINPOLYGON" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "pointInPolygon requires 2 arguments (point, polygon)".to_string(),
+                    ));
+                }
+                let point = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let polygon = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let (x, y) = if let Some(s) = point.as_struct() {
+                    let x = s.values().next().and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    let y = s.values().nth(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    (x, y)
+                } else {
+                    return Err(Error::type_mismatch(
+                        "TUPLE",
+                        &point.data_type().to_string(),
+                    ));
+                };
+                let polygon_points: Vec<(f64, f64)> = if let Some(arr) = polygon.as_array() {
+                    arr.iter()
+                        .filter_map(|v| {
+                            if let Some(s) = v.as_struct() {
+                                let px = s.values().next().and_then(|v| v.as_f64())?;
+                                let py = s.values().nth(1).and_then(|v| v.as_f64())?;
+                                Some((px, py))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                } else {
+                    return Err(Error::type_mismatch(
+                        "ARRAY",
+                        &polygon.data_type().to_string(),
+                    ));
+                };
+                yachtsql_functions::geography::point_in_polygon_fn(x, y, &polygon_points)
+            }
+            "GEOHASHENCODE" => {
+                if args.len() < 2 || args.len() > 3 {
+                    return Err(Error::invalid_query(
+                        "geohashEncode requires 2-3 arguments (lon, lat, [precision])".to_string(),
+                    ));
+                }
+                let lon = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lat = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let precision = if args.len() == 3 {
+                    Self::evaluate_expr(&args[2], batch, row_idx)?
+                        .as_i64()
+                        .unwrap_or(12) as u8
+                } else {
+                    12
+                };
+                yachtsql_functions::geography::geohash_encode(lat, lon, precision)
+            }
+            "GEOHASHDECODE" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "geohashDecode requires 1 argument (hash)".to_string(),
+                    ));
+                }
+                let hash = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let hash_str = hash
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", &hash.data_type().to_string()))?;
+                yachtsql_functions::geography::geohash_decode(hash_str)
+            }
+            "GEOHASHESINBOX" => {
+                if args.len() != 5 {
+                    return Err(Error::invalid_query("geohashesInBox requires 5 arguments (min_lon, min_lat, max_lon, max_lat, precision)".to_string()));
+                }
+                let min_lon = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let min_lat = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let max_lon = Self::evaluate_expr(&args[2], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let max_lat = Self::evaluate_expr(&args[3], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let precision = Self::evaluate_expr(&args[4], batch, row_idx)?
+                    .as_i64()
+                    .unwrap_or(4) as u8;
+                yachtsql_functions::geography::geohashes_in_box(
+                    min_lon, min_lat, max_lon, max_lat, precision,
+                )
+            }
+            "H3ISVALID" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3IsValid requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_is_valid(h3_index)
+            }
+            "H3GETRESOLUTION" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3GetResolution requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_get_resolution(h3_index)
+            }
+            "H3EDGELENGTHM" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3EdgeLengthM requires 1 argument".to_string(),
+                    ));
+                }
+                let resolution = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::h3_edge_length_m(resolution)
+            }
+            "H3EDGEANGLE" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3EdgeAngle requires 1 argument".to_string(),
+                    ));
+                }
+                let resolution = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::h3_edge_angle(resolution)
+            }
+            "H3HEXAREAKM2" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3HexAreaKm2 requires 1 argument".to_string(),
+                    ));
+                }
+                let resolution = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::h3_hex_area_km2(resolution)
+            }
+            "H3TOGEO" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3ToGeo requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_to_geo(h3_index)
+            }
+            "H3TOGEOBOUNDARY" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3ToGeoBoundary requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_to_geo_boundary(h3_index)
+            }
+            "GEOTOH3" => {
+                if args.len() != 3 {
+                    return Err(Error::invalid_query(
+                        "geoToH3 requires 3 arguments (lat, lon, resolution)".to_string(),
+                    ));
+                }
+                let lat = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lon = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let resolution = Self::evaluate_expr(&args[2], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::geo_to_h3(lat, lon, resolution)
+            }
+            "H3KRING" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "h3kRing requires 2 arguments (h3_index, k)".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                let k = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::h3_k_ring(h3_index, k)
+            }
+            "H3GETBASECELL" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3GetBaseCell requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_get_base_cell(h3_index)
+            }
+            "H3ISPENTAGON" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3IsPentagon requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_is_pentagon(h3_index)
+            }
+            "H3ISRESCLASSIII" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3IsResClassIII requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_is_res_class_iii(h3_index)
+            }
+            "H3GETFACES" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3GetFaces requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_get_faces(h3_index)
+            }
+            "H3CELLAREAM2" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3CellAreaM2 requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_cell_area_m2(h3_index)
+            }
+            "H3CELLAREARADS2" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "h3CellAreaRads2 requires 1 argument".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_cell_area_rads2(h3_index)
+            }
+            "H3TOPARENT" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "h3ToParent requires 2 arguments (h3_index, resolution)".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                let resolution = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::h3_to_parent(h3_index, resolution)
+            }
+            "H3TOCHILDREN" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "h3ToChildren requires 2 arguments (h3_index, resolution)".to_string(),
+                    ));
+                }
+                let h3_index = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                let resolution = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::h3_to_children(h3_index, resolution)
+            }
+            "H3DISTANCE" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "h3Distance requires 2 arguments".to_string(),
+                    ));
+                }
+                let h3_index1 = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                let h3_index2 = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_distance(h3_index1, h3_index2)
+            }
+            "H3LINE" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "h3Line requires 2 arguments".to_string(),
+                    ));
+                }
+                let h3_index1 = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                let h3_index2 = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::h3_line(h3_index1, h3_index2)
+            }
+            "S2CELLIDTOLONGLAT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "S2CellIdToLongLat requires 1 argument".to_string(),
+                    ));
+                }
+                let s2_cell_id = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u64;
+                yachtsql_functions::geography::s2_cell_id_to_long_lat(s2_cell_id)
+            }
+            "LONGLATTOS2CELLID" | "LONGLATTTOS2CELLID" => {
+                if args.len() != 3 {
+                    return Err(Error::invalid_query(
+                        "longLatToS2CellId requires 3 arguments (lon, lat, level)".to_string(),
+                    ));
+                }
+                let lon = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let lat = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let level = Self::evaluate_expr(&args[2], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::geography::long_lat_to_s2_cell_id(lon, lat, level)
+            }
+            "PROTOCOL" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "protocol requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::protocol(&url)
+            }
+            "DOMAIN" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "domain requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::domain(&url)
+            }
+            "DOMAINWITHOUTWWW" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "domainWithoutWWW requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::domain_without_www(&url)
+            }
+            "TOPLEVELDOMAIN" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "topLevelDomain requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::top_level_domain(&url)
+            }
+            "FIRSTSIGNIFICANTSUBDOMAIN" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "firstSignificantSubdomain requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::first_significant_subdomain(&url)
+            }
+            "PORT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("port requires 1 argument".to_string()));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::port(&url)
+            }
+            "PATH" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("path requires 1 argument".to_string()));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::path(&url)
+            }
+            "PATHFULL" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "pathFull requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::path_full(&url)
+            }
+            "QUERYSTRING" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "queryString requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::query_string(&url)
+            }
+            "FRAGMENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "fragment requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::fragment(&url)
+            }
+            "QUERYSTRINGANDFRAGMENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "queryStringAndFragment requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::query_string_and_fragment(&url)
+            }
+            "EXTRACTURLPARAMETER" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "extractURLParameter requires 2 arguments (url, name)".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                let name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::extract_url_parameter(&url, &name)
+            }
+            "EXTRACTURLPARAMETERS" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "extractURLParameters requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::extract_url_parameters(&url)
+            }
+            "EXTRACTURLPARAMETERNAMES" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "extractURLParameterNames requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::extract_url_parameter_names(&url)
+            }
+            "URLHIERARCHY" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "URLHierarchy requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::url_hierarchy(&url)
+            }
+            "URLPATHHIERARCHY" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "URLPathHierarchy requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::url_path_hierarchy(&url)
+            }
+            "DECODEURLCOMPONENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "decodeURLComponent requires 1 argument".to_string(),
+                    ));
+                }
+                let encoded = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::decode_url_component(&encoded)
+            }
+            "ENCODEURLCOMPONENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "encodeURLComponent requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::encode_url_component(&s)
+            }
+            "ENCODEURLFORMCOMPONENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "encodeURLFormComponent requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::encode_url_form_component(&s)
+            }
+            "DECODEURLFORMCOMPONENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "decodeURLFormComponent requires 1 argument".to_string(),
+                    ));
+                }
+                let encoded = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::decode_url_form_component(&encoded)
+            }
+            "NETLOC" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "netloc requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::netloc(&url)
+            }
+            "CUTTOFIRSTSIGNIFICANTSUBDOMAIN" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "cutToFirstSignificantSubdomain requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::cut_to_first_significant_subdomain(&url)
+            }
+            "CUTWWW" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "cutWWW requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::cut_www(&url)
+            }
+            "CUTQUERYSTRING" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "cutQueryString requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::cut_query_string(&url)
+            }
+            "CUTFRAGMENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "cutFragment requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::cut_fragment(&url)
+            }
+            "CUTQUERYSTRINGANDFRAGMENT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "cutQueryStringAndFragment requires 1 argument".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::cut_query_string_and_fragment(&url)
+            }
+            "CUTURLPARAMETER" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "cutURLParameter requires 2 arguments (url, name)".to_string(),
+                    ));
+                }
+                let url = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                let name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::cut_url_parameter(&url, &name)
+            }
+            "HOSTNAME" => yachtsql_functions::misc::hostname(),
+            "FQDN" => yachtsql_functions::misc::fqdn(),
+            "VERSION" => yachtsql_functions::misc::version(),
+            "UPTIME" => yachtsql_functions::misc::uptime(),
+            "TIMEZONE" => yachtsql_functions::misc::timezone(),
+            "CURRENTDATABASE" => yachtsql_functions::misc::current_database(),
+            "CURRENTUSER" => yachtsql_functions::misc::current_user(),
+            "ISCONSTANT" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isConstant requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                yachtsql_functions::misc::is_constant(value)
+            }
+            "ISFINITE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isFinite requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                yachtsql_functions::misc::is_finite(value)
+            }
+            "ISINFINITE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isInfinite requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                yachtsql_functions::misc::is_infinite(value)
+            }
+            "ISNAN" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isNaN requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                yachtsql_functions::misc::is_nan(value)
+            }
+            "BAR" => {
+                if args.len() < 4 {
+                    return Err(Error::invalid_query("bar requires 4 arguments".to_string()));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let min = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let max = Self::evaluate_expr(&args[2], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let width = Self::evaluate_expr(&args[3], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::misc::bar(value, min, max, width)
+            }
+            "FORMATREADABLESIZE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "formatReadableSize requires 1 argument".to_string(),
+                    ));
+                }
+                let bytes = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::misc::format_readable_size(bytes)
+            }
+            "FORMATREADABLEQUANTITY" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "formatReadableQuantity requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::misc::format_readable_quantity(value)
+            }
+            "FORMATREADABLETIMEDELTA" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "formatReadableTimeDelta requires 1 argument".to_string(),
+                    ));
+                }
+                let seconds = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::misc::format_readable_time_delta(seconds)
+            }
+            "SLEEP" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "sleep requires 1 argument".to_string(),
+                    ));
+                }
+                let seconds = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                yachtsql_functions::misc::sleep(seconds)
+            }
+            "THROWIF" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "throwIf requires 2 arguments".to_string(),
+                    ));
+                }
+                let condition_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let condition = condition_val
+                    .as_i64()
+                    .map(|i| i != 0)
+                    .unwrap_or_else(|| condition_val.as_bool().unwrap_or(false));
+                let message = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string();
+                yachtsql_functions::misc::throw_if(condition, &message)
+            }
+            "MATERIALIZE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "materialize requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                yachtsql_functions::misc::materialize(value)
+            }
+            "IGNORE" => {
+                let values: Vec<Value> = args
+                    .iter()
+                    .map(|a| Self::evaluate_expr(a, batch, row_idx))
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                yachtsql_functions::misc::ignore(values)
+            }
+            "IDENTITY" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "identity requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                yachtsql_functions::misc::identity(value)
+            }
+            "GETSETTING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "getSetting requires 1 argument".to_string(),
+                    ));
+                }
+                let name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::misc::get_setting(&name)
+            }
+            "TRANSFORM" => {
+                if args.len() < 4 {
+                    return Err(Error::invalid_query(
+                        "transform requires 4 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let from_array = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let to_array = Self::evaluate_expr(&args[2], batch, row_idx)?;
+                let default = Self::evaluate_expr(&args[3], batch, row_idx)?;
+                let from_vec = from_array
+                    .as_array()
+                    .ok_or_else(|| Error::type_mismatch("ARRAY", "other"))?
+                    .clone();
+                let to_vec = to_array
+                    .as_array()
+                    .ok_or_else(|| Error::type_mismatch("ARRAY", "other"))?
+                    .clone();
+                yachtsql_functions::misc::transform(value, &from_vec, &to_vec, default)
+            }
+            "MODELEVALUATE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "modelEvaluate requires at least 1 argument".to_string(),
+                    ));
+                }
+                let model_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                let values: Vec<Value> = args
+                    .iter()
+                    .skip(1)
+                    .map(|a| Self::evaluate_expr(a, batch, row_idx))
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                yachtsql_functions::misc::model_evaluate(&model_name, values)
+            }
+            "RUNNINGACCUMULATE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "runningAccumulate requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(value)
+            }
+            "HASCOLUMNINTABLE" => Ok(Value::bool_val(true)),
+            "HEX" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query("hex requires 1 argument".to_string()));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if let Some(s) = value.as_str() {
+                    yachtsql_functions::encoding::hex_encode(s)
+                } else if let Some(b) = value.as_bytes() {
+                    yachtsql_functions::encoding::hex_encode_bytes(b)
+                } else {
+                    Err(Error::type_mismatch("STRING or BYTES", "other"))
+                }
+            }
+            "UNHEX" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "unhex requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::encoding::unhex(&s)
+            }
+            "BASE64ENCODE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "base64Encode requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::encoding::base64_encode(&s)
+            }
+            "BASE64DECODE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "base64Decode requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::encoding::base64_decode(&s)
+            }
+            "TRYBASE64DECODE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "tryBase64Decode requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::encoding::try_base64_decode(&s)
+            }
+            "BASE58ENCODE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "base58Encode requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::encoding::base58_encode(&s)
+            }
+            "BASE58DECODE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "base58Decode requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::encoding::base58_decode(&s)
+            }
+            "BIN" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query("bin requires 1 argument".to_string()));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bin(value)
+            }
+            "UNBIN" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "unbin requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::encoding::unbin(&s)
+            }
+            "BITSHIFTLEFT" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitShiftLeft requires 2 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let shift = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_shift_left(value, shift)
+            }
+            "BITSHIFTRIGHT" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitShiftRight requires 2 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let shift = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_shift_right(value, shift)
+            }
+            "BITAND" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitAnd requires 2 arguments".to_string(),
+                    ));
+                }
+                let a = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let b = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_and(a, b)
+            }
+            "BITOR" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitOr requires 2 arguments".to_string(),
+                    ));
+                }
+                let a = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let b = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_or(a, b)
+            }
+            "BITXOR" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitXor requires 2 arguments".to_string(),
+                    ));
+                }
+                let a = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let b = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_xor(a, b)
+            }
+            "BITNOT" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "bitNot requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_not(value)
+            }
+            "BITCOUNT" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "bitCount requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_count(value)
+            }
+            "BITTEST" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitTest requires 2 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let pos = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_test(value, pos)
+            }
+            "BITTESTALL" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitTestAll requires at least 2 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let positions: Vec<i64> = args
+                    .iter()
+                    .skip(1)
+                    .map(|a| {
+                        Self::evaluate_expr(a, batch, row_idx)?
+                            .as_i64()
+                            .ok_or_else(|| Error::type_mismatch("INT64", "other"))
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                yachtsql_functions::encoding::bit_test_all(value, &positions)
+            }
+            "BITTESTANY" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitTestAny requires at least 2 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let positions: Vec<i64> = args
+                    .iter()
+                    .skip(1)
+                    .map(|a| {
+                        Self::evaluate_expr(a, batch, row_idx)?
+                            .as_i64()
+                            .ok_or_else(|| Error::type_mismatch("INT64", "other"))
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                yachtsql_functions::encoding::bit_test_any(value, &positions)
+            }
+            "CHAR" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "char requires at least 1 argument".to_string(),
+                    ));
+                }
+                let codes: Vec<i64> = args
+                    .iter()
+                    .map(|a| {
+                        Self::evaluate_expr(a, batch, row_idx)?
+                            .as_i64()
+                            .ok_or_else(|| Error::type_mismatch("INT64", "other"))
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                yachtsql_functions::encoding::char_fn(&codes)
+            }
+            "IPV4NUMTOSTRING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "IPv4NumToString requires 1 argument".to_string(),
+                    ));
+                }
+                let num = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::network::ipv4_num_to_string(num)
+            }
+            "IPV4STRINGTONUM" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "IPv4StringToNum requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::ipv4_string_to_num(&s)
+            }
+            "IPV4NUMTOSTRINGCLASSC" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "IPv4NumToStringClassC requires 1 argument".to_string(),
+                    ));
+                }
+                let num = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::network::ipv4_num_to_string_class_c(num)
+            }
+            "IPV4TOIPV6" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "IPv4ToIPv6 requires 1 argument".to_string(),
+                    ));
+                }
+                let num = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::network::ipv4_to_ipv6(num)
+            }
+            "IPV6NUMTOSTRING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "IPv6NumToString requires 1 argument".to_string(),
+                    ));
+                }
+                let bytes = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_bytes()
+                    .ok_or_else(|| Error::type_mismatch("BYTES", "other"))?
+                    .to_vec();
+                yachtsql_functions::network::ipv6_num_to_string(&bytes)
+            }
+            "IPV6STRINGTONUM" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "IPv6StringToNum requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::ipv6_string_to_num(&s)
+            }
+            "TOIPV4" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toIPv4 requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::to_ipv4(&s)
+            }
+            "TOIPV6" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toIPv6 requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::to_ipv6(&s)
+            }
+            "TOIPV4ORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toIPv4OrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::to_ipv4_or_null(&s)
+            }
+            "TOIPV6ORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toIPv6OrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::to_ipv6_or_null(&s)
+            }
+            "ISIPV4STRING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isIPv4String requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::is_ipv4_string(&s)
+            }
+            "ISIPV6STRING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isIPv6String requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::is_ipv6_string(&s)
+            }
+            "ISIPADDRESSINRANGE" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "isIPAddressInRange requires 2 arguments".to_string(),
+                    ));
+                }
+                let addr = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                let cidr = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::is_ip_address_in_range(&addr, &cidr)
+            }
+            "IPV4CIDRTORANGE" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "IPv4CIDRToRange requires 2 arguments".to_string(),
+                    ));
+                }
+                let addr = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                let prefix = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::network::ipv4_cidr_to_range(&addr, prefix)
+            }
+            "IPV6CIDRTORANGE" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "IPv6CIDRToRange requires 2 arguments".to_string(),
+                    ));
+                }
+                let addr = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                let prefix = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::network::ipv6_cidr_to_range(&addr, prefix)
+            }
+            "MACNUMTOSTRING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "MACNumToString requires 1 argument".to_string(),
+                    ));
+                }
+                let num = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::network::mac_num_to_string(num)
+            }
+            "MACSTRINGTONUM" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "MACStringToNum requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::mac_string_to_num(&s)
+            }
+            "MACSTRINGTOOUI" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "MACStringToOUI requires 1 argument".to_string(),
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
+                    .to_string();
+                yachtsql_functions::network::mac_string_to_oui(&s)
+            }
+            _ => Err(Error::unsupported_feature(format!(
+                "Unknown custom function: {}",
+                name
+            ))),
+        }
+    }
+}

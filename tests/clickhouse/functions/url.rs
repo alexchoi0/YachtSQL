@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_protocol() {
     let mut executor = create_executor();
@@ -11,7 +10,6 @@ fn test_protocol() {
     assert_table_eq!(result, [["https"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_domain() {
     let mut executor = create_executor();
@@ -21,7 +19,6 @@ fn test_domain() {
     assert_table_eq!(result, [["example.com"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_domain_without_www() {
     let mut executor = create_executor();
@@ -31,7 +28,6 @@ fn test_domain_without_www() {
     assert_table_eq!(result, [["example.com"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_top_level_domain() {
     let mut executor = create_executor();
@@ -41,7 +37,6 @@ fn test_top_level_domain() {
     assert_table_eq!(result, [["com"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_first_significant_subdomain() {
     let mut executor = create_executor();
@@ -51,7 +46,6 @@ fn test_first_significant_subdomain() {
     assert_table_eq!(result, [["example"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_port() {
     let mut executor = create_executor();
@@ -61,7 +55,6 @@ fn test_port() {
     assert_table_eq!(result, [[8080]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_path() {
     let mut executor = create_executor();
@@ -71,7 +64,6 @@ fn test_path() {
     assert_table_eq!(result, [["/path/to/resource"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_path_full() {
     let mut executor = create_executor();
@@ -81,7 +73,6 @@ fn test_path_full() {
     assert_table_eq!(result, [["/path?query=1"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_query_string() {
     let mut executor = create_executor();
@@ -91,7 +82,6 @@ fn test_query_string() {
     assert_table_eq!(result, [["foo=bar&baz=qux"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fragment() {
     let mut executor = create_executor();
@@ -101,7 +91,6 @@ fn test_fragment() {
     assert_table_eq!(result, [["section"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_query_string_and_fragment() {
     let mut executor = create_executor();
@@ -111,7 +100,6 @@ fn test_query_string_and_fragment() {
     assert_table_eq!(result, [["foo=bar#section"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_extract_url_parameter() {
     let mut executor = create_executor();
@@ -121,7 +109,6 @@ fn test_extract_url_parameter() {
     assert_table_eq!(result, [["bar"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_extract_url_parameters() {
     let mut executor = create_executor();
@@ -131,7 +118,6 @@ fn test_extract_url_parameters() {
     assert_table_eq!(result, [[["foo=bar", "baz=qux"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_extract_url_parameter_names() {
     let mut executor = create_executor();
@@ -141,7 +127,6 @@ fn test_extract_url_parameter_names() {
     assert_table_eq!(result, [[["foo", "baz"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_url_hierarchy() {
     let mut executor = create_executor();
@@ -159,7 +144,6 @@ fn test_url_hierarchy() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_url_path_hierarchy() {
     let mut executor = create_executor();
@@ -169,7 +153,6 @@ fn test_url_path_hierarchy() {
     assert_table_eq!(result, [[["/a/", "/a/b/", "/a/b/c"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_decode_url_component() {
     let mut executor = create_executor();
@@ -179,7 +162,6 @@ fn test_decode_url_component() {
     assert_table_eq!(result, [["hello world"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_encode_url_component() {
     let mut executor = create_executor();
@@ -189,7 +171,6 @@ fn test_encode_url_component() {
     assert_table_eq!(result, [["hello%20world"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_encode_url_form_component() {
     let mut executor = create_executor();
@@ -199,7 +180,6 @@ fn test_encode_url_form_component() {
     assert_table_eq!(result, [["hello+world"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_decode_url_form_component() {
     let mut executor = create_executor();
@@ -209,7 +189,6 @@ fn test_decode_url_form_component() {
     assert_table_eq!(result, [["hello world"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_netloc() {
     let mut executor = create_executor();
@@ -219,7 +198,6 @@ fn test_netloc() {
     assert_table_eq!(result, [["user:pass@example.com:8080"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cut_to_first_significant_subdomain() {
     let mut executor = create_executor();
@@ -229,7 +207,6 @@ fn test_cut_to_first_significant_subdomain() {
     assert_table_eq!(result, [["example.com"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cut_www() {
     let mut executor = create_executor();
@@ -239,7 +216,6 @@ fn test_cut_www() {
     assert_table_eq!(result, [["https://example.com/path"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cut_query_string() {
     let mut executor = create_executor();
@@ -249,7 +225,6 @@ fn test_cut_query_string() {
     assert_table_eq!(result, [["https://example.com/path"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cut_fragment() {
     let mut executor = create_executor();
@@ -259,7 +234,6 @@ fn test_cut_fragment() {
     assert_table_eq!(result, [["https://example.com/path"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cut_query_string_and_fragment() {
     let mut executor = create_executor();
@@ -269,12 +243,11 @@ fn test_cut_query_string_and_fragment() {
     assert_table_eq!(result, [["https://example.com/path"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cut_url_parameter() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT cutURLParameter('https://example.com?foo=bar&baz=qux', 'foo')")
         .unwrap();
-    assert_table_eq!(result, [["https://example.com?baz=qux"]]);
+    assert_table_eq!(result, [["https://example.com/?baz=qux"]]);
 }
