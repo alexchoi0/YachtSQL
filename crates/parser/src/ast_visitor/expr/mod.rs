@@ -670,6 +670,37 @@ impl LogicalPlanBuilder {
         }
     }
 
+    fn convert_date_part_column_to_string(expr: &Expr) -> Expr {
+        if let Expr::Column { name, table: None } = expr {
+            let upper = name.to_uppercase();
+            let date_parts = [
+                "YEAR",
+                "MONTH",
+                "DAY",
+                "HOUR",
+                "MINUTE",
+                "SECOND",
+                "WEEK",
+                "QUARTER",
+                "DAYOFWEEK",
+                "DAYOFYEAR",
+                "MILLISECOND",
+                "MICROSECOND",
+                "NANOSECOND",
+                "ISOWEEK",
+                "ISOYEAR",
+            ];
+            if date_parts.contains(&upper.as_str()) {
+                return Expr::Literal(LiteralValue::String(upper));
+            }
+        }
+        expr.clone()
+    }
+
+    fn normalize_interval_arg(expr: &Expr) -> Expr {
+        expr.clone()
+    }
+
     fn normalize_dialect_function(&self, name_str: &str, args: &[Expr]) -> Result<Option<Expr>> {
         use yachtsql_ir::expr::{BinaryOp, CastDataType, LiteralValue, StructLiteralField};
 
@@ -691,6 +722,88 @@ impl LogicalPlanBuilder {
 
         let normalized = match self.dialect {
             DialectType::BigQuery => match name_str.to_uppercase().as_str() {
+                "DATE_TRUNC" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "DATE_TRUNC requires exactly 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let date_expr = args[0].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[1]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::DateTrunc,
+                        args: vec![unit_expr, date_expr],
+                    })
+                }
+                "TIMESTAMP_TRUNC" => {
+                    if args.len() < 2 {
+                        return Err(Error::invalid_query(format!(
+                            "TIMESTAMP_TRUNC requires at least 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let ts_expr = args[0].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[1]);
+                    let mut new_args = vec![unit_expr, ts_expr];
+                    if args.len() > 2 {
+                        new_args.extend(args[2..].iter().cloned());
+                    }
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::TimestampTrunc,
+                        args: new_args,
+                    })
+                }
+                "DATE_ADD" | "DATE_SUB" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "{} requires exactly 2 arguments, got {}",
+                            name_str.to_uppercase(),
+                            args.len()
+                        )));
+                    }
+                    let date_expr = args[0].clone();
+                    let interval_expr = Self::normalize_interval_arg(&args[1]);
+                    let name = if name_str.to_uppercase() == "DATE_ADD" {
+                        yachtsql_ir::FunctionName::DateAdd
+                    } else {
+                        yachtsql_ir::FunctionName::DateSub
+                    };
+                    Some(Expr::Function {
+                        name,
+                        args: vec![date_expr, interval_expr],
+                    })
+                }
+                "DATE_DIFF" => {
+                    if args.len() != 3 {
+                        return Err(Error::invalid_query(format!(
+                            "DATE_DIFF requires exactly 3 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let date1 = args[0].clone();
+                    let date2 = args[1].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[2]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::DateDiff,
+                        args: vec![date1, date2, unit_expr],
+                    })
+                }
+                "TIMESTAMP_DIFF" => {
+                    if args.len() != 3 {
+                        return Err(Error::invalid_query(format!(
+                            "TIMESTAMP_DIFF requires exactly 3 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let ts1 = args[0].clone();
+                    let ts2 = args[1].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[2]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::TimestampDiff,
+                        args: vec![ts1, ts2, unit_expr],
+                    })
+                }
                 "SAFE_DIVIDE" => {
                     if args.len() != 2 {
                         return Err(Error::invalid_query(format!(

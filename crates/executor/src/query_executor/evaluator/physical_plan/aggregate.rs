@@ -342,6 +342,47 @@ impl AggregateExec {
                     FunctionName::Coalesce => {
                         args.iter().find_map(|a| Self::infer_expr_type(a, schema))
                     }
+                    FunctionName::DateTrunc
+                    | FunctionName::TruncDate
+                    | FunctionName::Date
+                    | FunctionName::DateAdd
+                    | FunctionName::Dateadd
+                    | FunctionName::Adddate
+                    | FunctionName::DateSub
+                    | FunctionName::Datesub
+                    | FunctionName::Subdate
+                    | FunctionName::CurrentDate
+                    | FunctionName::Curdate
+                    | FunctionName::Today
+                    | FunctionName::ParseDate
+                    | FunctionName::MakeDate
+                    | FunctionName::LastDay => Some(DataType::Date),
+                    FunctionName::CurrentTimestamp
+                    | FunctionName::Now
+                    | FunctionName::Getdate
+                    | FunctionName::TimestampTrunc
+                    | FunctionName::ParseTimestamp
+                    | FunctionName::MakeTimestamp
+                    | FunctionName::AtTimeZone => Some(DataType::Timestamp),
+                    FunctionName::Extract
+                    | FunctionName::DatePart
+                    | FunctionName::Datepart
+                    | FunctionName::DateDiff
+                    | FunctionName::Datediff
+                    | FunctionName::TimestampDiff
+                    | FunctionName::Timestampdiff
+                    | FunctionName::Year
+                    | FunctionName::Month
+                    | FunctionName::Day
+                    | FunctionName::Hour
+                    | FunctionName::Minute
+                    | FunctionName::Second
+                    | FunctionName::Quarter
+                    | FunctionName::Week
+                    | FunctionName::Dow
+                    | FunctionName::Doy
+                    | FunctionName::Dayofweek
+                    | FunctionName::Dayofyear => Some(DataType::Int64),
                     _ => None,
                 }
             }

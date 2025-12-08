@@ -195,7 +195,6 @@ fn test_date_diff() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_date_trunc() {
     let mut executor = create_executor();
     let result = executor
