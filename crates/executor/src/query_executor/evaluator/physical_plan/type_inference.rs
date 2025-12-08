@@ -598,7 +598,9 @@ impl ProjectionWithExprExec {
                     || s == "QUOTE_IDENT"
                     || s == "QUOTE_LITERAL"
                     || s == "REGEXP_EXTRACT"
-                    || s == "REGEXP_REPLACE" =>
+                    || s == "REGEXP_REPLACE"
+                    || s == "REPLACEREGEXPALL"
+                    || s == "REPLACEREGEXPONE" =>
             {
                 Some(DataType::String)
             }
