@@ -598,7 +598,9 @@ impl ProjectionWithExprExec {
                     || s == "QUOTE_IDENT"
                     || s == "QUOTE_LITERAL"
                     || s == "REGEXP_EXTRACT"
-                    || s == "REGEXP_REPLACE" =>
+                    || s == "REGEXP_REPLACE"
+                    || s == "REPLACEREGEXPALL"
+                    || s == "REPLACEREGEXPONE" =>
             {
                 Some(DataType::String)
             }
@@ -1049,10 +1051,10 @@ impl ProjectionWithExprExec {
                 }
             }
 
-            FunctionName::Coalesce => Self::infer_coalesce_type(args, schema),
-            FunctionName::Ifnull | FunctionName::Nvl | FunctionName::Isnull => {
-                Self::infer_first_arg_type(args, schema)
-            }
+            FunctionName::Coalesce
+            | FunctionName::Ifnull
+            | FunctionName::Nvl
+            | FunctionName::Isnull => Self::infer_coalesce_type(args, schema),
             FunctionName::Nullif => Self::infer_first_arg_type(args, schema),
 
             FunctionName::If | FunctionName::Iif => args
@@ -1524,6 +1526,7 @@ impl ProjectionWithExprExec {
             | Expr::TupleInList { .. }
             | Expr::TupleInSubquery { .. }
             | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
+            Expr::Grouping { .. } | Expr::GroupingId { .. } => Some(DataType::Int64),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());
                 for field in fields {
@@ -1639,6 +1642,7 @@ impl ProjectionWithExprExec {
             | Expr::TupleInList { .. }
             | Expr::TupleInSubquery { .. }
             | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
+            Expr::Grouping { .. } | Expr::GroupingId { .. } => Some(DataType::Int64),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());
                 for field in fields {

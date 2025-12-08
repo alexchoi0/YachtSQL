@@ -298,7 +298,23 @@ impl ProjectionWithExprExec {
                 Self::evaluate_struct_field_access(expr, field, batch, row_idx)
             }
 
-            Expr::Grouping { column: _ } => Self::evaluate_grouping(),
+            Expr::Grouping { column } => {
+                let grouping_col_name = format!("__grouping_{}", column);
+                Ok(Self::evaluate_column(&grouping_col_name, batch, row_idx)
+                    .unwrap_or_else(|_| Value::int64(0)))
+            }
+
+            Expr::GroupingId { columns } => {
+                let mut id: i64 = 0;
+                for column in columns {
+                    let grouping_col_name = format!("__grouping_{}", column);
+                    let grouping_val = Self::evaluate_column(&grouping_col_name, batch, row_idx)
+                        .unwrap_or_else(|_| Value::int64(0));
+                    let bit = grouping_val.as_i64().unwrap_or(0);
+                    id = (id << 1) | bit;
+                }
+                Ok(Value::int64(id))
+            }
 
             Expr::Between {
                 expr,

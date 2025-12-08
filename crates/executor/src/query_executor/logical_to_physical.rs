@@ -116,7 +116,7 @@ impl LogicalToPhysicalPlanner {
             Self::validate_column_references(expr, input_schema)?;
 
             let data_type = ProjectionWithExprExec::infer_expr_type_with_schema(expr, input_schema)
-                .unwrap_or(yachtsql_core::types::DataType::String);
+                .unwrap_or(yachtsql_core::types::DataType::Unknown);
 
             let field_name = if let Some(alias) = alias {
                 alias.clone()
@@ -1549,7 +1549,7 @@ impl LogicalToPhysicalPlanner {
                 }
             }
 
-            Expr::Literal(yachtsql_ir::expr::LiteralValue::Null) => DataType::String,
+            Expr::Literal(yachtsql_ir::expr::LiteralValue::Null) => DataType::Unknown,
 
             Expr::Cast { data_type, .. } => self.cast_data_type_to_data_type(data_type),
 
@@ -1606,7 +1606,7 @@ impl LogicalToPhysicalPlanner {
 
         match expr {
             Expr::Literal(lit) => match lit {
-                LiteralValue::Null => DataType::String,
+                LiteralValue::Null => DataType::Unknown,
                 LiteralValue::Boolean(_) => DataType::Bool,
                 LiteralValue::Int64(_) => DataType::Int64,
                 LiteralValue::Float64(_) => DataType::Float64,

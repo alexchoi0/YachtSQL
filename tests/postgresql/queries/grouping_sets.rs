@@ -21,7 +21,6 @@ fn setup_sales_table(executor: &mut yachtsql::QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_grouping_sets_basic() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -48,7 +47,7 @@ fn test_grouping_sets_basic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_grouping_sets_multiple_columns() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -76,7 +75,7 @@ fn test_grouping_sets_multiple_columns() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_rollup_basic() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -105,7 +104,7 @@ fn test_rollup_basic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_rollup_three_columns() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -142,7 +141,7 @@ fn test_rollup_three_columns() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_cube_basic() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -173,7 +172,7 @@ fn test_cube_basic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_cube_three_columns() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -222,7 +221,7 @@ fn test_cube_three_columns() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_grouping_function() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -253,7 +252,7 @@ fn test_grouping_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_grouping_id() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -285,7 +284,7 @@ fn test_grouping_id() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_grouping_sets_with_having() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -312,7 +311,7 @@ fn test_grouping_sets_with_having() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_grouping_sets_with_where() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -339,7 +338,7 @@ fn test_grouping_sets_with_where() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_rollup_partial() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -375,7 +374,7 @@ fn test_rollup_partial() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_cube_partial() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -415,7 +414,7 @@ fn test_cube_partial() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support ROLLUP/CUBE inside GROUPING SETS"]
 fn test_mixed_grouping() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -447,7 +446,7 @@ fn test_mixed_grouping() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_grouping_sets_empty_set() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -465,7 +464,7 @@ fn test_grouping_sets_empty_set() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_rollup_with_count() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -494,7 +493,7 @@ fn test_rollup_with_count() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_cube_with_avg() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -525,7 +524,7 @@ fn test_cube_with_avg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "DISTINCT with GROUPING SETS has column occurrence tracking issues"]
 fn test_grouping_sets_distinct() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -553,7 +552,7 @@ fn test_grouping_sets_distinct() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+
 fn test_filter_by_grouping() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);

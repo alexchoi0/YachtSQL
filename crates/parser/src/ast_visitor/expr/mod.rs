@@ -361,6 +361,27 @@ impl LogicalPlanBuilder {
                     });
                 }
 
+                if name_str.eq_ignore_ascii_case("GROUPING_ID") {
+                    if args.is_empty() {
+                        return Err(Error::invalid_query(
+                            "GROUPING_ID() requires at least 1 argument".to_string(),
+                        ));
+                    }
+
+                    let mut columns = Vec::with_capacity(args.len());
+                    for arg in &args {
+                        match arg {
+                            Expr::Column { name, .. } => columns.push(name.clone()),
+                            _ => {
+                                return Err(Error::invalid_query(
+                                    "GROUPING_ID() arguments must be column references".to_string(),
+                                ));
+                            }
+                        }
+                    }
+                    return Ok(Expr::GroupingId { columns });
+                }
+
                 if name.is_aggregate() && has_distinct {
                     Ok(Expr::Aggregate {
                         name,
