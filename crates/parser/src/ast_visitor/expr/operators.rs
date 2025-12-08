@@ -98,6 +98,7 @@ impl LogicalPlanBuilder {
             ast::BinaryOperator::PGOverlap => Ok(BinaryOp::ArrayOverlap),
             ast::BinaryOperator::ArrowAt => Ok(BinaryOp::ArrayContainedBy),
             ast::BinaryOperator::LtDashGt => Ok(BinaryOp::VectorL2Distance),
+            ast::BinaryOperator::HashMinus => Ok(BinaryOp::HashMinus),
             _ => Err(Error::unsupported_feature(format!(
                 "Binary operator not supported: {:?}",
                 op

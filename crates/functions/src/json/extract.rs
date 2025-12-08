@@ -27,6 +27,32 @@ pub fn json_extract_json(json: &Value, path: &str) -> Result<Value> {
     return_null_if_null!(json);
     let json_val = get_json_value(json)?;
 
+    if let Ok(idx) = path.parse::<usize>() {
+        return match &json_val {
+            JsonValue::Array(arr) => {
+                if idx < arr.len() {
+                    Ok(Value::json(arr[idx].clone()))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            _ => Ok(Value::null()),
+        };
+    }
+
+    if !path.contains('.') && !path.starts_with('$') && !path.starts_with('[') {
+        return match &json_val {
+            JsonValue::Object(obj) => {
+                if let Some(value) = obj.get(path) {
+                    Ok(Value::json(value.clone()))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            _ => Ok(Value::null()),
+        };
+    }
+
     let json_path = parse_json_path(path)?;
 
     let matches = json_path.evaluate(&json_val).map_err(|e| {
@@ -103,6 +129,32 @@ pub fn json_value_with_options(
 pub fn json_value_text(json: &Value, path: &str) -> Result<Value> {
     return_null_if_null!(json);
     let json_val = get_json_value(json)?;
+
+    if let Ok(idx) = path.parse::<usize>() {
+        return match &json_val {
+            JsonValue::Array(arr) => {
+                if idx < arr.len() {
+                    json_value_to_text(&arr[idx])
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            _ => Ok(Value::null()),
+        };
+    }
+
+    if !path.contains('.') && !path.starts_with('$') && !path.starts_with('[') {
+        return match &json_val {
+            JsonValue::Object(obj) => {
+                if let Some(value) = obj.get(path) {
+                    json_value_to_text(value)
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            _ => Ok(Value::null()),
+        };
+    }
 
     extract_and_convert(&json_val, path, json_value_to_text)
 }

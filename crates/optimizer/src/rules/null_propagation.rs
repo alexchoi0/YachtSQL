@@ -104,7 +104,8 @@ impl NullPropagation {
                         | BinaryOp::BitwiseAnd
                         | BinaryOp::BitwiseOr
                         | BinaryOp::BitwiseXor
-                        | BinaryOp::Concat => return Expr::Literal(LiteralValue::Null),
+                        | BinaryOp::Concat
+                        | BinaryOp::HashMinus => return Expr::Literal(LiteralValue::Null),
 
                         BinaryOp::Equal
                         | BinaryOp::NotEqual

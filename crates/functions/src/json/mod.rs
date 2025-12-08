@@ -20,10 +20,10 @@ pub use functions::{JsonOnBehavior, JsonValueEvalOptions, parse_json, to_json, t
 pub use parser::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE, parse_json_with_limits};
 pub use path::JsonPath;
 pub use postgres::{
-    json_keys, json_length, json_type, jsonb_concat, jsonb_contains, jsonb_delete,
-    jsonb_delete_path, jsonb_set,
+    json_keys, json_length, json_strip_nulls, json_type, jsonb_concat, jsonb_contains,
+    jsonb_delete, jsonb_delete_path, jsonb_insert, jsonb_pretty, jsonb_set,
 };
 pub use predicates::{
-    is_json_array, is_json_object, is_json_scalar, is_json_value, json_exists, jsonb_path_exists,
-    jsonb_path_query_first,
+    is_json_array, is_json_object, is_json_scalar, is_json_value, json_exists, jsonb_key_exists,
+    jsonb_keys_all_exist, jsonb_keys_any_exist, jsonb_path_exists, jsonb_path_query_first,
 };

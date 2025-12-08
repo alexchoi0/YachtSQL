@@ -229,6 +229,7 @@ pub enum BinaryOp {
     GeometricContains,
     GeometricContainedBy,
     GeometricOverlap,
+    HashMinus,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

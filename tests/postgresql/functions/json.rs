@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_object_access() {
     let mut executor = create_executor();
     let result = executor
@@ -12,7 +11,6 @@ fn test_json_object_access() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_text_access() {
     let mut executor = create_executor();
     let result = executor
@@ -22,7 +20,6 @@ fn test_json_text_access() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_array_access() {
     let mut executor = create_executor();
     let result = executor
@@ -41,7 +38,7 @@ fn test_json_array_text() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Chained JSON operators (-> followed by ->>) require special handling"]
 fn test_json_nested_access() {
     let mut executor = create_executor();
     let result = executor
@@ -51,7 +48,6 @@ fn test_json_nested_access() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_column() {
     let mut executor = create_executor();
     executor
@@ -68,7 +64,6 @@ fn test_json_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_path_access() {
     let mut executor = create_executor();
     let result = executor
@@ -78,7 +73,6 @@ fn test_json_path_access() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_contains() {
     let mut executor = create_executor();
     let result = executor
@@ -88,7 +82,6 @@ fn test_json_contains() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_exists() {
     let mut executor = create_executor();
     let result = executor
@@ -98,7 +91,6 @@ fn test_json_exists() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof() {
     let mut executor = create_executor();
     let result = executor
@@ -108,7 +100,6 @@ fn test_json_typeof() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_array() {
     let mut executor = create_executor();
     let result = executor
@@ -118,7 +109,6 @@ fn test_json_typeof_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_string() {
     let mut executor = create_executor();
     let result = executor
@@ -128,7 +118,6 @@ fn test_json_typeof_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_number() {
     let mut executor = create_executor();
     let result = executor
@@ -138,7 +127,6 @@ fn test_json_typeof_number() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_array_length() {
     let mut executor = create_executor();
     let result = executor
@@ -148,7 +136,6 @@ fn test_json_array_length() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_pretty() {
     let mut executor = create_executor();
     let result = executor

@@ -34,7 +34,7 @@ impl ProjectionWithExprExec {
             .as_str()
             .ok_or_else(|| Error::invalid_query("JSON path must be a string"))?;
 
-        yachtsql_functions::json::json_extract(&left_val, path_str)
+        yachtsql_functions::json::json_extract_json(&left_val, path_str)
     }
 }
 

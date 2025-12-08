@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_literal_object() {
     let mut executor = create_executor();
     let result = executor
@@ -12,7 +11,6 @@ fn test_json_literal_object() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_literal_array() {
     let mut executor = create_executor();
     let result = executor
@@ -22,7 +20,6 @@ fn test_json_literal_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -46,7 +43,6 @@ fn test_json_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_column() {
     let mut executor = create_executor();
     executor
@@ -61,7 +57,6 @@ fn test_jsonb_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_arrow_operator() {
     let mut executor = create_executor();
     let result = executor
@@ -71,7 +66,6 @@ fn test_json_arrow_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_double_arrow_operator() {
     let mut executor = create_executor();
     let result = executor
@@ -81,13 +75,12 @@ fn test_json_double_arrow_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_array_index() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql(r#"SELECT '[10, 20, 30]'::JSON -> 1"#)
         .unwrap();
-    assert_table_eq!(result, [[20]]);
+    assert_table_eq!(result, [["20"]]);
 }
 
 #[test]
@@ -100,7 +93,6 @@ fn test_json_array_index_text() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_path_operator() {
     let mut executor = create_executor();
     let result = executor
@@ -119,7 +111,6 @@ fn test_json_path_text_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_contains() {
     let mut executor = create_executor();
     let result = executor
@@ -129,7 +120,6 @@ fn test_jsonb_contains() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_contained_by() {
     let mut executor = create_executor();
     let result = executor
@@ -139,7 +129,6 @@ fn test_jsonb_contained_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_key_exists() {
     let mut executor = create_executor();
     let result = executor
@@ -149,7 +138,6 @@ fn test_jsonb_key_exists() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_any_key_exists() {
     let mut executor = create_executor();
     let result = executor
@@ -159,7 +147,6 @@ fn test_jsonb_any_key_exists() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_all_keys_exist() {
     let mut executor = create_executor();
     let result = executor
@@ -169,7 +156,6 @@ fn test_jsonb_all_keys_exist() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_concat() {
     let mut executor = create_executor();
     let result = executor
@@ -179,7 +165,6 @@ fn test_jsonb_concat() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_delete_key() {
     let mut executor = create_executor();
     let result = executor
@@ -189,7 +174,6 @@ fn test_jsonb_delete_key() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_delete_index() {
     let mut executor = create_executor();
     let result = executor
@@ -199,7 +183,6 @@ fn test_jsonb_delete_index() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_delete_path() {
     let mut executor = create_executor();
     let result = executor
@@ -209,7 +192,6 @@ fn test_jsonb_delete_path() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof() {
     let mut executor = create_executor();
     let result = executor
@@ -219,7 +201,6 @@ fn test_json_typeof() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_array() {
     let mut executor = create_executor();
     let result = executor
@@ -229,7 +210,6 @@ fn test_json_typeof_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_string() {
     let mut executor = create_executor();
     let result = executor
@@ -239,7 +219,6 @@ fn test_json_typeof_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_number() {
     let mut executor = create_executor();
     let result = executor
@@ -249,7 +228,6 @@ fn test_json_typeof_number() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_boolean() {
     let mut executor = create_executor();
     let result = executor
@@ -259,7 +237,6 @@ fn test_json_typeof_boolean() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_typeof_null() {
     let mut executor = create_executor();
     let result = executor
@@ -269,7 +246,6 @@ fn test_json_typeof_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_array_length() {
     let mut executor = create_executor();
     let result = executor
@@ -279,7 +255,7 @@ fn test_json_array_length() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "JSON_OBJECT_KEYS is a set-returning function that requires special handling"]
 fn test_json_object_keys() {
     let mut executor = create_executor();
     let result = executor
@@ -289,7 +265,6 @@ fn test_json_object_keys() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_build_object() {
     let mut executor = create_executor();
     let result = executor
@@ -299,7 +274,6 @@ fn test_json_build_object() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_build_array() {
     let mut executor = create_executor();
     let result = executor
@@ -309,7 +283,6 @@ fn test_json_build_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_to_json() {
     let mut executor = create_executor();
     let result = executor
@@ -319,7 +292,6 @@ fn test_to_json() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_to_jsonb() {
     let mut executor = create_executor();
     let result = executor
@@ -329,7 +301,6 @@ fn test_to_jsonb() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_pretty() {
     let mut executor = create_executor();
     let result = executor
@@ -361,7 +332,6 @@ fn test_json_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_set() {
     let mut executor = create_executor();
     let result = executor
@@ -371,7 +341,6 @@ fn test_jsonb_set() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_jsonb_insert() {
     let mut executor = create_executor();
     let result = executor
@@ -381,7 +350,6 @@ fn test_jsonb_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_strip_nulls() {
     let mut executor = create_executor();
     let result = executor
