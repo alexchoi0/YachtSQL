@@ -170,7 +170,9 @@ fn register_json_construction(registry: &mut FunctionRegistry) {
             variadic: true,
             evaluator: |args| {
                 if args.is_empty() {
-                    return Err(Error::invalid_query("TO_JSONB requires at least one argument"));
+                    return Err(Error::invalid_query(
+                        "TO_JSONB requires at least one argument",
+                    ));
                 }
                 crate::json::functions::to_json(&args[0])
             },

@@ -290,7 +290,6 @@ fn test_lateral_with_cte() {
 }
 
 #[test]
-#[ignore = "LATERAL JSON_EACH requires further schema resolution work"]
 fn test_lateral_json_each() {
     let mut executor = create_executor();
 

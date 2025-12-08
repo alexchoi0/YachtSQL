@@ -1117,9 +1117,11 @@ impl TableValuedFunctionExec {
     }
 
     fn evaluate_args(&self) -> Result<Vec<crate::types::Value>> {
+        use yachtsql_ir::expr::{Expr, LiteralValue};
         use yachtsql_storage::row::Row;
 
         use crate::query_executor::expression_evaluator::ExpressionEvaluator;
+        use crate::types::Value;
 
         let empty_schema = Schema::from_fields(vec![]);
         let evaluator = ExpressionEvaluator::new(&empty_schema);
@@ -1128,6 +1130,12 @@ impl TableValuedFunctionExec {
         self.args
             .iter()
             .map(|expr| {
+                if let Expr::Literal(LiteralValue::Json(s)) = expr {
+                    return match serde_json::from_str(s) {
+                        Ok(json) => Ok(Value::json(json)),
+                        Err(_) => Ok(Value::null()),
+                    };
+                }
                 let ast_expr = self.ir_expr_to_sql_expr(expr);
                 evaluator.evaluate_expr(&ast_expr, &empty_row)
             })
@@ -1153,6 +1161,12 @@ impl TableValuedFunctionExec {
                 LiteralValue::Int64(i) => value_expr(AstValue::Number(i.to_string(), false)),
                 LiteralValue::Float64(f) => value_expr(AstValue::Number(f.to_string(), false)),
                 LiteralValue::String(s) => value_expr(AstValue::SingleQuotedString(s.clone())),
+                LiteralValue::Json(s) => ast::Expr::Cast {
+                    kind: ast::CastKind::Cast,
+                    expr: Box::new(value_expr(AstValue::SingleQuotedString(s.clone()))),
+                    data_type: ast::DataType::JSON,
+                    format: None,
+                },
                 _ => value_expr(AstValue::Null),
             },
             Expr::Column { name, table } => {

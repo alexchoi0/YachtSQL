@@ -66,11 +66,7 @@ impl ProjectionWithExprExec {
         }
     }
 
-    fn evaluate_json_strip_nulls(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
+    fn evaluate_json_strip_nulls(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
         if args.is_empty() {
             return Err(Error::invalid_query(
                 "JSON_STRIP_NULLS requires at least 1 argument".to_string(),

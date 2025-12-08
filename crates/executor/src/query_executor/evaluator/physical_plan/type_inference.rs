@@ -888,9 +888,7 @@ impl ProjectionWithExprExec {
 
             FunctionName::Custom(s) if s == "TO_JSON_STRING" => Some(DataType::String),
             FunctionName::Custom(s) if s == "JSONB_PRETTY" => Some(DataType::String),
-            FunctionName::Custom(s)
-                if s == "JSON_OBJECT_KEYS" || s == "JSONB_OBJECT_KEYS" =>
-            {
+            FunctionName::Custom(s) if s == "JSON_OBJECT_KEYS" || s == "JSONB_OBJECT_KEYS" => {
                 Some(DataType::String)
             }
 

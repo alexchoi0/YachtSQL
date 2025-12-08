@@ -1522,7 +1522,9 @@ impl AggregateExec {
                             Value::json(serde_json::Value::Array(non_null_values))
                         }
                     }
-                    FunctionName::Custom(s) if s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG" => {
+                    FunctionName::Custom(s)
+                        if s == "JSON_OBJECT_AGG" || s == "JSONB_OBJECT_AGG" =>
+                    {
                         let mut obj = serde_json::Map::new();
                         for val in &values {
                             if val.is_null() {

@@ -474,7 +474,8 @@ fn apply_jsonb_insert(
                 object.insert(key.clone(), new_value.clone());
             } else {
                 let existing = object.get(key).cloned().unwrap_or(JsonValue::Null);
-                let updated_value = apply_jsonb_insert(&existing, &path[1..], new_value, insert_after)?;
+                let updated_value =
+                    apply_jsonb_insert(&existing, &path[1..], new_value, insert_after)?;
                 object.insert(key.clone(), updated_value);
             }
             Ok(JsonValue::Object(object))
@@ -494,7 +495,8 @@ fn apply_jsonb_insert(
                 array.insert(insert_idx, new_value.clone());
             } else if *idx < array.len() {
                 let existing = array[*idx].clone();
-                let updated_child = apply_jsonb_insert(&existing, &path[1..], new_value, insert_after)?;
+                let updated_child =
+                    apply_jsonb_insert(&existing, &path[1..], new_value, insert_after)?;
                 array[*idx] = updated_child;
             }
 
@@ -541,9 +543,7 @@ fn strip_nulls_recursive(json: &JsonValue) -> JsonValue {
             }
             JsonValue::Object(new_map)
         }
-        JsonValue::Array(arr) => {
-            JsonValue::Array(arr.iter().map(strip_nulls_recursive).collect())
-        }
+        JsonValue::Array(arr) => JsonValue::Array(arr.iter().map(strip_nulls_recursive).collect()),
         _ => json.clone(),
     }
 }

@@ -1621,10 +1621,7 @@ impl LogicalPlanBuilder {
                 }))
             }
             ast::TableFactor::Function {
-                name,
-                args,
-                alias,
-                ..
+                name, args, alias, ..
             } => {
                 let function_name = Self::object_name_to_string(name);
                 let table_alias = alias.as_ref().map(|a| a.name.value.clone());
