@@ -245,6 +245,12 @@ impl LogicalPlanBuilder {
     }
 
     pub(super) fn parse_byte_string_with_escapes(s: &str) -> Result<LiteralValue> {
+        if let Some(hex_str) = s.strip_prefix("\\x")
+            && hex_str.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Self::parse_hex_literal(hex_str);
+        }
+
         let mut bytes = Vec::new();
         let mut chars = s.chars().peekable();
 
