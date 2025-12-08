@@ -279,11 +279,14 @@ impl AlterTableExecutor for QueryExecutor {
                                 self.validate_check_constraint(table, &expr_str)?;
                             }
 
-                            table.schema_mut().add_check_constraint(CheckConstraint {
-                                name: constraint_name,
-                                expression: expr_str,
-                                enforced: is_enforced,
-                            });
+                            table.schema_mut().add_check_constraint_with_validity(
+                                CheckConstraint {
+                                    name: constraint_name,
+                                    expression: expr_str,
+                                    enforced: is_enforced,
+                                },
+                                !skip_validation,
+                            );
                         }
                         TableConstraint::ForeignKey {
                             name,
@@ -326,7 +329,10 @@ impl AlterTableExecutor for QueryExecutor {
                                 }
                             }
 
-                            table.schema_mut().add_foreign_key(foreign_key.clone());
+                            table.schema_mut().add_foreign_key_with_validity(
+                                foreign_key.clone(),
+                                !skip_validation,
+                            );
                             table.add_foreign_key(foreign_key)?;
                         }
                         _ => {
@@ -338,7 +344,9 @@ impl AlterTableExecutor for QueryExecutor {
                     }
                 }
 
-                AlterTableOperation::DropConstraint { name, .. } => {
+                AlterTableOperation::DropConstraint {
+                    name, if_exists, ..
+                } => {
                     let constraint_name = name.to_string();
 
                     let removed_check = table
@@ -353,7 +361,7 @@ impl AlterTableExecutor for QueryExecutor {
                             .remove_foreign_key_by_name(&constraint_name);
                     }
 
-                    if !removed_check && !removed_fk {
+                    if !removed_check && !removed_fk && !if_exists {
                         return Err(Error::invalid_query(format!(
                             "Constraint '{}' does not exist",
                             constraint_name
@@ -381,14 +389,31 @@ impl AlterTableExecutor for QueryExecutor {
                 }
 
                 AlterTableOperation::ValidateConstraint { name } => {
+                    use yachtsql_storage::schema::ConstraintTypeTag;
+
                     let constraint_name = name.to_string();
 
-                    if !table.schema().has_constraint(&constraint_name) {
-                        return Err(Error::invalid_query(format!(
-                            "Constraint '{}' does not exist",
-                            constraint_name
-                        )));
+                    let constraint_metadata = table
+                        .schema()
+                        .get_constraint_metadata(&constraint_name)
+                        .ok_or_else(|| {
+                            Error::invalid_query(format!(
+                                "Constraint '{}' does not exist",
+                                constraint_name
+                            ))
+                        })?
+                        .clone();
+
+                    match constraint_metadata.constraint_type {
+                        ConstraintTypeTag::Check => {
+                            self.validate_check_constraint(table, &constraint_metadata.definition)?;
+                        }
+                        ConstraintTypeTag::ForeignKey
+                        | ConstraintTypeTag::Unique
+                        | ConstraintTypeTag::PrimaryKey => {}
                     }
+
+                    table.schema_mut().set_constraint_valid(&constraint_name);
                 }
 
                 AlterTableOperation::ModifyColumn {

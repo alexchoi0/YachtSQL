@@ -244,6 +244,7 @@ pub struct ConstraintMetadata {
     pub constraint_type: ConstraintTypeTag,
     pub columns: Vec<String>,
     pub definition: String,
+    pub is_valid: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -394,6 +395,14 @@ impl Schema {
     }
 
     pub fn add_check_constraint(&mut self, constraint: CheckConstraint) {
+        self.add_check_constraint_with_validity(constraint, true);
+    }
+
+    pub fn add_check_constraint_with_validity(
+        &mut self,
+        constraint: CheckConstraint,
+        is_valid: bool,
+    ) {
         if let Some(ref name) = constraint.name {
             self.constraint_metadata.insert(
                 name.clone(),
@@ -401,6 +410,7 @@ impl Schema {
                     constraint_type: ConstraintTypeTag::Check,
                     columns: vec![],
                     definition: constraint.expression.clone(),
+                    is_valid,
                 },
             );
         }
@@ -426,6 +436,14 @@ impl Schema {
     }
 
     pub fn add_foreign_key(&mut self, foreign_key: crate::ForeignKey) {
+        self.add_foreign_key_with_validity(foreign_key, true);
+    }
+
+    pub fn add_foreign_key_with_validity(
+        &mut self,
+        foreign_key: crate::ForeignKey,
+        is_valid: bool,
+    ) {
         if let Some(ref name) = foreign_key.name {
             self.constraint_metadata.insert(
                 name.clone(),
@@ -438,6 +456,7 @@ impl Schema {
                         foreign_key.parent_table,
                         foreign_key.parent_columns.join(", ")
                     ),
+                    is_valid,
                 },
             );
         }
@@ -513,6 +532,19 @@ impl Schema {
 
     pub fn has_constraint(&self, name: &str) -> bool {
         self.constraint_metadata.contains_key(name)
+    }
+
+    pub fn set_constraint_valid(&mut self, name: &str) -> bool {
+        if let Some(metadata) = self.constraint_metadata.get_mut(name) {
+            metadata.is_valid = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_constraint_valid(&self, name: &str) -> Option<bool> {
+        self.constraint_metadata.get(name).map(|m| m.is_valid)
     }
 
     pub fn validate(&self) -> Result<()> {
