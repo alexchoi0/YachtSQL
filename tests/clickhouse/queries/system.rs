@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_reload_dictionary() {
     let mut executor = create_executor();
@@ -25,28 +24,24 @@ fn test_system_reload_dictionary() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_reload_dictionaries() {
     let mut executor = create_executor();
     executor.execute_sql("SYSTEM RELOAD DICTIONARIES").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_drop_dns_cache() {
     let mut executor = create_executor();
     executor.execute_sql("SYSTEM DROP DNS CACHE").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_drop_mark_cache() {
     let mut executor = create_executor();
     executor.execute_sql("SYSTEM DROP MARK CACHE").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_drop_uncompressed_cache() {
     let mut executor = create_executor();
@@ -55,7 +50,6 @@ fn test_system_drop_uncompressed_cache() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_drop_compiled_expression_cache() {
     let mut executor = create_executor();
@@ -64,14 +58,12 @@ fn test_system_drop_compiled_expression_cache() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_flush_logs() {
     let mut executor = create_executor();
     executor.execute_sql("SYSTEM FLUSH LOGS").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_stop_merges() {
     let mut executor = create_executor();
@@ -83,7 +75,6 @@ fn test_system_stop_merges() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_start_merges() {
     let mut executor = create_executor();
@@ -98,7 +89,6 @@ fn test_system_start_merges() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_stop_ttl_merges() {
     let mut executor = create_executor();
@@ -110,7 +100,6 @@ fn test_system_stop_ttl_merges() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_start_ttl_merges() {
     let mut executor = create_executor();
@@ -125,7 +114,6 @@ fn test_system_start_ttl_merges() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_stop_moves() {
     let mut executor = create_executor();
@@ -137,7 +125,6 @@ fn test_system_stop_moves() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_start_moves() {
     let mut executor = create_executor();
@@ -152,7 +139,6 @@ fn test_system_start_moves() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_stop_fetches() {
     let mut executor = create_executor();
@@ -164,7 +150,6 @@ fn test_system_stop_fetches() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_start_fetches() {
     let mut executor = create_executor();
@@ -179,7 +164,6 @@ fn test_system_start_fetches() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_stop_sends() {
     let mut executor = create_executor();
@@ -191,7 +175,6 @@ fn test_system_stop_sends() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_start_sends() {
     let mut executor = create_executor();
@@ -206,7 +189,6 @@ fn test_system_start_sends() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_stop_replication_queues() {
     let mut executor = create_executor();
@@ -218,7 +200,6 @@ fn test_system_stop_replication_queues() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_start_replication_queues() {
     let mut executor = create_executor();
@@ -233,7 +214,6 @@ fn test_system_start_replication_queues() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_sync_replica() {
     let mut executor = create_executor();
@@ -245,7 +225,6 @@ fn test_system_sync_replica() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_drop_replica() {
     let mut executor = create_executor();
@@ -254,14 +233,12 @@ fn test_system_drop_replica() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_reload_config() {
     let mut executor = create_executor();
     executor.execute_sql("SYSTEM RELOAD CONFIG").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_shutdown() {
     let mut executor = create_executor();
@@ -269,7 +246,6 @@ fn test_system_shutdown() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_system_kill() {
     let mut executor = create_executor();

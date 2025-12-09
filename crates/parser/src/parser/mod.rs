@@ -265,6 +265,21 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_system_command(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_system_command(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_create_dictionary(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                ClickHouseParser::parse_create_dictionary(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         Ok(None)
     }
 

@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_basic() {
     let mut executor = create_executor();
@@ -18,7 +18,7 @@ fn test_array_join_basic() {
     assert_table_eq!(result, [[1, "a"], [1, "b"], [1, "c"], [2, "x"], [2, "y"]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_with_alias() {
     let mut executor = create_executor();
@@ -35,7 +35,7 @@ fn test_array_join_with_alias() {
     assert_table_eq!(result, [[1, 10], [1, 20], [1, 30]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_left_array_join() {
     let mut executor = create_executor();
@@ -52,7 +52,7 @@ fn test_left_array_join() {
     assert!(result.num_rows() == 4); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_multiple_arrays() {
     let mut executor = create_executor();
@@ -71,7 +71,7 @@ fn test_array_join_multiple_arrays() {
     assert_table_eq!(result, [[1, "a", 10], [1, "b", 20]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_with_array_enumerate() {
     let mut executor = create_executor();
@@ -93,7 +93,7 @@ fn test_array_join_with_array_enumerate() {
     assert_table_eq!(result, [[1, "first", 1], [1, "second", 2], [1, "third", 3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_nested() {
     let mut executor = create_executor();
@@ -133,7 +133,7 @@ fn test_array_join_nested() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_with_where() {
     let mut executor = create_executor();
@@ -156,7 +156,7 @@ fn test_array_join_with_where() {
     assert_table_eq!(result, [[1, 50], [2, 80], [1, 90]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_aggregation() {
     let mut executor = create_executor();
@@ -184,7 +184,7 @@ fn test_array_join_aggregation() {
     assert_table_eq!(result, [["A", 15], ["B", 30]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_with_original_array() {
     let mut executor = create_executor();
@@ -205,7 +205,7 @@ fn test_array_join_with_original_array() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_empty_handling() {
     let mut executor = create_executor();
@@ -234,7 +234,7 @@ fn test_array_join_empty_handling() {
     assert_eq!(left_result.num_rows(), 4);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_with_map() {
     let mut executor = create_executor();
@@ -256,7 +256,7 @@ fn test_array_join_with_map() {
     assert_table_eq!(result, [[1, "a", 1], [1, "b", 2], [2, "x", 10]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_subquery() {
     let mut executor = create_executor();
@@ -271,7 +271,7 @@ fn test_array_join_subquery() {
     assert!(result.num_rows() == 9); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_with_tuple_array() {
     let mut executor = create_executor();
@@ -292,7 +292,7 @@ fn test_array_join_with_tuple_array() {
     assert_table_eq!(result, [[1, "a", 1], [1, "b", 2]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ARRAY JOIN support"]
 #[test]
 fn test_array_join_grouping_set() {
     let mut executor = create_executor();

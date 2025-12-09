@@ -1,6 +1,6 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_join_basic() {
     let mut executor = create_executor();
@@ -50,7 +50,7 @@ fn test_asof_join_basic() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_left_join() {
     let mut executor = create_executor();
@@ -99,7 +99,7 @@ fn test_asof_left_join() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_join_with_using() {
     let mut executor = create_executor();
@@ -149,7 +149,7 @@ fn test_asof_join_with_using() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_join_strict() {
     let mut executor = create_executor();
@@ -201,7 +201,7 @@ fn test_asof_join_strict() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_join_less_than() {
     let mut executor = create_executor();
@@ -248,7 +248,7 @@ fn test_asof_join_less_than() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_join_with_multiple_conditions() {
     let mut executor = create_executor();
@@ -303,7 +303,7 @@ fn test_asof_join_with_multiple_conditions() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_join_time_series() {
     let mut executor = create_executor();
@@ -361,7 +361,7 @@ fn test_asof_join_time_series() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires ASOF JOIN support"]
 #[test]
 fn test_asof_join_currency_rates() {
     let mut executor = create_executor();

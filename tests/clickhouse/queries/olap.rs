@@ -57,7 +57,7 @@ fn test_olap_fact_dimension_join() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_rollup_hierarchy() {
     let mut executor = create_executor();
@@ -88,7 +88,7 @@ fn test_olap_rollup_hierarchy() {
     assert!(result.num_rows() >= 12);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_cube_analysis() {
     let mut executor = create_executor();
@@ -202,7 +202,7 @@ fn test_olap_moving_average() {
     assert!(result.num_rows() == 7); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_percentile_analysis() {
     let mut executor = create_executor();
@@ -232,7 +232,7 @@ fn test_olap_percentile_analysis() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_top_n_per_group() {
     let mut executor = create_executor();
@@ -260,7 +260,7 @@ fn test_olap_top_n_per_group() {
     assert!(result.num_rows() == 4); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_market_basket() {
     let mut executor = create_executor();
@@ -293,7 +293,7 @@ fn test_olap_market_basket() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_cohort_analysis() {
     let mut executor = create_executor();
@@ -330,7 +330,7 @@ fn test_olap_cohort_analysis() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_funnel_analysis() {
     let mut executor = create_executor();
@@ -367,7 +367,7 @@ fn test_olap_funnel_analysis() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_sessionization() {
     let mut executor = create_executor();
@@ -414,7 +414,7 @@ fn test_olap_sessionization() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_time_series_fill() {
     let mut executor = create_executor();
@@ -447,7 +447,7 @@ fn test_olap_time_series_fill() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_pareto_analysis() {
     let mut executor = create_executor();
@@ -475,7 +475,7 @@ fn test_olap_pareto_analysis() {
     assert!(result.num_rows() == 6); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_abc_classification() {
     let mut executor = create_executor();
@@ -513,7 +513,7 @@ fn test_olap_abc_classification() {
     assert!(result.num_rows() == 10); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires complex subquery support"]
 #[test]
 fn test_olap_growth_rate() {
     let mut executor = create_executor();

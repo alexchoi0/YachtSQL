@@ -3,7 +3,7 @@ use sqlparser::tokenizer::Token;
 use yachtsql_core::error::{Error, Result};
 
 use super::helpers::ParserHelpers;
-use crate::validator::CustomStatement;
+use crate::validator::{ClickHouseSystemCommand, CustomStatement};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClickHouseIndexType {
@@ -400,6 +400,310 @@ impl ClickHouseParser {
                 other
             ))),
         }
+    }
+
+    pub fn is_system_command(tokens: &[&Token]) -> bool {
+        matches!(tokens.first(), Some(Token::Word(w)) if w.value.eq_ignore_ascii_case("SYSTEM"))
+    }
+
+    pub fn is_create_dictionary(tokens: &[&Token]) -> bool {
+        let mut idx = 0;
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
+            return false;
+        }
+        ParserHelpers::expect_keyword(tokens, &mut idx, "DICTIONARY")
+    }
+
+    pub fn parse_create_dictionary(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
+            return Ok(None);
+        }
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "DICTIONARY") {
+            return Ok(None);
+        }
+
+        let name = Self::parse_qualified_name(tokens, &mut idx)?;
+
+        Ok(Some(CustomStatement::ClickHouseCreateDictionary { name }))
+    }
+
+    pub fn parse_system_command(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "SYSTEM") {
+            return Ok(None);
+        }
+
+        let command = Self::parse_system_command_type(tokens, &mut idx)?;
+
+        Ok(Some(CustomStatement::ClickHouseSystem { command }))
+    }
+
+    fn parse_system_command_type(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "RELOAD" => Self::parse_reload_command(tokens, idx),
+            "DROP" => Self::parse_drop_cache_command(tokens, idx),
+            "FLUSH" => Self::parse_flush_command(tokens, idx),
+            "STOP" => Self::parse_stop_command(tokens, idx),
+            "START" => Self::parse_start_command(tokens, idx),
+            "SYNC" => Self::parse_sync_command(tokens, idx),
+            "SHUTDOWN" => Ok(ClickHouseSystemCommand::Shutdown),
+            "KILL" => Ok(ClickHouseSystemCommand::Kill),
+            _ => Err(Error::parse_error(format!(
+                "Unknown SYSTEM command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_reload_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "DICTIONARY" => {
+                let name = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::ReloadDictionary { name })
+            }
+            "DICTIONARIES" => Ok(ClickHouseSystemCommand::ReloadDictionaries),
+            "CONFIG" => Ok(ClickHouseSystemCommand::ReloadConfig),
+            _ => Err(Error::parse_error(format!(
+                "Unknown RELOAD command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_drop_cache_command(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<ClickHouseSystemCommand> {
+        let mut keywords = Vec::new();
+        while *idx < tokens.len() {
+            if let Some(Token::Word(w)) = tokens.get(*idx) {
+                keywords.push(w.value.to_uppercase());
+                *idx += 1;
+            } else {
+                break;
+            }
+        }
+
+        let combined = keywords.join(" ");
+        match combined.as_str() {
+            "DNS CACHE" => Ok(ClickHouseSystemCommand::DropDnsCache),
+            "MARK CACHE" => Ok(ClickHouseSystemCommand::DropMarkCache),
+            "UNCOMPRESSED CACHE" => Ok(ClickHouseSystemCommand::DropUncompressedCache),
+            "COMPILED EXPRESSION CACHE" => Ok(ClickHouseSystemCommand::DropCompiledExpressionCache),
+            s if s.starts_with("REPLICA") => {
+                let replica_name = if keywords.len() >= 2 {
+                    keywords.get(1).cloned()
+                } else {
+                    Self::try_parse_string_literal(tokens, idx)
+                };
+                let replica_name = replica_name.ok_or_else(|| {
+                    Error::parse_error("Expected replica name after DROP REPLICA".to_string())
+                })?;
+
+                let from_table = if ParserHelpers::consume_keyword(tokens, idx, "FROM") {
+                    ParserHelpers::consume_keyword(tokens, idx, "TABLE");
+                    Self::try_parse_qualified_name_string(tokens, idx)
+                } else {
+                    None
+                };
+
+                Ok(ClickHouseSystemCommand::DropReplica {
+                    replica_name: replica_name.trim_matches('\'').to_string(),
+                    from_table,
+                })
+            }
+            _ => Err(Error::parse_error(format!(
+                "Unknown DROP cache command: {}",
+                combined
+            ))),
+        }
+    }
+
+    fn parse_flush_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "LOGS" => Ok(ClickHouseSystemCommand::FlushLogs),
+            _ => Err(Error::parse_error(format!(
+                "Unknown FLUSH command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_stop_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "MERGES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopMerges { table })
+            }
+            "TTL" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "MERGES") {
+                    return Err(Error::parse_error("Expected MERGES after TTL".to_string()));
+                }
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopTtlMerges { table })
+            }
+            "MOVES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopMoves { table })
+            }
+            "FETCHES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopFetches { table })
+            }
+            "SENDS" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopSends { table })
+            }
+            "REPLICATION" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "QUEUES") {
+                    return Err(Error::parse_error(
+                        "Expected QUEUES after REPLICATION".to_string(),
+                    ));
+                }
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopReplicationQueues { table })
+            }
+            _ => Err(Error::parse_error(format!(
+                "Unknown STOP command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_start_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "MERGES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartMerges { table })
+            }
+            "TTL" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "MERGES") {
+                    return Err(Error::parse_error("Expected MERGES after TTL".to_string()));
+                }
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartTtlMerges { table })
+            }
+            "MOVES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartMoves { table })
+            }
+            "FETCHES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartFetches { table })
+            }
+            "SENDS" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartSends { table })
+            }
+            "REPLICATION" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "QUEUES") {
+                    return Err(Error::parse_error(
+                        "Expected QUEUES after REPLICATION".to_string(),
+                    ));
+                }
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartReplicationQueues { table })
+            }
+            _ => Err(Error::parse_error(format!(
+                "Unknown START command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_sync_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "REPLICA" => {
+                let table = Self::try_parse_identifier(tokens, idx).ok_or_else(|| {
+                    Error::parse_error("Expected table name after SYNC REPLICA".to_string())
+                })?;
+                Ok(ClickHouseSystemCommand::SyncReplica { table })
+            }
+            _ => Err(Error::parse_error(format!(
+                "Unknown SYNC command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn get_keyword(tokens: &[&Token], idx: usize) -> Result<String> {
+        match tokens.get(idx) {
+            Some(Token::Word(w)) => Ok(w.value.clone()),
+            other => Err(Error::parse_error(format!(
+                "Expected keyword, found {:?}",
+                other
+            ))),
+        }
+    }
+
+    fn try_parse_identifier(tokens: &[&Token], idx: &mut usize) -> Option<String> {
+        match tokens.get(*idx) {
+            Some(Token::Word(w)) => {
+                *idx += 1;
+                Some(w.value.clone())
+            }
+            Some(Token::DoubleQuotedString(s)) | Some(Token::SingleQuotedString(s)) => {
+                *idx += 1;
+                Some(s.clone())
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_string_literal(tokens: &[&Token], idx: &mut usize) -> Option<String> {
+        match tokens.get(*idx) {
+            Some(Token::SingleQuotedString(s)) | Some(Token::DoubleQuotedString(s)) => {
+                *idx += 1;
+                Some(s.clone())
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_qualified_name_string(tokens: &[&Token], idx: &mut usize) -> Option<String> {
+        let mut parts = vec![];
+
+        if let Some(first) = Self::try_parse_identifier(tokens, idx) {
+            parts.push(first);
+        } else {
+            return None;
+        }
+
+        while matches!(tokens.get(*idx), Some(Token::Period)) {
+            *idx += 1;
+            if let Some(next) = Self::try_parse_identifier(tokens, idx) {
+                parts.push(next);
+            } else {
+                break;
+            }
+        }
+
+        Some(parts.join("."))
     }
 }
 

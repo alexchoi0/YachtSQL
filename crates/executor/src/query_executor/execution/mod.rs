@@ -399,6 +399,8 @@ impl QueryExecutor {
                     Self::empty_result()
                 }
                 CustomStatement::ClickHouseCreateIndex { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseSystem { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseCreateDictionary { .. } => Self::empty_result(),
                 CustomStatement::AlterTableRestartIdentity { .. }
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
