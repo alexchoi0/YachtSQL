@@ -1,3 +1,4 @@
+use unicode_normalization::UnicodeNormalization;
 use yachtsql_core::error::Result;
 use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
@@ -51,6 +52,82 @@ impl ProjectionWithExprExec {
                     to_val.data_type()
                 ),
             })
+        }
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_translate_utf8(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::evaluate_translate(args, batch, row_idx)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_normalize_utf8_nfc(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("normalizeUTF8NFC", args, 1)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        match val.as_str() {
+            Some(s) => Ok(Value::string(s.nfc().collect::<String>())),
+            None if val.is_null() => Ok(Value::null()),
+            None => Err(crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            }),
+        }
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_normalize_utf8_nfd(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("normalizeUTF8NFD", args, 1)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        match val.as_str() {
+            Some(s) => Ok(Value::string(s.nfd().collect::<String>())),
+            None if val.is_null() => Ok(Value::null()),
+            None => Err(crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            }),
+        }
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_normalize_utf8_nfkc(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("normalizeUTF8NFKC", args, 1)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        match val.as_str() {
+            Some(s) => Ok(Value::string(s.nfkc().collect::<String>())),
+            None if val.is_null() => Ok(Value::null()),
+            None => Err(crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            }),
+        }
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_normalize_utf8_nfkd(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("normalizeUTF8NFKD", args, 1)?;
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        match val.as_str() {
+            Some(s) => Ok(Value::string(s.nfkd().collect::<String>())),
+            None if val.is_null() => Ok(Value::null()),
+            None => Err(crate::error::Error::TypeMismatch {
+                expected: "STRING".to_string(),
+                actual: val.data_type().to_string(),
+            }),
         }
     }
 }

@@ -85,11 +85,37 @@ impl ProjectionWithExprExec {
             "JUSTIFY_DAYS" => Self::eval_justify_days(args, batch, row_idx),
             "JUSTIFY_HOURS" => Self::eval_justify_hours(args, batch, row_idx),
             "JUSTIFY_INTERVAL" => Self::eval_justify_interval(args, batch, row_idx),
+            "TO_DATE" | "TODATE" => Self::eval_ch_to_date(args, batch, row_idx),
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown datetime function: {}",
                 name
             ))),
         }
+    }
+
+    fn eval_ch_to_date(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query("toDate requires 1 argument"));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(d) = val.as_date() {
+            return Ok(Value::date(d));
+        }
+        if let Some(ts) = val.as_timestamp() {
+            return Ok(Value::date(ts.date_naive()));
+        }
+        if let Some(s) = val.as_str() {
+            let date = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .map_err(|_| Error::invalid_query(format!("Invalid date format: {}", s)))?;
+            return Ok(Value::date(date));
+        }
+        Err(Error::TypeMismatch {
+            expected: "DATE, TIMESTAMP, or STRING".to_string(),
+            actual: val.data_type().to_string(),
+        })
     }
 
     fn eval_justify_days(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {

@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_by_char() {
     let mut executor = create_executor();
@@ -11,7 +10,6 @@ fn test_split_by_char() {
     assert_table_eq!(result, [[["a", "b", "c", "d"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_by_string() {
     let mut executor = create_executor();
@@ -21,7 +19,6 @@ fn test_split_by_string() {
     assert_table_eq!(result, [[["a", "b", "c"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_by_regexp() {
     let mut executor = create_executor();
@@ -31,7 +28,6 @@ fn test_split_by_regexp() {
     assert_table_eq!(result, [[["a", "b", "c", "d"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_by_whitespace() {
     let mut executor = create_executor();
@@ -41,7 +37,6 @@ fn test_split_by_whitespace() {
     assert_table_eq!(result, [[["hello", "world", "test"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_by_non_alpha() {
     let mut executor = create_executor();
@@ -51,7 +46,6 @@ fn test_split_by_non_alpha() {
     assert_table_eq!(result, [[["hello", "world", "test"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_string_concat() {
     let mut executor = create_executor();
@@ -61,7 +55,6 @@ fn test_array_string_concat() {
     assert_table_eq!(result, [["a-b-c"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_string_concat_no_sep() {
     let mut executor = create_executor();
@@ -71,7 +64,6 @@ fn test_array_string_concat_no_sep() {
     assert_table_eq!(result, [["abc"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_alpha_tokens() {
     let mut executor = create_executor();
@@ -81,7 +73,6 @@ fn test_alpha_tokens() {
     assert_table_eq!(result, [[["hello", "world"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_extract_all() {
     let mut executor = create_executor();
@@ -91,7 +82,6 @@ fn test_extract_all() {
     assert_table_eq!(result, [[["123", "456"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_extract_all_groups_horizontal() {
     let mut executor = create_executor();
@@ -101,7 +91,6 @@ fn test_extract_all_groups_horizontal() {
     assert_table_eq!(result, [[[["abc", "def"], ["123", "456"]]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_extract_all_groups_vertical() {
     let mut executor = create_executor();
@@ -111,7 +100,6 @@ fn test_extract_all_groups_vertical() {
     assert_table_eq!(result, [[[["abc", "123"], ["def", "456"]]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ngrams() {
     let mut executor = create_executor();
@@ -119,7 +107,6 @@ fn test_ngrams() {
     assert_table_eq!(result, [[["he", "el", "ll", "lo"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tokens() {
     let mut executor = create_executor();
@@ -129,7 +116,6 @@ fn test_tokens() {
     assert_table_eq!(result, [[["hello", "world", "how", "are", "you"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_by_char_max_substrings() {
     let mut executor = create_executor();
@@ -139,7 +125,6 @@ fn test_split_by_char_max_substrings() {
     assert_table_eq!(result, [[["a", "b", "c,d,e"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_by_string_max_substrings() {
     let mut executor = create_executor();
@@ -149,7 +134,6 @@ fn test_split_by_string_max_substrings() {
     assert_table_eq!(result, [[["a", "b::c::d"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_empty_string() {
     let mut executor = create_executor();
@@ -157,7 +141,6 @@ fn test_split_empty_string() {
     assert_table_eq!(result, [[[""]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_no_delimiter() {
     let mut executor = create_executor();
@@ -230,7 +213,6 @@ fn test_split_and_access() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_concat_and_split_roundtrip() {
     let mut executor = create_executor();

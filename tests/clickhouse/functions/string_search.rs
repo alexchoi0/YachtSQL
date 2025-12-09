@@ -1,12 +1,11 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_position() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT position('hello world', 'world')")
+        .execute_sql("SELECT position('world', 'hello world')")
         .unwrap();
     assert_table_eq!(result, [[7]]);
 }
@@ -29,7 +28,6 @@ fn test_position_case_sensitive() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_position_case_insensitive() {
     let mut executor = create_executor();
@@ -39,7 +37,6 @@ fn test_position_case_insensitive() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_position_utf8() {
     let mut executor = create_executor();
@@ -49,7 +46,6 @@ fn test_position_utf8() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_position_case_insensitive_utf8() {
     let mut executor = create_executor();
@@ -59,7 +55,6 @@ fn test_position_case_insensitive_utf8() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_locate() {
     let mut executor = create_executor();
@@ -69,7 +64,6 @@ fn test_locate() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_search_any() {
     let mut executor = create_executor();
@@ -79,7 +73,6 @@ fn test_multi_search_any() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_search_first_index() {
     let mut executor = create_executor();
@@ -89,7 +82,6 @@ fn test_multi_search_first_index() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_search_first_position() {
     let mut executor = create_executor();
@@ -99,7 +91,6 @@ fn test_multi_search_first_position() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_search_all_positions() {
     let mut executor = create_executor();
@@ -109,7 +100,6 @@ fn test_multi_search_all_positions() {
     assert_table_eq!(result, [[[[1, 13], [7]]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_match() {
     let mut executor = create_executor();
@@ -119,7 +109,6 @@ fn test_match() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_match_any() {
     let mut executor = create_executor();
@@ -129,7 +118,6 @@ fn test_multi_match_any() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_match_any_index() {
     let mut executor = create_executor();
@@ -139,7 +127,6 @@ fn test_multi_match_any_index() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multi_match_all_indices() {
     let mut executor = create_executor();
@@ -159,7 +146,6 @@ fn test_extract() {
     assert_table_eq!(result, [["123"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_extract_groups() {
     let mut executor = create_executor();
@@ -196,7 +182,6 @@ fn test_ilike() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_count_substrings() {
     let mut executor = create_executor();
@@ -206,7 +191,6 @@ fn test_count_substrings() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_count_substrings_case_insensitive() {
     let mut executor = create_executor();
@@ -216,7 +200,6 @@ fn test_count_substrings_case_insensitive() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_count_matches() {
     let mut executor = create_executor();
@@ -226,7 +209,6 @@ fn test_count_matches() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_has_token() {
     let mut executor = create_executor();
@@ -236,7 +218,6 @@ fn test_has_token() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_has_token_case_insensitive() {
     let mut executor = create_executor();
@@ -246,44 +227,40 @@ fn test_has_token_case_insensitive() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_starts_with() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT startsWith('hello world', 'hello')")
         .unwrap();
-    assert_table_eq!(result, [[1]]);
+    assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ends_with() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT endsWith('hello world', 'world')")
         .unwrap();
-    assert_table_eq!(result, [[1]]);
+    assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ngram_distance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT ngramDistance('hello', 'hallo')")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ngram_search() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT ngramSearch('hello world', 'world')")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
 #[ignore = "Implement me!"]
@@ -338,5 +315,5 @@ fn test_fuzzy_search() {
             LIMIT 3",
         )
         .unwrap();
-    assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 3);
 }

@@ -48,9 +48,7 @@ fn test_to_uint16() {
 #[test]
 fn test_to_uint32() {
     let mut executor = create_executor();
-    let result = executor
-        .execute_sql("SELECT toUInt32(CAST(4294967295 AS Int64))")
-        .unwrap();
+    let result = executor.execute_sql("SELECT toUInt32(4294967295)").unwrap();
     assert_table_eq!(result, [[4294967295i64]]);
 }
 

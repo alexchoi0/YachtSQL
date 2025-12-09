@@ -515,6 +515,45 @@ impl ProjectionWithExprExec {
                 | FunctionName::BitCount
                 | FunctionName::GetBit
                 | FunctionName::SetBit
+                | FunctionName::PositionCaseInsensitive
+                | FunctionName::PositionUtf8
+                | FunctionName::PositionCaseInsensitiveUtf8
+                | FunctionName::CountSubstrings
+                | FunctionName::CountSubstringsCaseInsensitive
+                | FunctionName::CountMatches
+                | FunctionName::CountMatchesCaseInsensitive
+                | FunctionName::HasToken
+                | FunctionName::HasTokenCaseInsensitive
+                | FunctionName::Match
+                | FunctionName::MultiSearchAny
+                | FunctionName::MultiSearchFirstIndex
+                | FunctionName::MultiSearchFirstPosition
+                | FunctionName::MultiSearchAllPositions
+                | FunctionName::MultiMatchAny
+                | FunctionName::MultiMatchAnyIndex
+                | FunctionName::MultiMatchAllIndices
+                | FunctionName::ExtractGroups
+                | FunctionName::NgramDistance
+                | FunctionName::NgramSearch
+                | FunctionName::SplitByRegexp
+                | FunctionName::SplitByWhitespace
+                | FunctionName::SplitByNonAlpha
+                | FunctionName::AlphaTokens
+                | FunctionName::Tokens
+                | FunctionName::Ngrams
+                | FunctionName::ArrayStringConcat
+                | FunctionName::ExtractAll
+                | FunctionName::ExtractAllGroupsHorizontal
+                | FunctionName::ExtractAllGroupsVertical
+                | FunctionName::ReplaceOne
+                | FunctionName::ReplaceAll
+                | FunctionName::TrimBoth
+                | FunctionName::RegexpQuoteMeta
+                | FunctionName::TranslateUtf8
+                | FunctionName::NormalizeUtf8Nfc
+                | FunctionName::NormalizeUtf8Nfd
+                | FunctionName::NormalizeUtf8Nfkc
+                | FunctionName::NormalizeUtf8Nfkd
         ) {
             return Self::evaluate_string_function(func_name, args, batch, row_idx);
         }
@@ -780,7 +819,41 @@ impl ProjectionWithExprExec {
             return Self::evaluate_generator_function(func_name, args, batch, row_idx);
         }
 
-        if matches!(name, FunctionName::ToChar | FunctionName::ToNumber) {
+        if matches!(
+            name,
+            FunctionName::ToChar
+                | FunctionName::ToNumber
+                | FunctionName::ToInt8
+                | FunctionName::ToInt16
+                | FunctionName::ToInt32
+                | FunctionName::ToInt64
+                | FunctionName::ToUInt8
+                | FunctionName::ToUInt16
+                | FunctionName::ToUInt32
+                | FunctionName::ToUInt64
+                | FunctionName::ToFloat32
+                | FunctionName::ToFloat64
+                | FunctionName::ChToString
+                | FunctionName::ToFixedString
+                | FunctionName::ChToDateTime
+                | FunctionName::ToDateTime64
+                | FunctionName::ToDecimal32
+                | FunctionName::ToDecimal64
+                | FunctionName::ToDecimal128
+                | FunctionName::ToInt64OrNull
+                | FunctionName::ToInt64OrZero
+                | FunctionName::ToFloat64OrNull
+                | FunctionName::ToFloat64OrZero
+                | FunctionName::ToDateOrNull
+                | FunctionName::ToDateTimeOrNull
+                | FunctionName::ReinterpretAsInt64
+                | FunctionName::ReinterpretAsString
+                | FunctionName::AccurateCast
+                | FunctionName::AccurateCastOrNull
+                | FunctionName::ChParseDateTime
+                | FunctionName::ParseDateTimeBestEffort
+                | FunctionName::ParseDateTimeBestEffortOrNull
+        ) {
             return Self::evaluate_conversion_function(func_name, args, batch, row_idx);
         }
 

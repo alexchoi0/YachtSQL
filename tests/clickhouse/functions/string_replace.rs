@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_replace_one() {
     let mut executor = create_executor();
@@ -11,7 +10,6 @@ fn test_replace_one() {
     assert_table_eq!(result, [["hello there"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_replace_all() {
     let mut executor = create_executor();
@@ -48,7 +46,6 @@ fn test_replace_regexp_all() {
     assert_table_eq!(result, [["aXbXcX"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_replace_regexp_with_groups() {
     let mut executor = create_executor();
@@ -69,7 +66,6 @@ fn test_translate() {
     assert_table_eq!(result, [["hippo"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_translate_utf8() {
     let mut executor = create_executor();
@@ -79,7 +75,6 @@ fn test_translate_utf8() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_regexp_quote_meta() {
     let mut executor = create_executor();
@@ -96,7 +91,6 @@ fn test_trim() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_trim_left() {
     let mut executor = create_executor();
@@ -106,7 +100,6 @@ fn test_trim_left() {
     assert_table_eq!(result, [["hello  "]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_trim_right() {
     let mut executor = create_executor();
@@ -116,7 +109,6 @@ fn test_trim_right() {
     assert_table_eq!(result, [["  hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_trim_both() {
     let mut executor = create_executor();
@@ -140,7 +132,6 @@ fn test_rtrim() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_pad_left() {
     let mut executor = create_executor();
@@ -150,7 +141,6 @@ fn test_pad_left() {
     assert_table_eq!(result, [["***hi"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_pad_right() {
     let mut executor = create_executor();
@@ -174,7 +164,6 @@ fn test_rpad() {
     assert_table_eq!(result, [["hi   "]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_normalize_utf8() {
     let mut executor = create_executor();
@@ -184,17 +173,15 @@ fn test_normalize_utf8() {
     assert_table_eq!(result, [["café"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_normalize_utf8_nfd() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT normalizeUTF8NFD('café')")
         .unwrap();
-    assert_table_eq!(result, [["café"]]);
+    assert_table_eq!(result, [["cafe\u{301}"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_normalize_utf8_nfkc() {
     let mut executor = create_executor();
@@ -204,7 +191,6 @@ fn test_normalize_utf8_nfkc() {
     assert_table_eq!(result, [["fi"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_normalize_utf8_nfkd() {
     let mut executor = create_executor();
@@ -214,7 +200,6 @@ fn test_normalize_utf8_nfkd() {
     assert_table_eq!(result, [["fi"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_replace_column() {
     let mut executor = create_executor();
@@ -257,7 +242,6 @@ fn test_sanitize_string() {
     assert_table_eq!(result, [["alert(1)"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multiple_replacements() {
     let mut executor = create_executor();

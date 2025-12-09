@@ -1490,6 +1490,61 @@ impl ProjectionWithExprExec {
 
             FunctionName::SetBit => Some(DataType::Bytes),
 
+            FunctionName::PositionCaseInsensitive
+            | FunctionName::PositionUtf8
+            | FunctionName::PositionCaseInsensitiveUtf8
+            | FunctionName::CountSubstrings
+            | FunctionName::CountSubstringsCaseInsensitive
+            | FunctionName::CountMatches
+            | FunctionName::CountMatchesCaseInsensitive
+            | FunctionName::MultiSearchFirstIndex
+            | FunctionName::MultiSearchFirstPosition
+            | FunctionName::MultiMatchAnyIndex => Some(DataType::Int64),
+
+            FunctionName::HasToken
+            | FunctionName::HasTokenCaseInsensitive
+            | FunctionName::Match
+            | FunctionName::MultiSearchAny
+            | FunctionName::MultiMatchAny => Some(DataType::Int64),
+
+            FunctionName::MultiSearchAllPositions => Some(DataType::Array(Box::new(
+                DataType::Array(Box::new(DataType::Int64)),
+            ))),
+
+            FunctionName::MultiMatchAllIndices => Some(DataType::Array(Box::new(DataType::Int64))),
+
+            FunctionName::ExtractGroups => Some(DataType::Array(Box::new(DataType::String))),
+
+            FunctionName::NgramDistance | FunctionName::NgramSearch => Some(DataType::Float64),
+
+            FunctionName::SplitByChar
+            | FunctionName::SplitByString
+            | FunctionName::SplitByRegexp
+            | FunctionName::SplitByWhitespace
+            | FunctionName::SplitByNonAlpha
+            | FunctionName::AlphaTokens
+            | FunctionName::Tokens
+            | FunctionName::Ngrams
+            | FunctionName::ExtractAll => Some(DataType::Array(Box::new(DataType::String))),
+
+            FunctionName::ArrayStringConcat => Some(DataType::String),
+
+            FunctionName::ExtractAllGroupsHorizontal | FunctionName::ExtractAllGroupsVertical => {
+                Some(DataType::Array(Box::new(DataType::Array(Box::new(
+                    DataType::String,
+                )))))
+            }
+
+            FunctionName::ReplaceOne
+            | FunctionName::ReplaceAll
+            | FunctionName::TrimBoth
+            | FunctionName::RegexpQuoteMeta
+            | FunctionName::TranslateUtf8
+            | FunctionName::NormalizeUtf8Nfc
+            | FunctionName::NormalizeUtf8Nfd
+            | FunctionName::NormalizeUtf8Nfkc
+            | FunctionName::NormalizeUtf8Nfkd => Some(DataType::String),
+
             FunctionName::BoolAnd | FunctionName::BoolOr | FunctionName::Every => {
                 Some(DataType::Bool)
             }
@@ -1510,6 +1565,62 @@ impl ProjectionWithExprExec {
             | FunctionName::NetIpNetMask
             | FunctionName::NetIpTrunc => Some(DataType::Bytes),
             FunctionName::NetIpv4ToInt64 => Some(DataType::Int64),
+
+            FunctionName::ToInt8
+            | FunctionName::ToInt16
+            | FunctionName::ToInt32
+            | FunctionName::ToInt64
+            | FunctionName::ToUInt8
+            | FunctionName::ToUInt16
+            | FunctionName::ToUInt32
+            | FunctionName::ToUInt64
+            | FunctionName::ToInt64OrNull
+            | FunctionName::ToInt64OrZero
+            | FunctionName::ReinterpretAsInt64 => Some(DataType::Int64),
+
+            FunctionName::ToFloat32
+            | FunctionName::ToFloat64
+            | FunctionName::ToFloat64OrNull
+            | FunctionName::ToFloat64OrZero => Some(DataType::Float64),
+
+            FunctionName::ChToString
+            | FunctionName::ToFixedString
+            | FunctionName::ReinterpretAsString
+            | FunctionName::ToTypeName => Some(DataType::String),
+
+            FunctionName::ToDateOrNull => Some(DataType::Date),
+
+            FunctionName::ChToDateTime
+            | FunctionName::ToDateTime64
+            | FunctionName::ToDateTimeOrNull
+            | FunctionName::ChParseDateTime
+            | FunctionName::ParseDateTimeBestEffort
+            | FunctionName::ParseDateTimeBestEffortOrNull => Some(DataType::Timestamp),
+
+            FunctionName::ToDecimal32 | FunctionName::ToDecimal64 | FunctionName::ToDecimal128 => {
+                Some(DataType::Numeric(None))
+            }
+
+            FunctionName::AccurateCast | FunctionName::AccurateCastOrNull => {
+                if args.len() >= 2 {
+                    if let crate::optimizer::expr::Expr::Literal(
+                        crate::optimizer::expr::LiteralValue::String(s),
+                    ) = &args[1]
+                    {
+                        return match s.to_uppercase().as_str() {
+                            "INT8" | "INT16" | "INT32" | "INT64" => Some(DataType::Int64),
+                            "UINT8" | "UINT16" | "UINT32" | "UINT64" => Some(DataType::Int64),
+                            "FLOAT32" | "FLOAT64" => Some(DataType::Float64),
+                            "STRING" => Some(DataType::String),
+                            "DATE" => Some(DataType::Date),
+                            "DATETIME" | "DATETIME64" => Some(DataType::Timestamp),
+                            _ => None,
+                        };
+                    }
+                }
+                None
+            }
+
             FunctionName::NetIpToString
             | FunctionName::NetHost
             | FunctionName::NetPublicSuffix
@@ -1713,7 +1824,6 @@ impl ProjectionWithExprExec {
             | FunctionName::ServerTimezone
             | FunctionName::HostName
             | FunctionName::Fqdn
-            | FunctionName::ToTypeName
             | FunctionName::DumpColumnStructure
             | FunctionName::QueryId
             | FunctionName::InitialQueryId

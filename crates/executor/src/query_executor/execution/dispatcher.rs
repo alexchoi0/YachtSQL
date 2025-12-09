@@ -79,20 +79,6 @@ pub enum DdlOperation {
         name: ObjectName,
         if_not_exists: bool,
     },
-
-    CreateUser,
-    DropUser,
-    AlterUser,
-
-    CreateRole,
-    DropRole,
-    AlterRole,
-
-    Grant,
-    Revoke,
-
-    SetRole,
-    SetDefaultRole,
 }
 
 #[derive(Debug, Clone)]
@@ -173,11 +159,6 @@ pub enum UtilityOperation {
     },
     ExistsDatabase {
         db_name: ObjectName,
-    },
-    ShowUsers,
-    ShowRoles,
-    ShowGrants {
-        user_name: Option<String>,
     },
 }
 
@@ -328,8 +309,6 @@ impl Dispatcher {
                             ObjectType::Sequence => DdlOperation::DropSequence,
                             ObjectType::Schema => DdlOperation::DropSchema,
                             ObjectType::Type => DdlOperation::DropType,
-                            ObjectType::Role => DdlOperation::DropRole,
-                            ObjectType::User => DdlOperation::DropUser,
                             _ => {
                                 return Err(Error::unsupported_feature(format!(
                                     "DROP {} is not yet supported",
@@ -504,31 +483,6 @@ impl Dispatcher {
                         stmt: Box::new(ast.clone()),
                     }),
 
-                    SqlStatement::CreateUser(_) => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateUser,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::CreateRole { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateRole,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::AlterRole { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::AlterRole,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::Grant { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::Grant,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::Revoke { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::Revoke,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
                     _ => Err(Error::unsupported_feature(format!(
                         "Statement type {:?} is not yet supported",
                         ast
@@ -587,10 +541,6 @@ impl Dispatcher {
                     operation: TxOperation::SetTransaction { modes: mode_infos },
                 })
             }
-            Set::SetRole { .. } => Ok(StatementJob::DDL {
-                operation: DdlOperation::SetRole,
-                stmt: Box::new(SqlStatement::Set(set_stmt.clone())),
-            }),
             _ => Err(Error::unsupported_feature(
                 "Only simple SET assignments are supported".to_string(),
             )),
