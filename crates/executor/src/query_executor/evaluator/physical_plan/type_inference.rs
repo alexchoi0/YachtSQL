@@ -1712,19 +1712,53 @@ impl ProjectionWithExprExec {
             | FunctionName::QueryId
             | FunctionName::InitialQueryId
             | FunctionName::ServerUuid
-            | FunctionName::GetSetting => Some(DataType::String),
+            | FunctionName::GetSetting
+            | FunctionName::PgTypeof
+            | FunctionName::SessionUser
+            | FunctionName::CurrentSchema
+            | FunctionName::CurrentCatalog
+            | FunctionName::CurrentSetting
+            | FunctionName::SetConfig
+            | FunctionName::PgSizePretty
+            | FunctionName::PgCurrentSnapshot
+            | FunctionName::PgGetViewdef
+            | FunctionName::ObjDescription
+            | FunctionName::ColDescription
+            | FunctionName::ShobjDescription
+            | FunctionName::InetClientAddr
+            | FunctionName::InetServerAddr => Some(DataType::String),
 
             FunctionName::Uptime
             | FunctionName::BlockNumber
             | FunctionName::RowNumberInBlock
             | FunctionName::RowNumberInAllBlocks
             | FunctionName::BlockSize
-            | FunctionName::CountDigits => Some(DataType::Int64),
+            | FunctionName::CountDigits
+            | FunctionName::PgBackendPid
+            | FunctionName::PgColumnSize
+            | FunctionName::PgDatabaseSize
+            | FunctionName::PgTableSize
+            | FunctionName::PgIndexesSize
+            | FunctionName::PgTotalRelationSize
+            | FunctionName::PgRelationSize
+            | FunctionName::PgTablespaceSize
+            | FunctionName::InetClientPort
+            | FunctionName::InetServerPort
+            | FunctionName::TxidCurrent => Some(DataType::Int64),
 
             FunctionName::IsFinite
             | FunctionName::IsInfinite
             | FunctionName::IsNan
-            | FunctionName::IsDecimalOverflow => Some(DataType::Bool),
+            | FunctionName::IsDecimalOverflow
+            | FunctionName::PgIsInRecovery
+            | FunctionName::HasTablePrivilege
+            | FunctionName::HasSchemaPrivilege
+            | FunctionName::HasDatabasePrivilege
+            | FunctionName::HasColumnPrivilege => Some(DataType::Bool),
+
+            FunctionName::PgConfLoadTime | FunctionName::PgPostmasterStartTime => {
+                Some(DataType::Timestamp)
+            }
 
             FunctionName::DefaultValueOfArgumentType => {
                 if !args.is_empty() {

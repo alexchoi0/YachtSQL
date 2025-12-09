@@ -366,6 +366,15 @@ impl LiteralValue {
             LiteralValue::Null
         }
     }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            LiteralValue::Float64(f) => Some(*f),
+            LiteralValue::Int64(i) => Some(*i as f64),
+            LiteralValue::Numeric(d) => d.to_string().parse().ok(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

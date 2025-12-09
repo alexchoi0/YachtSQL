@@ -47,7 +47,7 @@ fn test_websearch_to_tsquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "AtAt (@@) operator not implemented"]
 fn test_tsvector_match_tsquery() {
     let mut executor = create_executor();
     let result = executor
@@ -57,7 +57,7 @@ fn test_tsvector_match_tsquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "AtAt (@@) operator not implemented"]
 fn test_tsvector_not_match() {
     let mut executor = create_executor();
     let result = executor
@@ -69,7 +69,7 @@ fn test_tsvector_not_match() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "AtAt (@@) operator not implemented"]
 fn test_tsquery_and() {
     let mut executor = create_executor();
     let result = executor
@@ -79,7 +79,7 @@ fn test_tsquery_and() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "AtAt (@@) operator not implemented"]
 fn test_tsquery_or() {
     let mut executor = create_executor();
     let result = executor
@@ -89,7 +89,7 @@ fn test_tsquery_or() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "AtAt (@@) operator not implemented"]
 fn test_tsquery_not() {
     let mut executor = create_executor();
     let result = executor
@@ -99,7 +99,7 @@ fn test_tsquery_not() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "AtAt (@@) operator not implemented"]
 fn test_tsquery_phrase() {
     let mut executor = create_executor();
     let result = executor
@@ -118,7 +118,7 @@ fn test_tsvector_concat() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TsQuery && operator not implemented"]
 fn test_tsquery_and_operator() {
     let mut executor = create_executor();
     let result = executor
@@ -137,7 +137,7 @@ fn test_tsquery_or_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TsQuery !! (negate) operator not implemented"]
 fn test_tsquery_negate() {
     let mut executor = create_executor();
     let result = executor
@@ -192,7 +192,7 @@ fn test_length_tsvector() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "NUMNODE function not implemented for TsQuery"]
 fn test_numnode_tsquery() {
     let mut executor = create_executor();
     let result = executor
@@ -202,7 +202,7 @@ fn test_numnode_tsquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "QUERYTREE function not implemented"]
 fn test_querytree() {
     let mut executor = create_executor();
     let result = executor
@@ -230,7 +230,7 @@ fn test_strip() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TsVector data type not supported for columns"]
 fn test_tsvector_column() {
     let mut executor = create_executor();
     executor
@@ -245,7 +245,7 @@ fn test_tsvector_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TsVector data type not supported for columns"]
 fn test_tsvector_index() {
     let mut executor = create_executor();
     executor
@@ -267,7 +267,7 @@ fn test_tsvector_index() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TS_STAT function not implemented"]
 fn test_ts_stat() {
     let mut executor = create_executor();
     executor
@@ -299,7 +299,7 @@ fn test_ts_lexize() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "GET_CURRENT_TS_CONFIG function not implemented"]
 fn test_get_current_ts_config() {
     let mut executor = create_executor();
     let result = executor
@@ -309,7 +309,7 @@ fn test_get_current_ts_config() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TsVector data type not supported for columns"]
 fn test_tsvector_update_trigger() {
     let mut executor = create_executor();
     executor
@@ -341,7 +341,7 @@ fn test_simple_config() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TS_REWRITE function not implemented"]
 fn test_ts_rewrite() {
     let mut executor = create_executor();
     let result = executor
@@ -351,7 +351,7 @@ fn test_ts_rewrite() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "ARRAY_TO_TSVECTOR function not implemented"]
 fn test_array_to_tsvector() {
     let mut executor = create_executor();
     let result = executor
@@ -361,7 +361,7 @@ fn test_array_to_tsvector() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TSVECTOR_TO_ARRAY function not available in PostgreSQL dialect"]
 fn test_tsvector_to_array() {
     let mut executor = create_executor();
     let result = executor
@@ -371,7 +371,7 @@ fn test_tsvector_to_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "AtAt (@@) operator not implemented"]
 fn test_tsquery_phrase_distance() {
     let mut executor = create_executor();
     let result = executor
@@ -381,7 +381,7 @@ fn test_tsquery_phrase_distance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TS_DELETE function not implemented"]
 fn test_ts_delete() {
     let mut executor = create_executor();
     let result = executor
@@ -391,7 +391,7 @@ fn test_ts_delete() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TS_FILTER function not implemented"]
 fn test_ts_filter() {
     let mut executor = create_executor();
     let result = executor

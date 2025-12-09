@@ -137,7 +137,11 @@ impl AggregateExec {
         use yachtsql_ir::FunctionName;
         match agg_expr {
             Expr::Aggregate {
-                name, args, filter, ..
+                name,
+                args,
+                filter,
+                order_by,
+                ..
             } => {
                 if let Some(filter_expr) = filter {
                     let filter_result = self.evaluate_expr(filter_expr, batch, row_idx)?;
@@ -145,41 +149,60 @@ impl AggregateExec {
                         return Ok(Value::null());
                     }
                 }
-                if args.is_empty() {
-                    Ok(Value::int64(1))
-                } else if args.len() >= 2 {
-                    let needs_array = matches!(
-                        name,
-                        FunctionName::Corr
-                            | FunctionName::CovarPop
-                            | FunctionName::CovarSamp
-                            | FunctionName::ArgMin
-                            | FunctionName::ArgMax
-                            | FunctionName::TopK
-                            | FunctionName::WindowFunnel
-                            | FunctionName::RegrSlope
-                            | FunctionName::RegrIntercept
-                            | FunctionName::RegrCount
-                            | FunctionName::RegrR2
-                            | FunctionName::RegrAvgx
-                            | FunctionName::RegrAvgy
-                            | FunctionName::RegrSxx
-                            | FunctionName::RegrSyy
-                            | FunctionName::RegrSxy
-                            | FunctionName::JsonObjectAgg
-                            | FunctionName::JsonbObjectAgg
-                    );
-                    if needs_array {
-                        let mut values = Vec::with_capacity(args.len());
-                        for arg in args {
-                            values.push(self.evaluate_expr(arg, batch, row_idx)?);
+                match name {
+                    FunctionName::PercentileCont
+                    | FunctionName::PercentileDisc
+                    | FunctionName::Median
+                    | FunctionName::Mode => {
+                        if let Some(order_exprs) = order_by {
+                            if !order_exprs.is_empty() {
+                                return self.evaluate_expr(&order_exprs[0].expr, batch, row_idx);
+                            }
                         }
-                        Ok(Value::array(values))
-                    } else {
-                        self.evaluate_expr(&args[0], batch, row_idx)
+                        if !args.is_empty() {
+                            self.evaluate_expr(&args[0], batch, row_idx)
+                        } else {
+                            Ok(Value::null())
+                        }
                     }
-                } else {
-                    self.evaluate_expr(&args[0], batch, row_idx)
+                    _ => {
+                        if args.is_empty() {
+                            Ok(Value::int64(1))
+                        } else if args.len() >= 2 {
+                            let needs_array = matches!(
+                                name,
+                                FunctionName::Corr
+                                    | FunctionName::CovarPop
+                                    | FunctionName::CovarSamp
+                                    | FunctionName::ArgMin
+                                    | FunctionName::ArgMax
+                                    | FunctionName::TopK
+                                    | FunctionName::WindowFunnel
+                                    | FunctionName::RegrSlope
+                                    | FunctionName::RegrIntercept
+                                    | FunctionName::RegrCount
+                                    | FunctionName::RegrR2
+                                    | FunctionName::RegrAvgx
+                                    | FunctionName::RegrAvgy
+                                    | FunctionName::RegrSxx
+                                    | FunctionName::RegrSyy
+                                    | FunctionName::RegrSxy
+                                    | FunctionName::JsonObjectAgg
+                                    | FunctionName::JsonbObjectAgg
+                            );
+                            if needs_array {
+                                let mut values = Vec::with_capacity(args.len());
+                                for arg in args {
+                                    values.push(self.evaluate_expr(arg, batch, row_idx)?);
+                                }
+                                Ok(Value::array(values))
+                            } else {
+                                self.evaluate_expr(&args[0], batch, row_idx)
+                            }
+                        } else {
+                            self.evaluate_expr(&args[0], batch, row_idx)
+                        }
+                    }
                 }
             }
 
@@ -2024,6 +2047,108 @@ impl AggregateExec {
                             Value::json(serde_json::Value::Object(obj))
                         }
                     }
+                    FunctionName::Median => {
+                        let mut float_values: Vec<f64> = values
+                            .iter()
+                            .filter(|v| !v.is_null())
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| {
+                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            let len = float_values.len();
+                            if len % 2 == 1 {
+                                Value::float64(float_values[len / 2])
+                            } else {
+                                let mid = len / 2;
+                                Value::float64((float_values[mid - 1] + float_values[mid]) / 2.0)
+                            }
+                        }
+                    }
+                    FunctionName::PercentileCont => {
+                        let percentile = args
+                            .first()
+                            .and_then(|arg| {
+                                if let Expr::Literal(lit) = arg {
+                                    lit.as_f64()
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(0.5);
+                        let mut float_values: Vec<f64> = values
+                            .iter()
+                            .filter(|v| !v.is_null())
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| {
+                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            let n = float_values.len();
+                            let index = percentile * (n - 1) as f64;
+                            let lower = index.floor() as usize;
+                            let upper = index.ceil() as usize;
+                            if lower == upper {
+                                Value::float64(float_values[lower])
+                            } else {
+                                let fraction = index - lower as f64;
+                                let interpolated = float_values[lower] * (1.0 - fraction)
+                                    + float_values[upper] * fraction;
+                                Value::float64(interpolated)
+                            }
+                        }
+                    }
+                    FunctionName::PercentileDisc => {
+                        let percentile = args
+                            .first()
+                            .and_then(|arg| {
+                                if let Expr::Literal(lit) = arg {
+                                    lit.as_f64()
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(0.5);
+                        let mut float_values: Vec<f64> = values
+                            .iter()
+                            .filter(|v| !v.is_null())
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| {
+                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            let n = float_values.len();
+                            let index = (percentile * n as f64).ceil() as usize;
+                            let index = index.saturating_sub(1).min(n - 1);
+                            Value::float64(float_values[index])
+                        }
+                    }
+                    FunctionName::Mode => {
+                        let mut counts: std::collections::HashMap<String, (usize, Value)> =
+                            std::collections::HashMap::new();
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            let key = format!("{:?}", val);
+                            let entry = counts.entry(key).or_insert((0, (*val).clone()));
+                            entry.0 += 1;
+                        }
+                        counts
+                            .values()
+                            .max_by_key(|(count, _)| *count)
+                            .map(|(_, value)| value.clone())
+                            .unwrap_or(Value::null())
+                    }
                     _ => Value::null(),
                 },
                 _ => Value::null(),
@@ -2167,7 +2292,11 @@ impl SortAggregateExec {
         use yachtsql_ir::FunctionName;
         match agg_expr {
             Expr::Aggregate {
-                name, args, filter, ..
+                name,
+                args,
+                filter,
+                order_by,
+                ..
             } => {
                 if let Some(filter_expr) = filter {
                     let filter_result = self.evaluate_expr(filter_expr, batch, row_idx)?;
@@ -2175,41 +2304,60 @@ impl SortAggregateExec {
                         return Ok(Value::null());
                     }
                 }
-                if args.is_empty() {
-                    Ok(Value::int64(1))
-                } else if args.len() >= 2 {
-                    let needs_array = matches!(
-                        name,
-                        FunctionName::Corr
-                            | FunctionName::CovarPop
-                            | FunctionName::CovarSamp
-                            | FunctionName::ArgMin
-                            | FunctionName::ArgMax
-                            | FunctionName::TopK
-                            | FunctionName::WindowFunnel
-                            | FunctionName::RegrSlope
-                            | FunctionName::RegrIntercept
-                            | FunctionName::RegrCount
-                            | FunctionName::RegrR2
-                            | FunctionName::RegrAvgx
-                            | FunctionName::RegrAvgy
-                            | FunctionName::RegrSxx
-                            | FunctionName::RegrSyy
-                            | FunctionName::RegrSxy
-                            | FunctionName::JsonObjectAgg
-                            | FunctionName::JsonbObjectAgg
-                    );
-                    if needs_array {
-                        let mut values = Vec::with_capacity(args.len());
-                        for arg in args {
-                            values.push(self.evaluate_expr(arg, batch, row_idx)?);
+                match name {
+                    FunctionName::PercentileCont
+                    | FunctionName::PercentileDisc
+                    | FunctionName::Median
+                    | FunctionName::Mode => {
+                        if let Some(order_exprs) = order_by {
+                            if !order_exprs.is_empty() {
+                                return self.evaluate_expr(&order_exprs[0].expr, batch, row_idx);
+                            }
                         }
-                        Ok(Value::array(values))
-                    } else {
-                        self.evaluate_expr(&args[0], batch, row_idx)
+                        if !args.is_empty() {
+                            self.evaluate_expr(&args[0], batch, row_idx)
+                        } else {
+                            Ok(Value::null())
+                        }
                     }
-                } else {
-                    self.evaluate_expr(&args[0], batch, row_idx)
+                    _ => {
+                        if args.is_empty() {
+                            Ok(Value::int64(1))
+                        } else if args.len() >= 2 {
+                            let needs_array = matches!(
+                                name,
+                                FunctionName::Corr
+                                    | FunctionName::CovarPop
+                                    | FunctionName::CovarSamp
+                                    | FunctionName::ArgMin
+                                    | FunctionName::ArgMax
+                                    | FunctionName::TopK
+                                    | FunctionName::WindowFunnel
+                                    | FunctionName::RegrSlope
+                                    | FunctionName::RegrIntercept
+                                    | FunctionName::RegrCount
+                                    | FunctionName::RegrR2
+                                    | FunctionName::RegrAvgx
+                                    | FunctionName::RegrAvgy
+                                    | FunctionName::RegrSxx
+                                    | FunctionName::RegrSyy
+                                    | FunctionName::RegrSxy
+                                    | FunctionName::JsonObjectAgg
+                                    | FunctionName::JsonbObjectAgg
+                            );
+                            if needs_array {
+                                let mut values = Vec::with_capacity(args.len());
+                                for arg in args {
+                                    values.push(self.evaluate_expr(arg, batch, row_idx)?);
+                                }
+                                Ok(Value::array(values))
+                            } else {
+                                self.evaluate_expr(&args[0], batch, row_idx)
+                            }
+                        } else {
+                            self.evaluate_expr(&args[0], batch, row_idx)
+                        }
+                    }
                 }
             }
             _ => self.evaluate_expr(agg_expr, batch, row_idx),
@@ -3256,6 +3404,108 @@ impl SortAggregateExec {
                     | FunctionName::WelchTTest
                     | FunctionName::KolmogorovSmirnovTest => {
                         Value::array(vec![Value::float64(0.0), Value::float64(1.0)])
+                    }
+                    FunctionName::Median => {
+                        let mut float_values: Vec<f64> = values
+                            .iter()
+                            .filter(|v| !v.is_null())
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| {
+                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            let len = float_values.len();
+                            if len % 2 == 1 {
+                                Value::float64(float_values[len / 2])
+                            } else {
+                                let mid = len / 2;
+                                Value::float64((float_values[mid - 1] + float_values[mid]) / 2.0)
+                            }
+                        }
+                    }
+                    FunctionName::PercentileCont => {
+                        let percentile = args
+                            .first()
+                            .and_then(|arg| {
+                                if let Expr::Literal(lit) = arg {
+                                    lit.as_f64()
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(0.5);
+                        let mut float_values: Vec<f64> = values
+                            .iter()
+                            .filter(|v| !v.is_null())
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| {
+                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            let n = float_values.len();
+                            let index = percentile * (n - 1) as f64;
+                            let lower = index.floor() as usize;
+                            let upper = index.ceil() as usize;
+                            if lower == upper {
+                                Value::float64(float_values[lower])
+                            } else {
+                                let fraction = index - lower as f64;
+                                let interpolated = float_values[lower] * (1.0 - fraction)
+                                    + float_values[upper] * fraction;
+                                Value::float64(interpolated)
+                            }
+                        }
+                    }
+                    FunctionName::PercentileDisc => {
+                        let percentile = args
+                            .first()
+                            .and_then(|arg| {
+                                if let Expr::Literal(lit) = arg {
+                                    lit.as_f64()
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(0.5);
+                        let mut float_values: Vec<f64> = values
+                            .iter()
+                            .filter(|v| !v.is_null())
+                            .filter_map(|v| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)))
+                            .collect();
+                        if float_values.is_empty() {
+                            Value::null()
+                        } else {
+                            float_values.sort_by(|a, b| {
+                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            });
+                            let n = float_values.len();
+                            let index = (percentile * n as f64).ceil() as usize;
+                            let index = index.saturating_sub(1).min(n - 1);
+                            Value::float64(float_values[index])
+                        }
+                    }
+                    FunctionName::Mode => {
+                        let mut counts: std::collections::HashMap<String, (usize, Value)> =
+                            std::collections::HashMap::new();
+                        for val in &values {
+                            if val.is_null() {
+                                continue;
+                            }
+                            let key = format!("{:?}", val);
+                            let entry = counts.entry(key).or_insert((0, (*val).clone()));
+                            entry.0 += 1;
+                        }
+                        counts
+                            .values()
+                            .max_by_key(|(count, _)| *count)
+                            .map(|(_, value)| value.clone())
+                            .unwrap_or(Value::null())
                     }
                     _ => Value::null(),
                 },
