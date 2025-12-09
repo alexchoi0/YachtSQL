@@ -1044,6 +1044,34 @@ impl ProjectionWithExprExec {
             return Self::evaluate_sequence_function(func_name, args, batch, row_idx);
         }
 
+        if matches!(
+            name,
+            FunctionName::Tuple
+                | FunctionName::TupleElement
+                | FunctionName::Untuple
+                | FunctionName::TupleHammingDistance
+                | FunctionName::TuplePlus
+                | FunctionName::TupleMinus
+                | FunctionName::TupleMultiply
+                | FunctionName::TupleDivide
+                | FunctionName::TupleNegate
+                | FunctionName::TupleMultiplyByNumber
+                | FunctionName::TupleDivideByNumber
+                | FunctionName::TupleConcat
+                | FunctionName::TupleIntDiv
+                | FunctionName::TupleIntDivOrZero
+                | FunctionName::TupleModulo
+                | FunctionName::TupleModuloByNumber
+                | FunctionName::TupleToNameValuePairs
+                | FunctionName::TupleNames
+        ) {
+            return Self::evaluate_tuple_function(name, args, batch, row_idx);
+        }
+
+        if let FunctionName::Custom(custom_name) = name {
+            return Self::evaluate_custom_function(custom_name, args, batch, row_idx);
+        }
+
         Err(Error::unsupported_feature(format!(
             "Unknown function: {}",
             func_name

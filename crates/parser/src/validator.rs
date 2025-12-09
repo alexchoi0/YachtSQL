@@ -1,8 +1,9 @@
 use yachtsql_core::error::{Error, Result};
 
 use crate::parser::DialectType;
+use crate::parser::clickhouse_extensions::ClickHouseIndexType;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CustomStatement {
     RefreshMaterializedView {
         name: sqlparser::ast::ObjectName,
@@ -108,6 +109,15 @@ pub enum CustomStatement {
         isolation_level: Option<String>,
         read_only: Option<bool>,
         deferrable: Option<bool>,
+    },
+
+    ClickHouseCreateIndex {
+        if_not_exists: bool,
+        index_name: String,
+        table_name: sqlparser::ast::ObjectName,
+        columns: Vec<String>,
+        index_type: ClickHouseIndexType,
+        granularity: Option<u64>,
     },
 }
 
@@ -236,6 +246,10 @@ impl StatementValidator {
             CustomStatement::ExistsTable { .. } | CustomStatement::ExistsDatabase { .. } => Ok(()),
             CustomStatement::Abort => Ok(()),
             CustomStatement::BeginTransaction { .. } => Ok(()),
+            CustomStatement::ClickHouseCreateIndex { .. } => {
+                self.require_clickhouse("CREATE INDEX with TYPE")?;
+                Ok(())
+            }
         }
     }
 
@@ -293,6 +307,16 @@ impl StatementValidator {
         if self.dialect != DialectType::PostgreSQL {
             return Err(Error::invalid_query(format!(
                 "{} is only supported in PostgreSQL dialect",
+                feature
+            )));
+        }
+        Ok(())
+    }
+
+    fn require_clickhouse(&self, feature: &str) -> Result<()> {
+        if self.dialect != DialectType::ClickHouse {
+            return Err(Error::invalid_query(format!(
+                "{} is only supported in ClickHouse dialect",
                 feature
             )));
         }

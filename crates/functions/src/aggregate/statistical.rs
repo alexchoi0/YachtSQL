@@ -1013,17 +1013,17 @@ impl Accumulator for RegrSlopeAccumulator {
             return Ok(());
         }
 
-        let (x, y) = if let Some(values) = value.as_array() {
+        let (y, x) = if let Some(values) = value.as_array() {
             if values.len() == 2 {
-                let x_val = values[0].as_f64().ok_or_else(|| Error::TypeMismatch {
+                let y_val = values[0].as_f64().ok_or_else(|| Error::TypeMismatch {
                     expected: "FLOAT64".to_string(),
                     actual: values[0].data_type().to_string(),
                 })?;
-                let y_val = values[1].as_f64().ok_or_else(|| Error::TypeMismatch {
+                let x_val = values[1].as_f64().ok_or_else(|| Error::TypeMismatch {
                     expected: "FLOAT64".to_string(),
                     actual: values[1].data_type().to_string(),
                 })?;
-                (x_val, y_val)
+                (y_val, x_val)
             } else {
                 return Err(Error::TypeMismatch {
                     expected: "ARRAY with 2 FLOAT64 values".to_string(),

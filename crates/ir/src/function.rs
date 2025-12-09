@@ -666,6 +666,13 @@ pub enum FunctionName {
     // Aggregate functions
     RegrSlope,
     RegrIntercept,
+    RegrCount,
+    RegrR2,
+    RegrAvgx,
+    RegrAvgy,
+    RegrSxx,
+    RegrSyy,
+    RegrSxy,
     Entropy,
     MeanZscore,
     UniqUpdown,
@@ -723,6 +730,26 @@ pub enum FunctionName {
     IsDecimalOverflow,
     CountDigits,
 
+    // Tuple functions (ClickHouse)
+    Tuple,
+    TupleElement,
+    Untuple,
+    TupleHammingDistance,
+    TuplePlus,
+    TupleMinus,
+    TupleMultiply,
+    TupleDivide,
+    TupleNegate,
+    TupleMultiplyByNumber,
+    TupleDivideByNumber,
+    TupleConcat,
+    TupleIntDiv,
+    TupleIntDivOrZero,
+    TupleModulo,
+    TupleModuloByNumber,
+    TupleToNameValuePairs,
+    TupleNames,
+
     /// Reserved for internal use only. Not part of any SQL dialect.
     /// Used for internal engine functions like `YACHTSQL.IS_FEATURE_ENABLED`.
     Custom(String),
@@ -766,7 +793,7 @@ impl FunctionName {
             "CORR" => Self::Corr,
             "COVAR_POP" => Self::CovarPop,
             "COVAR_SAMP" => Self::CovarSamp,
-            "COUNTIF" => Self::CountIf,
+            "COUNTIF" | "COUNT_IF" => Self::CountIf,
 
             "BOOL_AND" => Self::BoolAnd,
             "BOOL_OR" => Self::BoolOr,
@@ -1441,6 +1468,13 @@ impl FunctionName {
             // Aggregate functions
             "REGR_SLOPE" => Self::RegrSlope,
             "REGR_INTERCEPT" => Self::RegrIntercept,
+            "REGR_COUNT" => Self::RegrCount,
+            "REGR_R2" => Self::RegrR2,
+            "REGR_AVGX" => Self::RegrAvgx,
+            "REGR_AVGY" => Self::RegrAvgy,
+            "REGR_SXX" => Self::RegrSxx,
+            "REGR_SYY" => Self::RegrSyy,
+            "REGR_SXY" => Self::RegrSxy,
             "ENTROPY" => Self::Entropy,
             "MEAN_ZSCORE" | "MEANZSCORE" => Self::MeanZscore,
             "UNIQ_UPDOWN" | "UNIQUPDOWN" => Self::UniqUpdown,
@@ -1520,6 +1554,42 @@ impl FunctionName {
             "IS_DECIMAL_OVERFLOW" => Self::IsDecimalOverflow,
             "COUNTDIGITS" => Self::CountDigits,
             "COUNT_DIGITS" => Self::CountDigits,
+
+            // Tuple functions (ClickHouse)
+            "TUPLE" => Self::Tuple,
+            "TUPLEELEMENT" => Self::TupleElement,
+            "TUPLE_ELEMENT" => Self::TupleElement,
+            "UNTUPLE" => Self::Untuple,
+            "TUPLEHAMMINGDISTANCE" => Self::TupleHammingDistance,
+            "TUPLE_HAMMING_DISTANCE" => Self::TupleHammingDistance,
+            "TUPLEPLUS" => Self::TuplePlus,
+            "TUPLE_PLUS" => Self::TuplePlus,
+            "TUPLEMINUS" => Self::TupleMinus,
+            "TUPLE_MINUS" => Self::TupleMinus,
+            "TUPLEMULTIPLY" => Self::TupleMultiply,
+            "TUPLE_MULTIPLY" => Self::TupleMultiply,
+            "TUPLEDIVIDE" => Self::TupleDivide,
+            "TUPLE_DIVIDE" => Self::TupleDivide,
+            "TUPLENEGATE" => Self::TupleNegate,
+            "TUPLE_NEGATE" => Self::TupleNegate,
+            "TUPLEMULTIPLYBYNUMBER" => Self::TupleMultiplyByNumber,
+            "TUPLE_MULTIPLY_BY_NUMBER" => Self::TupleMultiplyByNumber,
+            "TUPLEDIVIDEBYNUMBER" => Self::TupleDivideByNumber,
+            "TUPLE_DIVIDE_BY_NUMBER" => Self::TupleDivideByNumber,
+            "TUPLECONCAT" => Self::TupleConcat,
+            "TUPLE_CONCAT" => Self::TupleConcat,
+            "TUPLEINTDIV" => Self::TupleIntDiv,
+            "TUPLE_INT_DIV" => Self::TupleIntDiv,
+            "TUPLEINTDIVORZERO" => Self::TupleIntDivOrZero,
+            "TUPLE_INT_DIV_OR_ZERO" => Self::TupleIntDivOrZero,
+            "TUPLEMODULO" => Self::TupleModulo,
+            "TUPLE_MODULO" => Self::TupleModulo,
+            "TUPLEMODULOBYNUMBER" => Self::TupleModuloByNumber,
+            "TUPLE_MODULO_BY_NUMBER" => Self::TupleModuloByNumber,
+            "TUPLETONAMEVALUEPAIRS" => Self::TupleToNameValuePairs,
+            "TUPLE_TO_NAME_VALUE_PAIRS" => Self::TupleToNameValuePairs,
+            "TUPLENAMES" => Self::TupleNames,
+            "TUPLE_NAMES" => Self::TupleNames,
 
             _ => Self::Custom(s.to_uppercase()),
         }
@@ -2193,6 +2263,13 @@ impl FunctionName {
             // Aggregate functions
             Self::RegrSlope => "REGR_SLOPE",
             Self::RegrIntercept => "REGR_INTERCEPT",
+            Self::RegrCount => "REGR_COUNT",
+            Self::RegrR2 => "REGR_R2",
+            Self::RegrAvgx => "REGR_AVGX",
+            Self::RegrAvgy => "REGR_AVGY",
+            Self::RegrSxx => "REGR_SXX",
+            Self::RegrSyy => "REGR_SYY",
+            Self::RegrSxy => "REGR_SXY",
             Self::Entropy => "ENTROPY",
             Self::MeanZscore => "MEAN_ZSCORE",
             Self::UniqUpdown => "UNIQ_UPDOWN",
@@ -2249,6 +2326,26 @@ impl FunctionName {
             Self::GetSetting => "GETSETTING",
             Self::IsDecimalOverflow => "ISDECIMALOVERFLOW",
             Self::CountDigits => "COUNTDIGITS",
+
+            // Tuple functions (ClickHouse)
+            Self::Tuple => "TUPLE",
+            Self::TupleElement => "TUPLEELEMENT",
+            Self::Untuple => "UNTUPLE",
+            Self::TupleHammingDistance => "TUPLEHAMMINGDISTANCE",
+            Self::TuplePlus => "TUPLEPLUS",
+            Self::TupleMinus => "TUPLEMINUS",
+            Self::TupleMultiply => "TUPLEMULTIPLY",
+            Self::TupleDivide => "TUPLEDIVIDE",
+            Self::TupleNegate => "TUPLENEGATE",
+            Self::TupleMultiplyByNumber => "TUPLEMULTIPLYBYNUMBER",
+            Self::TupleDivideByNumber => "TUPLEDIVIDEBYNUMBER",
+            Self::TupleConcat => "TUPLECONCAT",
+            Self::TupleIntDiv => "TUPLEINTDIV",
+            Self::TupleIntDivOrZero => "TUPLEINTDIVORZERO",
+            Self::TupleModulo => "TUPLEMODULO",
+            Self::TupleModuloByNumber => "TUPLEMODULOBYNUMBER",
+            Self::TupleToNameValuePairs => "TUPLETONAMEVALUEPAIRS",
+            Self::TupleNames => "TUPLENAMES",
 
             Self::Custom(name) => name,
         }
@@ -2359,6 +2456,13 @@ impl FunctionName {
                 | Self::JsonObjectagg
                 | Self::RegrSlope
                 | Self::RegrIntercept
+                | Self::RegrCount
+                | Self::RegrR2
+                | Self::RegrAvgx
+                | Self::RegrAvgy
+                | Self::RegrSxx
+                | Self::RegrSyy
+                | Self::RegrSxy
                 | Self::Entropy
                 | Self::MeanZscore
                 | Self::UniqUpdown

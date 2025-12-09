@@ -420,6 +420,270 @@ impl ProjectionWithExprExec {
         match name {
             FunctionName::Custom(s) if s == "YACHTSQL.IS_FEATURE_ENABLED" => Some(DataType::Bool),
 
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "GREATCIRCLEDISTANCE"
+                        | "GEODISTANCE"
+                        | "H3EDGELENGTHM"
+                        | "H3EDGEANGLE"
+                        | "H3HEXAREAKM2"
+                        | "H3CELLAREAM2"
+                        | "H3CELLAREARADS2"
+                ) =>
+            {
+                Some(DataType::Float64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "POINTINELLIPSES"
+                        | "POINTINPOLYGON"
+                        | "H3ISVALID"
+                        | "H3ISPENTAGON"
+                        | "H3ISRESCLASSIII"
+                ) =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s) if s == "GEOHASHENCODE" => Some(DataType::String),
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "H3GETRESOLUTION"
+                        | "GEOTOH3"
+                        | "H3GETBASECELL"
+                        | "H3TOPARENT"
+                        | "H3DISTANCE"
+                        | "LONGLATTOS2CELLID"
+                ) =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "GEOHASHDECODE" | "H3TOGEO" | "S2CELLIDTOLONGLAT"
+                ) =>
+            {
+                Some(DataType::Struct(vec![
+                    yachtsql_core::types::StructField {
+                        name: "lat".to_string(),
+                        data_type: DataType::Float64,
+                    },
+                    yachtsql_core::types::StructField {
+                        name: "lon".to_string(),
+                        data_type: DataType::Float64,
+                    },
+                ]))
+            }
+
+            FunctionName::Custom(s) if s == "GEOHASHESINBOX" => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "H3KRING" | "H3TOCHILDREN" | "H3LINE" | "H3GETFACES"
+                ) =>
+            {
+                Some(DataType::Array(Box::new(DataType::Int64)))
+            }
+
+            FunctionName::Custom(s) if s == "H3TOGEOBOUNDARY" => {
+                Some(DataType::Array(Box::new(DataType::Struct(vec![
+                    yachtsql_core::types::StructField {
+                        name: "lat".to_string(),
+                        data_type: DataType::Float64,
+                    },
+                    yachtsql_core::types::StructField {
+                        name: "lon".to_string(),
+                        data_type: DataType::Float64,
+                    },
+                ]))))
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "PROTOCOL"
+                        | "DOMAIN"
+                        | "DOMAINWITHOUTWWW"
+                        | "TOPLEVELDOMAIN"
+                        | "FIRSTSIGNIFICANTSUBDOMAIN"
+                        | "PATH"
+                        | "PATHFULL"
+                        | "QUERYSTRING"
+                        | "FRAGMENT"
+                        | "QUERYSTRINGANDFRAGMENT"
+                        | "EXTRACTURLPARAMETER"
+                        | "DECODEURLCOMPONENT"
+                        | "ENCODEURLCOMPONENT"
+                        | "ENCODEURLFORMCOMPONENT"
+                        | "DECODEURLFORMCOMPONENT"
+                        | "NETLOC"
+                        | "CUTTOFIRSTSIGNIFICANTSUBDOMAIN"
+                        | "CUTWWW"
+                        | "CUTQUERYSTRING"
+                        | "CUTFRAGMENT"
+                        | "CUTQUERYSTRINGANDFRAGMENT"
+                        | "CUTURLPARAMETER"
+                ) =>
+            {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if s == "PORT" => Some(DataType::Int64),
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "EXTRACTURLPARAMETERS"
+                        | "EXTRACTURLPARAMETERNAMES"
+                        | "URLHIERARCHY"
+                        | "URLPATHHIERARCHY"
+                ) =>
+            {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "HOSTNAME"
+                        | "FQDN"
+                        | "VERSION"
+                        | "TIMEZONE"
+                        | "CURRENTDATABASE"
+                        | "CURRENTUSER"
+                        | "BAR"
+                        | "FORMATREADABLESIZE"
+                        | "FORMATREADABLEQUANTITY"
+                        | "FORMATREADABLETIMEDELTA"
+                        | "GETSETTING"
+                ) =>
+            {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "UPTIME" | "SLEEP" | "THROWIF" | "IGNORE") =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "ISCONSTANT" | "ISFINITE" | "ISINFINITE" | "ISNAN" | "HASCOLUMNINTABLE"
+                ) =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s) if s == "MODELEVALUATE" => Some(DataType::Float64),
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "MATERIALIZE" | "IDENTITY") => {
+                if !args.is_empty() {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s) if s == "TRANSFORM" => {
+                if args.len() >= 3 {
+                    Self::infer_expr_type_with_schema(&args[2], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "HEX"
+                        | "UNHEX"
+                        | "BASE64ENCODE"
+                        | "BASE64DECODE"
+                        | "TRYBASE64DECODE"
+                        | "BASE58ENCODE"
+                        | "BASE58DECODE"
+                        | "BIN"
+                        | "CHAR"
+                ) =>
+            {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "UNBIN"
+                        | "BITSHIFTLEFT"
+                        | "BITSHIFTRIGHT"
+                        | "BITAND"
+                        | "BITOR"
+                        | "BITXOR"
+                        | "BITNOT"
+                        | "BITCOUNT"
+                        | "BITTEST"
+                        | "BITTESTALL"
+                        | "BITTESTANY"
+                ) =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "IPV4NUMTOSTRING"
+                        | "IPV4NUMTOSTRINGCLASSC"
+                        | "IPV4TOIPV6"
+                        | "TOIPV4"
+                        | "TOIPV6"
+                        | "TOIPV4ORNULL"
+                        | "TOIPV6ORNULL"
+                        | "IPV4CIDRTORANGE"
+                        | "IPV6CIDRTORANGE"
+                        | "MACNUMTOSTRING"
+                ) =>
+            {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "IPV4STRINGTONUM" | "MACSTRINGTONUM" | "MACSTRINGTOOUI"
+                ) =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "ISIPV4STRING" | "ISIPV6STRING" | "ISIPADDRESSINRANGE"
+                ) =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "IPV6NUMTOSTRING") => {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "IPV6STRINGTONUM") => {
+                Some(DataType::Bytes)
+            }
+
             FunctionName::Abs
             | FunctionName::Absolute
             | FunctionName::Ceil
@@ -1363,6 +1627,31 @@ impl ProjectionWithExprExec {
             FunctionName::DefaultValueOfTypeName => None,
 
             FunctionName::CurrentSchemas => Some(DataType::Array(Box::new(DataType::String))),
+
+            // Tuple functions
+            FunctionName::Tuple
+            | FunctionName::TupleElement
+            | FunctionName::Untuple
+            | FunctionName::TuplePlus
+            | FunctionName::TupleMinus
+            | FunctionName::TupleMultiply
+            | FunctionName::TupleDivide
+            | FunctionName::TupleNegate
+            | FunctionName::TupleMultiplyByNumber
+            | FunctionName::TupleDivideByNumber
+            | FunctionName::TupleConcat
+            | FunctionName::TupleIntDiv
+            | FunctionName::TupleIntDivOrZero
+            | FunctionName::TupleModulo
+            | FunctionName::TupleModuloByNumber => Some(DataType::Struct(vec![])),
+
+            FunctionName::TupleHammingDistance => Some(DataType::Int64),
+
+            FunctionName::TupleToNameValuePairs => {
+                Some(DataType::Array(Box::new(DataType::Struct(vec![]))))
+            }
+
+            FunctionName::TupleNames => Some(DataType::Array(Box::new(DataType::String))),
 
             _ => None,
         }

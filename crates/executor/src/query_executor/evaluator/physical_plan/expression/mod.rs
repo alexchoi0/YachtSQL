@@ -26,6 +26,7 @@ mod math;
 mod range;
 mod string;
 mod system;
+mod tuple;
 
 #[cfg(test)]
 pub(crate) mod test_utils;

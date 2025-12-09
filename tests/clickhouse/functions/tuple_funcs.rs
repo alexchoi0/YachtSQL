@@ -1,17 +1,19 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, i64, tuple};
+use crate::common::{create_executor, i64, numeric, str, tuple};
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_constructor() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tuple(1, 'hello', 3.14)")
         .unwrap();
-    assert_table_eq!(result, [[(1, "hello", 3.14)]]);
+    assert_table_eq!(
+        result,
+        [[tuple(vec![i64(1), str("hello"), numeric("3.14")])]]
+    );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "tupleElement with tuple literal needs parsing fix"]
 #[test]
 fn test_tuple_element_index() {
     let mut executor = create_executor();
@@ -21,7 +23,7 @@ fn test_tuple_element_index() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Named tuple syntax (a: 1) not supported"]
 #[test]
 fn test_tuple_element_name() {
     let mut executor = create_executor();
@@ -31,7 +33,7 @@ fn test_tuple_element_name() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Named tuple syntax (a: 1) not supported"]
 #[test]
 fn test_tuple_dot_access() {
     let mut executor = create_executor();
@@ -39,7 +41,7 @@ fn test_tuple_dot_access() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "untuple expands to multiple columns - complex to implement"]
 #[test]
 fn test_untuple() {
     let mut executor = create_executor();
@@ -49,7 +51,6 @@ fn test_untuple() {
     assert_table_eq!(result, [[1, "hello"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_hamming_distance() {
     let mut executor = create_executor();
@@ -59,37 +60,33 @@ fn test_tuple_hamming_distance() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_plus() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tuplePlus((1, 2, 3), (10, 20, 30))")
         .unwrap();
-    assert_table_eq!(result, [[(11, 22, 33)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(11), i64(22), i64(33)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_minus() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tupleMinus((10, 20, 30), (1, 2, 3))")
         .unwrap();
-    assert_table_eq!(result, [[(9, 18, 27)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(9), i64(18), i64(27)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_multiply() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tupleMultiply((1, 2, 3), (2, 3, 4))")
         .unwrap();
-    assert_table_eq!(result, [[(2, 6, 12)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(2), i64(6), i64(12)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_divide() {
     let mut executor = create_executor();
@@ -99,7 +96,6 @@ fn test_tuple_divide() {
     assert_table_eq!(result, [[(5.0, 5.0, 6.0)]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_negate() {
     let mut executor = create_executor();
@@ -109,17 +105,15 @@ fn test_tuple_negate() {
     assert_table_eq!(result, [[tuple(vec![i64(-1), i64(2), i64(-3)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_multiply_by_number() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tupleMultiplyByNumber((1, 2, 3), 10)")
         .unwrap();
-    assert_table_eq!(result, [[(10, 20, 30)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(10), i64(20), i64(30)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_divide_by_number() {
     let mut executor = create_executor();
@@ -129,7 +123,7 @@ fn test_tuple_divide_by_number() {
     assert_table_eq!(result, [[(1.0, 2.0, 3.0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parsing single-element tuple (3.14,) not supported"]
 #[test]
 fn test_tuple_concat() {
     let mut executor = create_executor();
@@ -139,47 +133,43 @@ fn test_tuple_concat() {
     assert_table_eq!(result, [[(1, 2, "a", "b", 3.14)]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_int_div() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tupleIntDiv((10, 21, 35), (3, 4, 6))")
         .unwrap();
-    assert_table_eq!(result, [[(3, 5, 5)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(3), i64(5), i64(5)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_int_div_or_zero() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tupleIntDivOrZero((10, 20), (3, 0))")
         .unwrap();
-    assert_table_eq!(result, [[(3, 0)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(3), i64(0)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_modulo() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tupleModulo((10, 21, 35), (3, 4, 6))")
         .unwrap();
-    assert_table_eq!(result, [[(1, 1, 5)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(1), i64(1), i64(5)])]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tuple_modulo_by_number() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT tupleModuloByNumber((10, 21, 35), 4)")
         .unwrap();
-    assert_table_eq!(result, [[(2, 1, 3)]]);
+    assert_table_eq!(result, [[tuple(vec![i64(2), i64(1), i64(3)])]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Named tuple syntax (a: 1) not supported"]
 #[test]
 fn test_tuple_to_name_value_pairs() {
     let mut executor = create_executor();
@@ -189,7 +179,7 @@ fn test_tuple_to_name_value_pairs() {
     assert_table_eq!(result, [[[("a", 1), ("b", 2), ("c", 3)]]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Named tuple syntax (a: 1) not supported"]
 #[test]
 fn test_tuple_names() {
     let mut executor = create_executor();
@@ -199,7 +189,7 @@ fn test_tuple_names() {
     assert_table_eq!(result, [[["a", "b", "c"]]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Tuple column types need schema integration"]
 #[test]
 fn test_tuple_column() {
     let mut executor = create_executor();
@@ -225,7 +215,7 @@ fn test_tuple_column() {
     assert_table_eq!(result, [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0],]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Nested tuple field access needs implementation"]
 #[test]
 fn test_nested_tuple() {
     let mut executor = create_executor();
@@ -233,7 +223,7 @@ fn test_nested_tuple() {
     assert_table_eq!(result, [[(1, 2)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Tuple comparison needs implementation"]
 #[test]
 fn test_tuple_comparison() {
     let mut executor = create_executor();
@@ -260,7 +250,7 @@ fn test_tuple_comparison() {
     assert_table_eq!(result, [[(1, 3)], [(2, 1)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Array of tuples needs schema integration"]
 #[test]
 fn test_tuple_array_operations() {
     let mut executor = create_executor();
