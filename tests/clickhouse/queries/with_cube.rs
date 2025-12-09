@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_basic() {
     let mut executor = create_executor();
@@ -17,7 +16,6 @@ fn test_with_cube_basic() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_two_columns() {
     let mut executor = create_executor();
@@ -38,7 +36,6 @@ fn test_with_cube_two_columns() {
     assert!(result.num_rows() >= 8);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_three_columns() {
     let mut executor = create_executor();
@@ -57,7 +54,6 @@ fn test_with_cube_three_columns() {
     assert!(result.num_rows() >= 8);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_count() {
     let mut executor = create_executor();
@@ -76,7 +72,6 @@ fn test_with_cube_count() {
     assert!(result.num_rows() >= 8);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_multiple_agg() {
     let mut executor = create_executor();
@@ -95,7 +90,6 @@ fn test_with_cube_multiple_agg() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_order_by() {
     let mut executor = create_executor();
@@ -112,7 +106,6 @@ fn test_with_cube_order_by() {
     assert!(result.num_rows() >= 4);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_having() {
     let mut executor = create_executor();
@@ -129,7 +122,6 @@ fn test_with_cube_having() {
     assert!(result.num_rows() >= 1);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_with_cube_with_where() {
     let mut executor = create_executor();
@@ -148,7 +140,7 @@ fn test_with_cube_with_where() {
     assert!(result.num_rows() >= 6);
 }
 
-#[ignore = "Requires GROUPING support"]
+#[ignore = "CUBE generates different number of rows"]
 #[test]
 fn test_grouping_function_cube() {
     let mut executor = create_executor();
@@ -165,7 +157,6 @@ fn test_grouping_function_cube() {
     assert!(result.num_rows() >= 8);
 }
 
-#[ignore = "Requires GROUPING support"]
 #[test]
 fn test_cube_vs_rollup() {
     let mut executor = create_executor();
@@ -185,7 +176,7 @@ fn test_cube_vs_rollup() {
     assert!(cube_result.num_rows() >= rollup_result.num_rows());
 }
 
-#[ignore = "Requires GROUPING support"]
+#[ignore = "GROUPING SETS syntax not fully supported"]
 #[test]
 fn test_grouping_sets() {
     let mut executor = create_executor();

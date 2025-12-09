@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_basic() {
     let mut executor = create_executor();
@@ -17,7 +16,6 @@ fn test_with_rollup_basic() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_two_columns() {
     let mut executor = create_executor();
@@ -38,7 +36,6 @@ fn test_with_rollup_two_columns() {
     assert!(result.num_rows() >= 6);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_three_columns() {
     let mut executor = create_executor();
@@ -57,7 +54,6 @@ fn test_with_rollup_three_columns() {
     assert!(result.num_rows() >= 7);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_count() {
     let mut executor = create_executor();
@@ -74,7 +70,6 @@ fn test_with_rollup_count() {
     assert!(result.num_rows() >= 4);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_multiple_agg() {
     let mut executor = create_executor();
@@ -91,7 +86,6 @@ fn test_with_rollup_multiple_agg() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_order_by() {
     let mut executor = create_executor();
@@ -108,7 +102,6 @@ fn test_with_rollup_order_by() {
     assert!(result.num_rows() >= 4);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_having() {
     let mut executor = create_executor();
@@ -125,7 +118,6 @@ fn test_with_rollup_having() {
     assert!(result.num_rows() >= 1);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_with_rollup_with_where() {
     let mut executor = create_executor();
@@ -142,7 +134,6 @@ fn test_with_rollup_with_where() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Requires HAVING alias support"]
 #[test]
 fn test_grouping_function_rollup() {
     let mut executor = create_executor();

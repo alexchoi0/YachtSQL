@@ -254,6 +254,14 @@ impl LogicalPlanBuilder {
 
         let has_distinct = matches!(select.distinct, Some(ast::Distinct::Distinct));
 
+        if let Some(prewhere) = &select.prewhere {
+            let predicate = self.sql_expr_to_expr(prewhere)?;
+            plan = LogicalPlan::new(PlanNode::Filter {
+                predicate,
+                input: plan.root,
+            });
+        }
+
         if let Some(selection) = &select.selection {
             let predicate = self.sql_expr_to_expr(selection)?;
             plan = LogicalPlan::new(PlanNode::Filter {
@@ -379,9 +387,11 @@ impl LogicalPlanBuilder {
 
             if let Some(having_expr) = &select.having {
                 let having_predicate = self.sql_expr_to_expr(having_expr)?;
+                let having_predicate_resolved =
+                    Self::resolve_having_aliases(&having_predicate, &select_alias_map);
 
                 let having_predicate_rewritten =
-                    self.rewrite_post_aggregate_expr(&having_predicate, &group_by_exprs);
+                    self.rewrite_post_aggregate_expr(&having_predicate_resolved, &group_by_exprs);
                 plan = LogicalPlan::new(PlanNode::Filter {
                     predicate: having_predicate_rewritten,
                     input: plan.root,
@@ -688,6 +698,76 @@ impl LogicalPlanBuilder {
             }
         }
         builder.sql_expr_to_expr(ast_expr)
+    }
+
+    fn resolve_having_aliases(expr: &Expr, select_alias_map: &HashMap<String, Expr>) -> Expr {
+        match expr {
+            Expr::Column { name, table: None } => {
+                let name_lower = name.to_lowercase();
+                if let Some(aliased_expr) = select_alias_map.get(&name_lower) {
+                    return aliased_expr.clone();
+                }
+                expr.clone()
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(Self::resolve_having_aliases(left, select_alias_map)),
+                op: *op,
+                right: Box::new(Self::resolve_having_aliases(right, select_alias_map)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: *op,
+                expr: Box::new(Self::resolve_having_aliases(inner, select_alias_map)),
+            },
+            Expr::Function { name, args } => Expr::Function {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|a| Self::resolve_having_aliases(a, select_alias_map))
+                    .collect(),
+            },
+            Expr::Aggregate {
+                name,
+                args,
+                distinct,
+                order_by,
+                filter,
+            } => Expr::Aggregate {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|a| Self::resolve_having_aliases(a, select_alias_map))
+                    .collect(),
+                distinct: *distinct,
+                order_by: order_by.clone(),
+                filter: filter
+                    .as_ref()
+                    .map(|f| Box::new(Self::resolve_having_aliases(f, select_alias_map))),
+            },
+            Expr::Between {
+                expr: inner,
+                low,
+                high,
+                negated,
+            } => Expr::Between {
+                expr: Box::new(Self::resolve_having_aliases(inner, select_alias_map)),
+                low: Box::new(Self::resolve_having_aliases(low, select_alias_map)),
+                high: Box::new(Self::resolve_having_aliases(high, select_alias_map)),
+                negated: *negated,
+            },
+            Expr::InList {
+                expr: inner,
+                list,
+                negated,
+            } => Expr::InList {
+                expr: Box::new(Self::resolve_having_aliases(inner, select_alias_map)),
+                list: list
+                    .iter()
+                    .map(|e| Self::resolve_having_aliases(e, select_alias_map))
+                    .collect(),
+                negated: *negated,
+            },
+            _ => expr.clone(),
+        }
     }
 
     fn extract_grouping_extension(
