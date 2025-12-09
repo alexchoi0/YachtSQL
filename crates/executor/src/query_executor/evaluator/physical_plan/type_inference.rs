@@ -692,18 +692,21 @@ impl ProjectionWithExprExec {
                 Some(DataType::Bytes)
             }
 
-            FunctionName::Custom(s) if matches!(s.as_str(), "ENCRYPT" | "AES_ENCRYPT_MYSQL") => {
-                Some(DataType::Bytes)
-            }
-
-            FunctionName::Custom(s) if matches!(s.as_str(), "DECRYPT" | "AES_DECRYPT_MYSQL") => {
-                Some(DataType::String)
-            }
-
             FunctionName::Custom(s)
                 if matches!(
                     s.as_str(),
-                    "RAND"
+                    "TOINT8"
+                        | "TOINT16"
+                        | "TOINT32"
+                        | "TOINT64"
+                        | "TOUINT8"
+                        | "TOUINT16"
+                        | "TOUINT32"
+                        | "TOUINT64"
+                        | "TOINT64ORNULL"
+                        | "TOINT64ORZERO"
+                        | "REINTERPRETASINT64"
+                        | "RAND"
                         | "RAND32"
                         | "RAND64"
                         | "RANDCONSTANT"
@@ -716,10 +719,22 @@ impl ProjectionWithExprExec {
                 Some(DataType::Int64)
             }
 
+            FunctionName::Custom(s) if matches!(s.as_str(), "ENCRYPT" | "AES_ENCRYPT_MYSQL") => {
+                Some(DataType::Bytes)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "DECRYPT" | "AES_DECRYPT_MYSQL") => {
+                Some(DataType::String)
+            }
+
             FunctionName::Custom(s)
                 if matches!(
                     s.as_str(),
-                    "RANDUNIFORM"
+                    "TOFLOAT32"
+                        | "TOFLOAT64"
+                        | "TOFLOAT64ORNULL"
+                        | "TOFLOAT64ORZERO"
+                        | "RANDUNIFORM"
                         | "RANDNORMAL"
                         | "RANDLOGNORMAL"
                         | "RANDEXPONENTIAL"
@@ -734,12 +749,97 @@ impl ProjectionWithExprExec {
             FunctionName::Custom(s)
                 if matches!(
                     s.as_str(),
-                    "GENERATEUUIDV4" | "RANDOMPRINTABLEASCII" | "RANDOMSTRINGUTF8" | "FAKEDATA"
+                    "TOSTRING"
+                        | "TOFIXEDSTRING"
+                        | "REINTERPRETASSTRING"
+                        | "TOTYPENAME"
+                        | "GENERATEUUIDV4"
+                        | "RANDOMPRINTABLEASCII"
+                        | "RANDOMSTRINGUTF8"
+                        | "FAKEDATA"
                 ) =>
             {
                 Some(DataType::String)
             }
 
+            FunctionName::Custom(s) if matches!(s.as_str(), "TODATE" | "TODATEORNULL") => {
+                Some(DataType::Date)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "TODATETIME"
+                        | "TODATETIME64"
+                        | "TODATETIMEORNULL"
+                        | "PARSEDATETIME"
+                        | "PARSEDATETIMEBESTEFFORT"
+                        | "PARSEDATETIMEBESTEFFORTORNULL"
+                ) =>
+            {
+                Some(DataType::Timestamp)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "TODECIMAL32" | "TODECIMAL64" | "TODECIMAL128") =>
+            {
+                Some(DataType::Numeric(None))
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "ACCURATECAST" | "ACCURATECASTORNULL") =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "POSITION"
+                        | "POSITIONCASEINSENSITIVE"
+                        | "POSITIONUTF8"
+                        | "POSITIONCASEINSENSITIVEUTF8"
+                        | "LOCATE"
+                        | "COUNTSUBSTRINGS"
+                        | "COUNTSUBSTRINGSCASEINSENSITIVE"
+                        | "MULTISEARCHFIRSTINDEX"
+                        | "MULTIMATCHANYINDEX"
+                        | "MULTISEARCHFIRSTPOSITION"
+                        | "COUNTMATCHES"
+                ) =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "MATCH"
+                        | "MULTISEARCHANY"
+                        | "MULTIMATCHANY"
+                        | "HASTOKEN"
+                        | "HASTOKENCASEINSENSITIVE"
+                ) =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "MULTISEARCHALLPOSITIONS" | "MULTIMATCHALLINDICES"
+                ) =>
+            {
+                Some(DataType::Array(Box::new(DataType::Int64)))
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "EXTRACTGROUPS") => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "NGRAMDISTANCE" | "NGRAMSEARCH") => {
+                Some(DataType::Float64)
+            }
             FunctionName::Custom(s)
                 if matches!(s.as_str(), "RANDOMSTRING" | "RANDOMFIXEDSTRING") =>
             {

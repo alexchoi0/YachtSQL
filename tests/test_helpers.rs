@@ -228,6 +228,16 @@ pub fn ts(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Val
     timestamp(year, month, day, hour, min, sec)
 }
 
+pub fn ts_ms(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32, millis: u32) -> Value {
+    use chrono::{TimeZone, Timelike, Utc};
+    let dt = Utc
+        .with_ymd_and_hms(year, month, day, hour, min, sec)
+        .unwrap()
+        .with_nanosecond(millis * 1_000_000)
+        .unwrap();
+    Value::timestamp(dt)
+}
+
 pub fn n(val: &str) -> Value {
     numeric(val)
 }

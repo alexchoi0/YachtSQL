@@ -2968,6 +2968,465 @@ impl ProjectionWithExprExec {
                     .to_string();
                 yachtsql_functions::network::mac_string_to_oui(&s)
             }
+            "TOINT8" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toInt8 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_int8(&val)
+            }
+            "TOINT16" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toInt16 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_int16(&val)
+            }
+            "TOINT32" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toInt32 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_int32(&val)
+            }
+            "TOINT64" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toInt64 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_int64(&val)
+            }
+            "TOUINT8" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toUInt8 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_uint8(&val)
+            }
+            "TOUINT16" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toUInt16 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_uint16(&val)
+            }
+            "TOUINT32" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toUInt32 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_uint32(&val)
+            }
+            "TOUINT64" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toUInt64 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_uint64(&val)
+            }
+            "TOFLOAT32" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toFloat32 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_float32(&val)
+            }
+            "TOFLOAT64" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toFloat64 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_float64(&val)
+            }
+            "TOSTRING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toString requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_string(&val)
+            }
+            "TOFIXEDSTRING" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "toFixedString requires 2 arguments".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_string(&val)
+            }
+            "TODATE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toDate requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_date(&val)
+            }
+            "TODATETIME" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toDateTime requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_datetime(&val)
+            }
+            "TODATETIME64" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toDateTime64 requires at least 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::convert_to_datetime(&val)
+            }
+            "TODECIMAL32" | "TODECIMAL64" | "TODECIMAL128" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toDecimal requires at least 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let scale = if args.len() > 1 {
+                    Self::evaluate_expr(&args[1], batch, row_idx)?
+                        .as_i64()
+                        .unwrap_or(0) as u32
+                } else {
+                    0
+                };
+                Self::convert_to_decimal(&val, scale)
+            }
+            "TOINT64ORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toInt64OrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Self::convert_to_int64(&val).unwrap_or_else(|_| Value::null()))
+            }
+            "TOINT64ORZERO" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toInt64OrZero requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Self::convert_to_int64(&val).unwrap_or_else(|_| Value::int64(0)))
+            }
+            "TOFLOAT64ORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toFloat64OrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Self::convert_to_float64(&val).unwrap_or_else(|_| Value::null()))
+            }
+            "TOFLOAT64ORZERO" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toFloat64OrZero requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Self::convert_to_float64(&val).unwrap_or_else(|_| Value::float64(0.0)))
+            }
+            "TODATEORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toDateOrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Self::convert_to_date(&val).unwrap_or_else(|_| Value::null()))
+            }
+            "TODATETIMEORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toDateTimeOrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Self::convert_to_datetime(&val).unwrap_or_else(|_| Value::null()))
+            }
+            "REINTERPRETASINT64" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "reinterpretAsInt64 requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::reinterpret_as_int64(&val)
+            }
+            "REINTERPRETASSTRING" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "reinterpretAsString requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::reinterpret_as_string(&val)
+            }
+            "TOTYPENAME" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toTypeName requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Value::string(Self::get_clickhouse_type_name(&val)))
+            }
+            "ACCURATECAST" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "accurateCast requires 2 arguments".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let type_name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .unwrap_or("Int64")
+                    .to_string();
+                Self::accurate_cast(&val, &type_name)
+            }
+            "ACCURATECASTORNULL" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "accurateCastOrNull requires 2 arguments".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let type_name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .unwrap_or("Int64")
+                    .to_string();
+                Ok(Self::accurate_cast(&val, &type_name).unwrap_or_else(|_| Value::null()))
+            }
+            "PARSEDATETIME" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "parseDateTime requires 2 arguments".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let fmt = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .unwrap_or("%Y-%m-%d %H:%M:%S")
+                    .to_string();
+                Self::parse_datetime(&val, &fmt)
+            }
+            "PARSEDATETIMEBESTEFFORT" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "parseDateTimeBestEffort requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Self::parse_datetime_best_effort(&val)
+            }
+            "PARSEDATETIMEBESTEFFORTORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "parseDateTimeBestEffortOrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Self::parse_datetime_best_effort(&val).unwrap_or_else(|_| Value::null()))
+            }
+            "POSITION"
+            | "POSITIONCASEINSENSITIVE"
+            | "POSITIONUTF8"
+            | "POSITIONCASEINSENSITIVEUTF8" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "position requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let needle = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let case_insensitive =
+                    name == "POSITIONCASEINSENSITIVE" || name == "POSITIONCASEINSENSITIVEUTF8";
+                Self::string_position(&haystack, &needle, case_insensitive)
+            }
+            "LOCATE" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "locate requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let needle = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::string_position(&haystack, &needle, false)
+            }
+            "COUNTSUBSTRINGS" | "COUNTSUBSTRINGSCASEINSENSITIVE" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "countSubstrings requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let needle = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let case_insensitive = name == "COUNTSUBSTRINGSCASEINSENSITIVE";
+                Self::count_substrings(&haystack, &needle, case_insensitive)
+            }
+            "MATCH" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "match requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let pattern = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::regex_match(&haystack, &pattern)
+            }
+            "MULTISEARCHANY" | "MULTIMATCHANY" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(format!(
+                        "{} requires 2 arguments",
+                        name
+                    )));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let needles = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::multi_search_any(&haystack, &needles, name == "MULTIMATCHANY")
+            }
+            "MULTISEARCHFIRSTINDEX" | "MULTIMATCHANYINDEX" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(format!(
+                        "{} requires 2 arguments",
+                        name
+                    )));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let needles = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::multi_search_first_index(&haystack, &needles, name == "MULTIMATCHANYINDEX")
+            }
+            "MULTISEARCHFIRSTPOSITION" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "multiSearchFirstPosition requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let needles = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::multi_search_first_position(&haystack, &needles)
+            }
+            "MULTISEARCHALLPOSITIONS" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "multiSearchAllPositions requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let needles = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::multi_search_all_positions(&haystack, &needles)
+            }
+            "MULTIMATCHALLINDICES" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "multiMatchAllIndices requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let patterns = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::multi_match_all_indices(&haystack, &patterns)
+            }
+            "EXTRACT" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "extract requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let pattern = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::regex_extract(&haystack, &pattern)
+            }
+            "EXTRACTGROUPS" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "extractGroups requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let pattern = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::extract_groups(&haystack, &pattern)
+            }
+            "COUNTMATCHES" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "countMatches requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let pattern = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::count_matches(&haystack, &pattern)
+            }
+            "HASTOKEN" | "HASTOKENCASEINSENSITIVE" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "hasToken requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let token = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let case_insensitive = name == "HASTOKENCASEINSENSITIVE";
+                Self::has_token(&haystack, &token, case_insensitive)
+            }
+            "STARTSWITH" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "startsWith requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let prefix = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::starts_with(&haystack, &prefix)
+            }
+            "ENDSWITH" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "endsWith requires 2 arguments".to_string(),
+                    ));
+                }
+                let haystack = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let suffix = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::ends_with(&haystack, &suffix)
+            }
+            "NGRAMDISTANCE" | "NGRAMSEARCH" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(format!(
+                        "{} requires 2 arguments",
+                        name
+                    )));
+                }
+                let str1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let str2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Self::ngram_distance(&str1, &str2)
+            }
 
             "HOST" => {
                 let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
@@ -3302,5 +3761,972 @@ impl ProjectionWithExprExec {
                 name
             ))),
         }
+    }
+
+    fn convert_to_int8(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i as i8 as i64));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as i8 as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<i8>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("Int8", &val.data_type().to_string()))
+    }
+
+    fn convert_to_int16(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i as i16 as i64));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as i16 as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<i16>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("Int16", &val.data_type().to_string()))
+    }
+
+    fn convert_to_int32(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i as i32 as i64));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as i32 as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<i32>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("Int32", &val.data_type().to_string()))
+    }
+
+    fn convert_to_int64(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<i64>() {
+                return Ok(Value::int64(i));
+            }
+        }
+        Err(Error::type_mismatch("Int64", &val.data_type().to_string()))
+    }
+
+    fn convert_to_uint8(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i as u8 as i64));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as u8 as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<u8>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("UInt8", &val.data_type().to_string()))
+    }
+
+    fn convert_to_uint16(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i as u16 as i64));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as u16 as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<u16>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("UInt16", &val.data_type().to_string()))
+    }
+
+    fn convert_to_uint32(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i as u32 as i64));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as u32 as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<u32>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("UInt32", &val.data_type().to_string()))
+    }
+
+    fn convert_to_uint64(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i as u64 as i64));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::int64(f as u64 as i64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<u64>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("UInt64", &val.data_type().to_string()))
+    }
+
+    fn convert_to_float32(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::float64(f as f32 as f64));
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::float64(i as f32 as f64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(f) = s.trim().parse::<f32>() {
+                return Ok(Value::float64(f as f64));
+            }
+        }
+        Err(Error::type_mismatch(
+            "Float32",
+            &val.data_type().to_string(),
+        ))
+    }
+
+    fn convert_to_float64(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::float64(f));
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::float64(i as f64));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(f) = s.trim().parse::<f64>() {
+                return Ok(Value::float64(f));
+            }
+        }
+        Err(Error::type_mismatch(
+            "Float64",
+            &val.data_type().to_string(),
+        ))
+    }
+
+    fn convert_to_string(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(s) = val.as_str() {
+            return Ok(Value::string(s.to_string()));
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::string(i.to_string()));
+        }
+        if let Some(f) = val.as_f64() {
+            return Ok(Value::string(f.to_string()));
+        }
+        if let Some(b) = val.as_bool() {
+            return Ok(Value::string(if b { "true" } else { "false" }.to_string()));
+        }
+        if let Some(d) = val.as_date() {
+            return Ok(Value::string(d.to_string()));
+        }
+        if let Some(t) = val.as_timestamp() {
+            return Ok(Value::string(t.to_rfc3339()));
+        }
+        Ok(Value::string(format!("{:?}", val)))
+    }
+
+    fn convert_to_date(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(d) = val.as_date() {
+            return Ok(Value::date(d));
+        }
+        if let Some(t) = val.as_timestamp() {
+            return Ok(Value::date(t.date_naive()));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(d) = chrono::NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d") {
+                return Ok(Value::date(d));
+            }
+        }
+        Err(Error::type_mismatch("Date", &val.data_type().to_string()))
+    }
+
+    fn convert_to_datetime(val: &Value) -> Result<Value> {
+        use chrono::{NaiveDateTime, TimeZone, Utc};
+
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(t) = val.as_timestamp() {
+            return Ok(Value::timestamp(t));
+        }
+        if let Some(d) = val.as_date() {
+            let dt = d.and_hms_opt(0, 0, 0).unwrap();
+            return Ok(Value::timestamp(Utc.from_utc_datetime(&dt)));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(dt) = NaiveDateTime::parse_from_str(s.trim(), "%Y-%m-%d %H:%M:%S") {
+                return Ok(Value::timestamp(Utc.from_utc_datetime(&dt)));
+            }
+            if let Ok(dt) = NaiveDateTime::parse_from_str(s.trim(), "%Y-%m-%d %H:%M:%S%.f") {
+                return Ok(Value::timestamp(Utc.from_utc_datetime(&dt)));
+            }
+            if let Ok(d) = chrono::NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d") {
+                let dt = d.and_hms_opt(0, 0, 0).unwrap();
+                return Ok(Value::timestamp(Utc.from_utc_datetime(&dt)));
+            }
+        }
+        Err(Error::type_mismatch(
+            "DateTime",
+            &val.data_type().to_string(),
+        ))
+    }
+
+    fn convert_to_decimal(val: &Value, scale: u32) -> Result<Value> {
+        use rust_decimal::Decimal;
+
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(n) = val.as_numeric() {
+            let mut d = n;
+            d.rescale(scale);
+            return Ok(Value::numeric(d));
+        }
+        if let Some(i) = val.as_i64() {
+            let mut d = Decimal::from(i);
+            d.rescale(scale);
+            return Ok(Value::numeric(d));
+        }
+        if let Some(f) = val.as_f64() {
+            if let Some(mut d) = Decimal::from_f64_retain(f) {
+                d.rescale(scale);
+                return Ok(Value::numeric(d));
+            }
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(mut d) = s.trim().parse::<Decimal>() {
+                d.rescale(scale);
+                return Ok(Value::numeric(d));
+            }
+        }
+        Err(Error::type_mismatch(
+            "Decimal",
+            &val.data_type().to_string(),
+        ))
+    }
+
+    fn reinterpret_as_int64(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            return Ok(Value::int64(i));
+        }
+        if let Some(s) = val.as_str() {
+            let bytes = s.as_bytes();
+            let mut arr = [0u8; 8];
+            let len = bytes.len().min(8);
+            arr[..len].copy_from_slice(&bytes[..len]);
+            return Ok(Value::int64(i64::from_le_bytes(arr)));
+        }
+        if let Some(b) = val.as_bytes() {
+            let mut arr = [0u8; 8];
+            let len = b.len().min(8);
+            arr[..len].copy_from_slice(&b[..len]);
+            return Ok(Value::int64(i64::from_le_bytes(arr)));
+        }
+        Err(Error::type_mismatch(
+            "reinterpretable value",
+            &val.data_type().to_string(),
+        ))
+    }
+
+    fn reinterpret_as_string(val: &Value) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(i) = val.as_i64() {
+            let bytes = i.to_le_bytes();
+            let s: String = bytes
+                .iter()
+                .take_while(|&&b| b != 0)
+                .map(|&b| b as char)
+                .collect();
+            return Ok(Value::string(s));
+        }
+        if let Some(b) = val.as_bytes() {
+            let s: String = b
+                .iter()
+                .take_while(|&&byte| byte != 0)
+                .map(|&byte| byte as char)
+                .collect();
+            return Ok(Value::string(s));
+        }
+        Err(Error::type_mismatch(
+            "reinterpretable value",
+            &val.data_type().to_string(),
+        ))
+    }
+
+    fn get_clickhouse_type_name(val: &Value) -> String {
+        if val.is_null() {
+            return "Null".to_string();
+        }
+        match val.data_type() {
+            yachtsql_core::types::DataType::Int64 => "Int64".to_string(),
+            yachtsql_core::types::DataType::Float64 => "Float64".to_string(),
+            yachtsql_core::types::DataType::String => "String".to_string(),
+            yachtsql_core::types::DataType::Bool => "Bool".to_string(),
+            yachtsql_core::types::DataType::Date => "Date".to_string(),
+            yachtsql_core::types::DataType::Timestamp => "DateTime".to_string(),
+            yachtsql_core::types::DataType::Numeric(_) => "Decimal".to_string(),
+            yachtsql_core::types::DataType::Bytes => "String".to_string(),
+            yachtsql_core::types::DataType::Array(_) => "Array".to_string(),
+            yachtsql_core::types::DataType::Struct(_) => "Tuple".to_string(),
+            yachtsql_core::types::DataType::Json => "JSON".to_string(),
+            _ => "Unknown".to_string(),
+        }
+    }
+
+    fn accurate_cast(val: &Value, type_name: &str) -> Result<Value> {
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        match type_name.to_uppercase().as_str() {
+            "INT8" => Self::accurate_cast_to_int8(val),
+            "INT16" => Self::accurate_cast_to_int16(val),
+            "INT32" => Self::accurate_cast_to_int32(val),
+            "INT64" => Self::convert_to_int64(val),
+            "UINT8" => Self::accurate_cast_to_uint8(val),
+            "UINT16" => Self::accurate_cast_to_uint16(val),
+            "UINT32" => Self::accurate_cast_to_uint32(val),
+            "UINT64" => Self::convert_to_uint64(val),
+            "FLOAT32" => Self::convert_to_float32(val),
+            "FLOAT64" => Self::convert_to_float64(val),
+            "STRING" => Self::convert_to_string(val),
+            "DATE" => Self::convert_to_date(val),
+            "DATETIME" => Self::convert_to_datetime(val),
+            _ => Err(Error::unsupported_feature(format!(
+                "accurateCast to type: {}",
+                type_name
+            ))),
+        }
+    }
+
+    fn accurate_cast_to_int8(val: &Value) -> Result<Value> {
+        if let Some(i) = val.as_i64() {
+            if i >= i8::MIN as i64 && i <= i8::MAX as i64 {
+                return Ok(Value::int64(i as i8 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for Int8",
+                i
+            )));
+        }
+        if let Some(f) = val.as_f64() {
+            let i = f as i64;
+            if i >= i8::MIN as i64 && i <= i8::MAX as i64 {
+                return Ok(Value::int64(f as i8 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for Int8",
+                f
+            )));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<i8>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("Int8", &val.data_type().to_string()))
+    }
+
+    fn accurate_cast_to_int16(val: &Value) -> Result<Value> {
+        if let Some(i) = val.as_i64() {
+            if i >= i16::MIN as i64 && i <= i16::MAX as i64 {
+                return Ok(Value::int64(i as i16 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for Int16",
+                i
+            )));
+        }
+        if let Some(f) = val.as_f64() {
+            let i = f as i64;
+            if i >= i16::MIN as i64 && i <= i16::MAX as i64 {
+                return Ok(Value::int64(f as i16 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for Int16",
+                f
+            )));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<i16>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("Int16", &val.data_type().to_string()))
+    }
+
+    fn accurate_cast_to_int32(val: &Value) -> Result<Value> {
+        if let Some(i) = val.as_i64() {
+            if i >= i32::MIN as i64 && i <= i32::MAX as i64 {
+                return Ok(Value::int64(i as i32 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for Int32",
+                i
+            )));
+        }
+        if let Some(f) = val.as_f64() {
+            let i = f as i64;
+            if i >= i32::MIN as i64 && i <= i32::MAX as i64 {
+                return Ok(Value::int64(f as i32 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for Int32",
+                f
+            )));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<i32>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("Int32", &val.data_type().to_string()))
+    }
+
+    fn accurate_cast_to_uint8(val: &Value) -> Result<Value> {
+        if let Some(i) = val.as_i64() {
+            if i >= 0 && i <= u8::MAX as i64 {
+                return Ok(Value::int64(i as u8 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for UInt8",
+                i
+            )));
+        }
+        if let Some(f) = val.as_f64() {
+            let i = f as i64;
+            if i >= 0 && i <= u8::MAX as i64 {
+                return Ok(Value::int64(f as u8 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for UInt8",
+                f
+            )));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<u8>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("UInt8", &val.data_type().to_string()))
+    }
+
+    fn accurate_cast_to_uint16(val: &Value) -> Result<Value> {
+        if let Some(i) = val.as_i64() {
+            if i >= 0 && i <= u16::MAX as i64 {
+                return Ok(Value::int64(i as u16 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for UInt16",
+                i
+            )));
+        }
+        if let Some(f) = val.as_f64() {
+            let i = f as i64;
+            if i >= 0 && i <= u16::MAX as i64 {
+                return Ok(Value::int64(f as u16 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for UInt16",
+                f
+            )));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<u16>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("UInt16", &val.data_type().to_string()))
+    }
+
+    fn accurate_cast_to_uint32(val: &Value) -> Result<Value> {
+        if let Some(i) = val.as_i64() {
+            if i >= 0 && i <= u32::MAX as i64 {
+                return Ok(Value::int64(i as u32 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for UInt32",
+                i
+            )));
+        }
+        if let Some(f) = val.as_f64() {
+            let i = f as i64;
+            if i >= 0 && i <= u32::MAX as i64 {
+                return Ok(Value::int64(f as u32 as i64));
+            }
+            return Err(Error::invalid_query(format!(
+                "Value {} is out of range for UInt32",
+                f
+            )));
+        }
+        if let Some(s) = val.as_str() {
+            if let Ok(i) = s.trim().parse::<u32>() {
+                return Ok(Value::int64(i as i64));
+            }
+        }
+        Err(Error::type_mismatch("UInt32", &val.data_type().to_string()))
+    }
+
+    fn parse_datetime(val: &Value, fmt: &str) -> Result<Value> {
+        use chrono::{NaiveDateTime, TimeZone, Utc};
+
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        let s = val
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &val.data_type().to_string()))?;
+        let strftime_fmt = Self::clickhouse_to_strftime(fmt);
+        let dt = NaiveDateTime::parse_from_str(s.trim(), &strftime_fmt)
+            .map_err(|e| Error::invalid_query(format!("Failed to parse datetime: {}", e)))?;
+        Ok(Value::timestamp(Utc.from_utc_datetime(&dt)))
+    }
+
+    fn clickhouse_to_strftime(fmt: &str) -> String {
+        fmt.to_string()
+    }
+
+    fn parse_datetime_best_effort(val: &Value) -> Result<Value> {
+        use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
+
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        let s = val
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &val.data_type().to_string()))?;
+        let s = s.trim();
+
+        let formats = [
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M:%S%.f",
+            "%Y/%m/%d %H:%M:%S",
+            "%d-%m-%Y %H:%M:%S",
+            "%d/%m/%Y %H:%M:%S",
+            "%b %d, %Y %I:%M %p",
+            "%B %d, %Y %I:%M %p",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%SZ",
+        ];
+
+        for fmt in &formats {
+            if let Ok(dt) = NaiveDateTime::parse_from_str(s, fmt) {
+                return Ok(Value::timestamp(Utc.from_utc_datetime(&dt)));
+            }
+        }
+
+        let date_formats = ["%Y-%m-%d", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%Y"];
+        for fmt in &date_formats {
+            if let Ok(d) = NaiveDate::parse_from_str(s, fmt) {
+                let dt = d.and_hms_opt(0, 0, 0).unwrap();
+                return Ok(Value::timestamp(Utc.from_utc_datetime(&dt)));
+            }
+        }
+
+        Err(Error::invalid_query(format!(
+            "Could not parse datetime: {}",
+            s
+        )))
+    }
+
+    fn string_position(haystack: &Value, needle: &Value, case_insensitive: bool) -> Result<Value> {
+        if haystack.is_null() || needle.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let n = needle
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &needle.data_type().to_string()))?;
+
+        let pos = if case_insensitive {
+            h.to_lowercase().find(&n.to_lowercase())
+        } else {
+            h.find(n)
+        };
+
+        Ok(Value::int64(pos.map(|p| p as i64 + 1).unwrap_or(0)))
+    }
+
+    fn count_substrings(haystack: &Value, needle: &Value, case_insensitive: bool) -> Result<Value> {
+        if haystack.is_null() || needle.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let n = needle
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &needle.data_type().to_string()))?;
+
+        if n.is_empty() {
+            return Ok(Value::int64(0));
+        }
+
+        let count = if case_insensitive {
+            h.to_lowercase().matches(&n.to_lowercase()).count()
+        } else {
+            h.matches(n).count()
+        };
+
+        Ok(Value::int64(count as i64))
+    }
+
+    fn regex_match(haystack: &Value, pattern: &Value) -> Result<Value> {
+        if haystack.is_null() || pattern.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let p = pattern
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &pattern.data_type().to_string()))?;
+
+        let re = regex::Regex::new(p)
+            .map_err(|e| Error::invalid_query(format!("Invalid regex: {}", e)))?;
+        Ok(Value::int64(if re.is_match(h) { 1 } else { 0 }))
+    }
+
+    fn multi_search_any(haystack: &Value, needles: &Value, is_regex: bool) -> Result<Value> {
+        if haystack.is_null() || needles.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let arr = needles
+            .as_array()
+            .ok_or_else(|| Error::type_mismatch("Array", &needles.data_type().to_string()))?;
+
+        for needle in arr {
+            if let Some(n) = needle.as_str() {
+                let found = if is_regex {
+                    regex::Regex::new(n)
+                        .map(|re| re.is_match(h))
+                        .unwrap_or(false)
+                } else {
+                    h.contains(n)
+                };
+                if found {
+                    return Ok(Value::int64(1));
+                }
+            }
+        }
+        Ok(Value::int64(0))
+    }
+
+    fn multi_search_first_index(
+        haystack: &Value,
+        needles: &Value,
+        is_regex: bool,
+    ) -> Result<Value> {
+        if haystack.is_null() || needles.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let arr = needles
+            .as_array()
+            .ok_or_else(|| Error::type_mismatch("Array", &needles.data_type().to_string()))?;
+
+        let mut first_pos = usize::MAX;
+        let mut first_idx = 0;
+
+        for (idx, needle) in arr.iter().enumerate() {
+            if let Some(n) = needle.as_str() {
+                let pos = if is_regex {
+                    regex::Regex::new(n)
+                        .ok()
+                        .and_then(|re| re.find(h).map(|m| m.start()))
+                } else {
+                    h.find(n)
+                };
+                if let Some(p) = pos {
+                    if p < first_pos {
+                        first_pos = p;
+                        first_idx = idx + 1;
+                    }
+                }
+            }
+        }
+        Ok(Value::int64(first_idx as i64))
+    }
+
+    fn multi_search_first_position(haystack: &Value, needles: &Value) -> Result<Value> {
+        if haystack.is_null() || needles.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let arr = needles
+            .as_array()
+            .ok_or_else(|| Error::type_mismatch("Array", &needles.data_type().to_string()))?;
+
+        let mut first_pos = usize::MAX;
+
+        for needle in arr {
+            if let Some(n) = needle.as_str() {
+                if let Some(pos) = h.find(n) {
+                    first_pos = first_pos.min(pos);
+                }
+            }
+        }
+
+        Ok(Value::int64(if first_pos == usize::MAX {
+            0
+        } else {
+            first_pos as i64 + 1
+        }))
+    }
+
+    fn multi_search_all_positions(haystack: &Value, needles: &Value) -> Result<Value> {
+        if haystack.is_null() || needles.is_null() {
+            return Ok(Value::array(vec![]));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let arr = needles
+            .as_array()
+            .ok_or_else(|| Error::type_mismatch("Array", &needles.data_type().to_string()))?;
+
+        let mut result = Vec::new();
+        for needle in arr {
+            if let Some(n) = needle.as_str() {
+                let positions: Vec<Value> = h
+                    .match_indices(n)
+                    .map(|(pos, _)| Value::int64(pos as i64 + 1))
+                    .collect();
+                result.push(Value::array(positions));
+            } else {
+                result.push(Value::array(vec![]));
+            }
+        }
+        Ok(Value::array(result))
+    }
+
+    fn multi_match_all_indices(haystack: &Value, patterns: &Value) -> Result<Value> {
+        if haystack.is_null() || patterns.is_null() {
+            return Ok(Value::array(vec![]));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let arr = patterns
+            .as_array()
+            .ok_or_else(|| Error::type_mismatch("Array", &patterns.data_type().to_string()))?;
+
+        let mut result = Vec::new();
+        for (idx, pattern) in arr.iter().enumerate() {
+            if let Some(p) = pattern.as_str() {
+                if let Ok(re) = regex::Regex::new(p) {
+                    if re.is_match(h) {
+                        result.push(Value::int64((idx + 1) as i64));
+                    }
+                }
+            }
+        }
+        Ok(Value::array(result))
+    }
+
+    fn regex_extract(haystack: &Value, pattern: &Value) -> Result<Value> {
+        if haystack.is_null() || pattern.is_null() {
+            return Ok(Value::string(String::new()));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let p = pattern
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &pattern.data_type().to_string()))?;
+
+        let re = regex::Regex::new(p)
+            .map_err(|e| Error::invalid_query(format!("Invalid regex: {}", e)))?;
+        let result = re
+            .find(h)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
+        Ok(Value::string(result))
+    }
+
+    fn extract_groups(haystack: &Value, pattern: &Value) -> Result<Value> {
+        if haystack.is_null() || pattern.is_null() {
+            return Ok(Value::array(vec![]));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let p = pattern
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &pattern.data_type().to_string()))?;
+
+        let re = regex::Regex::new(p)
+            .map_err(|e| Error::invalid_query(format!("Invalid regex: {}", e)))?;
+        let mut result = Vec::new();
+        if let Some(caps) = re.captures(h) {
+            for i in 1..caps.len() {
+                if let Some(m) = caps.get(i) {
+                    result.push(Value::string(m.as_str().to_string()));
+                }
+            }
+        }
+        Ok(Value::array(result))
+    }
+
+    fn count_matches(haystack: &Value, pattern: &Value) -> Result<Value> {
+        if haystack.is_null() || pattern.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let p = pattern
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &pattern.data_type().to_string()))?;
+
+        let re = regex::Regex::new(p)
+            .map_err(|e| Error::invalid_query(format!("Invalid regex: {}", e)))?;
+        Ok(Value::int64(re.find_iter(h).count() as i64))
+    }
+
+    fn has_token(haystack: &Value, token: &Value, case_insensitive: bool) -> Result<Value> {
+        if haystack.is_null() || token.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let t = token
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &token.data_type().to_string()))?;
+
+        let words: Vec<&str> = h.split_whitespace().collect();
+        let found = if case_insensitive {
+            words.iter().any(|w| w.eq_ignore_ascii_case(t))
+        } else {
+            words.contains(&t)
+        };
+        Ok(Value::int64(if found { 1 } else { 0 }))
+    }
+
+    fn starts_with(haystack: &Value, prefix: &Value) -> Result<Value> {
+        if haystack.is_null() || prefix.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let p = prefix
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &prefix.data_type().to_string()))?;
+        Ok(Value::int64(if h.starts_with(p) { 1 } else { 0 }))
+    }
+
+    fn ends_with(haystack: &Value, suffix: &Value) -> Result<Value> {
+        if haystack.is_null() || suffix.is_null() {
+            return Ok(Value::int64(0));
+        }
+        let h = haystack
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &haystack.data_type().to_string()))?;
+        let s = suffix
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &suffix.data_type().to_string()))?;
+        Ok(Value::int64(if h.ends_with(s) { 1 } else { 0 }))
+    }
+
+    fn ngram_distance(str1: &Value, str2: &Value) -> Result<Value> {
+        if str1.is_null() || str2.is_null() {
+            return Ok(Value::float64(1.0));
+        }
+        let s1 = str1
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &str1.data_type().to_string()))?;
+        let s2 = str2
+            .as_str()
+            .ok_or_else(|| Error::type_mismatch("String", &str2.data_type().to_string()))?;
+
+        use std::collections::HashSet;
+
+        fn get_trigrams(s: &str) -> HashSet<String> {
+            let chars: Vec<char> = s.chars().collect();
+            if chars.len() < 3 {
+                let mut set = HashSet::new();
+                set.insert(s.to_string());
+                return set;
+            }
+            chars.windows(3).map(|w| w.iter().collect()).collect()
+        }
+
+        let t1 = get_trigrams(s1);
+        let t2 = get_trigrams(s2);
+        let intersection = t1.intersection(&t2).count();
+        let union = t1.union(&t2).count();
+
+        if union == 0 {
+            return Ok(Value::float64(0.0));
+        }
+
+        Ok(Value::float64(1.0 - (intersection as f64 / union as f64)))
     }
 }
