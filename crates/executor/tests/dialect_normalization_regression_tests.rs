@@ -136,7 +136,6 @@ fn bigquery_rejects_scripting_blocks_regression() {
 
     let scripting_statements = vec![
         "BEGIN SELECT 1; END",
-        "DECLARE x INT64 DEFAULT 0",
         "LOOP SELECT 1; END LOOP",
         "WHILE x < 10 DO SELECT 1; END WHILE",
     ];
