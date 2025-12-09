@@ -1300,6 +1300,18 @@ impl TableValuedFunctionExec {
                         ))]),
                         vec![],
                     ),
+                    CastDataType::Inet => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "inet",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Cidr => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "cidr",
+                        ))]),
+                        vec![],
+                    ),
                     CastDataType::Int4Range => ast::DataType::Custom(
                         ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
                             "int4range",
@@ -1333,6 +1345,24 @@ impl TableValuedFunctionExec {
                     CastDataType::DateRange => ast::DataType::Custom(
                         ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
                             "daterange",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Point => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "point",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::PgBox => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "box",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Circle => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "circle",
                         ))]),
                         vec![],
                     ),

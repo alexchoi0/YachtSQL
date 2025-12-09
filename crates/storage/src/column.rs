@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use aligned_vec::AVec;
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use indexmap::IndexMap;
@@ -95,6 +97,14 @@ pub enum Column {
     },
     MacAddr8 {
         data: Vec<yachtsql_core::types::MacAddress>,
+        nulls: NullBitmap,
+    },
+    Inet {
+        data: Vec<yachtsql_core::types::network::InetAddr>,
+        nulls: NullBitmap,
+    },
+    Cidr {
+        data: Vec<yachtsql_core::types::network::CidrAddr>,
         nulls: NullBitmap,
     },
     Enum {
@@ -227,6 +237,14 @@ impl Column {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
             },
+            DataType::Inet => Column::Inet {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
+            DataType::Cidr => Column::Cidr {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
             DataType::Enum { type_name, labels } => Column::Enum {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
@@ -303,6 +321,8 @@ impl Column {
             Column::Hstore { .. } => DataType::Hstore,
             Column::MacAddr { .. } => DataType::MacAddr,
             Column::MacAddr8 { .. } => DataType::MacAddr8,
+            Column::Inet { .. } => DataType::Inet,
+            Column::Cidr { .. } => DataType::Cidr,
             Column::Enum {
                 type_name, labels, ..
             } => DataType::Enum {
@@ -344,6 +364,8 @@ impl Column {
             Column::Hstore { nulls, .. } => nulls.len(),
             Column::MacAddr { nulls, .. } => nulls.len(),
             Column::MacAddr8 { nulls, .. } => nulls.len(),
+            Column::Inet { nulls, .. } => nulls.len(),
+            Column::Cidr { nulls, .. } => nulls.len(),
             Column::Enum { nulls, .. } => nulls.len(),
             Column::Point { nulls, .. } => nulls.len(),
             Column::PgBox { nulls, .. } => nulls.len(),
@@ -380,6 +402,8 @@ impl Column {
             Column::Hstore { nulls, .. } => nulls,
             Column::MacAddr { nulls, .. } => nulls,
             Column::MacAddr8 { nulls, .. } => nulls,
+            Column::Inet { nulls, .. } => nulls,
+            Column::Cidr { nulls, .. } => nulls,
             Column::Enum { nulls, .. } => nulls,
             Column::Point { nulls, .. } => nulls,
             Column::PgBox { nulls, .. } => nulls,
@@ -749,6 +773,56 @@ impl Column {
                     )))
                 }
             }
+            Column::Inet { data, nulls } => {
+                if let Some(v) = value.as_inet() {
+                    data.push(v.clone());
+                    nulls.push(true);
+                    Ok(())
+                } else if let Some(s) = value.as_str() {
+                    match yachtsql_core::types::network::InetAddr::from_str(s) {
+                        Ok(inet) => {
+                            data.push(inet);
+                            nulls.push(true);
+                            Ok(())
+                        }
+                        Err(e) => Err(Error::invalid_query(format!(
+                            "cannot parse '{}' as INET: {}",
+                            s, e
+                        ))),
+                    }
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Cidr { data, nulls } => {
+                if let Some(v) = value.as_cidr() {
+                    data.push(v.clone());
+                    nulls.push(true);
+                    Ok(())
+                } else if let Some(s) = value.as_str() {
+                    match yachtsql_core::types::network::CidrAddr::from_str(s) {
+                        Ok(cidr) => {
+                            data.push(cidr);
+                            nulls.push(true);
+                            Ok(())
+                        }
+                        Err(e) => Err(Error::invalid_query(format!(
+                            "cannot parse '{}' as CIDR: {}",
+                            s, e
+                        ))),
+                    }
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
             Column::Enum { data, nulls, .. } => {
                 if let Some(s) = value.as_str() {
                     data.push(s.to_string());
@@ -921,6 +995,22 @@ impl Column {
                 data.push(yachtsql_core::types::MacAddress::new_macaddr8([
                     0, 0, 0, 0, 0, 0, 0, 0,
                 ]));
+                nulls.push(false);
+            }
+            Column::Inet { data, nulls } => {
+                data.push(yachtsql_core::types::network::InetAddr::new(
+                    std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+                ));
+                nulls.push(false);
+            }
+            Column::Cidr { data, nulls } => {
+                data.push(
+                    yachtsql_core::types::network::CidrAddr::new(
+                        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+                        0,
+                    )
+                    .unwrap(),
+                );
                 nulls.push(false);
             }
             Column::Enum { data, nulls, .. } => {
@@ -1287,6 +1377,32 @@ impl Column {
                     )))
                 }
             }
+            Column::Inet { data, nulls } => {
+                if let Some(v) = value.as_inet() {
+                    data[index] = v.clone();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Cidr { data, nulls } => {
+                if let Some(v) = value.as_cidr() {
+                    data[index] = v.clone();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
             Column::Enum { data, nulls, .. } => {
                 if let Some(s) = value.as_str() {
                     data[index] = s.to_string();
@@ -1458,6 +1574,20 @@ impl Column {
                     yachtsql_core::types::MacAddress::new_macaddr8([0, 0, 0, 0, 0, 0, 0, 0]);
                 nulls.set(index, false);
             }
+            Column::Inet { data, nulls } => {
+                data[index] = yachtsql_core::types::network::InetAddr::new(std::net::IpAddr::V4(
+                    std::net::Ipv4Addr::new(0, 0, 0, 0),
+                ));
+                nulls.set(index, false);
+            }
+            Column::Cidr { data, nulls } => {
+                data[index] = yachtsql_core::types::network::CidrAddr::new(
+                    std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+                    0,
+                )
+                .unwrap();
+                nulls.set(index, false);
+            }
             Column::Enum { data, nulls, .. } => {
                 data[index] = String::new();
                 nulls.set(index, false);
@@ -1587,6 +1717,14 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
+            Column::Inet { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
+            Column::Cidr { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
             Column::Enum { data, nulls, .. } => {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
@@ -1650,6 +1788,8 @@ impl Column {
             Column::Hstore { data, .. } => Ok(Value::hstore(data[index].clone())),
             Column::MacAddr { data, .. } => Ok(Value::macaddr(data[index].clone())),
             Column::MacAddr8 { data, .. } => Ok(Value::macaddr8(data[index].clone())),
+            Column::Inet { data, .. } => Ok(Value::inet(data[index].clone())),
+            Column::Cidr { data, .. } => Ok(Value::cidr(data[index].clone())),
             Column::Enum { data, .. } => Ok(Value::string(data[index].clone())),
             Column::Point { data, .. } => Ok(Value::point(data[index].clone())),
             Column::PgBox { data, .. } => Ok(Value::pgbox(data[index].clone())),
@@ -1817,6 +1957,8 @@ impl Column {
             Column::Hstore { data, .. } => gather_clone!(data, Hstore),
             Column::MacAddr { data, .. } => gather_clone!(data, MacAddr),
             Column::MacAddr8 { data, .. } => gather_clone!(data, MacAddr8),
+            Column::Inet { data, .. } => gather_clone!(data, Inet),
+            Column::Cidr { data, .. } => gather_clone!(data, Cidr),
             Column::Enum {
                 data,
                 type_name,

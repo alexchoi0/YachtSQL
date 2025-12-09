@@ -267,4 +267,205 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
             },
         }),
     );
+
+    registry.register_scalar(
+        "SET_MASKLEN".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "SET_MASKLEN".to_string(),
+            arg_types: vec![DataType::Inet, DataType::Int64],
+            return_type: DataType::Inet,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                if let (Some(inet), Some(new_len)) = (args[0].as_inet(), args[1].as_i64()) {
+                    let new_prefix = new_len as u8;
+                    let new_inet = InetAddr {
+                        addr: inet.addr,
+                        prefix_len: Some(new_prefix),
+                    };
+                    Ok(Value::inet(new_inet))
+                } else if let (Some(cidr), Some(new_len)) = (args[0].as_cidr(), args[1].as_i64()) {
+                    let new_prefix = new_len as u8;
+                    match CidrAddr::new(cidr.network, new_prefix) {
+                        Ok(new_cidr) => Ok(Value::cidr(new_cidr)),
+                        Err(e) => Err(Error::InvalidOperation(format!(
+                            "Invalid prefix length: {}",
+                            e
+                        ))),
+                    }
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "INET/CIDR and INT64".to_string(),
+                        actual: format!("{:?}, {:?}", args[0].data_type(), args[1].data_type()),
+                    })
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "TEXT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "TEXT".to_string(),
+            arg_types: vec![DataType::Inet],
+            return_type: DataType::String,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(inet) = args[0].as_inet() {
+                    Ok(Value::string(inet.to_string()))
+                } else if let Some(cidr) = args[0].as_cidr() {
+                    Ok(Value::string(cidr.to_string()))
+                } else {
+                    Ok(Value::string(format!("{:?}", args[0])))
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "INET_MERGE".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "INET_MERGE".to_string(),
+            arg_types: vec![DataType::Inet, DataType::Inet],
+            return_type: DataType::Cidr,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                match (args[0].as_inet(), args[1].as_inet()) {
+                    (Some(a), Some(b)) => {
+                        if a.is_ipv4() != b.is_ipv4() {
+                            return Err(Error::InvalidOperation(
+                                "Cannot merge IPv4 and IPv6 addresses".to_string(),
+                            ));
+                        }
+
+                        if a.is_ipv4() {
+                            let a_bytes: [u8; 4] = match a.addr {
+                                std::net::IpAddr::V4(ip) => ip.octets(),
+                                _ => unreachable!(),
+                            };
+                            let b_bytes: [u8; 4] = match b.addr {
+                                std::net::IpAddr::V4(ip) => ip.octets(),
+                                _ => unreachable!(),
+                            };
+
+                            let a_u32 = u32::from_be_bytes(a_bytes);
+                            let b_u32 = u32::from_be_bytes(b_bytes);
+                            let xor = a_u32 ^ b_u32;
+                            let common_bits = if xor == 0 {
+                                32
+                            } else {
+                                xor.leading_zeros() as u8
+                            };
+
+                            let mask = if common_bits == 0 {
+                                0u32
+                            } else {
+                                !(!0u32 >> common_bits)
+                            };
+                            let network = a_u32 & mask;
+                            let network_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::from(
+                                network.to_be_bytes(),
+                            ));
+
+                            Ok(Value::cidr(CidrAddr::new(network_ip, common_bits).unwrap()))
+                        } else {
+                            let a_bytes: [u8; 16] = match a.addr {
+                                std::net::IpAddr::V6(ip) => ip.octets(),
+                                _ => unreachable!(),
+                            };
+                            let b_bytes: [u8; 16] = match b.addr {
+                                std::net::IpAddr::V6(ip) => ip.octets(),
+                                _ => unreachable!(),
+                            };
+
+                            let a_u128 = u128::from_be_bytes(a_bytes);
+                            let b_u128 = u128::from_be_bytes(b_bytes);
+                            let xor = a_u128 ^ b_u128;
+                            let common_bits = if xor == 0 {
+                                128
+                            } else {
+                                xor.leading_zeros() as u8
+                            };
+
+                            let mask = if common_bits == 0 {
+                                0u128
+                            } else {
+                                !(!0u128 >> common_bits)
+                            };
+                            let network = a_u128 & mask;
+                            let network_ip = std::net::IpAddr::V6(std::net::Ipv6Addr::from(
+                                network.to_be_bytes(),
+                            ));
+
+                            Ok(Value::cidr(CidrAddr::new(network_ip, common_bits).unwrap()))
+                        }
+                    }
+                    _ => Err(Error::TypeMismatch {
+                        expected: "INET".to_string(),
+                        actual: format!("{:?}, {:?}", args[0].data_type(), args[1].data_type()),
+                    }),
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "TRUNC".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "TRUNC".to_string(),
+            arg_types: vec![DataType::MacAddr],
+            return_type: DataType::MacAddr,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(mac) = args[0].as_macaddr() {
+                    Ok(Value::macaddr(mac.trunc()))
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "MACADDR".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "MACADDR8_SET7BIT".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "MACADDR8_SET7BIT".to_string(),
+            arg_types: vec![DataType::MacAddr8],
+            return_type: DataType::MacAddr8,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(mac) = args[0].as_macaddr8() {
+                    let mut octets = mac.octets;
+                    octets[0] |= 0x02;
+                    let new_mac = yachtsql_core::types::MacAddress {
+                        octets,
+                        is_eui64: mac.is_eui64,
+                    };
+                    Ok(Value::macaddr8(new_mac))
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "MACADDR8".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })
+                }
+            },
+        }),
+    );
 }

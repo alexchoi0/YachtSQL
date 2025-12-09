@@ -274,6 +274,8 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
         yachtsql_optimizer::expr::CastDataType::Hstore => DataType::Hstore,
         yachtsql_optimizer::expr::CastDataType::MacAddr => DataType::MacAddr,
         yachtsql_optimizer::expr::CastDataType::MacAddr8 => DataType::MacAddr8,
+        yachtsql_optimizer::expr::CastDataType::Inet => DataType::Inet,
+        yachtsql_optimizer::expr::CastDataType::Cidr => DataType::Cidr,
         yachtsql_optimizer::expr::CastDataType::Int4Range => {
             DataType::Range(yachtsql_core::types::RangeType::Int4Range)
         }
@@ -292,6 +294,9 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
         yachtsql_optimizer::expr::CastDataType::DateRange => {
             DataType::Range(yachtsql_core::types::RangeType::DateRange)
         }
+        yachtsql_optimizer::expr::CastDataType::Point => DataType::Point,
+        yachtsql_optimizer::expr::CastDataType::PgBox => DataType::PgBox,
+        yachtsql_optimizer::expr::CastDataType::Circle => DataType::Circle,
         yachtsql_optimizer::expr::CastDataType::Custom(name, _) => DataType::Custom(name.clone()),
     }
 }
@@ -1052,6 +1057,34 @@ pub fn perform_cast(
                 })
             }
         }
+        CastDataType::Inet => {
+            if value.as_inet().is_some() {
+                Ok(value.clone())
+            } else if let Some(s) = value.as_str() {
+                Value::inet_from_str(s).map_err(|e| {
+                    Error::InvalidOperation(format!("Invalid INET address '{}': {}", s, e))
+                })
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Inet".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Cidr => {
+            if value.as_cidr().is_some() {
+                Ok(value.clone())
+            } else if let Some(s) = value.as_str() {
+                Value::cidr_from_str(s).map_err(|e| {
+                    Error::InvalidOperation(format!("Invalid CIDR address '{}': {}", s, e))
+                })
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Cidr".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
         CastDataType::Int4Range => {
             if let Some(range) = value.as_range() {
                 Ok(Value::range(range.clone()))
@@ -1120,6 +1153,51 @@ pub fn perform_cast(
             } else {
                 Err(Error::TypeMismatch {
                     expected: "DATERANGE".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Point => {
+            if value.as_point().is_some() {
+                Ok(value.clone())
+            } else if let Some(s) = value.as_str() {
+                use yachtsql_core::types::PgPoint;
+                PgPoint::parse(s)
+                    .map(Value::point)
+                    .ok_or_else(|| Error::InvalidOperation(format!("Invalid POINT '{}'", s)))
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Point".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::PgBox => {
+            if value.as_pgbox().is_some() {
+                Ok(value.clone())
+            } else if let Some(s) = value.as_str() {
+                use yachtsql_core::types::PgBox;
+                PgBox::parse(s)
+                    .map(Value::pgbox)
+                    .ok_or_else(|| Error::InvalidOperation(format!("Invalid BOX '{}'", s)))
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Box".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Circle => {
+            if value.as_circle().is_some() {
+                Ok(value.clone())
+            } else if let Some(s) = value.as_str() {
+                use yachtsql_core::types::PgCircle;
+                PgCircle::parse(s)
+                    .map(Value::circle)
+                    .ok_or_else(|| Error::InvalidOperation(format!("Invalid CIRCLE '{}'", s)))
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Circle".to_string(),
                     actual: format!("{:?}", value.data_type()),
                 })
             }

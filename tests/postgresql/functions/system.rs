@@ -1,7 +1,6 @@
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_current_database() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT CURRENT_DATABASE()").unwrap();
@@ -9,7 +8,6 @@ fn test_current_database() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_current_user() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT CURRENT_USER").unwrap();
@@ -17,7 +15,7 @@ fn test_current_user() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "CURRENT_SCHEMA without parentheses requires special parser support"]
 fn test_current_schema() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT CURRENT_SCHEMA").unwrap();
@@ -25,7 +23,6 @@ fn test_current_schema() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_current_catalog() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT CURRENT_CATALOG").unwrap();
@@ -33,7 +30,6 @@ fn test_current_catalog() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_session_user() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT SESSION_USER").unwrap();
@@ -41,7 +37,6 @@ fn test_session_user() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_user() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT USER").unwrap();
@@ -49,7 +44,6 @@ fn test_user() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_version() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT VERSION()").unwrap();
@@ -57,7 +51,6 @@ fn test_version() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_typeof() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT PG_TYPEOF(123)").unwrap();
@@ -65,7 +58,6 @@ fn test_pg_typeof() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_typeof_string() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT PG_TYPEOF('hello')").unwrap();
@@ -73,7 +65,6 @@ fn test_pg_typeof_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_column_size() {
     let mut executor = create_executor();
     let result = executor
@@ -83,7 +74,6 @@ fn test_pg_column_size() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_database_size() {
     let mut executor = create_executor();
     let result = executor
@@ -93,7 +83,6 @@ fn test_pg_database_size() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_size_pretty() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT PG_SIZE_PRETTY(1024)").unwrap();
@@ -101,7 +90,6 @@ fn test_pg_size_pretty() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_table_size() {
     let mut executor = create_executor();
     executor
@@ -114,7 +102,6 @@ fn test_pg_table_size() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_relation_size() {
     let mut executor = create_executor();
     executor
@@ -127,7 +114,6 @@ fn test_pg_relation_size() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_total_relation_size() {
     let mut executor = create_executor();
     executor
@@ -140,7 +126,6 @@ fn test_pg_total_relation_size() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_indexes_size() {
     let mut executor = create_executor();
     executor
@@ -153,7 +138,6 @@ fn test_pg_indexes_size() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_tablespace_size() {
     let mut executor = create_executor();
     let result = executor
@@ -163,7 +147,7 @@ fn test_pg_tablespace_size() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Regclass data type cast not supported"]
 fn test_obj_description() {
     let mut executor = create_executor();
     executor
@@ -176,7 +160,7 @@ fn test_obj_description() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Regclass data type cast not supported"]
 fn test_col_description() {
     let mut executor = create_executor();
     executor
@@ -189,7 +173,6 @@ fn test_col_description() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_shobj_description() {
     let mut executor = create_executor();
     let result = executor
@@ -199,7 +182,6 @@ fn test_shobj_description() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_has_table_privilege() {
     let mut executor = create_executor();
     executor
@@ -212,7 +194,6 @@ fn test_has_table_privilege() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_has_schema_privilege() {
     let mut executor = create_executor();
     let result = executor
@@ -222,7 +203,6 @@ fn test_has_schema_privilege() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_has_database_privilege() {
     let mut executor = create_executor();
     let result = executor
@@ -232,7 +212,6 @@ fn test_has_database_privilege() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_has_column_privilege() {
     let mut executor = create_executor();
     executor
@@ -245,7 +224,6 @@ fn test_has_column_privilege() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_get_viewdef() {
     let mut executor = create_executor();
     executor
@@ -298,7 +276,6 @@ fn test_pg_get_functiondef() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_current_setting() {
     let mut executor = create_executor();
     let result = executor
@@ -308,7 +285,6 @@ fn test_current_setting() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_set_config() {
     let mut executor = create_executor();
     let result = executor
@@ -325,7 +301,6 @@ fn test_pg_cancel_backend() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_backend_pid() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT PG_BACKEND_PID()").unwrap();
@@ -333,7 +308,6 @@ fn test_pg_backend_pid() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_is_in_recovery() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT PG_IS_IN_RECOVERY()").unwrap();
@@ -341,7 +315,6 @@ fn test_pg_is_in_recovery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_client_addr() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT INET_CLIENT_ADDR()").unwrap();
@@ -349,7 +322,6 @@ fn test_inet_client_addr() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_client_port() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT INET_CLIENT_PORT()").unwrap();
@@ -357,7 +329,6 @@ fn test_inet_client_port() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_server_addr() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT INET_SERVER_ADDR()").unwrap();
@@ -365,7 +336,6 @@ fn test_inet_server_addr() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_server_port() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT INET_SERVER_PORT()").unwrap();
@@ -373,7 +343,6 @@ fn test_inet_server_port() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_postmaster_start_time() {
     let mut executor = create_executor();
     let result = executor
@@ -383,7 +352,6 @@ fn test_pg_postmaster_start_time() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_conf_load_time() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT PG_CONF_LOAD_TIME()").unwrap();
@@ -391,7 +359,6 @@ fn test_pg_conf_load_time() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_current() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT TXID_CURRENT()").unwrap();
@@ -399,7 +366,6 @@ fn test_txid_current() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_current_snapshot() {
     let mut executor = create_executor();
     let result = executor

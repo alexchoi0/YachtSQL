@@ -989,6 +989,38 @@ impl ProjectionWithExprExec {
                 | FunctionName::GetSetting
                 | FunctionName::IsDecimalOverflow
                 | FunctionName::CountDigits
+                | FunctionName::PgTypeof
+                | FunctionName::SessionUser
+                | FunctionName::CurrentSchema
+                | FunctionName::CurrentCatalog
+                | FunctionName::CurrentSetting
+                | FunctionName::SetConfig
+                | FunctionName::PgBackendPid
+                | FunctionName::PgColumnSize
+                | FunctionName::PgDatabaseSize
+                | FunctionName::PgTableSize
+                | FunctionName::PgIndexesSize
+                | FunctionName::PgTotalRelationSize
+                | FunctionName::PgRelationSize
+                | FunctionName::PgTablespaceSize
+                | FunctionName::PgSizePretty
+                | FunctionName::PgConfLoadTime
+                | FunctionName::PgIsInRecovery
+                | FunctionName::PgPostmasterStartTime
+                | FunctionName::PgCurrentSnapshot
+                | FunctionName::PgGetViewdef
+                | FunctionName::HasTablePrivilege
+                | FunctionName::HasSchemaPrivilege
+                | FunctionName::HasDatabasePrivilege
+                | FunctionName::HasColumnPrivilege
+                | FunctionName::ObjDescription
+                | FunctionName::ColDescription
+                | FunctionName::ShobjDescription
+                | FunctionName::InetClientAddr
+                | FunctionName::InetClientPort
+                | FunctionName::InetServerAddr
+                | FunctionName::InetServerPort
+                | FunctionName::TxidCurrent
         ) {
             return Self::evaluate_introspection_function(name, args, batch, row_idx);
         }

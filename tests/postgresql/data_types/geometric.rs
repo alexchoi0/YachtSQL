@@ -9,7 +9,6 @@ fn test_point_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_point_string_literal() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '(1,2)'::POINT").unwrap();

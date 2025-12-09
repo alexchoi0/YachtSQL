@@ -148,12 +148,17 @@ impl ProjectionWithExprExec {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
+            CastDataType::Inet => DataType::Inet,
+            CastDataType::Cidr => DataType::Cidr,
             CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
             CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
             CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
             CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
             CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
             CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
+            CastDataType::Point => DataType::Point,
+            CastDataType::PgBox => DataType::PgBox,
+            CastDataType::Circle => DataType::Circle,
             CastDataType::Custom(name, struct_fields) => {
                 if struct_fields.is_empty() {
                     DataType::Custom(name.clone())
@@ -1828,19 +1833,53 @@ impl ProjectionWithExprExec {
             | FunctionName::QueryId
             | FunctionName::InitialQueryId
             | FunctionName::ServerUuid
-            | FunctionName::GetSetting => Some(DataType::String),
+            | FunctionName::GetSetting
+            | FunctionName::PgTypeof
+            | FunctionName::SessionUser
+            | FunctionName::CurrentSchema
+            | FunctionName::CurrentCatalog
+            | FunctionName::CurrentSetting
+            | FunctionName::SetConfig
+            | FunctionName::PgSizePretty
+            | FunctionName::PgCurrentSnapshot
+            | FunctionName::PgGetViewdef
+            | FunctionName::ObjDescription
+            | FunctionName::ColDescription
+            | FunctionName::ShobjDescription
+            | FunctionName::InetClientAddr
+            | FunctionName::InetServerAddr => Some(DataType::String),
 
             FunctionName::Uptime
             | FunctionName::BlockNumber
             | FunctionName::RowNumberInBlock
             | FunctionName::RowNumberInAllBlocks
             | FunctionName::BlockSize
-            | FunctionName::CountDigits => Some(DataType::Int64),
+            | FunctionName::CountDigits
+            | FunctionName::PgBackendPid
+            | FunctionName::PgColumnSize
+            | FunctionName::PgDatabaseSize
+            | FunctionName::PgTableSize
+            | FunctionName::PgIndexesSize
+            | FunctionName::PgTotalRelationSize
+            | FunctionName::PgRelationSize
+            | FunctionName::PgTablespaceSize
+            | FunctionName::InetClientPort
+            | FunctionName::InetServerPort
+            | FunctionName::TxidCurrent => Some(DataType::Int64),
 
             FunctionName::IsFinite
             | FunctionName::IsInfinite
             | FunctionName::IsNan
-            | FunctionName::IsDecimalOverflow => Some(DataType::Bool),
+            | FunctionName::IsDecimalOverflow
+            | FunctionName::PgIsInRecovery
+            | FunctionName::HasTablePrivilege
+            | FunctionName::HasSchemaPrivilege
+            | FunctionName::HasDatabasePrivilege
+            | FunctionName::HasColumnPrivilege => Some(DataType::Bool),
+
+            FunctionName::PgConfLoadTime | FunctionName::PgPostmasterStartTime => {
+                Some(DataType::Timestamp)
+            }
 
             FunctionName::DefaultValueOfArgumentType => {
                 if !args.is_empty() {

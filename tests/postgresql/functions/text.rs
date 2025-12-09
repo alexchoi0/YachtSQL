@@ -20,7 +20,7 @@ fn test_format_multiple_args() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Positional format arguments (%2$s) not implemented"]
 fn test_format_positional() {
     let mut executor = create_executor();
     let result = executor
@@ -30,7 +30,7 @@ fn test_format_positional() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Format %I (identifier) specifier not implemented"]
 fn test_format_identifier() {
     let mut executor = create_executor();
     let result = executor
@@ -40,7 +40,7 @@ fn test_format_identifier() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Format %L (literal) specifier not implemented"]
 fn test_format_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -162,7 +162,7 @@ fn test_strpos() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "OVERLAY expression not implemented"]
 fn test_overlay() {
     let mut executor = create_executor();
     let result = executor
@@ -190,7 +190,7 @@ fn test_quote_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "QUOTE_NULLABLE function not available in PostgreSQL dialect"]
 fn test_quote_nullable() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT QUOTE_NULLABLE(NULL)").unwrap();
@@ -198,7 +198,7 @@ fn test_quote_nullable() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "BTRIM function result not as expected"]
 fn test_btrim() {
     let mut executor = create_executor();
     let result = executor
@@ -224,7 +224,7 @@ fn test_character_length() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "BIT_LENGTH function not available in PostgreSQL dialect"]
 fn test_bit_length() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT BIT_LENGTH('hello')").unwrap();
@@ -232,7 +232,6 @@ fn test_bit_length() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_octet_length_string() {
     let mut executor = create_executor();
     let result = executor
@@ -276,7 +275,7 @@ fn test_string_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "REGEXP_COUNT function not available in PostgreSQL dialect"]
 fn test_regexp_count() {
     let mut executor = create_executor();
     let result = executor
@@ -286,7 +285,7 @@ fn test_regexp_count() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "REGEXP_INSTR function not available in PostgreSQL dialect"]
 fn test_regexp_instr() {
     let mut executor = create_executor();
     let result = executor
@@ -296,7 +295,7 @@ fn test_regexp_instr() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "REGEXP_SUBSTR function not available in PostgreSQL dialect"]
 fn test_regexp_substr() {
     let mut executor = create_executor();
     let result = executor
@@ -306,7 +305,7 @@ fn test_regexp_substr() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TO_HEX function not available in PostgreSQL dialect"]
 fn test_to_hex() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT TO_HEX(255)").unwrap();
@@ -314,7 +313,7 @@ fn test_to_hex() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "PARSE_IDENT function not available in PostgreSQL dialect"]
 fn test_parse_ident() {
     let mut executor = create_executor();
     let result = executor
@@ -324,7 +323,7 @@ fn test_parse_ident() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "NORMALIZE function not available in PostgreSQL dialect"]
 fn test_normalize() {
     let mut executor = create_executor();
     let result = executor
@@ -334,7 +333,7 @@ fn test_normalize() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "IS_NORMALIZED function not available in PostgreSQL dialect"]
 fn test_is_normalized() {
     let mut executor = create_executor();
     let result = executor
@@ -344,7 +343,7 @@ fn test_is_normalized() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "CONCAT_WS function not available in PostgreSQL dialect"]
 fn test_concat_ws() {
     let mut executor = create_executor();
     let result = executor
@@ -354,7 +353,7 @@ fn test_concat_ws() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "CONCAT_WS function not available in PostgreSQL dialect"]
 fn test_concat_ws_null() {
     let mut executor = create_executor();
     let result = executor

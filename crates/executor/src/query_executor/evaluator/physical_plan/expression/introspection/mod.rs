@@ -63,6 +63,47 @@ impl ProjectionWithExprExec {
             FunctionName::GetSetting => Self::eval_get_setting(args, batch, row_idx),
             FunctionName::IsDecimalOverflow => Self::eval_is_decimal_overflow(args, batch, row_idx),
             FunctionName::CountDigits => Self::eval_count_digits(args, batch, row_idx),
+
+            // PostgreSQL system functions
+            FunctionName::PgTypeof => Self::eval_pg_typeof(args, batch, row_idx),
+            FunctionName::SessionUser => Ok(Value::string("default".to_string())),
+            FunctionName::CurrentSchema => Ok(Value::string("public".to_string())),
+            FunctionName::CurrentCatalog => Ok(Value::string("default".to_string())),
+            FunctionName::CurrentSetting => Self::eval_current_setting(args, batch, row_idx),
+            FunctionName::SetConfig => Self::eval_set_config(args, batch, row_idx),
+            FunctionName::PgBackendPid => Ok(Value::int64(std::process::id() as i64)),
+            FunctionName::PgColumnSize => Self::eval_pg_column_size(args, batch, row_idx),
+            FunctionName::PgDatabaseSize => Ok(Value::int64(0)),
+            FunctionName::PgTableSize => Ok(Value::int64(0)),
+            FunctionName::PgIndexesSize => Ok(Value::int64(0)),
+            FunctionName::PgTotalRelationSize => Ok(Value::int64(0)),
+            FunctionName::PgRelationSize => Ok(Value::int64(0)),
+            FunctionName::PgTablespaceSize => Ok(Value::int64(0)),
+            FunctionName::PgSizePretty => Self::eval_pg_size_pretty(args, batch, row_idx),
+            FunctionName::PgConfLoadTime => {
+                let now = Utc::now();
+                Ok(Value::timestamp(now))
+            }
+            FunctionName::PgIsInRecovery => Ok(Value::bool_val(false)),
+            FunctionName::PgPostmasterStartTime => {
+                let now = Utc::now();
+                Ok(Value::timestamp(now))
+            }
+            FunctionName::PgCurrentSnapshot => Ok(Value::string("".to_string())),
+            FunctionName::PgGetViewdef => Ok(Value::string("".to_string())),
+            FunctionName::HasTablePrivilege => Ok(Value::bool_val(true)),
+            FunctionName::HasSchemaPrivilege => Ok(Value::bool_val(true)),
+            FunctionName::HasDatabasePrivilege => Ok(Value::bool_val(true)),
+            FunctionName::HasColumnPrivilege => Ok(Value::bool_val(true)),
+            FunctionName::ObjDescription => Ok(Value::null()),
+            FunctionName::ColDescription => Ok(Value::null()),
+            FunctionName::ShobjDescription => Ok(Value::null()),
+            FunctionName::InetClientAddr => Ok(Value::null()),
+            FunctionName::InetClientPort => Ok(Value::null()),
+            FunctionName::InetServerAddr => Ok(Value::null()),
+            FunctionName::InetServerPort => Ok(Value::null()),
+            FunctionName::TxidCurrent => Ok(Value::int64(1)),
+
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown introspection function: {}",
                 name.as_str()
@@ -298,5 +339,86 @@ impl ProjectionWithExprExec {
             0
         };
         Ok(Value::int64(count))
+    }
+
+    fn eval_pg_typeof(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "pg_typeof requires 1 argument".to_string(),
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let type_name = val.data_type().to_string().to_lowercase();
+        Ok(Value::string(type_name))
+    }
+
+    fn eval_current_setting(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "current_setting requires 1 argument".to_string(),
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let setting_name = val.to_string();
+
+        match setting_name.as_str() {
+            "server_version" => Ok(Value::string("15.0".to_string())),
+            "server_encoding" => Ok(Value::string("UTF8".to_string())),
+            "client_encoding" => Ok(Value::string("UTF8".to_string())),
+            "TimeZone" | "timezone" => Ok(Value::string("UTC".to_string())),
+            "DateStyle" | "datestyle" => Ok(Value::string("ISO, MDY".to_string())),
+            "search_path" => Ok(Value::string("public".to_string())),
+            _ => Ok(Value::null()),
+        }
+    }
+
+    fn eval_set_config(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() < 2 {
+            return Err(Error::InvalidQuery(
+                "set_config requires at least 2 arguments".to_string(),
+            ));
+        }
+        let val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        Ok(val)
+    }
+
+    fn eval_pg_column_size(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "pg_column_size requires 1 argument".to_string(),
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let size = match val.data_type() {
+            yachtsql_core::types::DataType::Int64 => 8,
+            yachtsql_core::types::DataType::Float64 => 8,
+            yachtsql_core::types::DataType::Bool => 1,
+            yachtsql_core::types::DataType::String => {
+                val.as_str().map(|s| s.len()).unwrap_or(0) + 4
+            }
+            _ => 0,
+        };
+        Ok(Value::int64(size as i64))
+    }
+
+    fn eval_pg_size_pretty(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "pg_size_pretty requires 1 argument".to_string(),
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let size = val.as_i64().unwrap_or(0);
+
+        let pretty = if size >= 1024 * 1024 * 1024 {
+            format!("{} GB", size / (1024 * 1024 * 1024))
+        } else if size >= 1024 * 1024 {
+            format!("{} MB", size / (1024 * 1024))
+        } else if size >= 1024 {
+            format!("{} kB", size / 1024)
+        } else {
+            format!("{} bytes", size)
+        };
+        Ok(Value::string(pretty))
     }
 }

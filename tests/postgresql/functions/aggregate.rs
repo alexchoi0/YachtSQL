@@ -902,7 +902,7 @@ fn test_bit_xor() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "XMLAGG not available in PostgreSQL dialect"]
 fn test_xmlagg() {
     let mut executor = create_executor();
     executor
@@ -1006,7 +1006,7 @@ fn test_any_value() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "LISTAGG not available in PostgreSQL dialect"]
 fn test_listagg() {
     let mut executor = create_executor();
     setup_table(&mut executor);
@@ -1117,7 +1117,7 @@ fn test_aggregate_all_nulls() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "COUNT_IF not available in PostgreSQL dialect"]
 fn test_count_if() {
     let mut executor = create_executor();
     setup_table(&mut executor);
@@ -1129,7 +1129,7 @@ fn test_count_if() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "SUM_IF not available in PostgreSQL dialect"]
 fn test_sum_if() {
     let mut executor = create_executor();
     setup_table(&mut executor);

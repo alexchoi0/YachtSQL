@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_literal() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '192.168.1.1'::INET").unwrap();
@@ -10,7 +9,6 @@ fn test_inet_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cidr_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -40,7 +38,6 @@ fn test_macaddr8_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_column() {
     let mut executor = create_executor();
     executor
@@ -55,6 +52,7 @@ fn test_inet_column() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_inet_comparison() {
     let mut executor = create_executor();
     let result = executor
@@ -64,6 +62,7 @@ fn test_inet_comparison() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_inet_less_than() {
     let mut executor = create_executor();
     let result = executor
@@ -351,7 +350,6 @@ fn test_macaddr8_set7bit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_ipv6() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT '2001:db8::1'::INET").unwrap();
@@ -359,7 +357,6 @@ fn test_inet_ipv6() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cidr_ipv6() {
     let mut executor = create_executor();
     let result = executor
