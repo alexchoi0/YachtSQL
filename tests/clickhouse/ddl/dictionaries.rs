@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_dictionary_flat() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_create_dictionary_flat() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_dictionary_hashed() {
     let mut executor = create_executor();
@@ -36,7 +34,6 @@ fn test_create_dictionary_hashed() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_dictionary_cache() {
     let mut executor = create_executor();
@@ -54,7 +51,6 @@ fn test_create_dictionary_cache() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_dictionary_complex_key() {
     let mut executor = create_executor();
@@ -73,7 +69,6 @@ fn test_create_dictionary_complex_key() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_dictionary_range_hashed() {
     let mut executor = create_executor();
@@ -94,7 +89,6 @@ fn test_create_dictionary_range_hashed() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_dictionary() {
     let mut executor = create_executor();
@@ -113,7 +107,6 @@ fn test_drop_dictionary() {
     executor.execute_sql("DROP DICTIONARY drop_dict").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_dictionary_if_exists() {
     let mut executor = create_executor();
@@ -122,7 +115,6 @@ fn test_drop_dictionary_if_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_dictionary_get() {
     let mut executor = create_executor();
@@ -151,7 +143,6 @@ fn test_dictionary_get() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_dictionary_get_or_default() {
     let mut executor = create_executor();
@@ -180,7 +171,6 @@ fn test_dictionary_get_or_default() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_dictionary_has() {
     let mut executor = create_executor();
@@ -209,7 +199,6 @@ fn test_dictionary_has() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_dictionary_hierarchy() {
     let mut executor = create_executor();
@@ -241,7 +230,6 @@ fn test_dictionary_hierarchy() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_dictionaries() {
     let mut executor = create_executor();

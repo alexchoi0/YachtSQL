@@ -399,6 +399,18 @@ impl QueryExecutor {
                     Self::empty_result()
                 }
                 CustomStatement::ClickHouseCreateIndex { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseAlterColumnCodec { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseAlterTableTtl { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseQuota { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseRowPolicy { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseSettingsProfile { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseDictionary { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseShow { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseFunction { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseMaterializedView { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseProjection { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseAlterUser { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseGrant { .. } => Self::empty_result(),
                 CustomStatement::AlterTableRestartIdentity { .. }
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),

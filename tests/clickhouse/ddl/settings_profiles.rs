@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_settings_profile() {
     let mut executor = create_executor();
@@ -9,7 +8,6 @@ fn test_create_settings_profile() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_settings_profile_with_settings() {
     let mut executor = create_executor();
@@ -21,7 +19,6 @@ fn test_create_settings_profile_with_settings() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_settings_profile_multiple_settings() {
     let mut executor = create_executor();
@@ -35,7 +32,6 @@ fn test_create_settings_profile_multiple_settings() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_settings_profile_if_not_exists() {
     let mut executor = create_executor();
@@ -47,7 +43,6 @@ fn test_create_settings_profile_if_not_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_settings_profile() {
     let mut executor = create_executor();
@@ -59,7 +54,6 @@ fn test_drop_settings_profile() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_settings_profile_if_exists() {
     let mut executor = create_executor();
@@ -68,7 +62,6 @@ fn test_drop_settings_profile_if_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_alter_settings_profile() {
     let mut executor = create_executor();
@@ -83,7 +76,6 @@ fn test_alter_settings_profile() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_settings_profile_min_max() {
     let mut executor = create_executor();
@@ -95,7 +87,6 @@ fn test_settings_profile_min_max() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_settings_profile_readonly() {
     let mut executor = create_executor();
@@ -107,7 +98,6 @@ fn test_settings_profile_readonly() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_settings_profile_writable() {
     let mut executor = create_executor();
@@ -119,7 +109,6 @@ fn test_settings_profile_writable() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_apply_settings_profile_to_user() {
     let mut executor = create_executor();
@@ -133,7 +122,6 @@ fn test_apply_settings_profile_to_user() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_apply_settings_profile_to_role() {
     let mut executor = create_executor();
@@ -147,7 +135,6 @@ fn test_apply_settings_profile_to_role() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_inherit_settings_profile() {
     let mut executor = create_executor();
@@ -165,7 +152,6 @@ fn test_inherit_settings_profile() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_settings_profiles() {
     let mut executor = create_executor();
@@ -176,7 +162,6 @@ fn test_show_settings_profiles() {
     assert!(result.num_rows() >= 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_settings_profile_constraints() {
     let mut executor = create_executor();

@@ -3,7 +3,7 @@ use sqlparser::tokenizer::Token;
 use yachtsql_core::error::{Error, Result};
 
 use super::helpers::ParserHelpers;
-use crate::validator::CustomStatement;
+use crate::validator::{ClickHouseTtlOperation, CustomStatement};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClickHouseIndexType {
@@ -40,6 +40,237 @@ pub enum ClickHouseIndexType {
 pub struct ClickHouseParser;
 
 impl ClickHouseParser {
+    pub fn parse_alter_column_codec(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
+            return Ok(None);
+        }
+
+        let table_name = Self::parse_qualified_name(tokens, &mut idx)?;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "MODIFY") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "COLUMN") {
+            return Ok(None);
+        }
+
+        let column_name = Self::parse_identifier(tokens, &mut idx)?;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CODEC") {
+            return Ok(None);
+        }
+
+        let codec_args = Self::collect_remaining_parens(tokens, &mut idx)?;
+
+        Ok(Some(CustomStatement::ClickHouseAlterColumnCodec {
+            table_name,
+            column_name,
+            codec: codec_args,
+        }))
+    }
+
+    pub fn parse_alter_table_ttl(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
+            return Ok(None);
+        }
+
+        let table_name = Self::parse_qualified_name(tokens, &mut idx)?;
+
+        let operation = if ParserHelpers::consume_keyword(tokens, &mut idx, "MODIFY") {
+            if !ParserHelpers::expect_keyword(tokens, &mut idx, "TTL") {
+                return Ok(None);
+            }
+            let expr = Self::collect_remaining_tokens(tokens, &mut idx);
+            ClickHouseTtlOperation::Modify { expression: expr }
+        } else if ParserHelpers::consume_keyword(tokens, &mut idx, "REMOVE") {
+            if !ParserHelpers::expect_keyword(tokens, &mut idx, "TTL") {
+                return Ok(None);
+            }
+            ClickHouseTtlOperation::Remove
+        } else if ParserHelpers::consume_keyword(tokens, &mut idx, "MATERIALIZE") {
+            if !ParserHelpers::expect_keyword(tokens, &mut idx, "TTL") {
+                return Ok(None);
+            }
+            ClickHouseTtlOperation::Materialize
+        } else {
+            return Ok(None);
+        };
+
+        Ok(Some(CustomStatement::ClickHouseAlterTableTtl {
+            table_name,
+            operation,
+        }))
+    }
+
+    pub fn is_clickhouse_alter_table_ttl(tokens: &[&Token]) -> bool {
+        let mut idx = 0;
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
+            return false;
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
+            return false;
+        }
+
+        for token in tokens.iter().skip(idx) {
+            if let Token::Word(w) = token
+                && w.value.eq_ignore_ascii_case("TTL")
+            {
+                for t in tokens.iter().skip(idx) {
+                    if let Token::Word(w) = t
+                        && (w.value.eq_ignore_ascii_case("MODIFY")
+                            || w.value.eq_ignore_ascii_case("REMOVE")
+                            || w.value.eq_ignore_ascii_case("MATERIALIZE"))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn collect_remaining_tokens(tokens: &[&Token], idx: &mut usize) -> String {
+        let mut result = String::new();
+
+        while *idx < tokens.len() {
+            match tokens.get(*idx) {
+                Some(Token::Word(w)) => {
+                    if !result.is_empty() && !result.ends_with(' ') {
+                        result.push(' ');
+                    }
+                    result.push_str(&w.value);
+                    *idx += 1;
+                }
+                Some(Token::Number(n, _)) => {
+                    if !result.is_empty() && !result.ends_with(' ') {
+                        result.push(' ');
+                    }
+                    result.push_str(n);
+                    *idx += 1;
+                }
+                Some(Token::Plus) => {
+                    result.push_str(" + ");
+                    *idx += 1;
+                }
+                Some(Token::Minus) => {
+                    result.push_str(" - ");
+                    *idx += 1;
+                }
+                Some(Token::LParen) => {
+                    result.push('(');
+                    *idx += 1;
+                }
+                Some(Token::RParen) => {
+                    result.push(')');
+                    *idx += 1;
+                }
+                Some(Token::Comma) => {
+                    result.push(',');
+                    *idx += 1;
+                }
+                Some(Token::Period) => {
+                    result.push('.');
+                    *idx += 1;
+                }
+                Some(Token::SingleQuotedString(s)) => {
+                    result.push('\'');
+                    result.push_str(s);
+                    result.push('\'');
+                    *idx += 1;
+                }
+                _ => {
+                    *idx += 1;
+                }
+            }
+        }
+
+        result.trim().to_string()
+    }
+
+    pub fn is_clickhouse_alter_column_codec(tokens: &[&Token]) -> bool {
+        let mut idx = 0;
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
+            return false;
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
+            return false;
+        }
+
+        for token in tokens.iter().skip(idx) {
+            if let Token::Word(w) = token
+                && w.value.eq_ignore_ascii_case("CODEC")
+            {
+                let mut has_modify_column = false;
+                for t in tokens.iter().skip(idx) {
+                    if let Token::Word(w) = t
+                        && w.value.eq_ignore_ascii_case("MODIFY")
+                    {
+                        has_modify_column = true;
+                    }
+                }
+                return has_modify_column;
+            }
+        }
+        false
+    }
+
+    fn collect_remaining_parens(tokens: &[&Token], idx: &mut usize) -> Result<String> {
+        let mut result = String::new();
+        let mut paren_depth = 0;
+
+        while *idx < tokens.len() {
+            match tokens.get(*idx) {
+                Some(Token::LParen) => {
+                    paren_depth += 1;
+                    result.push('(');
+                    *idx += 1;
+                }
+                Some(Token::RParen) => {
+                    result.push(')');
+                    paren_depth -= 1;
+                    *idx += 1;
+                    if paren_depth == 0 {
+                        break;
+                    }
+                }
+                Some(Token::Comma) => {
+                    result.push(',');
+                    *idx += 1;
+                }
+                Some(Token::Word(w)) => {
+                    if !result.is_empty()
+                        && !result.ends_with('(')
+                        && !result.ends_with(',')
+                        && !result.ends_with(' ')
+                    {
+                        result.push(' ');
+                    }
+                    result.push_str(&w.value);
+                    *idx += 1;
+                }
+                Some(Token::Number(n, _)) => {
+                    result.push_str(n);
+                    *idx += 1;
+                }
+                _ => {
+                    *idx += 1;
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     pub fn parse_create_index(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
         let mut idx = 0;
 
@@ -95,6 +326,209 @@ impl ClickHouseParser {
             index_type,
             granularity,
         }))
+    }
+
+    pub fn parse_quota(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseQuota {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_quota_statement(tokens: &[&Token]) -> bool {
+        for token in tokens.iter() {
+            if let Token::Word(w) = token
+                && w.value.eq_ignore_ascii_case("QUOTA")
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn parse_row_policy(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseRowPolicy {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_row_policy_statement(tokens: &[&Token]) -> bool {
+        let mut found_row = false;
+        let mut found_policy = false;
+        for token in tokens.iter() {
+            if let Token::Word(w) = token {
+                if w.value.eq_ignore_ascii_case("ROW") {
+                    found_row = true;
+                }
+                if w.value.eq_ignore_ascii_case("POLICY") && found_row {
+                    found_policy = true;
+                }
+            }
+        }
+        found_row && found_policy
+    }
+
+    pub fn parse_settings_profile(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseSettingsProfile {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_settings_profile_statement(tokens: &[&Token]) -> bool {
+        let mut found_settings = false;
+        let mut found_profile = false;
+        for token in tokens.iter() {
+            if let Token::Word(w) = token {
+                if w.value.eq_ignore_ascii_case("SETTINGS") {
+                    found_settings = true;
+                }
+                if w.value.eq_ignore_ascii_case("PROFILE") && found_settings {
+                    found_profile = true;
+                }
+            }
+        }
+        found_settings && found_profile
+    }
+
+    pub fn parse_dictionary(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseDictionary {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_dictionary_statement(tokens: &[&Token]) -> bool {
+        for token in tokens.iter() {
+            if let Token::Word(w) = token
+                && w.value.eq_ignore_ascii_case("DICTIONARY")
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn parse_show(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseShow {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_show_statement(tokens: &[&Token]) -> bool {
+        if let Some(Token::Word(w)) = tokens.first()
+            && w.value.eq_ignore_ascii_case("SHOW")
+        {
+            return true;
+        }
+        false
+    }
+
+    pub fn parse_function(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseFunction {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_function_statement(tokens: &[&Token]) -> bool {
+        let first_keyword = tokens
+            .iter()
+            .find_map(|t| {
+                if let Token::Word(w) = t {
+                    Some(w.value.to_uppercase())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
+
+        if !matches!(first_keyword.as_str(), "CREATE" | "DROP") {
+            return false;
+        }
+
+        for token in tokens.iter() {
+            if let Token::Word(w) = token
+                && w.value.eq_ignore_ascii_case("FUNCTION")
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn parse_materialized_view(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseMaterializedView {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_materialized_view_statement(tokens: &[&Token]) -> bool {
+        let mut found_materialized = false;
+        let mut found_view = false;
+
+        for token in tokens.iter() {
+            if let Token::Word(w) = token {
+                if w.value.eq_ignore_ascii_case("MATERIALIZED") {
+                    found_materialized = true;
+                }
+                if w.value.eq_ignore_ascii_case("VIEW") && found_materialized {
+                    found_view = true;
+                }
+            }
+        }
+        found_materialized && found_view
+    }
+
+    pub fn parse_projection(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseProjection {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_projection_statement(tokens: &[&Token]) -> bool {
+        for token in tokens.iter() {
+            if let Token::Word(w) = token
+                && w.value.eq_ignore_ascii_case("PROJECTION")
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn parse_alter_user(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseAlterUser {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_alter_user_statement(tokens: &[&Token]) -> bool {
+        let mut idx = 0;
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
+            return false;
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "USER") {
+            return false;
+        }
+        true
+    }
+
+    pub fn parse_grant(sql: &str) -> Option<CustomStatement> {
+        Some(CustomStatement::ClickHouseGrant {
+            statement: sql.to_string(),
+        })
+    }
+
+    pub fn is_grant_statement(tokens: &[&Token]) -> bool {
+        if let Some(Token::Word(w)) = tokens.first()
+            && (w.value.eq_ignore_ascii_case("GRANT") || w.value.eq_ignore_ascii_case("REVOKE"))
+        {
+            for token in tokens.iter() {
+                if let Token::Word(w) = token
+                    && w.value.eq_ignore_ascii_case("ROLE")
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     pub fn is_clickhouse_create_index(tokens: &[&Token]) -> bool {

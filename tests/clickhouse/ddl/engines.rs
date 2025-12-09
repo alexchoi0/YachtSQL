@@ -49,7 +49,6 @@ fn test_versioned_collapsing_insert() {
     assert_table_eq!(result, [[1, 200]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_graphite_merge_tree() {
     let mut executor = create_executor();
@@ -67,7 +66,6 @@ fn test_graphite_merge_tree() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_graphite_merge_tree_insert() {
     let mut executor = create_executor();
@@ -143,7 +141,6 @@ fn test_collapsing_merge_tree_insert() {
     assert_table_eq!(result, [[1, 10]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_summing_merge_tree() {
     let mut executor = create_executor();
@@ -159,7 +156,6 @@ fn test_summing_merge_tree() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_summing_merge_tree_insert() {
     let mut executor = create_executor();
@@ -189,7 +185,6 @@ fn test_summing_merge_tree_insert() {
     assert_table_eq!(result, [["A", 150], ["B", 200]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aggregating_merge_tree() {
     let mut executor = create_executor();
@@ -205,7 +200,6 @@ fn test_aggregating_merge_tree() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_replacing_merge_tree() {
     let mut executor = create_executor();
@@ -222,7 +216,6 @@ fn test_replacing_merge_tree() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_replacing_merge_tree_insert() {
     let mut executor = create_executor();
@@ -252,7 +245,6 @@ fn test_replacing_merge_tree_insert() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_tree_with_ttl() {
     let mut executor = create_executor();
@@ -270,7 +262,6 @@ fn test_merge_tree_with_ttl() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_tree_with_partition() {
     let mut executor = create_executor();
@@ -374,7 +365,6 @@ fn test_stripe_log_engine() {
     assert_table_eq!(result, [[1, "stripe1"], [2, "stripe2"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_engine() {
     let mut executor = create_executor();
@@ -402,7 +392,6 @@ fn test_merge_engine() {
     assert_table_eq!(result, [[1, 100], [2, 200]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_engine() {
     let mut executor = create_executor();
@@ -417,7 +406,6 @@ fn test_distributed_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_engine() {
     let mut executor = create_executor();
@@ -436,7 +424,6 @@ fn test_buffer_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_null_engine() {
     let mut executor = create_executor();
@@ -454,7 +441,6 @@ fn test_null_engine() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_set_engine() {
     let mut executor = create_executor();
@@ -510,7 +496,6 @@ fn test_file_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_generate_random_engine() {
     let mut executor = create_executor();

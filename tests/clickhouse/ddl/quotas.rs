@@ -1,13 +1,11 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_quota() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE QUOTA test_quota").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_quota_with_limits() {
     let mut executor = create_executor();
@@ -19,7 +17,6 @@ fn test_create_quota_with_limits() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_quota_multiple_intervals() {
     let mut executor = create_executor();
@@ -32,7 +29,6 @@ fn test_create_quota_multiple_intervals() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_quota_if_not_exists() {
     let mut executor = create_executor();
@@ -44,7 +40,6 @@ fn test_create_quota_if_not_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_quota() {
     let mut executor = create_executor();
@@ -52,7 +47,6 @@ fn test_drop_quota() {
     executor.execute_sql("DROP QUOTA drop_quota").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_quota_if_exists() {
     let mut executor = create_executor();
@@ -61,7 +55,6 @@ fn test_drop_quota_if_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_alter_quota() {
     let mut executor = create_executor();
@@ -74,7 +67,6 @@ fn test_alter_quota() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_quota_keyed_by_user() {
     let mut executor = create_executor();
@@ -87,7 +79,6 @@ fn test_create_quota_keyed_by_user() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_quota_keyed_by_ip() {
     let mut executor = create_executor();
@@ -100,7 +91,6 @@ fn test_create_quota_keyed_by_ip() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_quota_keyed_by_client() {
     let mut executor = create_executor();
@@ -113,7 +103,6 @@ fn test_create_quota_keyed_by_client() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_apply_quota_to_user() {
     let mut executor = create_executor();
@@ -127,7 +116,6 @@ fn test_apply_quota_to_user() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_apply_quota_to_role() {
     let mut executor = create_executor();
@@ -141,7 +129,6 @@ fn test_apply_quota_to_role() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_quotas() {
     let mut executor = create_executor();
@@ -150,7 +137,6 @@ fn test_show_quotas() {
     assert!(result.num_rows() >= 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_quota_execution_time() {
     let mut executor = create_executor();
@@ -162,7 +148,6 @@ fn test_quota_execution_time() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_quota_read_rows() {
     let mut executor = create_executor();
@@ -174,7 +159,6 @@ fn test_quota_read_rows() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_quota_result_bytes() {
     let mut executor = create_executor();

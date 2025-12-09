@@ -118,6 +118,64 @@ pub enum CustomStatement {
         index_type: ClickHouseIndexType,
         granularity: Option<u64>,
     },
+
+    ClickHouseAlterColumnCodec {
+        table_name: sqlparser::ast::ObjectName,
+        column_name: String,
+        codec: String,
+    },
+
+    ClickHouseAlterTableTtl {
+        table_name: sqlparser::ast::ObjectName,
+        operation: ClickHouseTtlOperation,
+    },
+
+    ClickHouseQuota {
+        statement: String,
+    },
+
+    ClickHouseRowPolicy {
+        statement: String,
+    },
+
+    ClickHouseSettingsProfile {
+        statement: String,
+    },
+
+    ClickHouseDictionary {
+        statement: String,
+    },
+
+    ClickHouseShow {
+        statement: String,
+    },
+
+    ClickHouseFunction {
+        statement: String,
+    },
+
+    ClickHouseMaterializedView {
+        statement: String,
+    },
+
+    ClickHouseProjection {
+        statement: String,
+    },
+
+    ClickHouseAlterUser {
+        statement: String,
+    },
+
+    ClickHouseGrant {
+        statement: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClickHouseTtlOperation {
+    Modify { expression: String },
+    Remove,
+    Materialize,
 }
 
 use crate::parser::ClickHouseIndexType;
@@ -249,6 +307,54 @@ impl StatementValidator {
             CustomStatement::BeginTransaction { .. } => Ok(()),
             CustomStatement::ClickHouseCreateIndex { .. } => {
                 self.require_clickhouse("CREATE INDEX with TYPE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterColumnCodec { .. } => {
+                self.require_clickhouse("ALTER TABLE MODIFY COLUMN CODEC")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterTableTtl { .. } => {
+                self.require_clickhouse("ALTER TABLE TTL")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseQuota { .. } => {
+                self.require_clickhouse("QUOTA")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseRowPolicy { .. } => {
+                self.require_clickhouse("ROW POLICY")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseSettingsProfile { .. } => {
+                self.require_clickhouse("SETTINGS PROFILE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseDictionary { .. } => {
+                self.require_clickhouse("DICTIONARY")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseShow { .. } => {
+                self.require_clickhouse("SHOW")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseFunction { .. } => {
+                self.require_clickhouse("FUNCTION")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseMaterializedView { .. } => {
+                self.require_clickhouse("MATERIALIZED VIEW")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseProjection { .. } => {
+                self.require_clickhouse("PROJECTION")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterUser { .. } => {
+                self.require_clickhouse("ALTER USER")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseGrant { .. } => {
+                self.require_clickhouse("GRANT/REVOKE")?;
                 Ok(())
             }
         }

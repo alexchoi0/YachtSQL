@@ -632,7 +632,9 @@ impl DdlExecutor for QueryExecutor {
             SqlDataType::Bytea | SqlDataType::Bytes(_) => Ok(DataType::Bytes),
             SqlDataType::Bit(_) | SqlDataType::BitVarying(_) => Ok(DataType::Bytes),
             SqlDataType::Date => Ok(DataType::Date),
-            SqlDataType::Timestamp(_, _) => Ok(DataType::Timestamp),
+            SqlDataType::Timestamp(_, _)
+            | SqlDataType::Datetime(_)
+            | SqlDataType::Datetime64(_, _) => Ok(DataType::Timestamp),
             SqlDataType::Decimal(info) | SqlDataType::Numeric(info) => {
                 use sqlparser::ast::ExactNumberInfo;
                 let precision_scale = match info {

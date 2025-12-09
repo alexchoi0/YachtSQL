@@ -20,7 +20,7 @@ pub use types::{
 };
 use yachtsql_core::error::{Error, Result};
 
-use crate::sql_context::SqlWalker;
+use crate::sql_context::{SqlContext, SqlWalker};
 use crate::validator::StatementValidator;
 
 pub struct Parser {
@@ -66,7 +66,19 @@ impl Parser {
 
         let sql_without_exclude = Self::strip_exclude_from_window_frames(&sql_without_returning);
 
-        let rewritten_sql = self.rewrite_json_item_methods(&sql_without_exclude)?;
+        let sql_without_codec = if matches!(self.dialect_type, DialectType::ClickHouse) {
+            Self::strip_codec_clauses(&sql_without_exclude)
+        } else {
+            sql_without_exclude
+        };
+
+        let sql_without_ttl = if matches!(self.dialect_type, DialectType::ClickHouse) {
+            Self::strip_ttl_clauses(&sql_without_codec)
+        } else {
+            sql_without_codec
+        };
+
+        let rewritten_sql = self.rewrite_json_item_methods(&sql_without_ttl)?;
         let parse_result = SqlParser::parse_sql(&*self.dialect, &rewritten_sql);
 
         let sql_statements = match parse_result {
@@ -265,6 +277,91 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_clickhouse_alter_column_codec(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                ClickHouseParser::parse_alter_column_codec(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_clickhouse_alter_table_ttl(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_alter_table_ttl(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_quota_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_quota(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_row_policy_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_row_policy(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_settings_profile_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_settings_profile(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_dictionary_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_dictionary(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_show_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_show(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_function_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_function(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_materialized_view_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_materialized_view(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_projection_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_projection(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_alter_user_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_alter_user(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::ClickHouse
+            && ClickHouseParser::is_grant_statement(&meaningful_tokens)
+            && let Some(custom_stmt) = ClickHouseParser::parse_grant(sql)
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         Ok(None)
     }
 
@@ -321,6 +418,210 @@ impl Parser {
         }
 
         result
+    }
+
+    fn strip_codec_clauses(sql: &str) -> String {
+        let mut result = String::with_capacity(sql.len());
+        let mut idx = 0;
+
+        while idx < sql.len() {
+            if Self::is_codec_at(sql, idx) {
+                let keyword_end = idx + 5;
+                let mut cursor = keyword_end;
+
+                while cursor < sql.len() {
+                    let Some(ch) = Self::next_char(sql, cursor) else {
+                        break;
+                    };
+                    if ch.is_whitespace() {
+                        cursor += ch.len_utf8();
+                    } else {
+                        break;
+                    }
+                }
+
+                if cursor < sql.len()
+                    && sql[cursor..].starts_with('(')
+                    && let Ok(close_idx) = SqlWalker::new(sql).find_matching_paren(cursor)
+                {
+                    idx = close_idx + 1;
+                    continue;
+                }
+
+                result.push_str(&sql[idx..keyword_end]);
+                idx = keyword_end;
+            } else {
+                let Some(ch) = Self::next_char(sql, idx) else {
+                    break;
+                };
+                result.push(ch);
+                idx += ch.len_utf8();
+            }
+        }
+
+        result
+    }
+
+    fn strip_ttl_clauses(sql: &str) -> String {
+        let mut result = String::with_capacity(sql.len());
+        let mut idx = 0;
+        let mut context = SqlContext::new();
+
+        while idx < sql.len() {
+            let ch = match Self::next_char(sql, idx) {
+                Some(c) => c,
+                None => break,
+            };
+            let peek = Self::next_char(sql, idx + ch.len_utf8());
+
+            if context.process_char(ch, peek) {
+                result.push(ch);
+                idx += ch.len_utf8();
+                continue;
+            }
+
+            if context.is_in_code() && Self::is_ttl_at(sql, idx) {
+                let ttl_end = Self::find_ttl_clause_end(sql, idx);
+                idx = ttl_end;
+                continue;
+            }
+
+            result.push(ch);
+            idx += ch.len_utf8();
+        }
+
+        result
+    }
+
+    fn is_ttl_at(sql: &str, start: usize) -> bool {
+        let keyword = "TTL";
+        let keyword_len = keyword.len();
+
+        let Some(substr) = sql.get(start..start + keyword_len) else {
+            return false;
+        };
+
+        if !substr.eq_ignore_ascii_case(keyword) {
+            return false;
+        }
+
+        if start > 0
+            && let Some(prev) = sql[..start].chars().next_back()
+            && (prev.is_ascii_alphanumeric() || prev == '_')
+        {
+            return false;
+        }
+
+        if start + keyword_len < sql.len()
+            && let Some(next) = sql[start + keyword_len..].chars().next()
+            && (next.is_ascii_alphanumeric() || next == '_')
+        {
+            return false;
+        }
+
+        true
+    }
+
+    fn find_ttl_clause_end(sql: &str, start: usize) -> usize {
+        let stop_keywords = ["SETTINGS", "PRIMARY", "SAMPLE", "AS", "COMMENT"];
+
+        let mut idx = start + 3;
+        let mut paren_depth = 0;
+        let mut context = SqlContext::new();
+
+        while idx < sql.len() {
+            let ch = match Self::next_char(sql, idx) {
+                Some(c) => c,
+                None => break,
+            };
+            let peek = Self::next_char(sql, idx + ch.len_utf8());
+
+            if context.process_char(ch, peek) {
+                idx += ch.len_utf8();
+                continue;
+            }
+
+            if context.is_in_code() {
+                match ch {
+                    '(' => {
+                        paren_depth += 1;
+                        idx += ch.len_utf8();
+                        continue;
+                    }
+                    ')' => {
+                        if paren_depth > 0 {
+                            paren_depth -= 1;
+                        }
+                        idx += ch.len_utf8();
+                        continue;
+                    }
+                    ',' if paren_depth == 0 => {
+                        let rest = sql[idx + 1..].trim_start();
+                        let is_next_ttl_rule = rest
+                            .split_whitespace()
+                            .next()
+                            .map(|w| {
+                                let after_word = rest[w.len()..].trim_start();
+                                !w.eq_ignore_ascii_case("SETTINGS")
+                                    && !w.eq_ignore_ascii_case("PARTITION")
+                                    && !w.eq_ignore_ascii_case("PRIMARY")
+                                    && (after_word.starts_with('+')
+                                        || w.contains('+')
+                                        || after_word.chars().next().is_some_and(|c| c == '+'))
+                            })
+                            .unwrap_or(false);
+
+                        if is_next_ttl_rule {
+                            idx += ch.len_utf8();
+                            continue;
+                        }
+                        return idx;
+                    }
+                    _ => {}
+                }
+
+                if paren_depth == 0 {
+                    for kw in &stop_keywords {
+                        if Self::keyword_at(sql, idx, kw) {
+                            return idx;
+                        }
+                    }
+                }
+            }
+
+            idx += ch.len_utf8();
+        }
+
+        idx
+    }
+
+    fn is_codec_at(sql: &str, start: usize) -> bool {
+        let keyword = "CODEC";
+        let keyword_len = keyword.len();
+
+        let Some(substr) = sql.get(start..start + keyword_len) else {
+            return false;
+        };
+
+        if !substr.eq_ignore_ascii_case(keyword) {
+            return false;
+        }
+
+        if start > 0
+            && let Some(prev) = sql[..start].chars().next_back()
+            && (prev.is_ascii_alphanumeric() || prev == '_')
+        {
+            return false;
+        }
+
+        if start + keyword_len < sql.len()
+            && let Some(next) = sql[start + keyword_len..].chars().next()
+            && (next.is_ascii_alphanumeric() || next == '_')
+        {
+            return false;
+        }
+
+        true
     }
 
     fn strip_returning_from_statement(statement: &str) -> (String, Option<String>) {

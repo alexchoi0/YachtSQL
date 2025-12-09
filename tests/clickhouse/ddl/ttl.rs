@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_table_ttl_basic() {
     let mut executor = create_executor();
@@ -18,7 +17,7 @@ fn test_table_ttl_basic() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Column-level TTL stripping needs refinement"]
 #[test]
 fn test_column_ttl() {
     let mut executor = create_executor();
@@ -35,7 +34,6 @@ fn test_column_ttl() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ttl_delete() {
     let mut executor = create_executor();
@@ -52,7 +50,6 @@ fn test_ttl_delete() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ttl_to_disk() {
     let mut executor = create_executor();
@@ -69,7 +66,6 @@ fn test_ttl_to_disk() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ttl_to_volume() {
     let mut executor = create_executor();
@@ -86,7 +82,7 @@ fn test_ttl_to_volume() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "SummingMergeTree tuple syntax needs parser support"]
 #[test]
 fn test_ttl_group_by() {
     let mut executor = create_executor();
@@ -106,7 +102,6 @@ fn test_ttl_group_by() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ttl_recompress() {
     let mut executor = create_executor();
@@ -124,7 +119,6 @@ fn test_ttl_recompress() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multiple_ttl_rules() {
     let mut executor = create_executor();
@@ -144,7 +138,6 @@ fn test_multiple_ttl_rules() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ttl_where() {
     let mut executor = create_executor();
@@ -164,7 +157,6 @@ fn test_ttl_where() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_alter_table_ttl() {
     let mut executor = create_executor();
@@ -183,7 +175,6 @@ fn test_alter_table_ttl() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_alter_column_ttl() {
     let mut executor = create_executor();
@@ -205,7 +196,6 @@ fn test_alter_column_ttl() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_remove_ttl() {
     let mut executor = create_executor();
@@ -225,7 +215,6 @@ fn test_remove_ttl() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_materialize_ttl() {
     let mut executor = create_executor();
@@ -248,7 +237,6 @@ fn test_materialize_ttl() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ttl_with_date_expression() {
     let mut executor = create_executor();
@@ -266,7 +254,6 @@ fn test_ttl_with_date_expression() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_table_with_ttl() {
     let mut executor = create_executor();

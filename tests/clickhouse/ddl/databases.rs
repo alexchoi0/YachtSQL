@@ -1,14 +1,12 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_database() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE DATABASE test_db").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_database_if_not_exists() {
     let mut executor = create_executor();
@@ -20,7 +18,6 @@ fn test_create_database_if_not_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_database() {
     let mut executor = create_executor();
@@ -28,7 +25,6 @@ fn test_drop_database() {
     executor.execute_sql("DROP DATABASE drop_db").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_database_if_exists() {
     let mut executor = create_executor();
@@ -37,7 +33,6 @@ fn test_drop_database_if_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_database_with_engine() {
     let mut executor = create_executor();
@@ -46,7 +41,6 @@ fn test_create_database_with_engine() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_database_lazy() {
     let mut executor = create_executor();
@@ -55,7 +49,6 @@ fn test_create_database_lazy() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_databases() {
     let mut executor = create_executor();
@@ -65,7 +58,6 @@ fn test_show_databases() {
     assert!(result.num_rows() >= 2);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_use_database() {
     let mut executor = create_executor();
@@ -73,7 +65,6 @@ fn test_use_database() {
     executor.execute_sql("USE use_db").unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_table_in_database() {
     let mut executor = create_executor();
@@ -90,7 +81,6 @@ fn test_create_table_in_database() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_database_qualified_name() {
     let mut executor = create_executor();
@@ -113,7 +103,6 @@ fn test_database_qualified_name() {
     assert_table_eq!(result, [[1, 2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rename_database() {
     let mut executor = create_executor();
@@ -123,7 +112,6 @@ fn test_rename_database() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_database_comment() {
     let mut executor = create_executor();

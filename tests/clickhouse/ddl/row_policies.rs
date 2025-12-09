@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_row_policy() {
     let mut executor = create_executor();
@@ -15,7 +14,6 @@ fn test_create_row_policy() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_row_policy_if_not_exists() {
     let mut executor = create_executor();
@@ -36,7 +34,6 @@ fn test_create_row_policy_if_not_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_row_policy() {
     let mut executor = create_executor();
@@ -54,7 +51,6 @@ fn test_drop_row_policy() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_drop_row_policy_if_exists() {
     let mut executor = create_executor();
@@ -66,7 +62,6 @@ fn test_drop_row_policy_if_exists() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_policy_restrictive() {
     let mut executor = create_executor();
@@ -82,7 +77,6 @@ fn test_row_policy_restrictive() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_policy_permissive() {
     let mut executor = create_executor();
@@ -98,7 +92,6 @@ fn test_row_policy_permissive() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_policy_for_user() {
     let mut executor = create_executor();
@@ -115,7 +108,6 @@ fn test_row_policy_for_user() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_policy_for_role() {
     let mut executor = create_executor();
@@ -132,7 +124,6 @@ fn test_row_policy_for_role() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_policy_all_users() {
     let mut executor = create_executor();
@@ -148,7 +139,6 @@ fn test_row_policy_all_users() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_policy_except_user() {
     let mut executor = create_executor();
@@ -165,7 +155,6 @@ fn test_row_policy_except_user() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_alter_row_policy() {
     let mut executor = create_executor();
@@ -186,7 +175,6 @@ fn test_alter_row_policy() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_show_row_policies() {
     let mut executor = create_executor();
@@ -203,7 +191,6 @@ fn test_show_row_policies() {
     assert!(result.num_rows() >= 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_policy_complex_condition() {
     let mut executor = create_executor();
@@ -225,7 +212,6 @@ fn test_row_policy_complex_condition() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multiple_row_policies() {
     let mut executor = create_executor();

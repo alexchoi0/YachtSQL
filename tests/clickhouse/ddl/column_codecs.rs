@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lz4_codec() {
     let mut executor = create_executor();
@@ -17,7 +16,6 @@ fn test_lz4_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lz4hc_codec() {
     let mut executor = create_executor();
@@ -33,7 +31,6 @@ fn test_lz4hc_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lz4hc_level_codec() {
     let mut executor = create_executor();
@@ -49,7 +46,6 @@ fn test_lz4hc_level_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_zstd_codec() {
     let mut executor = create_executor();
@@ -65,7 +61,6 @@ fn test_zstd_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_zstd_level_codec() {
     let mut executor = create_executor();
@@ -81,7 +76,6 @@ fn test_zstd_level_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_delta_codec() {
     let mut executor = create_executor();
@@ -97,7 +91,6 @@ fn test_delta_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_delta_bytes_codec() {
     let mut executor = create_executor();
@@ -113,7 +106,6 @@ fn test_delta_bytes_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_double_delta_codec() {
     let mut executor = create_executor();
@@ -129,7 +121,6 @@ fn test_double_delta_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_gorilla_codec() {
     let mut executor = create_executor();
@@ -145,7 +136,6 @@ fn test_gorilla_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fpc_codec() {
     let mut executor = create_executor();
@@ -161,7 +151,6 @@ fn test_fpc_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_t64_codec() {
     let mut executor = create_executor();
@@ -177,7 +166,6 @@ fn test_t64_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_none_codec() {
     let mut executor = create_executor();
@@ -193,7 +181,6 @@ fn test_none_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multiple_columns_different_codecs() {
     let mut executor = create_executor();
@@ -211,7 +198,6 @@ fn test_multiple_columns_different_codecs() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_codec_chain() {
     let mut executor = create_executor();
@@ -227,7 +213,6 @@ fn test_codec_chain() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_default_codec() {
     let mut executor = create_executor();
@@ -243,7 +228,6 @@ fn test_default_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_alter_column_codec() {
     let mut executor = create_executor();
@@ -263,7 +247,6 @@ fn test_alter_column_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_codec_with_nullable() {
     let mut executor = create_executor();
@@ -279,7 +262,6 @@ fn test_codec_with_nullable() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_codec_with_array() {
     let mut executor = create_executor();
@@ -295,7 +277,6 @@ fn test_codec_with_array() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_codec_insert_select() {
     let mut executor = create_executor();
@@ -325,7 +306,6 @@ fn test_codec_insert_select() {
     assert_table_eq!(result, [[1, 100], [2, 200], [3, 300]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aes_encryption_codec() {
     let mut executor = create_executor();
@@ -341,7 +321,6 @@ fn test_aes_encryption_codec() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aes_256_codec() {
     let mut executor = create_executor();
