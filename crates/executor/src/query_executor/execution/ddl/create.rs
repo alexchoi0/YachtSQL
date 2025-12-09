@@ -543,6 +543,24 @@ impl DdlExecutor for QueryExecutor {
         for col in columns {
             let name = col.name.value.clone();
 
+            if let SqlDataType::Nested(nested_fields) = &col.data_type {
+                for nested_field in nested_fields {
+                    let nested_col_name = format!("{}.{}", name, nested_field.name.value);
+                    if !column_names.insert(nested_col_name.clone()) {
+                        return Err(Error::InvalidQuery(format!(
+                            "Duplicate column name '{}' in CREATE TABLE",
+                            nested_col_name
+                        )));
+                    }
+                    let inner_type =
+                        self.sql_type_to_data_type(dataset_id, &nested_field.data_type)?;
+                    let array_type = DataType::Array(Box::new(inner_type));
+                    let field = Field::nullable(nested_col_name, array_type);
+                    fields.push(field);
+                }
+                continue;
+            }
+
             if !column_names.insert(name.clone()) {
                 return Err(Error::InvalidQuery(format!(
                     "Duplicate column name '{}' in CREATE TABLE",
@@ -828,6 +846,27 @@ impl DdlExecutor for QueryExecutor {
                         yachtsql_core::types::StructField {
                             name: col.name.value.clone(),
                             data_type: DataType::Array(Box::new(dt)),
+                        }
+                    })
+                    .collect();
+                Ok(DataType::Struct(struct_fields))
+            }
+            SqlDataType::Tuple(fields) => {
+                let struct_fields: Vec<yachtsql_core::types::StructField> = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, field)| {
+                        let dt = self
+                            .sql_type_to_data_type(dataset_id, &field.field_type)
+                            .unwrap_or(DataType::String);
+                        let name = field
+                            .field_name
+                            .as_ref()
+                            .map(|ident| ident.value.clone())
+                            .unwrap_or_else(|| (idx + 1).to_string());
+                        yachtsql_core::types::StructField {
+                            name,
+                            data_type: dt,
                         }
                     })
                     .collect();

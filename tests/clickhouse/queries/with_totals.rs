@@ -166,7 +166,6 @@ fn test_with_totals_min_max() {
     assert!(result.num_rows() >= 2);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_with_totals_after_having() {
     let mut executor = create_executor();

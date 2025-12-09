@@ -150,7 +150,6 @@ fn test_split_no_delimiter() {
     assert_table_eq!(result, [[["no delimiter here"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_column() {
     let mut executor = create_executor();
@@ -175,7 +174,6 @@ fn test_split_column() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_split_and_access() {
     let mut executor = create_executor();

@@ -142,7 +142,6 @@ fn test_negative_group_by() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
 #[test]
 fn test_select_distinct_on() {
     let mut executor = create_executor();
@@ -244,7 +243,6 @@ fn test_select_from_subquery_columns() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
 #[test]
 fn test_columns_except_multiple() {
     let mut executor = create_executor();

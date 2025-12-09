@@ -2344,6 +2344,12 @@ impl ProjectionWithExprExec {
 
         match expr {
             Expr::Column { name, table } => {
+                if let Some(table_name) = table {
+                    let qualified_name = format!("{}.{}", table_name, name);
+                    if let Some(field) = schema.field(&qualified_name) {
+                        return Some(field.data_type.clone());
+                    }
+                }
                 if schema.field(name).is_some() {
                     schema.field(name).map(|f| f.data_type.clone())
                 } else if let Some(table_name) = table {
