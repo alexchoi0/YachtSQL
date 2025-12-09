@@ -192,12 +192,17 @@ pub enum CastDataType {
     Hstore,
     MacAddr,
     MacAddr8,
+    Inet,
+    Cidr,
     Int4Range,
     Int8Range,
     NumRange,
     TsRange,
     TsTzRange,
     DateRange,
+    Point,
+    PgBox,
+    Circle,
     Custom(String, Vec<yachtsql_core::types::StructField>),
 }
 
@@ -248,6 +253,11 @@ pub enum BinaryOp {
     RangeAdjacent,
     RangeStrictlyLeft,
     RangeStrictlyRight,
+    InetContains,
+    InetContainedBy,
+    InetContainsOrEqual,
+    InetContainedByOrEqual,
+    InetOverlap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -459,6 +459,8 @@ impl LogicalToPhysicalPlanner {
                         match name.to_uppercase().as_str() {
                             "MACADDR" => CastDataType::MacAddr,
                             "MACADDR8" => CastDataType::MacAddr8,
+                            "INET" => CastDataType::Inet,
+                            "CIDR" => CastDataType::Cidr,
                             "HSTORE" => CastDataType::Hstore,
                             "INTERVAL" => CastDataType::Interval,
                             "UUID" => CastDataType::Uuid,
@@ -468,6 +470,9 @@ impl LogicalToPhysicalPlanner {
                             "TSRANGE" => CastDataType::TsRange,
                             "TSTZRANGE" => CastDataType::TsTzRange,
                             "DATERANGE" => CastDataType::DateRange,
+                            "POINT" => CastDataType::Point,
+                            "BOX" => CastDataType::PgBox,
+                            "CIRCLE" => CastDataType::Circle,
                             _ => {
                                 let composite_fields_cloned = {
                                     let storage = self.storage.borrow();
@@ -1589,12 +1594,17 @@ impl LogicalToPhysicalPlanner {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
+            CastDataType::Inet => DataType::Inet,
+            CastDataType::Cidr => DataType::Cidr,
             CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
             CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
             CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
             CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
             CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
             CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
+            CastDataType::Point => DataType::Point,
+            CastDataType::PgBox => DataType::PgBox,
+            CastDataType::Circle => DataType::Circle,
             CastDataType::Custom(_, fields) => DataType::Struct(fields.clone()),
         }
     }

@@ -137,7 +137,12 @@ impl NullPropagation {
                         | BinaryOp::GeometricOverlap
                         | BinaryOp::RangeAdjacent
                         | BinaryOp::RangeStrictlyLeft
-                        | BinaryOp::RangeStrictlyRight => return Expr::Literal(LiteralValue::Null),
+                        | BinaryOp::RangeStrictlyRight
+                        | BinaryOp::InetContains
+                        | BinaryOp::InetContainedBy
+                        | BinaryOp::InetContainsOrEqual
+                        | BinaryOp::InetContainedByOrEqual
+                        | BinaryOp::InetOverlap => return Expr::Literal(LiteralValue::Null),
 
                         BinaryOp::In | BinaryOp::NotIn => return Expr::Literal(LiteralValue::Null),
 

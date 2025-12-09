@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_precision_scale() {
     let mut executor = create_executor();
     let result = executor
@@ -12,7 +11,6 @@ fn test_numeric_precision_scale() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_no_precision() {
     let mut executor = create_executor();
     let result = executor
@@ -22,7 +20,6 @@ fn test_numeric_no_precision() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_decimal_type() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 99.99::DECIMAL(4,2)").unwrap();
@@ -54,7 +51,6 @@ fn test_numeric_high_precision() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_arithmetic() {
     let mut executor = create_executor();
     let result = executor
@@ -64,7 +60,6 @@ fn test_numeric_arithmetic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_division() {
     let mut executor = create_executor();
     let result = executor
@@ -122,7 +117,6 @@ fn test_double_precision() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_rounding() {
     let mut executor = create_executor();
     let result = executor
@@ -132,7 +126,6 @@ fn test_numeric_rounding() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_truncate() {
     let mut executor = create_executor();
     let result = executor
@@ -142,7 +135,6 @@ fn test_numeric_truncate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_abs() {
     let mut executor = create_executor();
     let result = executor
@@ -152,7 +144,6 @@ fn test_numeric_abs() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_ceil() {
     let mut executor = create_executor();
     let result = executor
@@ -162,7 +153,6 @@ fn test_numeric_ceil() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_floor() {
     let mut executor = create_executor();
     let result = executor
@@ -172,7 +162,6 @@ fn test_numeric_floor() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_mod() {
     let mut executor = create_executor();
     let result = executor
@@ -182,7 +171,6 @@ fn test_numeric_mod() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_power() {
     let mut executor = create_executor();
     let result = executor
@@ -192,7 +180,6 @@ fn test_numeric_power() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_sqrt() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT SQRT(144::NUMERIC)").unwrap();
@@ -200,7 +187,6 @@ fn test_numeric_sqrt() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_aggregate_sum() {
     let mut executor = create_executor();
     executor
@@ -215,7 +201,6 @@ fn test_numeric_aggregate_sum() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_aggregate_avg() {
     let mut executor = create_executor();
     executor
@@ -248,7 +233,6 @@ fn test_numeric_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_negative() {
     let mut executor = create_executor();
     let result = executor
@@ -258,7 +242,6 @@ fn test_numeric_negative() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_zero() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT 0.00::NUMERIC(4,2)").unwrap();

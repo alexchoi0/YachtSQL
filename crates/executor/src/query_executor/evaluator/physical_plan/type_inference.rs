@@ -148,12 +148,17 @@ impl ProjectionWithExprExec {
             CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
+            CastDataType::Inet => DataType::Inet,
+            CastDataType::Cidr => DataType::Cidr,
             CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
             CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
             CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
             CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
             CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
             CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
+            CastDataType::Point => DataType::Point,
+            CastDataType::PgBox => DataType::PgBox,
+            CastDataType::Circle => DataType::Circle,
             CastDataType::Custom(name, struct_fields) => {
                 if struct_fields.is_empty() {
                     DataType::Custom(name.clone())
