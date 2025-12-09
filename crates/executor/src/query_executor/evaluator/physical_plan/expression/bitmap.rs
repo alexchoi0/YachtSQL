@@ -1,5 +1,4 @@
-use std::collections::BTreeSet;
-
+use roaring::RoaringBitmap;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::Value;
 use yachtsql_ir::FunctionName;
@@ -8,12 +7,14 @@ use yachtsql_optimizer::expr::Expr;
 use super::super::ProjectionWithExprExec;
 use crate::Table;
 
-fn value_to_bitmap(value: &Value) -> Result<BTreeSet<i64>> {
+fn value_to_bitmap(value: &Value) -> Result<RoaringBitmap> {
     if let Some(arr) = value.as_array() {
-        let mut bitmap = BTreeSet::new();
+        let mut bitmap = RoaringBitmap::new();
         for v in arr {
             if let Some(n) = v.as_i64() {
-                bitmap.insert(n);
+                if n >= 0 && n <= u32::MAX as i64 {
+                    bitmap.insert(n as u32);
+                }
             }
         }
         Ok(bitmap)
@@ -22,8 +23,8 @@ fn value_to_bitmap(value: &Value) -> Result<BTreeSet<i64>> {
     }
 }
 
-fn bitmap_to_value(bitmap: &BTreeSet<i64>) -> Value {
-    let arr: Vec<Value> = bitmap.iter().map(|&n| Value::int64(n)).collect();
+fn bitmap_to_value(bitmap: &RoaringBitmap) -> Value {
+    let arr: Vec<Value> = bitmap.iter().map(|n| Value::int64(n as i64)).collect();
     Value::array(arr)
 }
 
@@ -79,7 +80,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let result: BTreeSet<i64> = bitmap1.intersection(&bitmap2).copied().collect();
+        let result = &bitmap1 & &bitmap2;
         Ok(bitmap_to_value(&result))
     }
 
@@ -93,7 +94,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let result: BTreeSet<i64> = bitmap1.union(&bitmap2).copied().collect();
+        let result = &bitmap1 | &bitmap2;
         Ok(bitmap_to_value(&result))
     }
 
@@ -107,7 +108,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let result: BTreeSet<i64> = bitmap1.symmetric_difference(&bitmap2).copied().collect();
+        let result = &bitmap1 ^ &bitmap2;
         Ok(bitmap_to_value(&result))
     }
 
@@ -121,7 +122,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let result: BTreeSet<i64> = bitmap1.difference(&bitmap2).copied().collect();
+        let result = &bitmap1 - &bitmap2;
         Ok(bitmap_to_value(&result))
     }
 
@@ -137,7 +138,8 @@ impl ProjectionWithExprExec {
         let value = Self::evaluate_expr(&args[1], batch, row_idx)?
             .as_i64()
             .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
-        Ok(Value::int64(if bitmap.contains(&value) { 1 } else { 0 }))
+        let contains = value >= 0 && value <= u32::MAX as i64 && bitmap.contains(value as u32);
+        Ok(Value::int64(if contains { 1 } else { 0 }))
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_bitmap_has_any(
@@ -150,7 +152,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let has_any = bitmap1.intersection(&bitmap2).next().is_some();
+        let has_any = !bitmap1.is_disjoint(&bitmap2);
         Ok(Value::int64(if has_any { 1 } else { 0 }))
     }
 
@@ -180,7 +182,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let count = bitmap1.intersection(&bitmap2).count();
+        let count = bitmap1.intersection_len(&bitmap2);
         Ok(Value::int64(count as i64))
     }
 
@@ -196,7 +198,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let count = bitmap1.union(&bitmap2).count();
+        let count = bitmap1.union_len(&bitmap2);
         Ok(Value::int64(count as i64))
     }
 
@@ -212,7 +214,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let count = bitmap1.symmetric_difference(&bitmap2).count();
+        let count = bitmap1.symmetric_difference_len(&bitmap2);
         Ok(Value::int64(count as i64))
     }
 
@@ -228,7 +230,7 @@ impl ProjectionWithExprExec {
         }
         let bitmap1 = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
         let bitmap2 = value_to_bitmap(&Self::evaluate_expr(&args[1], batch, row_idx)?)?;
-        let count = bitmap1.difference(&bitmap2).count();
+        let count = bitmap1.difference_len(&bitmap2);
         Ok(Value::int64(count as i64))
     }
 
@@ -241,8 +243,8 @@ impl ProjectionWithExprExec {
             return Err(Error::invalid_query("bitmapMin requires 1 argument"));
         }
         let bitmap = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
-        match bitmap.iter().min() {
-            Some(&min) => Ok(Value::int64(min)),
+        match bitmap.min() {
+            Some(min) => Ok(Value::int64(min as i64)),
             None => Ok(Value::null()),
         }
     }
@@ -256,8 +258,8 @@ impl ProjectionWithExprExec {
             return Err(Error::invalid_query("bitmapMax requires 1 argument"));
         }
         let bitmap = value_to_bitmap(&Self::evaluate_expr(&args[0], batch, row_idx)?)?;
-        match bitmap.iter().max() {
-            Some(&max) => Ok(Value::int64(max)),
+        match bitmap.max() {
+            Some(max) => Ok(Value::int64(max as i64)),
             None => Ok(Value::null()),
         }
     }
@@ -279,11 +281,16 @@ impl ProjectionWithExprExec {
         let end = Self::evaluate_expr(&args[2], batch, row_idx)?
             .as_i64()
             .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
-        let result: BTreeSet<i64> = bitmap
-            .iter()
-            .filter(|&&v| v >= start && v < end)
-            .copied()
-            .collect();
+
+        let start_u32 = start.max(0) as u32;
+        let end_u32 = end.max(0) as u32;
+
+        let mut result = RoaringBitmap::new();
+        for v in bitmap.iter() {
+            if v >= start_u32 && v < end_u32 {
+                result.insert(v);
+            }
+        }
         Ok(bitmap_to_value(&result))
     }
 
@@ -304,12 +311,20 @@ impl ProjectionWithExprExec {
         let limit = Self::evaluate_expr(&args[2], batch, row_idx)?
             .as_i64()
             .ok_or_else(|| Error::type_mismatch("INT64", "other"))? as usize;
-        let result: BTreeSet<i64> = bitmap
-            .iter()
-            .filter(|&&v| v >= start)
-            .take(limit)
-            .copied()
-            .collect();
+
+        let start_u32 = start.max(0) as u32;
+
+        let mut result = RoaringBitmap::new();
+        let mut count = 0;
+        for v in bitmap.iter() {
+            if v >= start_u32 {
+                result.insert(v);
+                count += 1;
+                if count >= limit {
+                    break;
+                }
+            }
+        }
         Ok(bitmap_to_value(&result))
     }
 
@@ -337,14 +352,16 @@ impl ProjectionWithExprExec {
         let mut mapping = std::collections::HashMap::new();
         for (f, t) in from_arr.iter().zip(to_arr.iter()) {
             if let (Some(from), Some(to)) = (f.as_i64(), t.as_i64()) {
-                mapping.insert(from, to);
+                if from >= 0 && from <= u32::MAX as i64 && to >= 0 && to <= u32::MAX as i64 {
+                    mapping.insert(from as u32, to as u32);
+                }
             }
         }
 
-        let result: BTreeSet<i64> = bitmap
-            .iter()
-            .map(|&v| *mapping.get(&v).unwrap_or(&v))
-            .collect();
+        let mut result = RoaringBitmap::new();
+        for v in bitmap.iter() {
+            result.insert(*mapping.get(&v).unwrap_or(&v));
+        }
         Ok(bitmap_to_value(&result))
     }
 
@@ -365,7 +382,8 @@ impl ProjectionWithExprExec {
         let limit = Self::evaluate_expr(&args[2], batch, row_idx)?
             .as_i64()
             .ok_or_else(|| Error::type_mismatch("INT64", "other"))? as usize;
-        let result: BTreeSet<i64> = bitmap.iter().skip(offset).take(limit).copied().collect();
+
+        let result: RoaringBitmap = bitmap.iter().skip(offset).take(limit).collect();
         Ok(bitmap_to_value(&result))
     }
 
@@ -379,8 +397,10 @@ impl ProjectionWithExprExec {
         }
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
         if let Some(n) = val.as_i64() {
-            let mut bitmap = BTreeSet::new();
-            bitmap.insert(n);
+            let mut bitmap = RoaringBitmap::new();
+            if n >= 0 && n <= u32::MAX as i64 {
+                bitmap.insert(n as u32);
+            }
             Ok(bitmap_to_value(&bitmap))
         } else {
             let bitmap = value_to_bitmap(&val)?;
