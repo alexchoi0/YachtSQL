@@ -53,6 +53,10 @@ impl ProjectionWithExprExec {
             "PARSEDATETIMEBESTEFFORTORNULL" => {
                 Self::eval_parse_datetime_best_effort_or_null(args, batch, row_idx)
             }
+            "TOLOWCARDINALITY" => Self::eval_to_low_cardinality(args, batch, row_idx),
+            "LOWCARDINALITYINDICES" => Self::eval_low_cardinality_indices(args, batch, row_idx),
+            "LOWCARDINALITYKEYS" => Self::eval_low_cardinality_keys(args, batch, row_idx),
+            "TOUUID" => Self::eval_to_uuid(args, batch, row_idx),
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown conversion function: {}",
                 name

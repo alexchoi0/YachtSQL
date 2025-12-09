@@ -910,6 +910,20 @@ impl ProjectionWithExprExec {
             {
                 Some(DataType::Bytes)
             }
+            FunctionName::Custom(s) if matches!(s.as_str(), "LOWCARDINALITYINDICES") => {
+                Some(DataType::Int64)
+            }
+            FunctionName::Custom(s) if matches!(s.as_str(), "LOWCARDINALITYKEYS") => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+            FunctionName::Custom(s) if matches!(s.as_str(), "TOLOWCARDINALITY") => {
+                if args.is_empty() {
+                    None
+                } else {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                }
+            }
+            FunctionName::Custom(s) if matches!(s.as_str(), "TOUUID") => Some(DataType::Uuid),
 
             FunctionName::BitmapBuild
             | FunctionName::BitmapToArray

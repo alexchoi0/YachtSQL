@@ -513,6 +513,14 @@ pub fn clickhouse_scalar_functions() -> Vec<&'static str> {
         "DICT_HAS",
         "DICTGETHIERARCHY",
         "DICT_GET_HIERARCHY",
+        "TOLOWCARDINALITY",
+        "TO_LOW_CARDINALITY",
+        "LOWCARDINALITYINDICES",
+        "LOW_CARDINALITY_INDICES",
+        "LOWCARDINALITYKEYS",
+        "LOW_CARDINALITY_KEYS",
+        "TOUUID",
+        "TO_UUID",
     ]
 }
 

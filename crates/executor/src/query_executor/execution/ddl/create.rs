@@ -687,6 +687,36 @@ impl DdlExecutor for QueryExecutor {
             SqlDataType::JSON | SqlDataType::JSONB => Ok(DataType::Json),
             SqlDataType::Uuid => Ok(DataType::Uuid),
             SqlDataType::Nullable(inner) => self.sql_type_to_data_type(dataset_id, inner),
+            SqlDataType::LowCardinality(inner) => self.sql_type_to_data_type(dataset_id, inner),
+            SqlDataType::Nested(fields) => {
+                let struct_fields: Vec<yachtsql_core::types::StructField> = fields
+                    .iter()
+                    .map(|col| {
+                        let dt = self
+                            .sql_type_to_data_type(dataset_id, &col.data_type)
+                            .unwrap_or(DataType::String);
+                        yachtsql_core::types::StructField {
+                            name: col.name.value.clone(),
+                            data_type: DataType::Array(Box::new(dt)),
+                        }
+                    })
+                    .collect();
+                Ok(DataType::Struct(struct_fields))
+            }
+            SqlDataType::Enum(members, _bits) => {
+                use sqlparser::ast::EnumMember;
+                let labels: Vec<String> = members
+                    .iter()
+                    .map(|m| match m {
+                        EnumMember::Name(name) => name.clone(),
+                        EnumMember::NamedValue(name, _) => name.clone(),
+                    })
+                    .collect();
+                Ok(DataType::Enum {
+                    type_name: String::new(),
+                    labels,
+                })
+            }
             SqlDataType::Interval { .. } => Ok(DataType::Interval),
             SqlDataType::GeometricType(kind) => {
                 use sqlparser::ast::GeometricTypeKind;

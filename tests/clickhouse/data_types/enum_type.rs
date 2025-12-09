@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum8_create() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_enum8_create() {
     assert_table_eq!(result, [[1, "active"], [2, "inactive"], [3, "pending"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum16_create() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_enum16_create() {
     assert_table_eq!(result, [[1, "low"], [2, "high"], [3, "critical"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum_filter() {
     let mut executor = create_executor();
@@ -54,7 +51,6 @@ fn test_enum_filter() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum_order_by() {
     let mut executor = create_executor();
@@ -73,7 +69,6 @@ fn test_enum_order_by() {
     assert_table_eq!(result, [[2], [3], [1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum_group_by() {
     let mut executor = create_executor();
@@ -109,7 +104,6 @@ fn test_to_int_from_enum() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum_comparison() {
     let mut executor = create_executor();
@@ -128,7 +122,6 @@ fn test_enum_comparison() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum_distinct() {
     let mut executor = create_executor();
@@ -162,7 +155,6 @@ fn test_enum_insert_by_value() {
     assert_table_eq!(result, [["active"], ["inactive"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_enum_case_sensitive() {
     let mut executor = create_executor();

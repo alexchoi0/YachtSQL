@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uuid_literal() {
     let mut executor = create_executor();
@@ -32,7 +31,6 @@ fn test_uuid_column_create() {
     assert_table_eq!(result, [["test"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uuid_ordering() {
     let mut executor = create_executor();
@@ -49,7 +47,6 @@ fn test_uuid_ordering() {
     assert_table_eq!(result, [[1], [2], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uuid_distinct() {
     let mut executor = create_executor();
@@ -66,7 +63,6 @@ fn test_uuid_distinct() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uuid_null() {
     let mut executor = create_executor();

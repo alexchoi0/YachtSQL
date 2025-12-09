@@ -188,7 +188,6 @@ fn test_empty_map() {
     assert!(result.num_rows() == 1);
 }
 
-#[ignore = "length() doesn't support maps yet"]
 #[test]
 fn test_map_length() {
     let mut executor = create_executor();

@@ -154,8 +154,16 @@ pub fn eval_length(value: &Value) -> Result<Value> {
         return Ok(Value::int64(b.len() as i64));
     }
 
+    if let Some(arr) = value.as_array() {
+        return Ok(Value::int64(arr.len() as i64));
+    }
+
+    if let Some(map) = value.as_map() {
+        return Ok(Value::int64(map.len() as i64));
+    }
+
     Err(yachtsql_core::error::Error::TypeMismatch {
-        expected: "STRING or BYTES".to_string(),
+        expected: "STRING, BYTES, ARRAY, or MAP".to_string(),
         actual: value.data_type().to_string(),
     })
 }

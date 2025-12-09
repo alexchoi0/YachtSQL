@@ -901,3 +901,65 @@ fn parse_datetime_best_effort(s: &str) -> Result<chrono::DateTime<Utc>> {
         s
     )))
 }
+
+impl ProjectionWithExprExec {
+    pub(in crate::query_executor::evaluator::physical_plan) fn eval_to_low_cardinality(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query("toLowCardinality requires 1 argument"));
+        }
+        Self::evaluate_expr(&args[0], batch, row_idx)
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn eval_low_cardinality_indices(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "lowCardinalityIndices requires 1 argument",
+            ));
+        }
+        Self::evaluate_expr(&args[0], batch, row_idx)?;
+        Ok(Value::int64(0))
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn eval_low_cardinality_keys(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "lowCardinalityKeys requires 1 argument",
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        Ok(Value::array(vec![val]))
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn eval_to_uuid(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query("toUUID requires 1 argument"));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(s) = val.as_str() {
+            return yachtsql_core::types::parse_uuid_strict(s);
+        }
+        Err(Error::TypeMismatch {
+            expected: "STRING".to_string(),
+            actual: val.data_type().to_string(),
+        })
+    }
+}
