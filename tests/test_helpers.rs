@@ -1,6 +1,7 @@
 #![allow(clippy::approx_constant)]
 
 use yachtsql::{DataType, Table, Value};
+use yachtsql_core::types::{IPv4Addr, IPv6Addr};
 use yachtsql_storage::{Field, Schema};
 
 pub trait IntoValue {
@@ -210,6 +211,14 @@ pub fn date(year: i32, month: u32, day: u32) -> Value {
 pub fn ip(addr: &str) -> Value {
     let octets: Vec<u8> = addr.split('.').map(|s| s.parse().unwrap()).collect();
     Value::bytes(octets)
+}
+
+pub fn ipv4(addr: &str) -> Value {
+    Value::ipv4(IPv4Addr::parse(addr).expect("Invalid IPv4 address"))
+}
+
+pub fn ipv6(addr: &str) -> Value {
+    Value::ipv6(IPv6Addr::parse(addr).expect("Invalid IPv6 address"))
 }
 
 pub fn timestamp(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Value {

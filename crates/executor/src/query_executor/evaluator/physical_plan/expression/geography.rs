@@ -3068,10 +3068,14 @@ impl ProjectionWithExprExec {
                         "IPv4CIDRToRange requires 2 arguments".to_string(),
                     ));
                 }
-                let addr = Self::evaluate_expr(&args[0], batch, row_idx)?
-                    .as_str()
-                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
-                    .to_string();
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let addr = if let Some(s) = val.as_str() {
+                    s.to_string()
+                } else if let Some(ip) = val.as_ipv4() {
+                    ip.to_string()
+                } else {
+                    return Err(Error::type_mismatch("STRING or IPv4", "other"));
+                };
                 let prefix = Self::evaluate_expr(&args[1], batch, row_idx)?
                     .as_i64()
                     .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
@@ -3083,10 +3087,14 @@ impl ProjectionWithExprExec {
                         "IPv6CIDRToRange requires 2 arguments".to_string(),
                     ));
                 }
-                let addr = Self::evaluate_expr(&args[0], batch, row_idx)?
-                    .as_str()
-                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
-                    .to_string();
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let addr = if let Some(s) = val.as_str() {
+                    s.to_string()
+                } else if let Some(ip) = val.as_ipv6() {
+                    ip.to_string()
+                } else {
+                    return Err(Error::type_mismatch("STRING or IPv6", "other"));
+                };
                 let prefix = Self::evaluate_expr(&args[1], batch, row_idx)?
                     .as_i64()
                     .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
