@@ -1,6 +1,6 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with return type"]
 #[test]
 fn test_generate_ulid() {
     let mut executor = create_executor();
@@ -8,7 +8,7 @@ fn test_generate_ulid() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with return type"]
 #[test]
 fn test_generate_ulid_multiple() {
     let mut executor = create_executor();
@@ -18,7 +18,7 @@ fn test_generate_ulid_multiple() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with nested function return type"]
 #[test]
 fn test_ulid_string_to_datetime() {
     let mut executor = create_executor();
@@ -28,7 +28,7 @@ fn test_ulid_string_to_datetime() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with nested function return type"]
 #[test]
 fn test_ulid_string_to_datetime_with_timezone() {
     let mut executor = create_executor();

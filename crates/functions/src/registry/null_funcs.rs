@@ -181,6 +181,101 @@ fn register_predicates(registry: &mut FunctionRegistry) {
     );
 
     registry.register_scalar(
+        "ASSUMENOTNULL".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "ASSUMENOTNULL".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Unknown,
+            variadic: false,
+            evaluator: |args| {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "assumeNotNull requires exactly 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Err(Error::invalid_query(
+                        "assumeNotNull: value is NULL".to_string(),
+                    ));
+                }
+                Ok(args[0].clone())
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "TONULLABLE".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "TONULLABLE".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Unknown,
+            variadic: false,
+            evaluator: |args| {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "toNullable requires exactly 1 argument".to_string(),
+                    ));
+                }
+                Ok(args[0].clone())
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "ISZEROORULL".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "ISZEROORULL".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "isZeroOrNull requires exactly 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::bool_val(true));
+                }
+                if let Some(i) = args[0].as_i64() {
+                    return Ok(Value::bool_val(i == 0));
+                }
+                if let Some(f) = args[0].as_f64() {
+                    return Ok(Value::bool_val(f == 0.0));
+                }
+                Ok(Value::bool_val(false))
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "ISZEROORNULL".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "ISZEROORNULL".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "isZeroOrNull requires exactly 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::bool_val(true));
+                }
+                if let Some(i) = args[0].as_i64() {
+                    return Ok(Value::bool_val(i == 0));
+                }
+                if let Some(f) = args[0].as_f64() {
+                    return Ok(Value::bool_val(f == 0.0));
+                }
+                Ok(Value::bool_val(false))
+            },
+        }),
+    );
+
+    registry.register_scalar(
         "IS_NOT_NULL".to_string(),
         Rc::new(ScalarFunctionImpl {
             name: "IS_NOT_NULL".to_string(),

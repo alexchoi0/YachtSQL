@@ -4150,6 +4150,789 @@ impl ProjectionWithExprExec {
                 ))
             }
 
+            "RAND" | "RAND32" => {
+                use rand::Rng;
+                let mut rng = rand::thread_rng();
+                Ok(Value::int64(rng.r#gen::<u32>() as i64))
+            }
+
+            "RAND64" => {
+                use rand::Rng;
+                let mut rng = rand::thread_rng();
+                Ok(Value::int64(rng.r#gen::<i64>()))
+            }
+
+            "RANDCONSTANT" => {
+                use rand::Rng;
+                let mut rng = rand::thread_rng();
+                Ok(Value::int64(rng.r#gen::<u32>() as i64))
+            }
+
+            "RANDUNIFORM" => {
+                use rand::Rng;
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("randUniform requires 2 arguments"));
+                }
+                let min = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let max = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[1], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::float64(rng.gen_range(min..max)))
+            }
+
+            "RANDNORMAL" => {
+                use rand_distr::{Distribution, Normal};
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("randNormal requires 2 arguments"));
+                }
+                let mean = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let stddev = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[1], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let normal =
+                    Normal::new(mean, stddev).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::float64(normal.sample(&mut rng)))
+            }
+
+            "RANDLOGNORMAL" => {
+                use rand_distr::{Distribution, LogNormal};
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("randLogNormal requires 2 arguments"));
+                }
+                let mean = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let stddev = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[1], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let log_normal = LogNormal::new(mean, stddev)
+                    .map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::float64(log_normal.sample(&mut rng)))
+            }
+
+            "RANDEXPONENTIAL" => {
+                use rand_distr::{Distribution, Exp};
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("randExponential requires 1 argument"));
+                }
+                let lambda = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let exp = Exp::new(lambda).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::float64(exp.sample(&mut rng)))
+            }
+
+            "RANDCHISQUARED" => {
+                use rand_distr::{ChiSquared, Distribution};
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("randChiSquared requires 1 argument"));
+                }
+                let k = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let chi_squared =
+                    ChiSquared::new(k).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::float64(chi_squared.sample(&mut rng)))
+            }
+
+            "RANDSTUDENTT" => {
+                use rand_distr::{Distribution, StudentT};
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("randStudentT requires 1 argument"));
+                }
+                let df = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let student_t =
+                    StudentT::new(df).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::float64(student_t.sample(&mut rng)))
+            }
+
+            "RANDFISHERF" => {
+                use rand_distr::{Distribution, FisherF};
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("randFisherF requires 2 arguments"));
+                }
+                let d1 = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let d2 = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[1], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let fisher_f =
+                    FisherF::new(d1, d2).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::float64(fisher_f.sample(&mut rng)))
+            }
+
+            "RANDBERNOULLI" => {
+                use rand_distr::{Bernoulli, Distribution};
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("randBernoulli requires 1 argument"));
+                }
+                let p = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let bernoulli =
+                    Bernoulli::new(p).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::int64(if bernoulli.sample(&mut rng) { 1 } else { 0 }))
+            }
+
+            "RANDBINOMIAL" => {
+                use rand_distr::{Binomial, Distribution};
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("randBinomial requires 2 arguments"));
+                }
+                let n = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let p = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[1], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let binomial =
+                    Binomial::new(n as u64, p).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::int64(binomial.sample(&mut rng) as i64))
+            }
+
+            "RANDNEGATIVEBINOMIAL" => {
+                use rand::Rng;
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "randNegativeBinomial requires 2 arguments",
+                    ));
+                }
+                let r = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let p = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[1], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let mut rng = rand::thread_rng();
+                let mut count = 0i64;
+                let mut successes = 0;
+                while successes < r {
+                    if rng.gen_bool(p) {
+                        successes += 1;
+                    } else {
+                        count += 1;
+                    }
+                }
+                Ok(Value::int64(count))
+            }
+
+            "RANDPOISSON" => {
+                use rand_distr::{Distribution, Poisson};
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("randPoisson requires 1 argument"));
+                }
+                let lambda = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_f64()
+                    .or_else(|| {
+                        Self::evaluate_expr(&args[0], batch, row_idx)
+                            .ok()?
+                            .as_i64()
+                            .map(|i| i as f64)
+                    })
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let poisson =
+                    Poisson::new(lambda).map_err(|e| Error::invalid_query(e.to_string()))?;
+                let mut rng = rand::thread_rng();
+                Ok(Value::int64(poisson.sample(&mut rng) as i64))
+            }
+
+            "RANDOMSTRING" => {
+                use rand::Rng;
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("randomString requires 1 argument"));
+                }
+                let length = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let mut rng = rand::thread_rng();
+                let bytes: Vec<u8> = (0..length).map(|_| rng.r#gen::<u8>()).collect();
+                Ok(Value::bytes(bytes))
+            }
+
+            "RANDOMFIXEDSTRING" => {
+                use rand::Rng;
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "randomFixedString requires 1 argument",
+                    ));
+                }
+                let length = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let mut rng = rand::thread_rng();
+                let bytes: Vec<u8> = (0..length).map(|_| rng.r#gen::<u8>()).collect();
+                Ok(Value::bytes(bytes))
+            }
+
+            "RANDOMPRINTABLEASCII" => {
+                use rand::Rng;
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "randomPrintableASCII requires 1 argument",
+                    ));
+                }
+                let length = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let mut rng = rand::thread_rng();
+                let s: String = (0..length)
+                    .map(|_| rng.gen_range(32..=126u8) as char)
+                    .collect();
+                Ok(Value::string(s))
+            }
+
+            "RANDOMSTRINGUTF8" => {
+                use rand::Rng;
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("randomStringUTF8 requires 1 argument"));
+                }
+                let length = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let mut rng = rand::thread_rng();
+                let s: String = (0..length)
+                    .map(|_| char::from_u32(rng.gen_range(0x20..=0x7E)).unwrap_or('?'))
+                    .collect();
+                Ok(Value::string(s))
+            }
+
+            "FAKEDATA" => {
+                use rand::Rng;
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("fakeData requires 1 argument"));
+                }
+                let data_type = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let type_str = data_type
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?;
+                let mut rng = rand::thread_rng();
+                let result = match type_str.to_lowercase().as_str() {
+                    "name" => {
+                        let first = ["John", "Jane", "Alice", "Bob"][rng.gen_range(0..4)];
+                        let last = ["Smith", "Johnson", "Williams", "Brown"][rng.gen_range(0..4)];
+                        format!("{} {}", first, last)
+                    }
+                    "email" => format!(
+                        "{}@example.com",
+                        (0..8)
+                            .map(|_| rng.gen_range(b'a'..=b'z') as char)
+                            .collect::<String>()
+                    ),
+                    "phone" => format!(
+                        "+1-{:03}-{:03}-{:04}",
+                        rng.gen_range(100..999),
+                        rng.gen_range(100..999),
+                        rng.gen_range(1000..9999)
+                    ),
+                    _ => format!("fake_{}", type_str),
+                };
+                Ok(Value::string(result))
+            }
+
+            "GENERATEUUIDV4" => {
+                let uuid = uuid::Uuid::new_v4();
+                Ok(Value::string(uuid.to_string()))
+            }
+
+            "TOUUIDORNULL" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("toUUIDOrNull requires 1 argument"));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if s.is_null() {
+                    return Ok(Value::null());
+                }
+                let uuid_str = s
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?;
+                match uuid::Uuid::parse_str(uuid_str) {
+                    Ok(uuid) => Ok(Value::string(uuid.to_string())),
+                    Err(_) => Ok(Value::null()),
+                }
+            }
+
+            "TOUUIDORZERO" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("toUUIDOrZero requires 1 argument"));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if s.is_null() {
+                    return Ok(Value::string(
+                        "00000000-0000-0000-0000-000000000000".to_string(),
+                    ));
+                }
+                let uuid_str = s
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?;
+                match uuid::Uuid::parse_str(uuid_str) {
+                    Ok(uuid) => Ok(Value::string(uuid.to_string())),
+                    Err(_) => Ok(Value::string(
+                        "00000000-0000-0000-0000-000000000000".to_string(),
+                    )),
+                }
+            }
+
+            "UUIDSTRINGTONUM" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("UUIDStringToNum requires 1 argument"));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let uuid_str = s
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?;
+                let uuid = uuid::Uuid::parse_str(uuid_str).map_err(|_| {
+                    Error::invalid_query(format!(
+                        "UUIDStringToNum: invalid UUID string: {}",
+                        uuid_str
+                    ))
+                })?;
+                Ok(Value::bytes(uuid.as_bytes().to_vec()))
+            }
+
+            "UUIDNUMTOSTRING" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("UUIDNumToString requires 1 argument"));
+                }
+                let bytes_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let bytes = bytes_val
+                    .as_bytes()
+                    .ok_or_else(|| Error::type_mismatch("BYTES", "other"))?;
+                if bytes.len() != 16 {
+                    return Err(Error::invalid_query(
+                        "UUIDNumToString: bytes must be exactly 16 bytes",
+                    ));
+                }
+                let uuid_bytes: [u8; 16] = bytes
+                    .try_into()
+                    .map_err(|_| Error::invalid_query("UUIDNumToString: invalid bytes"))?;
+                let uuid = uuid::Uuid::from_bytes(uuid_bytes);
+                Ok(Value::string(uuid.to_string()))
+            }
+
+            "SERVERUUID" => {
+                use std::sync::LazyLock;
+                static SERVER_UUID: LazyLock<uuid::Uuid> = LazyLock::new(uuid::Uuid::new_v4);
+                Ok(Value::string(SERVER_UUID.to_string()))
+            }
+
+            "GENERATEULID" => {
+                let ulid = ulid::Ulid::new();
+                Ok(Value::string(ulid.to_string()))
+            }
+
+            "ULIDSTRINGTODATETIME" | "ULIDTODATETIME" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "ULIDStringToDateTime requires 1 argument",
+                    ));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let ulid_str = s
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?;
+                let ulid = ulid::Ulid::from_string(ulid_str).map_err(|_| {
+                    Error::invalid_query(format!(
+                        "ULIDStringToDateTime: invalid ULID string: {}",
+                        ulid_str
+                    ))
+                })?;
+                let timestamp_ms = ulid.timestamp_ms();
+                let secs = (timestamp_ms / 1000) as i64;
+                let nsecs = ((timestamp_ms % 1000) * 1_000_000) as u32;
+                let dt = chrono::DateTime::from_timestamp(secs, nsecs).ok_or_else(|| {
+                    Error::invalid_query("ULIDStringToDateTime: invalid timestamp")
+                })?;
+                Ok(Value::timestamp(dt))
+            }
+
+            "TOULID" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("toULID requires 1 argument"));
+                }
+                let s = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let ulid_str = s
+                    .as_str()
+                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?;
+                let ulid = ulid::Ulid::from_string(ulid_str).map_err(|_| {
+                    Error::invalid_query(format!("toULID: invalid ULID string: {}", ulid_str))
+                })?;
+                Ok(Value::string(ulid.to_string()))
+            }
+
+            "TUMBLE" | "TUMBLESTART" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "tumble/tumbleStart requires 2 arguments",
+                    ));
+                }
+                let ts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let interval = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let ts_val = ts
+                    .as_timestamp()
+                    .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?;
+                let interval_secs = if let Some(iv) = interval.as_interval() {
+                    (iv.months as i64) * 30 * 24 * 3600
+                        + (iv.days as i64) * 24 * 3600
+                        + iv.micros / 1_000_000
+                } else if let Some(i) = interval.as_i64() {
+                    i
+                } else {
+                    return Err(Error::type_mismatch("INTERVAL", "other"));
+                };
+                let ts_secs = ts_val.timestamp();
+                let window_num = ts_secs / interval_secs;
+                let window_start_secs = window_num * interval_secs;
+                let result = chrono::DateTime::from_timestamp(window_start_secs, 0)
+                    .ok_or_else(|| Error::invalid_query("tumble: invalid result timestamp"))?;
+                Ok(Value::timestamp(result))
+            }
+
+            "TUMBLEEND" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("tumbleEnd requires 2 arguments"));
+                }
+                let ts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let interval = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let ts_val = ts
+                    .as_timestamp()
+                    .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?;
+                let interval_secs = if let Some(iv) = interval.as_interval() {
+                    (iv.months as i64) * 30 * 24 * 3600
+                        + (iv.days as i64) * 24 * 3600
+                        + iv.micros / 1_000_000
+                } else if let Some(i) = interval.as_i64() {
+                    i
+                } else {
+                    return Err(Error::type_mismatch("INTERVAL", "other"));
+                };
+                let ts_secs = ts_val.timestamp();
+                let window_num = ts_secs / interval_secs;
+                let window_end_secs = (window_num + 1) * interval_secs;
+                let result = chrono::DateTime::from_timestamp(window_end_secs, 0)
+                    .ok_or_else(|| Error::invalid_query("tumbleEnd: invalid result timestamp"))?;
+                Ok(Value::timestamp(result))
+            }
+
+            "HOP" | "HOPSTART" => {
+                if args.len() != 3 {
+                    return Err(Error::invalid_query("hop/hopStart requires 3 arguments"));
+                }
+                let ts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let hop_interval = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let ts_val = ts
+                    .as_timestamp()
+                    .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?;
+                let hop_secs = if let Some(iv) = hop_interval.as_interval() {
+                    (iv.months as i64) * 30 * 24 * 3600
+                        + (iv.days as i64) * 24 * 3600
+                        + iv.micros / 1_000_000
+                } else if let Some(i) = hop_interval.as_i64() {
+                    i
+                } else {
+                    return Err(Error::type_mismatch("INTERVAL", "other"));
+                };
+                let ts_secs = ts_val.timestamp();
+                let hop_num = ts_secs / hop_secs;
+                let hop_start_secs = hop_num * hop_secs;
+                let result = chrono::DateTime::from_timestamp(hop_start_secs, 0)
+                    .ok_or_else(|| Error::invalid_query("hop: invalid result timestamp"))?;
+                Ok(Value::timestamp(result))
+            }
+
+            "HOPEND" => {
+                if args.len() != 3 {
+                    return Err(Error::invalid_query("hopEnd requires 3 arguments"));
+                }
+                let ts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let hop_interval = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let window_interval = Self::evaluate_expr(&args[2], batch, row_idx)?;
+                let ts_val = ts
+                    .as_timestamp()
+                    .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?;
+                let hop_secs = if let Some(iv) = hop_interval.as_interval() {
+                    (iv.months as i64) * 30 * 24 * 3600
+                        + (iv.days as i64) * 24 * 3600
+                        + iv.micros / 1_000_000
+                } else if let Some(i) = hop_interval.as_i64() {
+                    i
+                } else {
+                    return Err(Error::type_mismatch("INTERVAL", "other"));
+                };
+                let window_secs = if let Some(iv) = window_interval.as_interval() {
+                    (iv.months as i64) * 30 * 24 * 3600
+                        + (iv.days as i64) * 24 * 3600
+                        + iv.micros / 1_000_000
+                } else if let Some(i) = window_interval.as_i64() {
+                    i
+                } else {
+                    return Err(Error::type_mismatch("INTERVAL", "other"));
+                };
+                let ts_secs = ts_val.timestamp();
+                let hop_num = ts_secs / hop_secs;
+                let hop_end_secs = hop_num * hop_secs + window_secs;
+                let result = chrono::DateTime::from_timestamp(hop_end_secs, 0)
+                    .ok_or_else(|| Error::invalid_query("hopEnd: invalid result timestamp"))?;
+                Ok(Value::timestamp(result))
+            }
+
+            "TIMESLOT" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("timeSlot requires 1 argument"));
+                }
+                let ts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let ts_val = ts
+                    .as_timestamp()
+                    .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?;
+                let ts_secs = ts_val.timestamp();
+                let slot_secs = 1800;
+                let slot_num = ts_secs / slot_secs;
+                let slot_start_secs = slot_num * slot_secs;
+                let result = chrono::DateTime::from_timestamp(slot_start_secs, 0)
+                    .ok_or_else(|| Error::invalid_query("timeSlot: invalid result timestamp"))?;
+                Ok(Value::timestamp(result))
+            }
+
+            "WINDOWID" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("windowID requires 1 argument"));
+                }
+                let ts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let ts_val = ts
+                    .as_timestamp()
+                    .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?;
+                Ok(Value::int64(ts_val.timestamp()))
+            }
+
+            "DATE_BIN" => {
+                if args.len() < 2 || args.len() > 3 {
+                    return Err(Error::invalid_query("date_bin requires 2 or 3 arguments"));
+                }
+                let interval = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let ts = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let ts_val = ts
+                    .as_timestamp()
+                    .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?;
+                let interval_secs = if let Some(iv) = interval.as_interval() {
+                    (iv.months as i64) * 30 * 24 * 3600
+                        + (iv.days as i64) * 24 * 3600
+                        + iv.micros / 1_000_000
+                } else if let Some(i) = interval.as_i64() {
+                    i
+                } else {
+                    return Err(Error::type_mismatch("INTERVAL", "other"));
+                };
+                let origin_secs = if args.len() == 3 {
+                    let origin = Self::evaluate_expr(&args[2], batch, row_idx)?;
+                    origin
+                        .as_timestamp()
+                        .ok_or_else(|| Error::type_mismatch("TIMESTAMP", "other"))?
+                        .timestamp()
+                } else {
+                    0
+                };
+                let ts_secs = ts_val.timestamp();
+                let offset = ts_secs - origin_secs;
+                let bin_num = offset / interval_secs;
+                let bin_start_secs = origin_secs + bin_num * interval_secs;
+                let result = chrono::DateTime::from_timestamp(bin_start_secs, 0)
+                    .ok_or_else(|| Error::invalid_query("date_bin: invalid result timestamp"))?;
+                Ok(Value::timestamp(result))
+            }
+
+            "ROUNDBANKERS" => {
+                if args.is_empty() || args.len() > 2 {
+                    return Err(Error::invalid_query(
+                        "roundBankers requires 1 or 2 arguments",
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let v = value
+                    .as_f64()
+                    .or_else(|| value.as_i64().map(|i| i as f64))
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                let decimals = if args.len() == 2 {
+                    Self::evaluate_expr(&args[1], batch, row_idx)?
+                        .as_i64()
+                        .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                        as i32
+                } else {
+                    0
+                };
+                let multiplier = 10_f64.powi(decimals);
+                let scaled = v * multiplier;
+                let floor_scaled = scaled.floor();
+                let frac = scaled - floor_scaled;
+                let rounded = if (frac - 0.5).abs() < 1e-10 {
+                    if floor_scaled as i64 % 2 == 0 {
+                        floor_scaled
+                    } else {
+                        floor_scaled + 1.0
+                    }
+                } else {
+                    scaled.round()
+                };
+                Ok(Value::float64(rounded / multiplier))
+            }
+
+            "ROUNDTOEXP2" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("roundToExp2 requires 1 argument"));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let v = value
+                    .as_f64()
+                    .or_else(|| value.as_i64().map(|i| i as f64))
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?;
+                if v <= 0.0 {
+                    return Ok(Value::int64(0));
+                }
+                let exp = v.log2().floor() as u32;
+                Ok(Value::int64(1i64 << exp))
+            }
+
+            "ROUNDDURATION" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("roundDuration requires 1 argument"));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let v = value
+                    .as_f64()
+                    .or_else(|| value.as_i64().map(|i| i as f64))
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?
+                    as i64;
+                let thresholds = [
+                    0, 1, 10, 30, 60, 120, 180, 240, 300, 600, 1200, 1800, 3600, 7200, 18000,
+                    36000, 86400, 172800, 604800, 2592000, 31536000,
+                ];
+                let result = thresholds
+                    .iter()
+                    .rev()
+                    .find(|&&t| t <= v)
+                    .copied()
+                    .unwrap_or(0);
+                Ok(Value::int64(result))
+            }
+
+            "ROUNDAGE" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("roundAge requires 1 argument"));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let age = value
+                    .as_f64()
+                    .or_else(|| value.as_i64().map(|i| i as f64))
+                    .ok_or_else(|| Error::type_mismatch("FLOAT64", "other"))?
+                    as i64;
+                let thresholds = [0, 1, 18, 25, 35, 45, 55];
+                let result = thresholds
+                    .iter()
+                    .rev()
+                    .find(|&&t| t <= age)
+                    .copied()
+                    .unwrap_or(0);
+                Ok(Value::int64(result))
+            }
+
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown custom function: {}",
                 name

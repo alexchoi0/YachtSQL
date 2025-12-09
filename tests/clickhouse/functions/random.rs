@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand() {
     let mut executor = create_executor();
@@ -8,7 +7,6 @@ fn test_rand() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand64() {
     let mut executor = create_executor();
@@ -16,7 +14,6 @@ fn test_rand64() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_constant() {
     let mut executor = create_executor();
@@ -24,7 +21,6 @@ fn test_rand_constant() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_uniform() {
     let mut executor = create_executor();
@@ -32,7 +28,6 @@ fn test_rand_uniform() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_normal() {
     let mut executor = create_executor();
@@ -40,7 +35,6 @@ fn test_rand_normal() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_log_normal() {
     let mut executor = create_executor();
@@ -48,7 +42,6 @@ fn test_rand_log_normal() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_exponential() {
     let mut executor = create_executor();
@@ -56,7 +49,6 @@ fn test_rand_exponential() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_chi_squared() {
     let mut executor = create_executor();
@@ -64,7 +56,6 @@ fn test_rand_chi_squared() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_student_t() {
     let mut executor = create_executor();
@@ -72,7 +63,6 @@ fn test_rand_student_t() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_fisher_f() {
     let mut executor = create_executor();
@@ -80,7 +70,6 @@ fn test_rand_fisher_f() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_bernoulli() {
     let mut executor = create_executor();
@@ -88,7 +77,6 @@ fn test_rand_bernoulli() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_binomial() {
     let mut executor = create_executor();
@@ -98,7 +86,6 @@ fn test_rand_binomial() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_negative_binomial() {
     let mut executor = create_executor();
@@ -108,7 +95,6 @@ fn test_rand_negative_binomial() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rand_poisson() {
     let mut executor = create_executor();
@@ -116,7 +102,6 @@ fn test_rand_poisson() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_generate_uuid_v4() {
     let mut executor = create_executor();
@@ -124,7 +109,6 @@ fn test_generate_uuid_v4() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_random_string() {
     let mut executor = create_executor();
@@ -132,7 +116,6 @@ fn test_random_string() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_random_fixed_string() {
     let mut executor = create_executor();
@@ -142,7 +125,6 @@ fn test_random_fixed_string() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_random_printable_ascii() {
     let mut executor = create_executor();
@@ -152,7 +134,6 @@ fn test_random_printable_ascii() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_random_string_utf8() {
     let mut executor = create_executor();
@@ -160,7 +141,6 @@ fn test_random_string_utf8() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_faker_name() {
     let mut executor = create_executor();
@@ -168,7 +148,6 @@ fn test_faker_name() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_random_in_select() {
     let mut executor = create_executor();

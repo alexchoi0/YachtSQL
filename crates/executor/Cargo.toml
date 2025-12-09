@@ -50,6 +50,9 @@ rust_decimal = { version = "1.36", features = ["serde"] }
 # UUID support
 uuid = { version = "1.6", features = ["v4", "serde"] }
 
+# ULID support
+ulid = "1.1"
+
 # Unicode normalization for collations
 unicode-normalization = "0.1"
 

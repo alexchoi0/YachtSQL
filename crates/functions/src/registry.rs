@@ -12,6 +12,7 @@ mod clickhouse_higher_order;
 mod conditional_funcs;
 mod conversion_funcs;
 mod datetime_funcs;
+mod encryption_funcs;
 mod extension_funcs;
 mod fulltext_funcs;
 mod geography_funcs;
@@ -23,12 +24,17 @@ mod json_funcs;
 mod math_funcs;
 mod network_funcs;
 mod null_funcs;
+mod random_funcs;
 mod range_funcs;
 mod regex_funcs;
+mod rounding_funcs;
 mod safe_arithmetic;
 mod sequence_funcs;
 mod statistical_aggregates;
 mod string_funcs;
+mod time_window_funcs;
+mod ulid_funcs;
+mod uuid_funcs;
 mod vector_funcs;
 
 fn month_name(month: u32) -> &'static str {
@@ -159,6 +165,13 @@ impl FunctionRegistry {
         network_funcs::register(self);
 
         extension_funcs::register(self);
+
+        random_funcs::register(self);
+        uuid_funcs::register(self);
+        ulid_funcs::register(self);
+        time_window_funcs::register(self);
+        rounding_funcs::register(self);
+        encryption_funcs::register(self);
 
         #[cfg(feature = "json")]
         json_funcs::register(self);

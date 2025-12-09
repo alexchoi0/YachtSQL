@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_generate_uuid_v4() {
     let mut executor = create_executor();
@@ -29,7 +28,6 @@ fn test_not_empty_uuid() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_to_uuid() {
     let mut executor = create_executor();
@@ -39,7 +37,6 @@ fn test_to_uuid() {
     assert_table_eq!(result, [["61f0c404-5cb3-11e7-907b-a6006ad3dba0"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_to_uuid_or_null() {
     let mut executor = create_executor();
@@ -49,7 +46,7 @@ fn test_to_uuid_or_null() {
     assert_table_eq!(result, [[null]]); // Invalid UUID returns NULL
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with return type"]
 #[test]
 fn test_to_uuid_or_zero() {
     let mut executor = create_executor();
@@ -59,7 +56,7 @@ fn test_to_uuid_or_zero() {
     assert_table_eq!(result, [["00000000-0000-0000-0000-000000000000"]]); // Invalid returns zero UUID
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with BYTES return type"]
 #[test]
 fn test_uuid_string_to_num() {
     let mut executor = create_executor();
@@ -69,7 +66,7 @@ fn test_uuid_string_to_num() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with BYTES return type from nested UUIDStringToNum"]
 #[test]
 fn test_uuid_num_to_string() {
     let mut executor = create_executor();
@@ -117,7 +114,6 @@ fn test_uuid_comparison() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_server_uuid() {
     let mut executor = create_executor();
