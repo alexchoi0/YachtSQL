@@ -75,7 +75,8 @@ impl WindowExec {
 
         if let Some(agg_func) = registry.get_aggregate(&func_name_upper) {
             let mut accumulator = agg_func.create_accumulator();
-            let is_count_star = func_name_upper == "COUNT" && args.is_empty();
+            let is_count_star = func_name_upper == "COUNT"
+                && (args.is_empty() || (args.len() == 1 && matches!(args[0], Expr::Wildcard)));
 
             for &idx in indices {
                 let value = if is_count_star {
@@ -228,7 +229,8 @@ impl WindowExec {
             .copied()
             .collect();
 
-        let is_count_star = func_name == "COUNT" && args.is_empty();
+        let is_count_star = func_name == "COUNT"
+            && (args.is_empty() || (args.len() == 1 && matches!(args[0], Expr::Wildcard)));
 
         let mut accumulator = agg_func.create_accumulator();
 

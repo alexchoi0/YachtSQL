@@ -111,7 +111,8 @@ impl WindowExec {
                 .collect();
 
             let mut accumulator = agg_func.create_accumulator();
-            let is_count_star = func_name == "COUNT" && args.is_empty();
+            let is_count_star = func_name == "COUNT"
+                && (args.is_empty() || (args.len() == 1 && matches!(args[0], Expr::Wildcard)));
 
             if is_count_star {
                 for _ in &filtered_indices {

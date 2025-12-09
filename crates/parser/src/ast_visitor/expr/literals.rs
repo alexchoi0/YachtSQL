@@ -92,6 +92,16 @@ impl LogicalPlanBuilder {
             ast::DataType::Custom(name, _) if Self::object_name_matches(name, "MACADDR8") => {
                 Ok(Expr::Literal(LiteralValue::MacAddr8(value.to_string())))
             }
+            ast::DataType::Numeric(_) | ast::DataType::BigNumeric(_) => {
+                use std::str::FromStr;
+
+                use rust_decimal::Decimal;
+                Decimal::from_str(value)
+                    .map(|d| Expr::Literal(LiteralValue::Numeric(d)))
+                    .map_err(|e| {
+                        Error::invalid_query(format!("Invalid NUMERIC literal '{}': {}", value, e))
+                    })
+            }
             ast::DataType::GeometricType(kind) => {
                 use sqlparser::ast::GeometricTypeKind;
                 match kind {

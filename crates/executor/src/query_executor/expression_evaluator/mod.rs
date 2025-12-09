@@ -1092,6 +1092,32 @@ impl<'a> ExpressionEvaluator<'a> {
                         }
                     }
 
+                    SqlDataType::Numeric(_) => {
+                        use std::str::FromStr;
+
+                        use rust_decimal::Decimal;
+                        Decimal::from_str(&literal)
+                            .map(Value::numeric)
+                            .map_err(|e| {
+                                Error::InvalidQuery(format!(
+                                    "Invalid NUMERIC literal '{}': {}",
+                                    literal, e
+                                ))
+                            })
+                    }
+                    SqlDataType::BigNumeric(_) => {
+                        use std::str::FromStr;
+
+                        use rust_decimal::Decimal;
+                        Decimal::from_str(&literal)
+                            .map(Value::numeric)
+                            .map_err(|e| {
+                                Error::InvalidQuery(format!(
+                                    "Invalid BIGNUMERIC literal '{}': {}",
+                                    literal, e
+                                ))
+                            })
+                    }
                     SqlDataType::GeometricType(kind) => {
                         use sqlparser::ast::GeometricTypeKind;
                         use yachtsql_core::types::{PgBox, PgCircle, PgPoint};

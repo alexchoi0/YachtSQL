@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -12,7 +11,6 @@ fn test_numeric_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bignumeric_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -38,7 +36,7 @@ fn test_numeric_in_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "BUG: BIGNUMERIC literal in INSERT not working"]
 fn test_bignumeric_in_table() {
     let mut executor = create_executor();
     executor
@@ -53,7 +51,6 @@ fn test_bignumeric_in_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_arithmetic() {
     let mut executor = create_executor();
     let result = executor
@@ -63,7 +60,6 @@ fn test_numeric_arithmetic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_multiplication() {
     let mut executor = create_executor();
     let result = executor
@@ -73,7 +69,6 @@ fn test_numeric_multiplication() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_division() {
     let mut executor = create_executor();
     let result = executor
@@ -83,7 +78,7 @@ fn test_numeric_division() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "BUG: NUMERIC values from INSERT not visible in aggregate queries"]
 fn test_numeric_sum() {
     let mut executor = create_executor();
     executor
@@ -100,7 +95,7 @@ fn test_numeric_sum() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "BUG: NUMERIC values from INSERT not visible in aggregate queries"]
 fn test_numeric_avg() {
     let mut executor = create_executor();
     executor
@@ -117,7 +112,6 @@ fn test_numeric_avg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_comparison() {
     let mut executor = create_executor();
     let result = executor
@@ -127,7 +121,6 @@ fn test_numeric_comparison() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_equality() {
     let mut executor = create_executor();
     let result = executor
@@ -164,7 +157,6 @@ fn test_numeric_cast_from_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_round() {
     let mut executor = create_executor();
     let result = executor
@@ -174,7 +166,6 @@ fn test_numeric_round() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_trunc() {
     let mut executor = create_executor();
     let result = executor
@@ -184,7 +175,6 @@ fn test_numeric_trunc() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_abs() {
     let mut executor = create_executor();
     let result = executor
@@ -226,7 +216,7 @@ fn test_numeric_order_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "BUG: NUMERIC values from INSERT not visible in aggregate queries"]
 fn test_numeric_group_by() {
     let mut executor = create_executor();
     executor
@@ -243,7 +233,6 @@ fn test_numeric_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_numeric_precision_preservation() {
     let mut executor = create_executor();
     let result = executor
@@ -253,7 +242,6 @@ fn test_numeric_precision_preservation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bignumeric_precision_preservation() {
     let mut executor = create_executor();
     let result = executor

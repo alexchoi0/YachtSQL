@@ -55,7 +55,9 @@ impl WindowExec {
                     continue;
                 }
 
-                let value = if func_name_upper == "COUNT" && args.is_empty() {
+                let is_count_star = func_name_upper == "COUNT"
+                    && (args.is_empty() || (args.len() == 1 && matches!(args[0], Expr::Wildcard)));
+                let value = if is_count_star {
                     Value::int64(1)
                 } else if args.len() == 1 {
                     Self::evaluate_expr(&args[0], batch, idx).unwrap_or(Value::null())

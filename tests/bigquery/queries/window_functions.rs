@@ -13,7 +13,6 @@ fn setup_tables(executor: &mut QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_row_number() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -29,15 +28,14 @@ fn test_row_number() {
         [
             ["Alice", 2000, 1],
             ["Bob", 1500, 2],
-            ["Alice", 1000, 3],
-            ["Diana", 1200, 4],
+            ["Diana", 1200, 3],
+            ["Alice", 1000, 4],
             ["Charlie", 800, 5],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_row_number_with_partition() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -61,7 +59,6 @@ fn test_row_number_with_partition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_rank() {
     let mut executor = create_executor();
 
@@ -85,7 +82,6 @@ fn test_rank() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_dense_rank() {
     let mut executor = create_executor();
 
@@ -109,7 +105,6 @@ fn test_dense_rank() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_ntile() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -133,7 +128,6 @@ fn test_ntile() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lag() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -157,7 +151,6 @@ fn test_lag() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lag_with_offset() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -181,7 +174,6 @@ fn test_lag_with_offset() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lag_with_default() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -205,7 +197,6 @@ fn test_lag_with_default() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lead() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -229,7 +220,6 @@ fn test_lead() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_first_value() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -253,7 +243,6 @@ fn test_first_value() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_last_value() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -277,7 +266,6 @@ fn test_last_value() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sum_over() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -324,7 +312,6 @@ fn test_avg_over_partition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_count_over() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -417,7 +404,6 @@ fn test_window_frame_range() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_multiple_window_functions() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -441,7 +427,6 @@ fn test_multiple_window_functions() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_percent_rank() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -465,7 +450,6 @@ fn test_percent_rank() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cume_dist() {
     let mut executor = create_executor();
     setup_tables(&mut executor);

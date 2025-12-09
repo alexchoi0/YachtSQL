@@ -817,7 +817,6 @@ fn test_revenue_concentration() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_days_between_orders() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
