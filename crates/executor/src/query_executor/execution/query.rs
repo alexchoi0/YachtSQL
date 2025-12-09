@@ -422,10 +422,12 @@ impl QueryExecutor {
 
         let optimized_plan = {
             let session_vars = self.session.variables();
+            let session_udfs = self.session.udfs_for_parser();
             let has_variables = !session_vars.is_empty();
+            let has_udfs = !session_udfs.is_empty();
 
             let mut cache = self.plan_cache.borrow_mut();
-            if !has_variables {
+            if !has_variables && !has_udfs {
                 if let Some(cached) = cache.get(&cache_key) {
                     (*cached.plan).clone()
                 } else {
@@ -472,7 +474,8 @@ impl QueryExecutor {
                 let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
                     .with_storage(Rc::clone(&self.storage))
                     .with_dialect(self.dialect())
-                    .with_variables(parser_vars);
+                    .with_variables(parser_vars)
+                    .with_udfs(session_udfs);
                 let logical_plan = plan_builder.query_to_plan(&query_for_plan)?;
 
                 resource_tracker.check_timeout()?;

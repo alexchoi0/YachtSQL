@@ -38,6 +38,12 @@ pub struct SessionVariable {
     pub value: Option<Value>,
 }
 
+#[derive(Debug, Clone)]
+pub struct UdfDefinition {
+    pub parameters: Vec<String>,
+    pub body: ast::Expr,
+}
+
 pub struct LogicalPlanBuilder {
     storage: Option<std::rc::Rc<RefCell<yachtsql_storage::Storage>>>,
     alias_stack: RefCell<Vec<HashSet<String>>>,
@@ -47,6 +53,7 @@ pub struct LogicalPlanBuilder {
     subquery_alias_counter: Cell<usize>,
     merge_returning: RefCell<Option<String>>,
     session_variables: HashMap<String, SessionVariable>,
+    udfs: HashMap<String, UdfDefinition>,
 }
 
 mod ddl;
@@ -71,6 +78,7 @@ impl LogicalPlanBuilder {
             subquery_alias_counter: Cell::new(0),
             merge_returning: RefCell::new(None),
             session_variables: HashMap::new(),
+            udfs: HashMap::new(),
         }
     }
 
@@ -89,6 +97,7 @@ impl LogicalPlanBuilder {
             subquery_alias_counter: self.subquery_alias_counter,
             merge_returning: self.merge_returning,
             session_variables: self.session_variables,
+            udfs: self.udfs,
         }
     }
 
@@ -102,6 +111,7 @@ impl LogicalPlanBuilder {
             subquery_alias_counter: self.subquery_alias_counter,
             merge_returning: self.merge_returning,
             session_variables: self.session_variables,
+            udfs: self.udfs,
         }
     }
 
@@ -120,7 +130,26 @@ impl LogicalPlanBuilder {
             subquery_alias_counter: self.subquery_alias_counter,
             merge_returning: self.merge_returning,
             session_variables: variables,
+            udfs: self.udfs,
         }
+    }
+
+    pub fn with_udfs(self, udfs: HashMap<String, UdfDefinition>) -> Self {
+        Self {
+            storage: self.storage,
+            alias_stack: self.alias_stack,
+            named_windows: self.named_windows,
+            dialect: self.dialect,
+            current_sql: self.current_sql,
+            subquery_alias_counter: self.subquery_alias_counter,
+            merge_returning: self.merge_returning,
+            session_variables: self.session_variables,
+            udfs,
+        }
+    }
+
+    pub fn get_udf(&self, name: &str) -> Option<&UdfDefinition> {
+        self.udfs.get(&name.to_uppercase())
     }
 
     pub fn get_session_variable(&self, name: &str) -> Option<&SessionVariable> {

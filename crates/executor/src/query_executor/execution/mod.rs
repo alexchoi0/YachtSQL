@@ -13,7 +13,8 @@ use std::str::FromStr;
 use chrono::Datelike;
 pub use ddl::{
     AlterTableExecutor, DdlDropExecutor, DdlExecutor, DomainExecutor, ExtensionExecutor,
-    MaterializedViewExecutor, SchemaExecutor, SequenceExecutor, TriggerExecutor, TypeExecutor,
+    FunctionExecutor, MaterializedViewExecutor, SchemaExecutor, SequenceExecutor, TriggerExecutor,
+    TypeExecutor,
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
@@ -25,7 +26,7 @@ pub use dml::{
 };
 pub use query::QueryExecutorTrait;
 use rust_decimal::prelude::ToPrimitive;
-pub use session::{DiagnosticsSnapshot, SessionDiagnostics, SessionVariable};
+pub use session::{DiagnosticsSnapshot, SessionDiagnostics, SessionVariable, UdfDefinition};
 pub use utility::{
     add_interval_to_date, apply_interval_to_date, apply_numeric_precision_scale,
     calculate_date_diff, decode_values_match, evaluate_condition_as_bool, evaluate_numeric_op,
@@ -359,7 +360,12 @@ impl QueryExecutor {
         }
 
         let statement = &statements[0];
-        crate::query_executor::validate_statement(statement, self.session.feature_registry())?;
+        let udf_names = self.session.udf_names();
+        crate::query_executor::validate_statement_with_udfs(
+            statement,
+            self.session.feature_registry(),
+            Some(&udf_names),
+        )?;
 
         if let Statement::Custom(custom_stmt) = statement {
             return match custom_stmt {
@@ -408,7 +414,9 @@ impl QueryExecutor {
                 CustomStatement::ClickHouseShow { statement } => {
                     return self.execute_clickhouse_show(statement);
                 }
-                CustomStatement::ClickHouseFunction { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseFunction { statement } => {
+                    return self.execute_clickhouse_function(statement);
+                }
                 CustomStatement::ClickHouseMaterializedView { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseProjection { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseAlterUser { .. } => Self::empty_result(),
@@ -508,7 +516,15 @@ impl QueryExecutor {
                         self.execute_drop_schema(&stmt)?;
                         Self::empty_result()
                     }
-                    DdlOperation::CreateFunction => Self::empty_result(),
+                    DdlOperation::CreateFunction => {
+                        debug_eprintln!("[mod] Executing CREATE FUNCTION");
+                        self.execute_create_function(&stmt)?;
+                        Self::empty_result()
+                    }
+                    DdlOperation::DropFunction => {
+                        self.execute_drop_function(&stmt)?;
+                        Self::empty_result()
+                    }
                     DdlOperation::CreateDatabase {
                         name,
                         if_not_exists,
@@ -996,6 +1012,99 @@ impl QueryExecutor {
         Self::empty_result()
     }
 
+    fn execute_clickhouse_function(&mut self, statement: &str) -> Result<Table> {
+        let statement_upper = statement.to_uppercase();
+
+        if statement_upper.starts_with("CREATE") {
+            return self.execute_clickhouse_create_function(statement);
+        }
+        if statement_upper.starts_with("DROP") {
+            return self.execute_clickhouse_drop_function(statement);
+        }
+
+        Err(Error::unsupported_feature(format!(
+            "Unsupported ClickHouse function statement: {}",
+            statement
+        )))
+    }
+
+    fn execute_clickhouse_create_function(&mut self, statement: &str) -> Result<Table> {
+        use regex::Regex;
+
+        let re = Regex::new(
+            r"(?i)CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+AS\s*\(([^)]*)\)\s*->\s*(.*)",
+        )
+        .unwrap();
+
+        let captures = re.captures(statement).ok_or_else(|| {
+            Error::invalid_query(format!("Invalid CREATE FUNCTION syntax: {}", statement))
+        })?;
+
+        let func_name = captures.get(1).unwrap().as_str().to_string();
+        let params_str = captures.get(2).unwrap().as_str();
+        let body_str = captures.get(3).unwrap().as_str().trim();
+
+        let parameters: Vec<String> = if params_str.trim().is_empty() {
+            vec![]
+        } else {
+            params_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect()
+        };
+
+        let dialect = sqlparser::dialect::ClickHouseDialect {};
+        let body_expr = sqlparser::parser::Parser::new(&dialect)
+            .try_with_sql(body_str)
+            .map_err(|e| Error::parse_error(format!("Failed to parse function body: {}", e)))?
+            .parse_expr()
+            .map_err(|e| Error::parse_error(format!("Failed to parse function body: {}", e)))?;
+
+        let is_or_replace = statement.to_uppercase().contains("OR REPLACE");
+        let is_if_not_exists = statement.to_uppercase().contains("IF NOT EXISTS");
+
+        if is_or_replace {
+            self.session.drop_udf(&func_name);
+        } else if !is_if_not_exists && self.session.has_udf(&func_name) {
+            return Err(Error::invalid_query(format!(
+                "Function '{}' already exists",
+                func_name
+            )));
+        }
+
+        if !self.session.has_udf(&func_name) {
+            let udf_def = UdfDefinition {
+                parameters,
+                body: body_expr,
+            };
+            self.session.register_udf(func_name, udf_def);
+        }
+
+        Self::empty_result()
+    }
+
+    fn execute_clickhouse_drop_function(&mut self, statement: &str) -> Result<Table> {
+        use regex::Regex;
+
+        let re = Regex::new(r"(?i)DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(\w+)").unwrap();
+
+        let captures = re.captures(statement).ok_or_else(|| {
+            Error::invalid_query(format!("Invalid DROP FUNCTION syntax: {}", statement))
+        })?;
+
+        let func_name = captures.get(1).unwrap().as_str();
+        let is_if_exists = statement.to_uppercase().contains("IF EXISTS");
+
+        if !self.session.drop_udf(func_name) && !is_if_exists {
+            return Err(Error::invalid_query(format!(
+                "Function '{}' does not exist",
+                func_name
+            )));
+        }
+
+        Self::empty_result()
+    }
+
     fn execute_show_databases(&mut self) -> Result<Table> {
         let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
             "name".to_string(),
@@ -1245,9 +1354,11 @@ impl QueryExecutor {
 
         match stmt {
             SqlStatement::Query(query) => {
+                let session_udfs = self.session.udfs_for_parser();
                 let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
                     .with_storage(Rc::clone(&self.storage))
-                    .with_dialect(self.dialect());
+                    .with_dialect(self.dialect())
+                    .with_udfs(session_udfs);
                 let logical_plan = plan_builder.query_to_plan(query)?;
 
                 let optimized = self.optimizer.optimize(logical_plan)?;

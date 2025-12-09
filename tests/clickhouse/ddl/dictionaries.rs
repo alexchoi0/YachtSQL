@@ -234,7 +234,7 @@ fn test_dictionary_hierarchy() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
+#[ignore = "Requires dictionary storage implementation"]
 #[test]
 fn test_show_dictionaries() {
     let mut executor = create_executor();

@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_create_function_simple() {
     let mut executor = create_executor();
@@ -13,7 +12,6 @@ fn test_create_function_simple() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_create_function_two_args() {
     let mut executor = create_executor();
@@ -25,7 +23,6 @@ fn test_create_function_two_args() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_create_function_string() {
     let mut executor = create_executor();
@@ -65,7 +62,6 @@ fn test_drop_function_if_exists() {
         .unwrap();
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_create_function_with_case() {
     let mut executor = create_executor();
@@ -79,7 +75,6 @@ fn test_create_function_with_case() {
     assert_table_eq!(result, [["positive", "negative", "zero"]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_create_function_with_builtin() {
     let mut executor = create_executor();
@@ -91,7 +86,6 @@ fn test_create_function_with_builtin() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_function_in_where() {
     let mut executor = create_executor();
@@ -111,7 +105,6 @@ fn test_function_in_where() {
     assert_table_eq!(result, [[2], [4]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_function_in_order_by() {
     let mut executor = create_executor();
@@ -131,7 +124,6 @@ fn test_function_in_order_by() {
     assert_table_eq!(result, [[3], [2], [1]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_nested_function_call() {
     let mut executor = create_executor();
@@ -146,7 +138,6 @@ fn test_nested_function_call() {
     assert_table_eq!(result, [[9]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_function_with_null() {
     let mut executor = create_executor();
@@ -158,7 +149,6 @@ fn test_function_with_null() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_or_replace_function() {
     let mut executor = create_executor();

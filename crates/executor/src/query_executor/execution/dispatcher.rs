@@ -78,6 +78,7 @@ pub enum DdlOperation {
     DropSchema,
 
     CreateFunction,
+    DropFunction,
 
     CreateDatabase {
         name: ObjectName,
@@ -323,10 +324,13 @@ impl Dispatcher {
                         stmt: Box::new(ast.clone()),
                     }),
 
-                    SqlStatement::CreateFunction { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateFunction,
-                        stmt: Box::new(ast.clone()),
-                    }),
+                    SqlStatement::CreateFunction(_) => {
+                        debug_print::debug_eprintln!("[dispatcher] Matched CreateFunction");
+                        Ok(StatementJob::DDL {
+                            operation: DdlOperation::CreateFunction,
+                            stmt: Box::new(ast.clone()),
+                        })
+                    }
 
                     SqlStatement::CreateSchema { .. } => Ok(StatementJob::DDL {
                         operation: DdlOperation::CreateSchema,
@@ -370,6 +374,11 @@ impl Dispatcher {
 
                     SqlStatement::DropTrigger { .. } => Ok(StatementJob::DDL {
                         operation: DdlOperation::DropTrigger,
+                        stmt: Box::new(ast.clone()),
+                    }),
+
+                    SqlStatement::DropFunction { .. } => Ok(StatementJob::DDL {
+                        operation: DdlOperation::DropFunction,
                         stmt: Box::new(ast.clone()),
                     }),
 

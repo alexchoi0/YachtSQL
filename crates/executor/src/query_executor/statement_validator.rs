@@ -8,21 +8,32 @@ use yachtsql_capability::{FeatureId, FeatureRegistry};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_parser::Statement as ParserStatement;
 
-use super::function_validator::validate_function;
+use super::function_validator::validate_function_with_udfs;
 
 const T611_WINDOW_FUNCTIONS: FeatureId = FeatureId("T611");
 
 pub fn validate_statement(stmt: &ParserStatement, registry: &FeatureRegistry) -> Result<()> {
+    validate_statement_with_udfs(stmt, registry, None)
+}
+
+pub fn validate_statement_with_udfs(
+    stmt: &ParserStatement,
+    registry: &FeatureRegistry,
+    udf_names: Option<&HashSet<String>>,
+) -> Result<()> {
     match stmt {
-        ParserStatement::Standard(std_stmt) => {
-            StatementValidator { registry }.validate(std_stmt.ast())
+        ParserStatement::Standard(std_stmt) => StatementValidator {
+            registry,
+            udf_names,
         }
+        .validate(std_stmt.ast()),
         ParserStatement::Custom(_) => Ok(()),
     }
 }
 
 struct StatementValidator<'a> {
     registry: &'a FeatureRegistry,
+    udf_names: Option<&'a HashSet<String>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -471,7 +482,7 @@ impl<'a> StatementValidator<'a> {
                     ));
                 }
 
-                validate_function(&func_name, self.registry)?;
+                validate_function_with_udfs(&func_name, self.registry, self.udf_names)?;
 
                 if let FunctionArguments::List(list) = &func.args {
                     if func_name_upper == "COALESCE" && list.args.is_empty() {

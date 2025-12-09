@@ -28,10 +28,12 @@ impl DmlMergeExecutor for QueryExecutor {
         _original_sql: &str,
         merge_returning: Option<String>,
     ) -> Result<Table> {
+        let session_udfs = self.session.udfs_for_parser();
         let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
             .with_storage(Rc::clone(&self.storage))
             .with_dialect(self.dialect())
-            .with_merge_returning(merge_returning);
+            .with_merge_returning(merge_returning)
+            .with_udfs(session_udfs);
         let logical_plan = plan_builder.merge_to_plan(stmt)?;
 
         let optimized = self.optimizer.optimize(logical_plan)?;

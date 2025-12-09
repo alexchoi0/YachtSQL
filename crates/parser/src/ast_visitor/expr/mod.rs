@@ -223,6 +223,10 @@ impl LogicalPlanBuilder {
                     }
                 };
 
+                if let Some(udf_expanded) = self.expand_udf_call(&name_str, &args, function)? {
+                    return Ok(udf_expanded);
+                }
+
                 if let Some(normalized) = self.normalize_dialect_function(&name_str, &args)? {
                     return Ok(normalized);
                 }
@@ -823,6 +827,95 @@ impl LogicalPlanBuilder {
             }
         }
         expr.clone()
+    }
+
+    fn expand_udf_call(
+        &self,
+        name_str: &str,
+        args: &[Expr],
+        _func: &sqlparser::ast::Function,
+    ) -> Result<Option<Expr>> {
+        let udf = match self.get_udf(name_str) {
+            Some(udf) => udf.clone(),
+            None => return Ok(None),
+        };
+
+        if args.len() != udf.parameters.len() {
+            return Err(Error::invalid_query(format!(
+                "UDF {} expects {} arguments, got {}",
+                name_str,
+                udf.parameters.len(),
+                args.len()
+            )));
+        }
+
+        let param_map: std::collections::HashMap<String, Expr> = udf
+            .parameters
+            .iter()
+            .zip(args.iter())
+            .map(|(param, arg)| (param.to_uppercase(), arg.clone()))
+            .collect();
+
+        let body_expr = self.sql_expr_to_expr(&udf.body)?;
+
+        let expanded = Self::substitute_udf_params(body_expr, &param_map);
+        Ok(Some(expanded))
+    }
+
+    fn substitute_udf_params(expr: Expr, params: &std::collections::HashMap<String, Expr>) -> Expr {
+        match expr {
+            Expr::Column {
+                ref name,
+                table: None,
+            } => {
+                let name_upper = name.to_uppercase();
+                if let Some(replacement) = params.get(&name_upper) {
+                    return replacement.clone();
+                }
+                expr
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(Self::substitute_udf_params(*left, params)),
+                op,
+                right: Box::new(Self::substitute_udf_params(*right, params)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op,
+                expr: Box::new(Self::substitute_udf_params(*inner, params)),
+            },
+            Expr::Function { name, args } => Expr::Function {
+                name,
+                args: args
+                    .into_iter()
+                    .map(|a| Self::substitute_udf_params(a, params))
+                    .collect(),
+            },
+            Expr::Cast {
+                expr: inner,
+                data_type,
+            } => Expr::Cast {
+                expr: Box::new(Self::substitute_udf_params(*inner, params)),
+                data_type,
+            },
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => Expr::Case {
+                operand: operand.map(|o| Box::new(Self::substitute_udf_params(*o, params))),
+                when_then: when_then
+                    .into_iter()
+                    .map(|(w, t)| {
+                        (
+                            Self::substitute_udf_params(w, params),
+                            Self::substitute_udf_params(t, params),
+                        )
+                    })
+                    .collect(),
+                else_expr: else_expr.map(|e| Box::new(Self::substitute_udf_params(*e, params))),
+            },
+            _ => expr,
+        }
     }
 
     fn normalize_interval_arg(expr: &Expr) -> Expr {

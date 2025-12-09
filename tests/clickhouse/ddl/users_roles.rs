@@ -6,7 +6,7 @@ fn test_create_user() {
     executor.execute_sql("CREATE USER test_user").unwrap();
 }
 
-#[ignore = "Parser doesn't support IDENTIFIED BY syntax"]
+#[ignore = "Parser doesn't support IDENTIFIED BY syntax - sqlparser expects '='"]
 #[test]
 fn test_create_user_with_password() {
     let mut executor = create_executor();
@@ -170,7 +170,7 @@ fn test_revoke_role() {
         .unwrap();
 }
 
-#[ignore = "SHOW USERS not supported in parser"]
+#[ignore = "Requires user storage implementation"]
 #[test]
 fn test_show_users() {
     let mut executor = create_executor();

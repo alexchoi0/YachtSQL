@@ -20,6 +20,12 @@ pub struct SessionVariable {
     pub value: Option<Value>,
 }
 
+#[derive(Debug, Clone)]
+pub struct UdfDefinition {
+    pub parameters: Vec<String>,
+    pub body: sqlparser::ast::Expr,
+}
+
 #[derive(Debug)]
 pub struct SessionState {
     dialect: DialectType,
@@ -30,6 +36,7 @@ pub struct SessionState {
     extension_registry: ExtensionRegistry,
     search_path: Vec<String>,
     variables: HashMap<String, SessionVariable>,
+    udfs: HashMap<String, UdfDefinition>,
 }
 
 impl SessionState {
@@ -48,6 +55,7 @@ impl SessionState {
             extension_registry: ExtensionRegistry::new(),
             search_path: vec!["default".to_string()],
             variables: HashMap::new(),
+            udfs: HashMap::new(),
         }
     }
 
@@ -159,6 +167,48 @@ impl SessionState {
 
     pub fn variables(&self) -> &HashMap<String, SessionVariable> {
         &self.variables
+    }
+
+    pub fn register_udf(&mut self, name: String, definition: UdfDefinition) {
+        debug_print::debug_eprintln!("[session] Registering UDF: {}", name.to_uppercase());
+        self.udfs.insert(name.to_uppercase(), definition);
+    }
+
+    pub fn get_udf(&self, name: &str) -> Option<&UdfDefinition> {
+        self.udfs.get(&name.to_uppercase())
+    }
+
+    pub fn has_udf(&self, name: &str) -> bool {
+        self.udfs.contains_key(&name.to_uppercase())
+    }
+
+    pub fn drop_udf(&mut self, name: &str) -> bool {
+        self.udfs.remove(&name.to_uppercase()).is_some()
+    }
+
+    pub fn udf_names(&self) -> std::collections::HashSet<String> {
+        let names: std::collections::HashSet<String> = self.udfs.keys().cloned().collect();
+        debug_print::debug_eprintln!("[session] Getting UDF names: {:?}", names);
+        names
+    }
+
+    pub fn udfs(&self) -> &HashMap<String, UdfDefinition> {
+        &self.udfs
+    }
+
+    pub fn udfs_for_parser(&self) -> HashMap<String, yachtsql_parser::UdfDefinition> {
+        self.udfs
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.clone(),
+                    yachtsql_parser::UdfDefinition {
+                        parameters: v.parameters.clone(),
+                        body: v.body.clone(),
+                    },
+                )
+            })
+            .collect()
     }
 }
 
