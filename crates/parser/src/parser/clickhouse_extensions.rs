@@ -349,6 +349,71 @@ static PASSTHROUGH_ALTER_USER: PassthroughParser =
         }
     });
 
+static PASSTHROUGH_RENAME_DATABASE: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::StartsWith(&["RENAME", "DATABASE"]), |sql| {
+        CustomStatement::ClickHouseRenameDatabase {
+            statement: sql.to_string(),
+        }
+    });
+
+struct CreateDatabaseEngineParser;
+
+impl ClickHouseStatementParser for CreateDatabaseEngineParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "DATABASE"],
+            contains: "ENGINE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseDatabase {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+struct CreateDatabaseCommentParser;
+
+impl ClickHouseStatementParser for CreateDatabaseCommentParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "DATABASE"],
+            contains: "COMMENT",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseDatabase {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+struct UseParser;
+
+impl ClickHouseStatementParser for UseParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWith(&["USE"])
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "USE") {
+            return Ok(None);
+        }
+
+        let database = match tokens.get(idx) {
+            Some(Token::Word(w)) => w.value.clone(),
+            _ => {
+                return Err(Error::parse_error("Expected database name after USE"));
+            }
+        };
+
+        Ok(Some(CustomStatement::ClickHouseUse { database }))
+    }
+}
+
 static CREATE_INDEX_PARSER: CreateIndexParser = CreateIndexParser;
 static ALTER_CODEC_PARSER: AlterColumnCodecParser = AlterColumnCodecParser;
 static ALTER_TTL_PARSER: AlterTableTtlParser = AlterTableTtlParser;
@@ -356,10 +421,17 @@ static SYSTEM_PARSER: SystemCommandParser = SystemCommandParser;
 static CREATE_DICT_PARSER: CreateDictionaryParser = CreateDictionaryParser;
 static GRANT_ROLE_PARSER: GrantRoleParser = GrantRoleParser;
 static FUNCTION_PARSER: FunctionParser = FunctionParser;
+static CREATE_DATABASE_ENGINE_PARSER: CreateDatabaseEngineParser = CreateDatabaseEngineParser;
+static CREATE_DATABASE_COMMENT_PARSER: CreateDatabaseCommentParser = CreateDatabaseCommentParser;
+static USE_PARSER: UseParser = UseParser;
 
 static PARSERS: &[&dyn ClickHouseStatementParser] = &[
     &CREATE_DICT_PARSER,
     &CREATE_INDEX_PARSER,
+    &CREATE_DATABASE_ENGINE_PARSER,
+    &CREATE_DATABASE_COMMENT_PARSER,
+    &PASSTHROUGH_RENAME_DATABASE,
+    &USE_PARSER,
     &ALTER_CODEC_PARSER,
     &ALTER_TTL_PARSER,
     &SYSTEM_PARSER,

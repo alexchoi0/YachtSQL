@@ -177,6 +177,18 @@ pub enum CustomStatement {
     ClickHouseCreateDictionary {
         name: sqlparser::ast::ObjectName,
     },
+
+    ClickHouseDatabase {
+        statement: String,
+    },
+
+    ClickHouseRenameDatabase {
+        statement: String,
+    },
+
+    ClickHouseUse {
+        database: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -430,6 +442,18 @@ impl StatementValidator {
             }
             CustomStatement::ClickHouseCreateDictionary { .. } => {
                 self.require_clickhouse("CREATE DICTIONARY")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseDatabase { .. } => {
+                self.require_clickhouse("CREATE DATABASE ENGINE/COMMENT")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseRenameDatabase { .. } => {
+                self.require_clickhouse("RENAME DATABASE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseUse { .. } => {
+                self.require_clickhouse("USE")?;
                 Ok(())
             }
         }
