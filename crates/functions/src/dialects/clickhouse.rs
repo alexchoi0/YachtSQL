@@ -505,6 +505,14 @@ pub fn clickhouse_scalar_functions() -> Vec<&'static str> {
         "COSINEDISTANCE",
         "DOTPRODUCT",
         "L2SQUAREDDISTANCE",
+        "DICTGET",
+        "DICT_GET",
+        "DICTGETORDEFAULT",
+        "DICT_GET_OR_DEFAULT",
+        "DICTHAS",
+        "DICT_HAS",
+        "DICTGETHIERARCHY",
+        "DICT_GET_HIERARCHY",
     ]
 }
 

@@ -84,6 +84,8 @@ pub enum DdlOperation {
         if_not_exists: bool,
     },
 
+    DropDatabase,
+
     CreateUser,
     DropUser,
     AlterUser,
@@ -347,6 +349,7 @@ impl Dispatcher {
                             ObjectType::Type => DdlOperation::DropType,
                             ObjectType::Role => DdlOperation::DropRole,
                             ObjectType::User => DdlOperation::DropUser,
+                            ObjectType::Database => DdlOperation::DropDatabase,
                             _ => {
                                 return Err(Error::unsupported_feature(format!(
                                     "DROP {} is not yet supported",

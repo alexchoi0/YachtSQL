@@ -335,12 +335,392 @@ static PASSTHROUGH_MATERIALIZED_VIEW: PassthroughParser = PassthroughParser::new
     },
 );
 
-static PASSTHROUGH_PROJECTION: PassthroughParser =
-    PassthroughParser::new(KeywordPattern::Contains("PROJECTION"), |sql| {
-        CustomStatement::ClickHouseProjection {
-            statement: sql.to_string(),
+static PASSTHROUGH_PROJECTION: PassthroughParser = PassthroughParser::new(
+    KeywordPattern::StartsWithAndContains {
+        prefix: &["ALTER"],
+        contains: "PROJECTION",
+    },
+    |sql| CustomStatement::ClickHouseProjection {
+        statement: sql.to_string(),
+    },
+);
+
+fn strip_inline_projections(sql: &str) -> String {
+    let mut result = sql.to_string();
+    while let Some(start) = result.find("PROJECTION") {
+        if let Some(paren_start) = result[start..].find('(') {
+            let abs_paren_start = start + paren_start;
+            let mut paren_count = 1;
+            let mut paren_end = abs_paren_start + 1;
+            for (i, c) in result[abs_paren_start + 1..].chars().enumerate() {
+                match c {
+                    '(' => paren_count += 1,
+                    ')' => {
+                        paren_count -= 1;
+                        if paren_count == 0 {
+                            paren_end = abs_paren_start + 1 + i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let comma_before = if start > 0 && result[..start].trim_end().ends_with(',') {
+                result[..start].rfind(',').unwrap()
+            } else {
+                start
+            };
+            result = format!("{}{}", &result[..comma_before], &result[paren_end..]);
+        } else {
+            break;
         }
-    });
+    }
+    result
+}
+
+struct CreateTableWithProjectionParser;
+
+impl ClickHouseStatementParser for CreateTableWithProjectionParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "PROJECTION",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        let stripped = strip_inline_projections(sql);
+        Ok(Some(CustomStatement::ClickHouseCreateTableWithProjection {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_PROJECTION_PARSER: CreateTableWithProjectionParser =
+    CreateTableWithProjectionParser;
+
+fn find_keyword_partition_by(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("PARTITION") {
+        let abs_idx = pos + idx;
+        let before_ok = abs_idx == 0
+            || !sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_';
+        let after_idx = abs_idx + "PARTITION".len();
+        let after = &upper[after_idx..].trim_start();
+        let after_ok = after.starts_with("BY");
+        if before_ok && after_ok {
+            return Some(abs_idx);
+        }
+        pos = abs_idx + 1;
+    }
+    None
+}
+
+fn strip_partition_by(sql: &str) -> String {
+    if let Some(partition_start) = find_keyword_partition_by(sql) {
+        let after_partition = &sql[partition_start + "PARTITION".len()..].trim_start();
+        if let Some(rest) = after_partition.strip_prefix("BY") {
+            let rest = rest.trim_start();
+            let mut paren_count = 0;
+            let mut actual_end = 0;
+            let mut found_closing = false;
+
+            for (i, c) in rest.chars().enumerate() {
+                match c {
+                    '(' => paren_count += 1,
+                    ')' => {
+                        paren_count -= 1;
+                        if paren_count == 0 {
+                            actual_end = i + 1;
+                            found_closing = true;
+                        }
+                    }
+                    c if paren_count == 0 && c.is_ascii_alphabetic() => {
+                        actual_end = i;
+                        break;
+                    }
+                    _ => {
+                        if paren_count == 0 && !c.is_whitespace() {
+                            actual_end = i + 1;
+                        }
+                    }
+                }
+            }
+
+            if !found_closing && paren_count == 0 {
+                actual_end = rest.len();
+            }
+
+            return format!(
+                "{} {}",
+                sql[..partition_start].trim_end(),
+                rest[actual_end..].trim_start()
+            );
+        }
+    }
+    sql.to_string()
+}
+
+struct CreateTableWithPartitionParser;
+
+impl ClickHouseStatementParser for CreateTableWithPartitionParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "PARTITION",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if find_keyword_partition_by(sql).is_none() {
+            return Ok(None);
+        }
+        let stripped = strip_partition_by(sql);
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_PARTITION_PARSER: CreateTableWithPartitionParser =
+    CreateTableWithPartitionParser;
+
+fn find_settings_clause(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("SETTINGS") {
+        let abs_idx = pos + idx;
+        let before_ok = abs_idx == 0
+            || (!sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_');
+        let after_idx = abs_idx + "SETTINGS".len();
+        let after_ok = after_idx >= sql.len()
+            || (!sql.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && sql.as_bytes()[after_idx] != b'_');
+        if before_ok && after_ok {
+            let after_settings = sql[after_idx..].trim_start();
+            let starts_with_ident = after_settings
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_alphabetic() || c == '_')
+                .unwrap_or(false);
+            if starts_with_ident && let Some(eq_pos) = after_settings.find('=') {
+                let between = after_settings[..eq_pos].trim();
+                if !between.is_empty()
+                    && between
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+                {
+                    return Some(abs_idx);
+                }
+            }
+        }
+        pos = abs_idx + 1;
+    }
+    None
+}
+
+fn strip_settings(sql: &str) -> String {
+    if let Some(settings_pos) = find_settings_clause(sql) {
+        return sql[..settings_pos].trim_end().to_string();
+    }
+    sql.to_string()
+}
+
+struct CreateTableWithSettingsParser;
+
+impl ClickHouseStatementParser for CreateTableWithSettingsParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "SETTINGS",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        let stripped = strip_settings(sql);
+        if stripped == sql {
+            return Ok(None);
+        }
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_SETTINGS_PARSER: CreateTableWithSettingsParser =
+    CreateTableWithSettingsParser;
+
+#[allow(dead_code)]
+fn find_engine_clause(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("ENGINE") {
+        let abs_idx = pos + idx;
+        let before_ok = abs_idx == 0
+            || (!sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_');
+        let after_idx = abs_idx + "ENGINE".len();
+        let after_ok = after_idx >= sql.len()
+            || (!sql.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && sql.as_bytes()[after_idx] != b'_');
+        if before_ok && after_ok {
+            let after_engine = sql[after_idx..].trim_start();
+            if after_engine.starts_with('=') {
+                return Some(abs_idx);
+            }
+        }
+        pos = abs_idx + 1;
+    }
+    None
+}
+
+#[allow(dead_code)]
+fn has_complex_engine(sql: &str) -> bool {
+    if let Some(engine_pos) = find_engine_clause(sql) {
+        let after_engine = &sql[engine_pos + "ENGINE".len()..].trim_start();
+        if let Some(after_eq) = after_engine.strip_prefix('=') {
+            let after_eq = after_eq.trim_start();
+            let engine_names = [
+                "Distributed",
+                "Merge",
+                "Buffer",
+                "GenerateRandom",
+                "Set",
+                "Null",
+            ];
+            for name in &engine_names {
+                if after_eq.to_uppercase().starts_with(&name.to_uppercase()) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+#[allow(dead_code)]
+fn add_dummy_column_if_needed(sql: &str) -> String {
+    let upper = sql.to_uppercase();
+    if let Some(table_pos) = upper.find("CREATE TABLE") {
+        let after_create_table = &sql[table_pos + "CREATE TABLE".len()..].trim_start();
+
+        let mut name_end = 0;
+        for (i, c) in after_create_table.chars().enumerate() {
+            if c.is_whitespace() || c == '(' {
+                name_end = i;
+                break;
+            }
+        }
+
+        if name_end == 0 {
+            name_end = after_create_table.len();
+        }
+
+        let rest = &after_create_table[name_end..].trim_start();
+
+        if !rest.starts_with('(') {
+            let table_name = &after_create_table[..name_end];
+            return format!("CREATE TABLE {} (_dummy Int64) {}", table_name, rest);
+        }
+    }
+    sql.to_string()
+}
+
+#[allow(dead_code)]
+fn strip_engine_params(sql: &str) -> String {
+    if let Some(engine_pos) = find_engine_clause(sql) {
+        let after_engine = &sql[engine_pos + "ENGINE".len()..].trim_start();
+        if let Some(after_eq) = after_engine.strip_prefix('=') {
+            let after_eq = after_eq.trim_start();
+            let mut engine_name_end = 0;
+            for (i, c) in after_eq.chars().enumerate() {
+                if c == '(' || c.is_whitespace() {
+                    break;
+                }
+                engine_name_end = i + 1;
+            }
+            let rest = &after_eq[engine_name_end..].trim_start();
+
+            let before_engine = &sql[..engine_pos];
+
+            if rest.starts_with('(') {
+                let mut paren_count = 0;
+                let mut param_end = 0;
+                for (i, c) in rest.chars().enumerate() {
+                    match c {
+                        '(' => paren_count += 1,
+                        ')' => {
+                            paren_count -= 1;
+                            if paren_count == 0 {
+                                param_end = i + 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                let after_params = if param_end > 0 {
+                    &rest[param_end..]
+                } else {
+                    ""
+                };
+
+                return format!(
+                    "{} ENGINE = Memory {}",
+                    before_engine.trim_end(),
+                    after_params.trim_start()
+                );
+            } else {
+                return format!("{} ENGINE = Memory {}", before_engine.trim_end(), rest);
+            }
+        }
+    }
+    sql.to_string()
+}
+
+struct CreateTableWithComplexEngineParser;
+
+impl ClickHouseStatementParser for CreateTableWithComplexEngineParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "ENGINE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(None)
+    }
+}
+
+static CREATE_TABLE_WITH_COMPLEX_ENGINE_PARSER: CreateTableWithComplexEngineParser =
+    CreateTableWithComplexEngineParser;
+
+struct AlterTableModifyParser;
+
+impl ClickHouseStatementParser for AlterTableModifyParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["ALTER", "TABLE"],
+            contains: "MODIFY",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseAlterTable {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+static ALTER_TABLE_MODIFY_PARSER: AlterTableModifyParser = AlterTableModifyParser;
 
 static PASSTHROUGH_ALTER_USER: PassthroughParser =
     PassthroughParser::new(KeywordPattern::StartsWith(&["ALTER", "USER"]), |sql| {
@@ -349,6 +729,71 @@ static PASSTHROUGH_ALTER_USER: PassthroughParser =
         }
     });
 
+static PASSTHROUGH_RENAME_DATABASE: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::StartsWith(&["RENAME", "DATABASE"]), |sql| {
+        CustomStatement::ClickHouseRenameDatabase {
+            statement: sql.to_string(),
+        }
+    });
+
+struct CreateDatabaseEngineParser;
+
+impl ClickHouseStatementParser for CreateDatabaseEngineParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "DATABASE"],
+            contains: "ENGINE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseDatabase {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+struct CreateDatabaseCommentParser;
+
+impl ClickHouseStatementParser for CreateDatabaseCommentParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "DATABASE"],
+            contains: "COMMENT",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseDatabase {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+struct UseParser;
+
+impl ClickHouseStatementParser for UseParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWith(&["USE"])
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "USE") {
+            return Ok(None);
+        }
+
+        let database = match tokens.get(idx) {
+            Some(Token::Word(w)) => w.value.clone(),
+            _ => {
+                return Err(Error::parse_error("Expected database name after USE"));
+            }
+        };
+
+        Ok(Some(CustomStatement::ClickHouseUse { database }))
+    }
+}
+
 static CREATE_INDEX_PARSER: CreateIndexParser = CreateIndexParser;
 static ALTER_CODEC_PARSER: AlterColumnCodecParser = AlterColumnCodecParser;
 static ALTER_TTL_PARSER: AlterTableTtlParser = AlterTableTtlParser;
@@ -356,10 +801,17 @@ static SYSTEM_PARSER: SystemCommandParser = SystemCommandParser;
 static CREATE_DICT_PARSER: CreateDictionaryParser = CreateDictionaryParser;
 static GRANT_ROLE_PARSER: GrantRoleParser = GrantRoleParser;
 static FUNCTION_PARSER: FunctionParser = FunctionParser;
+static CREATE_DATABASE_ENGINE_PARSER: CreateDatabaseEngineParser = CreateDatabaseEngineParser;
+static CREATE_DATABASE_COMMENT_PARSER: CreateDatabaseCommentParser = CreateDatabaseCommentParser;
+static USE_PARSER: UseParser = UseParser;
 
 static PARSERS: &[&dyn ClickHouseStatementParser] = &[
     &CREATE_DICT_PARSER,
     &CREATE_INDEX_PARSER,
+    &CREATE_DATABASE_ENGINE_PARSER,
+    &CREATE_DATABASE_COMMENT_PARSER,
+    &PASSTHROUGH_RENAME_DATABASE,
+    &USE_PARSER,
     &ALTER_CODEC_PARSER,
     &ALTER_TTL_PARSER,
     &SYSTEM_PARSER,
@@ -370,6 +822,11 @@ static PARSERS: &[&dyn ClickHouseStatementParser] = &[
     &PASSTHROUGH_DICTIONARY,
     &PASSTHROUGH_SHOW,
     &FUNCTION_PARSER,
+    &CREATE_TABLE_WITH_COMPLEX_ENGINE_PARSER,
+    &CREATE_TABLE_WITH_PARTITION_PARSER,
+    &CREATE_TABLE_WITH_SETTINGS_PARSER,
+    &CREATE_TABLE_WITH_PROJECTION_PARSER,
+    &ALTER_TABLE_MODIFY_PARSER,
     &PASSTHROUGH_PROJECTION,
     &PASSTHROUGH_ALTER_USER,
     &GRANT_ROLE_PARSER,
@@ -381,7 +838,11 @@ impl ClickHouseParser {
     pub fn try_parse(tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
         for parser in PARSERS {
             if parser.matches(tokens) {
-                return parser.parse(tokens, sql);
+                match parser.parse(tokens, sql) {
+                    Ok(Some(stmt)) => return Ok(Some(stmt)),
+                    Ok(None) => continue,
+                    Err(e) => return Err(e),
+                }
             }
         }
         Ok(None)
