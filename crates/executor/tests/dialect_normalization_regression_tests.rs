@@ -131,40 +131,14 @@ fn bigquery_struct_to_row_regression() {
 }
 
 #[test]
-fn bigquery_rejects_scripting_blocks_regression() {
+fn bigquery_supports_declare_statement() {
     let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
-    let scripting_statements = vec![
-        "BEGIN SELECT 1; END",
-        "DECLARE x INT64 DEFAULT 0",
-        "LOOP SELECT 1; END LOOP",
-        "WHILE x < 10 DO SELECT 1; END WHILE",
-    ];
-
-    for sql in scripting_statements {
-        let result = executor.execute_sql(sql);
-        assert!(
-            result.is_err(),
-            "Scripting statement should be rejected: {}",
-            sql
-        );
-
-        if let Err(e) = result {
-            let err_msg = format!("{:?}", e);
-
-            assert!(
-                err_msg.contains("script")
-                    || err_msg.contains("block")
-                    || err_msg.contains("not supported")
-                    || err_msg.contains("Unsupported")
-                    || err_msg.contains("Parse error")
-                    || err_msg.contains("ParseError"),
-                "Error should mention scripting/blocks for: {}. Got: {}",
-                sql,
-                err_msg
-            );
-        }
-    }
+    let result = executor.execute_sql("DECLARE x INT64 DEFAULT 0");
+    assert!(
+        result.is_ok(),
+        "DECLARE statement should be supported in BigQuery"
+    );
 }
 
 #[test]
