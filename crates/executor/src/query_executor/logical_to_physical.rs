@@ -1661,6 +1661,8 @@ impl LogicalToPhysicalPlanner {
                 LiteralValue::String(_) => DataType::String,
                 LiteralValue::Bytes(_) => DataType::Bytes,
                 LiteralValue::Date(_) => DataType::Date,
+                LiteralValue::Time(_) => DataType::Time,
+                LiteralValue::DateTime(_) => DataType::DateTime,
                 LiteralValue::Timestamp(_) => DataType::Timestamp,
                 LiteralValue::Json(_) => DataType::Json,
                 LiteralValue::Uuid(_) => DataType::Uuid,

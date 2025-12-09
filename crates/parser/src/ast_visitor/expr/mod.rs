@@ -651,6 +651,8 @@ impl LogicalPlanBuilder {
                 LiteralValue::String(_) => Some("string"),
                 LiteralValue::Boolean(_) => Some("boolean"),
                 LiteralValue::Date(_) => Some("date"),
+                LiteralValue::Time(_) => Some("time"),
+                LiteralValue::DateTime(_) => Some("datetime"),
                 LiteralValue::Timestamp(_) => Some("timestamp"),
                 LiteralValue::Interval(_) => Some("interval"),
                 LiteralValue::Array(_) => Some("array"),
@@ -745,7 +747,7 @@ impl LogicalPlanBuilder {
                     }
                     let ts_expr = args[0].clone();
                     let unit_expr = Self::convert_date_part_column_to_string(&args[1]);
-                    let mut new_args = vec![unit_expr, ts_expr];
+                    let mut new_args = vec![ts_expr, unit_expr];
                     if args.len() > 2 {
                         new_args.extend(args[2..].iter().cloned());
                     }
@@ -802,6 +804,120 @@ impl LogicalPlanBuilder {
                     Some(Expr::Function {
                         name: yachtsql_ir::FunctionName::TimestampDiff,
                         args: vec![ts1, ts2, unit_expr],
+                    })
+                }
+                "DATETIME_ADD" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "DATETIME_ADD requires exactly 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let dt_expr = args[0].clone();
+                    let interval_expr = Self::normalize_interval_arg(&args[1]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::DatetimeAdd,
+                        args: vec![dt_expr, interval_expr],
+                    })
+                }
+                "DATETIME_SUB" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "DATETIME_SUB requires exactly 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let dt_expr = args[0].clone();
+                    let interval_expr = Self::normalize_interval_arg(&args[1]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::DatetimeSub,
+                        args: vec![dt_expr, interval_expr],
+                    })
+                }
+                "DATETIME_DIFF" => {
+                    if args.len() != 3 {
+                        return Err(Error::invalid_query(format!(
+                            "DATETIME_DIFF requires exactly 3 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let dt1 = args[0].clone();
+                    let dt2 = args[1].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[2]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::DatetimeDiff,
+                        args: vec![dt1, dt2, unit_expr],
+                    })
+                }
+                "DATETIME_TRUNC" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "DATETIME_TRUNC requires exactly 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let dt_expr = args[0].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[1]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::DatetimeTrunc,
+                        args: vec![dt_expr, unit_expr],
+                    })
+                }
+                "TIME_ADD" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "TIME_ADD requires exactly 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let time_expr = args[0].clone();
+                    let interval_expr = Self::normalize_interval_arg(&args[1]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::TimeAdd,
+                        args: vec![time_expr, interval_expr],
+                    })
+                }
+                "TIME_SUB" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "TIME_SUB requires exactly 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let time_expr = args[0].clone();
+                    let interval_expr = Self::normalize_interval_arg(&args[1]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::TimeSub,
+                        args: vec![time_expr, interval_expr],
+                    })
+                }
+                "TIME_DIFF" => {
+                    if args.len() != 3 {
+                        return Err(Error::invalid_query(format!(
+                            "TIME_DIFF requires exactly 3 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let time1 = args[0].clone();
+                    let time2 = args[1].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[2]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::TimeDiff,
+                        args: vec![time1, time2, unit_expr],
+                    })
+                }
+                "TIME_TRUNC" => {
+                    if args.len() != 2 {
+                        return Err(Error::invalid_query(format!(
+                            "TIME_TRUNC requires exactly 2 arguments, got {}",
+                            args.len()
+                        )));
+                    }
+                    let time_expr = args[0].clone();
+                    let unit_expr = Self::convert_date_part_column_to_string(&args[1]);
+                    Some(Expr::Function {
+                        name: yachtsql_ir::FunctionName::TimeTrunc,
+                        args: vec![time_expr, unit_expr],
                     })
                 }
                 "SAFE_DIVIDE" => {

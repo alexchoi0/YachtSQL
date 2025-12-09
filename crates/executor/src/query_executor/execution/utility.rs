@@ -130,6 +130,8 @@ fn literal_type(lit: &yachtsql_optimizer::expr::LiteralValue) -> DataType {
         yachtsql_optimizer::expr::LiteralValue::String(_) => DataType::String,
         yachtsql_optimizer::expr::LiteralValue::Bytes(_) => DataType::Bytes,
         yachtsql_optimizer::expr::LiteralValue::Date(_) => DataType::Date,
+        yachtsql_optimizer::expr::LiteralValue::Time(_) => DataType::Time,
+        yachtsql_optimizer::expr::LiteralValue::DateTime(_) => DataType::DateTime,
         yachtsql_optimizer::expr::LiteralValue::Timestamp(_) => DataType::Timestamp,
         yachtsql_optimizer::expr::LiteralValue::Uuid(_) => DataType::String,
         yachtsql_optimizer::expr::LiteralValue::Json(_) => DataType::Json,
@@ -200,10 +202,10 @@ fn function_return_type(name: &yachtsql_ir::FunctionName) -> Option<DataType> {
         | FunctionName::TimestampMicros
         | FunctionName::TimestampAdd
         | FunctionName::TimestampSub
-        | FunctionName::TimestampTrunc
-        | FunctionName::DatetimeAdd
-        | FunctionName::DatetimeSub
-        | FunctionName::DatetimeTrunc => Some(DataType::Timestamp),
+        | FunctionName::TimestampTrunc => Some(DataType::Timestamp),
+        FunctionName::DatetimeAdd | FunctionName::DatetimeSub | FunctionName::DatetimeTrunc => {
+            Some(DataType::DateTime)
+        }
         FunctionName::TimeAdd | FunctionName::TimeSub | FunctionName::TimeTrunc => {
             Some(DataType::Time)
         }

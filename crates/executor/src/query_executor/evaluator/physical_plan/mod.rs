@@ -1024,6 +1024,17 @@ impl UnnestExec {
                     })?;
                     Value::date(date)
                 }
+                LiteralValue::Time(t) => {
+                    use chrono::NaiveTime;
+                    let time = NaiveTime::parse_from_str(t, "%H:%M:%S")
+                        .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M:%S%.f"))
+                        .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M"))
+                        .map_err(|e| {
+                            Error::invalid_query(format!("Invalid time '{}': {}", t, e))
+                        })?;
+                    Value::time(time)
+                }
+                LiteralValue::DateTime(dt) => Value::datetime(Self::parse_timestamp(dt)?),
                 LiteralValue::Timestamp(t) => Value::timestamp(Self::parse_timestamp(t)?),
                 LiteralValue::Json(s) => match serde_json::from_str(s) {
                     Ok(json_val) => Value::json(json_val),

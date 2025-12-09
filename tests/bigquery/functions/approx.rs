@@ -11,15 +11,15 @@ fn setup_data(executor: &mut yachtsql::QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "APPROX_COUNT_DISTINCT returns wrong type - needs investigation"]
 fn test_approx_count_distinct() {
     let mut executor = create_executor();
     setup_data(&mut executor);
 
     let result = executor
-        .execute_sql("SELECT APPROX_COUNT_DISTINCT(category) = 3 FROM data")
+        .execute_sql("SELECT APPROX_COUNT_DISTINCT(category) FROM data")
         .unwrap();
-    assert_table_eq!(result, [[true]]);
+    assert_table_eq!(result, [[3]]);
 }
 
 #[test]

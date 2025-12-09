@@ -48,6 +48,27 @@ impl LogicalPlanBuilder {
                 }
                 Ok(Expr::Literal(LiteralValue::Date(value.to_string())))
             }
+            ast::DataType::Time(_, _) => {
+                if chrono::NaiveTime::parse_from_str(value, "%H:%M:%S").is_err()
+                    && chrono::NaiveTime::parse_from_str(value, "%H:%M:%S%.f").is_err()
+                    && chrono::NaiveTime::parse_from_str(value, "%H:%M").is_err()
+                {
+                    return Err(Error::invalid_query(format!(
+                        "Invalid time format: '{}'. Expected format: HH:MM:SS",
+                        value
+                    )));
+                }
+                Ok(Expr::Literal(LiteralValue::Time(value.to_string())))
+            }
+            ast::DataType::Datetime(_) => {
+                if yachtsql_core::types::parse_timestamp_to_utc(value).is_none() {
+                    return Err(Error::invalid_query(format!(
+                        "Invalid datetime format: '{}'",
+                        value
+                    )));
+                }
+                Ok(Expr::Literal(LiteralValue::DateTime(value.to_string())))
+            }
             ast::DataType::Timestamp(_, _) => {
                 if yachtsql_core::types::parse_timestamp_to_utc(value).is_none() {
                     return Err(Error::invalid_query(format!(

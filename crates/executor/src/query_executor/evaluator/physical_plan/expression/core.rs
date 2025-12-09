@@ -1163,6 +1163,7 @@ impl ProjectionWithExprExec {
                 | FunctionName::LowerInf
                 | FunctionName::UpperInf
                 | FunctionName::Isempty
+                | FunctionName::Range
                 | FunctionName::RangeMerge
                 | FunctionName::RangeIsempty
                 | FunctionName::RangeContains
@@ -1174,6 +1175,8 @@ impl ProjectionWithExprExec {
                 | FunctionName::RangeStrictlyLeft
                 | FunctionName::RangeStrictlyRight
                 | FunctionName::RangeDifference
+                | FunctionName::RangeStart
+                | FunctionName::RangeEnd
         ) {
             return Self::evaluate_range_function(func_name, args, batch, row_idx);
         }

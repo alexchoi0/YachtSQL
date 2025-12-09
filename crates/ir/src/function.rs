@@ -700,6 +700,8 @@ pub enum FunctionName {
     RangeStrictlyLeft,
     RangeStrictlyRight,
     RangeDifference,
+    RangeStart,
+    RangeEnd,
 
     // Sequence functions
     Nextval,
@@ -1677,11 +1679,13 @@ impl FunctionName {
             "RANGE_CONTAINS_ELEM" => Self::RangeContainsElem,
             "RANGE_OVERLAPS" => Self::RangeOverlaps,
             "RANGE_UNION" => Self::RangeUnion,
-            "RANGE_INTERSECTION" => Self::RangeIntersection,
+            "RANGE_INTERSECTION" | "RANGE_INTERSECT" => Self::RangeIntersection,
             "RANGE_ADJACENT" => Self::RangeAdjacent,
             "RANGE_STRICTLY_LEFT" => Self::RangeStrictlyLeft,
             "RANGE_STRICTLY_RIGHT" => Self::RangeStrictlyRight,
             "RANGE_DIFFERENCE" => Self::RangeDifference,
+            "RANGE_START" => Self::RangeStart,
+            "RANGE_END" => Self::RangeEnd,
 
             // Sequence functions
             "NEXTVAL" => Self::Nextval,
@@ -2651,6 +2655,8 @@ impl FunctionName {
             Self::RangeStrictlyLeft => "RANGE_STRICTLY_LEFT",
             Self::RangeStrictlyRight => "RANGE_STRICTLY_RIGHT",
             Self::RangeDifference => "RANGE_DIFFERENCE",
+            Self::RangeStart => "RANGE_START",
+            Self::RangeEnd => "RANGE_END",
 
             // Sequence functions
             Self::Nextval => "NEXTVAL",
