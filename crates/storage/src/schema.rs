@@ -259,6 +259,9 @@ pub struct Schema {
     indexes: HashMap<String, IndexMetadata>,
     #[serde(skip)]
     check_evaluator: Option<CheckEvaluator>,
+    parent_tables: Vec<String>,
+    child_tables: Vec<String>,
+    inherited_column_count: usize,
 }
 
 impl std::fmt::Debug for Schema {
@@ -299,6 +302,9 @@ impl Schema {
             constraint_metadata: HashMap::new(),
             indexes: HashMap::new(),
             check_evaluator: None,
+            parent_tables: Vec::new(),
+            child_tables: Vec::new(),
+            inherited_column_count: 0,
         }
     }
 
@@ -312,6 +318,9 @@ impl Schema {
             constraint_metadata: HashMap::new(),
             indexes: HashMap::new(),
             check_evaluator: None,
+            parent_tables: Vec::new(),
+            child_tables: Vec::new(),
+            inherited_column_count: 0,
         }
     }
 
@@ -640,6 +649,62 @@ impl Schema {
 
     pub fn fields_mut(&mut self) -> &mut Vec<Field> {
         &mut self.fields
+    }
+
+    pub fn set_parent_tables(&mut self, parents: Vec<String>) {
+        self.parent_tables = parents;
+    }
+
+    pub fn add_parent_table(&mut self, parent: String) {
+        self.parent_tables.push(parent);
+    }
+
+    pub fn parent_tables(&self) -> &[String] {
+        &self.parent_tables
+    }
+
+    pub fn has_parents(&self) -> bool {
+        !self.parent_tables.is_empty()
+    }
+
+    pub fn add_child_table(&mut self, child: String) {
+        self.child_tables.push(child);
+    }
+
+    pub fn remove_child_table(&mut self, child: &str) {
+        self.child_tables.retain(|c| c != child);
+    }
+
+    pub fn child_tables(&self) -> &[String] {
+        &self.child_tables
+    }
+
+    pub fn has_children(&self) -> bool {
+        !self.child_tables.is_empty()
+    }
+
+    pub fn set_inherited_column_count(&mut self, count: usize) {
+        self.inherited_column_count = count;
+    }
+
+    pub fn inherited_column_count(&self) -> usize {
+        self.inherited_column_count
+    }
+
+    pub fn own_fields(&self) -> &[Field] {
+        &self.fields[self.inherited_column_count..]
+    }
+
+    pub fn inherited_fields(&self) -> &[Field] {
+        &self.fields[..self.inherited_column_count]
+    }
+
+    pub fn prepend_inherited_fields(&mut self, parent_fields: Vec<Field>) {
+        let count = parent_fields.len();
+        let mut new_fields = parent_fields;
+        new_fields.append(&mut self.fields);
+        self.fields = new_fields;
+        self.inherited_column_count += count;
     }
 }
 

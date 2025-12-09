@@ -25,10 +25,13 @@ impl ProjectionWithExprExec {
             return Ok(Value::null());
         }
 
-        let dt = dt_val.as_timestamp().ok_or_else(|| Error::TypeMismatch {
-            expected: "DATETIME/TIMESTAMP".to_string(),
-            actual: dt_val.data_type().to_string(),
-        })?;
+        let dt = dt_val
+            .as_datetime()
+            .or_else(|| dt_val.as_timestamp())
+            .ok_or_else(|| Error::TypeMismatch {
+                expected: "DATETIME/TIMESTAMP".to_string(),
+                actual: dt_val.data_type().to_string(),
+            })?;
 
         let interval = interval_val
             .as_interval()
@@ -38,7 +41,11 @@ impl ProjectionWithExprExec {
             })?;
 
         let new_dt = add_interval_to_datetime(dt, interval)?;
-        Ok(Value::timestamp(new_dt))
+        if dt_val.as_datetime().is_some() {
+            Ok(Value::datetime(new_dt))
+        } else {
+            Ok(Value::timestamp(new_dt))
+        }
     }
 }
 

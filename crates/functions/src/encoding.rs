@@ -240,6 +240,59 @@ pub fn bit_test_any(value: i64, positions: &[i64]) -> Result<Value> {
     Ok(Value::int64(0))
 }
 
+pub fn bit_rotate_left(value: u8, shift: i64) -> Result<Value> {
+    let shift = (shift % 8) as u32;
+    let result = value.rotate_left(shift);
+    Ok(Value::int64(result as i64))
+}
+
+pub fn bit_rotate_right(value: u8, shift: i64) -> Result<Value> {
+    let shift = (shift % 8) as u32;
+    let result = value.rotate_right(shift);
+    Ok(Value::int64(result as i64))
+}
+
+pub fn bit_hamming_distance(a: i64, b: i64) -> Result<Value> {
+    let xor = a ^ b;
+    Ok(Value::int64(xor.count_ones() as i64))
+}
+
+pub fn bit_slice(value: u8, start: i64, length: i64) -> Result<Value> {
+    if length <= 0 {
+        return Ok(Value::int64(0));
+    }
+    let start = start.max(0) as u32;
+    let length = length.min(8 - start as i64) as u32;
+    if start >= 8 {
+        return Ok(Value::int64(0));
+    }
+    let mask = ((1u16 << length) - 1) as u8;
+    let result = (value >> start) & mask;
+    Ok(Value::int64(result as i64))
+}
+
+pub fn byte_swap_16(value: u16) -> Result<Value> {
+    Ok(Value::int64(value.swap_bytes() as i64))
+}
+
+pub fn byte_swap_32(value: u32) -> Result<Value> {
+    Ok(Value::int64(value.swap_bytes() as i64))
+}
+
+pub fn byte_swap_64(value: u64) -> Result<Value> {
+    Ok(Value::int64(value.swap_bytes() as i64))
+}
+
+pub fn bit_positions_to_array(value: i64) -> Result<Value> {
+    let mut positions = Vec::new();
+    for i in 0..64 {
+        if (value >> i) & 1 == 1 {
+            positions.push(Value::int64(i));
+        }
+    }
+    Ok(Value::array(positions))
+}
+
 pub fn char_fn(codes: &[i64]) -> Result<Value> {
     let chars: String = codes
         .iter()

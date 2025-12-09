@@ -349,6 +349,7 @@ mod tests {
                 table_name: "users".to_string(),
                 alias: None,
                 projection: Some(vec!["id".to_string(), "name".to_string()]),
+                only: false,
             }),
         };
 
@@ -370,6 +371,7 @@ mod tests {
                     table_name: "users".to_string(),
                     alias: None,
                     projection: Some(vec!["id".to_string()]),
+                    only: false,
                 }),
                 predicate: Expr::BinaryOp {
                     left: Box::new(Expr::Column {
@@ -397,6 +399,7 @@ mod tests {
                     table_name: "users".to_string(),
                     alias: None,
                     projection: Some(vec!["id".to_string()]),
+                    only: false,
                 }),
                 predicate: Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),
             }),
@@ -416,11 +419,13 @@ mod tests {
                         table_name: "a".to_string(),
                         alias: None,
                         projection: None,
+                        only: false,
                     }),
                     right: Box::new(PlanNode::Scan {
                         table_name: "b".to_string(),
                         alias: None,
                         projection: None,
+                        only: false,
                     }),
                     join_type: JoinType::Inner,
                     on: Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),
@@ -429,6 +434,7 @@ mod tests {
                     table_name: "c".to_string(),
                     alias: None,
                     projection: None,
+                    only: false,
                 }),
                 join_type: JoinType::Inner,
                 on: Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),
@@ -466,6 +472,7 @@ mod tests {
                     table_name: "products".to_string(),
                     alias: None,
                     projection: None,
+                    only: false,
                 }),
             }),
         };
@@ -486,6 +493,7 @@ mod tests {
                     table_name: "sales".to_string(),
                     alias: None,
                     projection: None,
+                    only: false,
                 }),
             }),
         };
@@ -506,6 +514,7 @@ mod tests {
                     table_name: "users".to_string(),
                     alias: None,
                     projection: None,
+                    only: false,
                 }),
             }),
         };
@@ -522,6 +531,7 @@ mod tests {
                     table_name: "users".to_string(),
                     alias: None,
                     projection: None,
+                    only: false,
                 }),
                 predicate: Expr::BinaryOp {
                     left: Box::new(Expr::Column {
@@ -554,6 +564,7 @@ mod tests {
                         table_name: "users".to_string(),
                         alias: None,
                         projection: None,
+                        only: false,
                     }),
                 }),
                 predicate: Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),

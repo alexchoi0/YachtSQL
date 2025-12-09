@@ -120,6 +120,9 @@ jobs:
         with:
           toolchain: nightly-2025-09-14
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -133,7 +136,7 @@ jobs:
             ${{ runner.os }}-cargo-test-
 
       - name: Run tests for ${{ matrix.crate }}
-        run: cargo test -p ${{ matrix.crate }} --no-fail-fast
+        run: cargo nextest run -p ${{ matrix.crate }} --no-fail-fast --no-tests=pass
 
   test-macos:
     name: Test (macOS)
@@ -145,6 +148,9 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-09-14
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -158,7 +164,7 @@ jobs:
             ${{ runner.os }}-cargo-test-
 
       - name: Run tests
-        run: cargo test --workspace --no-fail-fast
+        run: cargo nextest run --workspace --no-fail-fast --no-tests=pass
 
   test-clickhouse:
     name: Test (ClickHouse dialect)
@@ -182,6 +188,9 @@ jobs:
         with:
           toolchain: nightly-2025-09-14
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -194,7 +203,7 @@ jobs:
             ${{ runner.os }}-cargo-test-clickhouse-
 
       - name: Run ClickHouse tests
-        run: cargo test --workspace --features clickhouse-tests --no-fail-fast
+        run: cargo nextest run --workspace --features clickhouse-tests --no-fail-fast --no-tests=pass
 
   doc:
     name: Documentation

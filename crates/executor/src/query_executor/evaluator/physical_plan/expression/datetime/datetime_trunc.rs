@@ -25,10 +25,13 @@ impl ProjectionWithExprExec {
             return Ok(Value::null());
         }
 
-        let dt = dt_val.as_timestamp().ok_or_else(|| Error::TypeMismatch {
-            expected: "DATETIME/TIMESTAMP".to_string(),
-            actual: dt_val.data_type().to_string(),
-        })?;
+        let dt = dt_val
+            .as_datetime()
+            .or_else(|| dt_val.as_timestamp())
+            .ok_or_else(|| Error::TypeMismatch {
+                expected: "DATETIME/TIMESTAMP".to_string(),
+                actual: dt_val.data_type().to_string(),
+            })?;
 
         let part = part_val
             .as_str()
@@ -39,7 +42,11 @@ impl ProjectionWithExprExec {
             .to_uppercase();
 
         let truncated = truncate_datetime(dt, &part)?;
-        Ok(Value::timestamp(truncated))
+        if dt_val.as_datetime().is_some() {
+            Ok(Value::datetime(truncated))
+        } else {
+            Ok(Value::timestamp(truncated))
+        }
     }
 }
 

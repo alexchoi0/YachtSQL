@@ -159,13 +159,58 @@ impl LogicalPlanBuilder {
         field: &ast::DateTimeField,
         expr: &ast::Expr,
     ) -> Result<Expr> {
-        let field_name = format!("{:?}", field).to_uppercase();
+        let field_name = Self::datetime_field_to_string(field);
         let date_arg = self.sql_expr_to_expr(expr)?;
 
         Ok(Expr::Function {
             name: yachtsql_ir::FunctionName::Extract,
             args: vec![Expr::Literal(LiteralValue::String(field_name)), date_arg],
         })
+    }
+
+    fn datetime_field_to_string(field: &ast::DateTimeField) -> String {
+        match field {
+            ast::DateTimeField::Year | ast::DateTimeField::Years => "YEAR".to_string(),
+            ast::DateTimeField::Month | ast::DateTimeField::Months => "MONTH".to_string(),
+            ast::DateTimeField::Week(_) | ast::DateTimeField::Weeks => "WEEK".to_string(),
+            ast::DateTimeField::Day | ast::DateTimeField::Days => "DAY".to_string(),
+            ast::DateTimeField::DayOfWeek => "DAYOFWEEK".to_string(),
+            ast::DateTimeField::DayOfYear => "DAYOFYEAR".to_string(),
+            ast::DateTimeField::Hour | ast::DateTimeField::Hours => "HOUR".to_string(),
+            ast::DateTimeField::Minute | ast::DateTimeField::Minutes => "MINUTE".to_string(),
+            ast::DateTimeField::Second | ast::DateTimeField::Seconds => "SECOND".to_string(),
+            ast::DateTimeField::Century => "CENTURY".to_string(),
+            ast::DateTimeField::Decade => "DECADE".to_string(),
+            ast::DateTimeField::Dow => "DOW".to_string(),
+            ast::DateTimeField::Doy => "DOY".to_string(),
+            ast::DateTimeField::Epoch => "EPOCH".to_string(),
+            ast::DateTimeField::Isodow => "ISODOW".to_string(),
+            ast::DateTimeField::Isoyear => "ISOYEAR".to_string(),
+            ast::DateTimeField::IsoWeek => "ISOWEEK".to_string(),
+            ast::DateTimeField::Julian => "JULIAN".to_string(),
+            ast::DateTimeField::Microsecond | ast::DateTimeField::Microseconds => {
+                "MICROSECOND".to_string()
+            }
+            ast::DateTimeField::Millenium => "MILLENIUM".to_string(),
+            ast::DateTimeField::Millennium => "MILLENNIUM".to_string(),
+            ast::DateTimeField::Millisecond | ast::DateTimeField::Milliseconds => {
+                "MILLISECOND".to_string()
+            }
+            ast::DateTimeField::Nanosecond | ast::DateTimeField::Nanoseconds => {
+                "NANOSECOND".to_string()
+            }
+            ast::DateTimeField::Quarter => "QUARTER".to_string(),
+            ast::DateTimeField::Time => "TIME".to_string(),
+            ast::DateTimeField::Timezone => "TIMEZONE".to_string(),
+            ast::DateTimeField::TimezoneAbbr => "TIMEZONE_ABBR".to_string(),
+            ast::DateTimeField::TimezoneHour => "TIMEZONE_HOUR".to_string(),
+            ast::DateTimeField::TimezoneMinute => "TIMEZONE_MINUTE".to_string(),
+            ast::DateTimeField::TimezoneRegion => "TIMEZONE_REGION".to_string(),
+            ast::DateTimeField::NoDateTime => "NODATETIME".to_string(),
+            ast::DateTimeField::Date => "DATE".to_string(),
+            ast::DateTimeField::Datetime => "DATETIME".to_string(),
+            ast::DateTimeField::Custom(ident) => ident.value.to_uppercase(),
+        }
     }
 
     pub(super) fn convert_position(&self, expr: &ast::Expr, in_expr: &ast::Expr) -> Result<Expr> {

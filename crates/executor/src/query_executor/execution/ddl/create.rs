@@ -3,7 +3,7 @@ use sqlparser::ast::{ColumnDef, ColumnOption, DataType as SqlDataType};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_parser::Sql2023Types;
-use yachtsql_storage::{DefaultValue, Field, Schema, TableIndexOps};
+use yachtsql_storage::{DefaultValue, Field, Schema, TableIndexOps, TableSchemaOps};
 
 use super::super::QueryExecutor;
 
@@ -64,6 +64,16 @@ impl DdlExecutor for QueryExecutor {
 
         let (mut schema, column_level_fks) =
             self.parse_columns_to_schema(&dataset_id, &table_id, &create_table.columns)?;
+
+        if let Some(ref inherits) = create_table.inherits {
+            self.apply_inheritance(&dataset_id, &table_id, &mut schema, inherits)?;
+        }
+
+        if schema.fields().is_empty() {
+            return Err(Error::InvalidQuery(
+                "CREATE TABLE requires at least one column".to_string(),
+            ));
+        }
 
         let mut all_constraints = create_table.constraints.clone();
         all_constraints.extend(column_level_fks);
@@ -138,6 +148,19 @@ impl DdlExecutor for QueryExecutor {
                         table_id.clone(),
                         field.name.clone(),
                     )?;
+                }
+            }
+
+            let child_full_name = format!("{}.{}", dataset_id, table_id);
+            for parent_name in schema.parent_tables() {
+                let (parent_dataset_id, parent_table_id) =
+                    self.parse_ddl_table_name(parent_name)?;
+                if let Some(parent_dataset) = storage.get_dataset_mut(&parent_dataset_id) {
+                    if let Some(parent_table) = parent_dataset.get_table_mut(&parent_table_id) {
+                        parent_table
+                            .schema_mut()
+                            .add_child_table(child_full_name.clone());
+                    }
                 }
             }
         }
@@ -581,12 +604,6 @@ impl DdlExecutor for QueryExecutor {
             fields.push(field);
         }
 
-        if fields.is_empty() {
-            return Err(Error::InvalidQuery(
-                "CREATE TABLE requires at least one column".to_string(),
-            ));
-        }
-
         let mut schema = Schema::from_fields(fields);
 
         for constraint in check_constraints {
@@ -632,7 +649,9 @@ impl DdlExecutor for QueryExecutor {
             SqlDataType::Bytea | SqlDataType::Bytes(_) => Ok(DataType::Bytes),
             SqlDataType::Bit(_) | SqlDataType::BitVarying(_) => Ok(DataType::Bytes),
             SqlDataType::Date => Ok(DataType::Date),
-            SqlDataType::Timestamp(_, _) => Ok(DataType::Timestamp),
+            SqlDataType::Timestamp(_, _)
+            | SqlDataType::Datetime(_)
+            | SqlDataType::Datetime64(_, _) => Ok(DataType::Timestamp),
             SqlDataType::Decimal(info) | SqlDataType::Numeric(info) => {
                 use sqlparser::ast::ExactNumberInfo;
                 let precision_scale = match info {
@@ -1196,5 +1215,56 @@ impl QueryExecutor {
             .ok_or_else(|| Error::invalid_query(format!("Domain '{}' not found", domain_name)))?;
 
         Ok(domain.not_null)
+    }
+
+    fn apply_inheritance(
+        &self,
+        dataset_id: &str,
+        _table_id: &str,
+        schema: &mut yachtsql_storage::Schema,
+        inherits: &[sqlparser::ast::ObjectName],
+    ) -> Result<()> {
+        let storage = self.storage.borrow();
+        let mut all_inherited_fields = Vec::new();
+        let mut parent_names = Vec::new();
+
+        for parent_name in inherits {
+            let parent_name_str = parent_name.to_string();
+            let (parent_dataset_id, parent_table_id) =
+                self.parse_ddl_table_name(&parent_name_str)?;
+
+            let parent_dataset_id =
+                if parent_dataset_id == "default" && !parent_name_str.contains('.') {
+                    dataset_id.to_string()
+                } else {
+                    parent_dataset_id
+                };
+
+            let parent_dataset = storage.get_dataset(&parent_dataset_id).ok_or_else(|| {
+                Error::DatasetNotFound(format!("Parent dataset '{}' not found", parent_dataset_id))
+            })?;
+
+            let parent_table = parent_dataset.get_table(&parent_table_id).ok_or_else(|| {
+                Error::InvalidQuery(format!("Parent table '{}' does not exist", parent_name_str))
+            })?;
+
+            let parent_schema = parent_table.schema();
+            for field in parent_schema.fields() {
+                let already_exists = all_inherited_fields
+                    .iter()
+                    .any(|f: &yachtsql_storage::Field| f.name == field.name)
+                    || schema.field(&field.name).is_some();
+                if !already_exists {
+                    all_inherited_fields.push(field.clone());
+                }
+            }
+
+            parent_names.push(format!("{}.{}", parent_dataset_id, parent_table_id));
+        }
+
+        schema.prepend_inherited_fields(all_inherited_fields);
+        schema.set_parent_tables(parent_names);
+
+        Ok(())
     }
 }

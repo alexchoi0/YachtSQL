@@ -263,6 +263,19 @@ impl DmlUpdateExecutor for QueryExecutor {
             self.fire_after_update_triggers(&dataset_id, &table_id, &old_row, &new_row, &schema)?;
         }
 
+        if !is_view {
+            let descendants = self.collect_all_descendant_tables(&dataset_id, &table_id);
+            for (child_ds, child_tbl) in descendants {
+                self.update_child_table_rows(
+                    &child_ds,
+                    &child_tbl,
+                    selection,
+                    &parsed_assignments_with_exprs,
+                    &schema,
+                )?;
+            }
+        }
+
         debug_eprintln!(
             "[executor::dml::update] Updated {} rows (INSTEAD OF: {}, normal: {})",
             instead_of_count + update_count,
@@ -341,6 +354,134 @@ impl DmlUpdateExecutor for QueryExecutor {
 }
 
 impl QueryExecutor {
+    fn update_child_table_rows(
+        &mut self,
+        dataset_id: &str,
+        table_id: &str,
+        selection: &Option<SqlExpr>,
+        assignments: &[(String, SqlExpr, DataType, Option<String>)],
+        parent_schema: &Schema,
+    ) -> Result<()> {
+        let child_schema = {
+            let storage = self.storage.borrow();
+            let dataset = storage.get_dataset(dataset_id).ok_or_else(|| {
+                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
+            })?;
+            let table = dataset.get_table(table_id).ok_or_else(|| {
+                Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
+            })?;
+            table.schema().clone()
+        };
+
+        let all_rows = {
+            let storage = self.storage.borrow();
+            let dataset = storage.get_dataset(dataset_id).unwrap();
+            let table = dataset.get_table(table_id).unwrap();
+            table.get_all_rows()
+        };
+
+        let filtered_assignments: Vec<_> = assignments
+            .iter()
+            .filter(|(col_name, _, _, _)| child_schema.field(col_name).is_some())
+            .cloned()
+            .collect();
+
+        if filtered_assignments.is_empty() {
+            return Ok(());
+        }
+
+        let mut updated_rows = Vec::with_capacity(all_rows.len());
+        let mut changed_row_indices: Vec<usize> = Vec::new();
+
+        if let Some(where_expr) = selection {
+            let processed_where = self.preprocess_subqueries_in_update_expr(where_expr)?;
+            let evaluator = ExpressionEvaluator::new(parent_schema);
+            for (row_idx, row) in all_rows.iter().enumerate() {
+                let parent_values: Vec<_> = row
+                    .values()
+                    .iter()
+                    .take(parent_schema.field_count())
+                    .cloned()
+                    .collect();
+                let parent_row = Row::from_values(parent_values);
+
+                if evaluator
+                    .evaluate_where(&processed_where, &parent_row)
+                    .unwrap_or(false)
+                {
+                    let updated_row_map = self.apply_update_to_row_with_exprs(
+                        row,
+                        &filtered_assignments,
+                        &child_schema,
+                    )?;
+                    changed_row_indices.push(row_idx);
+                    updated_rows.push(updated_row_map);
+                } else {
+                    let mut unchanged_map = IndexMap::new();
+                    for (idx, field) in child_schema.fields().iter().enumerate() {
+                        unchanged_map.insert(field.name.clone(), row.values()[idx].clone());
+                    }
+                    updated_rows.push(unchanged_map);
+                }
+            }
+        } else {
+            for (row_idx, row) in all_rows.iter().enumerate() {
+                let updated_row_map =
+                    self.apply_update_to_row_with_exprs(row, &filtered_assignments, &child_schema)?;
+                changed_row_indices.push(row_idx);
+                updated_rows.push(updated_row_map);
+            }
+        }
+
+        if !changed_row_indices.is_empty() {
+            self.replace_table_rows(
+                dataset_id,
+                table_id,
+                &child_schema,
+                updated_rows,
+                &changed_row_indices,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn collect_all_descendant_tables(
+        &self,
+        dataset_id: &str,
+        table_id: &str,
+    ) -> Vec<(String, String)> {
+        let storage = self.storage.borrow();
+        let mut descendants = Vec::new();
+        let mut to_process = vec![(dataset_id.to_string(), table_id.to_string())];
+        let mut processed = std::collections::HashSet::new();
+
+        while let Some((ds_id, tbl_id)) = to_process.pop() {
+            let key = format!("{}.{}", ds_id, tbl_id);
+            if processed.contains(&key) {
+                continue;
+            }
+            processed.insert(key);
+
+            if let Some(dataset) = storage.get_dataset(&ds_id) {
+                if let Some(table) = dataset.get_table(&tbl_id) {
+                    for child_full in table.schema().child_tables() {
+                        let (child_ds, child_tbl) = if child_full.contains('.') {
+                            let parts: Vec<&str> = child_full.splitn(2, '.').collect();
+                            (parts[0].to_string(), parts[1].to_string())
+                        } else {
+                            (ds_id.clone(), child_full.clone())
+                        };
+                        descendants.push((child_ds.clone(), child_tbl.clone()));
+                        to_process.push((child_ds, child_tbl));
+                    }
+                }
+            }
+        }
+
+        descendants
+    }
+
     fn parse_update_assignments_with_exprs(
         &self,
         assignments: &[Assignment],

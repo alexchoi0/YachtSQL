@@ -1,5 +1,5 @@
 use crate::assert_table_eq;
-use crate::common::create_executor;
+use crate::common::{create_executor, macaddr, macaddr8};
 
 #[test]
 fn test_inet_literal() {
@@ -18,23 +18,21 @@ fn test_cidr_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_macaddr_literal() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT '08:00:2b:01:02:03'::MACADDR")
         .unwrap();
-    assert_table_eq!(result, [["08:00:2b:01:02:03"]]);
+    assert_table_eq!(result, [[macaddr("08:00:2b:01:02:03")]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_macaddr8_literal() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT '08:00:2b:01:02:03:04:05'::MACADDR8")
         .unwrap();
-    assert_table_eq!(result, [["08:00:2b:01:02:03:04:05"]]);
+    assert_table_eq!(result, [[macaddr8("08:00:2b:01:02:03:04:05")]]);
 }
 
 #[test]
@@ -52,7 +50,6 @@ fn test_inet_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_comparison() {
     let mut executor = create_executor();
     let result = executor
@@ -62,7 +59,6 @@ fn test_inet_comparison() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_less_than() {
     let mut executor = create_executor();
     let result = executor
@@ -72,7 +68,6 @@ fn test_inet_less_than() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_contained_by() {
     let mut executor = create_executor();
     let result = executor
@@ -82,7 +77,6 @@ fn test_inet_contained_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_contains() {
     let mut executor = create_executor();
     let result = executor
@@ -92,7 +86,6 @@ fn test_inet_contains() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_contained_or_equal() {
     let mut executor = create_executor();
     let result = executor
@@ -102,7 +95,6 @@ fn test_inet_contained_or_equal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_contains_or_equal() {
     let mut executor = create_executor();
     let result = executor
@@ -112,7 +104,6 @@ fn test_inet_contains_or_equal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_overlaps() {
     let mut executor = create_executor();
     let result = executor
@@ -122,7 +113,6 @@ fn test_inet_overlaps() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_bitwise_not() {
     let mut executor = create_executor();
     let result = executor
@@ -132,7 +122,6 @@ fn test_inet_bitwise_not() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_bitwise_and() {
     let mut executor = create_executor();
     let result = executor
@@ -142,7 +131,6 @@ fn test_inet_bitwise_and() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_bitwise_or() {
     let mut executor = create_executor();
     let result = executor
@@ -152,7 +140,6 @@ fn test_inet_bitwise_or() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_add() {
     let mut executor = create_executor();
     let result = executor
@@ -162,7 +149,6 @@ fn test_inet_add() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_subtract() {
     let mut executor = create_executor();
     let result = executor
@@ -172,7 +158,6 @@ fn test_inet_subtract() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_subtract_inet() {
     let mut executor = create_executor();
     let result = executor
@@ -182,7 +167,6 @@ fn test_inet_subtract_inet() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_abbrev_inet() {
     let mut executor = create_executor();
     let result = executor
@@ -192,7 +176,6 @@ fn test_abbrev_inet() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_abbrev_cidr() {
     let mut executor = create_executor();
     let result = executor
@@ -202,7 +185,6 @@ fn test_abbrev_cidr() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_broadcast() {
     let mut executor = create_executor();
     let result = executor
@@ -212,7 +194,6 @@ fn test_broadcast() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_family() {
     let mut executor = create_executor();
     let result = executor
@@ -222,7 +203,6 @@ fn test_family() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_family_ipv6() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT FAMILY('::1'::INET)").unwrap();
@@ -230,7 +210,6 @@ fn test_family_ipv6() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_host() {
     let mut executor = create_executor();
     let result = executor
@@ -240,7 +219,6 @@ fn test_host() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_hostmask() {
     let mut executor = create_executor();
     let result = executor
@@ -250,7 +228,6 @@ fn test_hostmask() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_masklen() {
     let mut executor = create_executor();
     let result = executor
@@ -260,7 +237,6 @@ fn test_masklen() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_netmask() {
     let mut executor = create_executor();
     let result = executor
@@ -270,7 +246,6 @@ fn test_netmask() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_network() {
     let mut executor = create_executor();
     let result = executor
@@ -280,7 +255,6 @@ fn test_network() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_set_masklen_inet() {
     let mut executor = create_executor();
     let result = executor
@@ -290,7 +264,6 @@ fn test_set_masklen_inet() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_set_masklen_cidr() {
     let mut executor = create_executor();
     let result = executor
@@ -300,7 +273,6 @@ fn test_set_masklen_cidr() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_text_inet() {
     let mut executor = create_executor();
     let result = executor
@@ -310,7 +282,6 @@ fn test_text_inet() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_same_family() {
     let mut executor = create_executor();
     let result = executor
@@ -320,7 +291,6 @@ fn test_inet_same_family() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inet_merge() {
     let mut executor = create_executor();
     let result = executor
@@ -330,23 +300,21 @@ fn test_inet_merge() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_trunc_macaddr() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT TRUNC('08:00:2b:01:02:03'::MACADDR)")
         .unwrap();
-    assert_table_eq!(result, [["08:00:2b:00:00:00"]]);
+    assert_table_eq!(result, [[macaddr("08:00:2b:00:00:00")]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_macaddr8_set7bit() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT MACADDR8_SET7BIT('00:00:2b:01:02:03:04:05'::MACADDR8)")
         .unwrap();
-    assert_table_eq!(result, [["02:00:2b:01:02:03:04:05"]]);
+    assert_table_eq!(result, [[macaddr8("02:00:2b:01:02:03:04:05")]]);
 }
 
 #[test]

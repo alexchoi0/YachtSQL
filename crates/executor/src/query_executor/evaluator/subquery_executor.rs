@@ -49,6 +49,7 @@ impl SubqueryExecutorImpl {
                 table_name,
                 alias: _,
                 projection: _,
+                ..
             } => {
                 let storage = self._storage.borrow();
 

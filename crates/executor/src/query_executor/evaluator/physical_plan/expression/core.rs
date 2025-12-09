@@ -1046,6 +1046,20 @@ impl ProjectionWithExprExec {
                 | FunctionName::InetServerAddr
                 | FunctionName::InetServerPort
                 | FunctionName::TxidCurrent
+                | FunctionName::TxidCurrentIfAssigned
+                | FunctionName::TxidCurrentSnapshot
+                | FunctionName::TxidSnapshotXmin
+                | FunctionName::TxidSnapshotXmax
+                | FunctionName::TxidSnapshotXip
+                | FunctionName::TxidVisibleInSnapshot
+                | FunctionName::TxidStatus
+                | FunctionName::PgCurrentXactId
+                | FunctionName::PgCurrentXactIdIfAssigned
+                | FunctionName::PgSnapshotXmin
+                | FunctionName::PgSnapshotXmax
+                | FunctionName::PgSnapshotXip
+                | FunctionName::PgVisibleInSnapshot
+                | FunctionName::PgXactStatus
         ) {
             return Self::evaluate_introspection_function(name, args, batch, row_idx);
         }
@@ -1149,6 +1163,7 @@ impl ProjectionWithExprExec {
                 | FunctionName::LowerInf
                 | FunctionName::UpperInf
                 | FunctionName::Isempty
+                | FunctionName::Range
                 | FunctionName::RangeMerge
                 | FunctionName::RangeIsempty
                 | FunctionName::RangeContains
@@ -1160,6 +1175,8 @@ impl ProjectionWithExprExec {
                 | FunctionName::RangeStrictlyLeft
                 | FunctionName::RangeStrictlyRight
                 | FunctionName::RangeDifference
+                | FunctionName::RangeStart
+                | FunctionName::RangeEnd
         ) {
             return Self::evaluate_range_function(func_name, args, batch, row_idx);
         }
@@ -1222,6 +1239,47 @@ impl ProjectionWithExprExec {
                 | FunctionName::SubBitmap
         ) {
             return Self::evaluate_bitmap_function(name, args, batch, row_idx);
+        }
+
+        if matches!(
+            name,
+            FunctionName::Stem
+                | FunctionName::Lemmatize
+                | FunctionName::Synonyms
+                | FunctionName::DetectLanguage
+                | FunctionName::DetectLanguageMixed
+                | FunctionName::DetectLanguageUnknown
+                | FunctionName::DetectCharset
+                | FunctionName::DetectTonality
+                | FunctionName::DetectProgrammingLanguage
+                | FunctionName::NormalizeQuery
+                | FunctionName::NormalizedQueryHash
+                | FunctionName::WordShingleMinHash
+                | FunctionName::WordShingleSimHash
+                | FunctionName::NgramSimHash
+        ) {
+            return Self::evaluate_nlp_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            name,
+            FunctionName::L1Norm
+                | FunctionName::L2Norm
+                | FunctionName::LinfNorm
+                | FunctionName::LpNorm
+                | FunctionName::L1Distance
+                | FunctionName::L2Distance
+                | FunctionName::LinfDistance
+                | FunctionName::LpDistance
+                | FunctionName::L1Normalize
+                | FunctionName::L2Normalize
+                | FunctionName::LinfNormalize
+                | FunctionName::LpNormalize
+                | FunctionName::CosineDistance
+                | FunctionName::DotProduct
+                | FunctionName::L2SquaredDistance
+        ) {
+            return Self::evaluate_distance_function(func_name, args, batch, row_idx);
         }
 
         if let FunctionName::Custom(custom_name) = name {

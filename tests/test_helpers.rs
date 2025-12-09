@@ -242,6 +242,38 @@ pub fn n(val: &str) -> Value {
     numeric(val)
 }
 
+pub fn macaddr(addr: &str) -> Value {
+    use yachtsql_core::types::MacAddress;
+    let parts: Vec<u8> = addr
+        .split(':')
+        .map(|s| u8::from_str_radix(s, 16).expect("Invalid hex in MAC address"))
+        .collect();
+    let octets: [u8; 6] = parts.try_into().expect("MAC address must have 6 octets");
+    Value::macaddr(MacAddress::new_macaddr(octets))
+}
+
+pub fn macaddr8(addr: &str) -> Value {
+    use yachtsql_core::types::MacAddress;
+    let parts: Vec<u8> = addr
+        .split(':')
+        .map(|s| u8::from_str_radix(s, 16).expect("Invalid hex in MAC8 address"))
+        .collect();
+    let octets: [u8; 8] = parts.try_into().expect("MAC8 address must have 8 octets");
+    Value::macaddr8(MacAddress::new_macaddr8(octets))
+}
+
+pub fn inet(addr: &str) -> Value {
+    use yachtsql_core::types::network::InetAddr;
+    let parsed: InetAddr = addr.parse().expect("Invalid INET address");
+    Value::inet(parsed)
+}
+
+pub fn cidr(addr: &str) -> Value {
+    use yachtsql_core::types::network::CidrAddr;
+    let parsed: CidrAddr = addr.parse().expect("Invalid CIDR address");
+    Value::cidr(parsed)
+}
+
 pub fn dt(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Value {
     datetime(year, month, day, hour, min, sec)
 }
@@ -252,4 +284,14 @@ pub fn datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) 
         .with_ymd_and_hms(year, month, day, hour, min, sec)
         .unwrap();
     Value::datetime(dt)
+}
+
+pub fn time(hour: u32, min: u32, sec: u32) -> Value {
+    use chrono::NaiveTime;
+    let t = NaiveTime::from_hms_opt(hour, min, sec).unwrap();
+    Value::time(t)
+}
+
+pub fn tm(hour: u32, min: u32, sec: u32) -> Value {
+    time(hour, min, sec)
 }

@@ -9,6 +9,10 @@ pub fn validate_function(function_name: &str, registry: &FeatureRegistry) -> Res
         return Ok(());
     }
 
+    if is_sql_keyword_pseudo_function(&function_upper) {
+        return Ok(());
+    }
+
     if is_core_function(&function_upper) {
         return Ok(());
     }
@@ -27,6 +31,10 @@ pub fn validate_function(function_name: &str, registry: &FeatureRegistry) -> Res
             function_name, dialect
         )))
     }
+}
+
+fn is_sql_keyword_pseudo_function(function_name: &str) -> bool {
+    matches!(function_name, "ALL" | "ANY" | "SOME")
 }
 
 fn is_core_function(function_name: &str) -> bool {

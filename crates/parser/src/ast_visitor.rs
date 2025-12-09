@@ -30,6 +30,14 @@ impl Drop for AliasScopeGuard<'_> {
     }
 }
 
+use yachtsql_core::types::{DataType, Value};
+
+#[derive(Debug, Clone)]
+pub struct SessionVariable {
+    pub data_type: DataType,
+    pub value: Option<Value>,
+}
+
 pub struct LogicalPlanBuilder {
     storage: Option<std::rc::Rc<RefCell<yachtsql_storage::Storage>>>,
     alias_stack: RefCell<Vec<HashSet<String>>>,
@@ -38,6 +46,7 @@ pub struct LogicalPlanBuilder {
     current_sql: RefCell<Option<String>>,
     subquery_alias_counter: Cell<usize>,
     merge_returning: RefCell<Option<String>>,
+    session_variables: HashMap<String, SessionVariable>,
 }
 
 mod ddl;
@@ -61,6 +70,7 @@ impl LogicalPlanBuilder {
             current_sql: RefCell::new(None),
             subquery_alias_counter: Cell::new(0),
             merge_returning: RefCell::new(None),
+            session_variables: HashMap::new(),
         }
     }
 
@@ -78,6 +88,7 @@ impl LogicalPlanBuilder {
             current_sql: self.current_sql,
             subquery_alias_counter: self.subquery_alias_counter,
             merge_returning: self.merge_returning,
+            session_variables: self.session_variables,
         }
     }
 
@@ -90,12 +101,30 @@ impl LogicalPlanBuilder {
             current_sql: self.current_sql,
             subquery_alias_counter: self.subquery_alias_counter,
             merge_returning: self.merge_returning,
+            session_variables: self.session_variables,
         }
     }
 
     pub fn with_merge_returning(self, returning: Option<String>) -> Self {
         *self.merge_returning.borrow_mut() = returning;
         self
+    }
+
+    pub fn with_variables(self, variables: HashMap<String, SessionVariable>) -> Self {
+        Self {
+            storage: self.storage,
+            alias_stack: self.alias_stack,
+            named_windows: self.named_windows,
+            dialect: self.dialect,
+            current_sql: self.current_sql,
+            subquery_alias_counter: self.subquery_alias_counter,
+            merge_returning: self.merge_returning,
+            session_variables: variables,
+        }
+    }
+
+    pub fn get_session_variable(&self, name: &str) -> Option<&SessionVariable> {
+        self.session_variables.get(name)
     }
 
     pub fn take_merge_returning(&self) -> Option<String> {

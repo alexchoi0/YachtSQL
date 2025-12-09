@@ -207,6 +207,10 @@ impl ProjectionWithExprExec {
 
                 (Some(DataType::Interval), Some(DataType::Interval)) => Some(DataType::Interval),
 
+                (Some(DataType::Inet), Some(DataType::Int64))
+                | (Some(DataType::Int64), Some(DataType::Inet))
+                | (Some(DataType::Inet), Some(DataType::Inet)) => Some(DataType::Inet),
+
                 (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
                     Some(DataType::Numeric(None))
                 }
@@ -239,6 +243,9 @@ impl ProjectionWithExprExec {
                 (Some(DataType::Date), Some(DataType::Interval)) => Some(DataType::Date),
 
                 (Some(DataType::Interval), Some(DataType::Interval)) => Some(DataType::Interval),
+
+                (Some(DataType::Inet), Some(DataType::Int64)) => Some(DataType::Inet),
+                (Some(DataType::Inet), Some(DataType::Inet)) => Some(DataType::Int64),
 
                 (Some(DataType::Numeric(_)), _) | (_, Some(DataType::Numeric(_))) => {
                     Some(DataType::Numeric(None))
@@ -324,11 +331,21 @@ impl ProjectionWithExprExec {
             },
 
             BinaryOp::BitwiseAnd | BinaryOp::BitwiseOr | BinaryOp::BitwiseXor => {
-                Some(DataType::Int64)
+                match (&left_type, &right_type) {
+                    (Some(DataType::Inet), Some(DataType::Inet)) => Some(DataType::Inet),
+                    _ => Some(DataType::Int64),
+                }
             }
+
+            BinaryOp::InetContains
+            | BinaryOp::InetContainedBy
+            | BinaryOp::InetContainsOrEqual
+            | BinaryOp::InetContainedByOrEqual
+            | BinaryOp::InetOverlap => Some(DataType::Bool),
 
             BinaryOp::ShiftLeft | BinaryOp::ShiftRight => match (&left_type, &right_type) {
                 (Some(DataType::Range(_)), Some(DataType::Range(_))) => Some(DataType::Bool),
+                (Some(DataType::Inet), Some(DataType::Inet)) => Some(DataType::Bool),
                 _ => Some(DataType::Int64),
             },
 
@@ -346,7 +363,10 @@ impl ProjectionWithExprExec {
         match op {
             UnaryOp::IsNull | UnaryOp::IsNotNull | UnaryOp::Not => Some(DataType::Bool),
             UnaryOp::Negate | UnaryOp::Plus => operand_type,
-            UnaryOp::BitwiseNot => Some(DataType::Int64),
+            UnaryOp::BitwiseNot => match operand_type {
+                Some(DataType::Inet) => Some(DataType::Inet),
+                _ => Some(DataType::Int64),
+            },
         }
     }
 
@@ -365,6 +385,8 @@ impl ProjectionWithExprExec {
             LiteralValue::String(_) => Some(DataType::String),
             LiteralValue::Bytes(_) => Some(DataType::Bytes),
             LiteralValue::Date(_) => Some(DataType::Date),
+            LiteralValue::Time(_) => Some(DataType::Time),
+            LiteralValue::DateTime(_) => Some(DataType::DateTime),
             LiteralValue::Timestamp(_) => Some(DataType::Timestamp),
             LiteralValue::Json(_) => Some(DataType::Json),
             LiteralValue::Array(elements) => {
@@ -545,6 +567,34 @@ impl ProjectionWithExprExec {
 
             FunctionName::Custom(s) if s == "PORT" => Some(DataType::Int64),
 
+            FunctionName::Custom(s) if matches!(s.as_str(), "MASKLEN" | "FAMILY") => {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "NETMASK" | "HOSTMASK" | "BROADCAST") =>
+            {
+                Some(DataType::Inet)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "NETWORK" | "INET_MERGE") => {
+                Some(DataType::Cidr)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "HOST" | "ABBREV" | "TEXT") => {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if s == "INET_SAME_FAMILY" => Some(DataType::Bool),
+
+            FunctionName::Custom(s) if s == "SET_MASKLEN" => {
+                Self::infer_first_arg_type(args, schema).or(Some(DataType::Inet))
+            }
+
+            FunctionName::Custom(s) if s == "TRUNC" => Some(DataType::MacAddr),
+
+            FunctionName::Custom(s) if s == "MACADDR8_SET7BIT" => Some(DataType::MacAddr8),
+
             FunctionName::Custom(s)
                 if matches!(
                     s.as_str(),
@@ -643,9 +693,24 @@ impl ProjectionWithExprExec {
                         | "BITTEST"
                         | "BITTESTALL"
                         | "BITTESTANY"
+                        | "BITROTATELEFT"
+                        | "BITROTATERIGHT"
+                        | "BITHAMMINGDISTANCE"
+                        | "BITSLICE"
+                        | "BYTESWAP"
                 ) =>
             {
                 Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s) if s == "BITPOSITIONSTOARRAY" => {
+                Some(DataType::Array(Box::new(DataType::Int64)))
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "ISNULL" | "ISNOTNULL" | "ISZEROORNULL") =>
+            {
+                Some(DataType::Bool)
             }
 
             FunctionName::Custom(s)
@@ -1101,12 +1166,54 @@ impl ProjectionWithExprExec {
             | FunctionName::RangeStrictlyLeft
             | FunctionName::RangeStrictlyRight => Some(DataType::Bool),
 
+            FunctionName::Range => {
+                if !args.is_empty() {
+                    match Self::infer_expr_type_with_schema(&args[0], schema) {
+                        Some(DataType::Date) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::DateRange))
+                        }
+                        Some(DataType::Timestamp) | Some(DataType::DateTime) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::TsRange))
+                        }
+                        Some(DataType::Int64) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::Int8Range))
+                        }
+                        Some(DataType::Float64) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::NumRange))
+                        }
+                        _ => Some(DataType::Range(yachtsql_core::types::RangeType::DateRange)),
+                    }
+                } else {
+                    Some(DataType::Range(yachtsql_core::types::RangeType::DateRange))
+                }
+            }
+
             FunctionName::RangeMerge
             | FunctionName::RangeUnion
             | FunctionName::RangeIntersection
             | FunctionName::RangeDifference => {
                 if !args.is_empty() {
                     Self::infer_expr_type_with_schema(&args[0], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::RangeStart | FunctionName::RangeEnd => {
+                if !args.is_empty() {
+                    match Self::infer_expr_type_with_schema(&args[0], schema) {
+                        Some(DataType::Range(range_type)) => match range_type {
+                            yachtsql_core::types::RangeType::Int4Range
+                            | yachtsql_core::types::RangeType::Int8Range => Some(DataType::Int64),
+                            yachtsql_core::types::RangeType::NumRange => Some(DataType::Float64),
+                            yachtsql_core::types::RangeType::DateRange => Some(DataType::Date),
+                            yachtsql_core::types::RangeType::TsRange
+                            | yachtsql_core::types::RangeType::TsTzRange => {
+                                Some(DataType::Timestamp)
+                            }
+                        },
+                        _ => None,
+                    }
                 } else {
                     None
                 }
@@ -1208,10 +1315,11 @@ impl ProjectionWithExprExec {
             | FunctionName::TimestampMillis
             | FunctionName::TimestampMicros
             | FunctionName::TimestampAdd
-            | FunctionName::TimestampSub
-            | FunctionName::DatetimeAdd
-            | FunctionName::DatetimeSub
-            | FunctionName::DatetimeTrunc => Some(DataType::Timestamp),
+            | FunctionName::TimestampSub => Some(DataType::Timestamp),
+
+            FunctionName::DatetimeAdd | FunctionName::DatetimeSub | FunctionName::DatetimeTrunc => {
+                Some(DataType::DateTime)
+            }
 
             FunctionName::TimeAdd | FunctionName::TimeSub | FunctionName::TimeTrunc => {
                 Some(DataType::Time)
@@ -1261,6 +1369,38 @@ impl ProjectionWithExprExec {
                 )))))
             }
             FunctionName::StringToArray => Some(DataType::Array(Box::new(DataType::String))),
+
+            FunctionName::Stem
+            | FunctionName::Lemmatize
+            | FunctionName::DetectLanguage
+            | FunctionName::DetectLanguageUnknown
+            | FunctionName::DetectCharset
+            | FunctionName::DetectTonality
+            | FunctionName::DetectProgrammingLanguage
+            | FunctionName::NormalizeQuery => Some(DataType::String),
+            FunctionName::Synonyms | FunctionName::DetectLanguageMixed => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+            FunctionName::NormalizedQueryHash
+            | FunctionName::NgramSimHash
+            | FunctionName::WordShingleSimHash => Some(DataType::Int64),
+            FunctionName::WordShingleMinHash => Some(DataType::Array(Box::new(DataType::Int64))),
+
+            FunctionName::L1Norm
+            | FunctionName::L2Norm
+            | FunctionName::LinfNorm
+            | FunctionName::LpNorm
+            | FunctionName::L1Distance
+            | FunctionName::L2Distance
+            | FunctionName::LinfDistance
+            | FunctionName::LpDistance
+            | FunctionName::CosineDistance
+            | FunctionName::DotProduct
+            | FunctionName::L2SquaredDistance => Some(DataType::Float64),
+            FunctionName::L1Normalize
+            | FunctionName::L2Normalize
+            | FunctionName::LinfNormalize
+            | FunctionName::LpNormalize => Some(DataType::Array(Box::new(DataType::Float64))),
 
             FunctionName::GenerateArray => Some(DataType::Array(Box::new(DataType::Int64))),
             FunctionName::GenerateDateArray => Some(DataType::Array(Box::new(DataType::Date))),
@@ -1960,7 +2100,12 @@ impl ProjectionWithExprExec {
             | FunctionName::PgTablespaceSize
             | FunctionName::InetClientPort
             | FunctionName::InetServerPort
-            | FunctionName::TxidCurrent => Some(DataType::Int64),
+            | FunctionName::TxidCurrent
+            | FunctionName::TxidSnapshotXmin
+            | FunctionName::TxidSnapshotXmax
+            | FunctionName::PgCurrentXactId
+            | FunctionName::PgSnapshotXmin
+            | FunctionName::PgSnapshotXmax => Some(DataType::Int64),
 
             FunctionName::IsFinite
             | FunctionName::IsInfinite
@@ -1970,7 +2115,19 @@ impl ProjectionWithExprExec {
             | FunctionName::HasTablePrivilege
             | FunctionName::HasSchemaPrivilege
             | FunctionName::HasDatabasePrivilege
-            | FunctionName::HasColumnPrivilege => Some(DataType::Bool),
+            | FunctionName::HasColumnPrivilege
+            | FunctionName::TxidVisibleInSnapshot
+            | FunctionName::PgVisibleInSnapshot => Some(DataType::Bool),
+
+            FunctionName::TxidCurrentSnapshot
+            | FunctionName::TxidStatus
+            | FunctionName::PgXactStatus => Some(DataType::String),
+
+            FunctionName::TxidSnapshotXip | FunctionName::PgSnapshotXip => {
+                Some(DataType::Array(Box::new(DataType::Int64)))
+            }
+
+            FunctionName::TxidCurrentIfAssigned | FunctionName::PgCurrentXactIdIfAssigned => None,
 
             FunctionName::PgConfLoadTime | FunctionName::PgPostmasterStartTime => {
                 Some(DataType::Timestamp)
@@ -2095,7 +2252,9 @@ impl ProjectionWithExprExec {
             | Expr::InList { .. }
             | Expr::TupleInList { .. }
             | Expr::TupleInSubquery { .. }
-            | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
+            | Expr::IsDistinctFrom { .. }
+            | Expr::AnyOp { .. }
+            | Expr::AllOp { .. } => Self::infer_comparison_operator_type(),
             Expr::Grouping { .. } | Expr::GroupingId { .. } => Some(DataType::Int64),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());
@@ -2223,7 +2382,9 @@ impl ProjectionWithExprExec {
             | Expr::InList { .. }
             | Expr::TupleInList { .. }
             | Expr::TupleInSubquery { .. }
-            | Expr::IsDistinctFrom { .. } => Self::infer_comparison_operator_type(),
+            | Expr::IsDistinctFrom { .. }
+            | Expr::AnyOp { .. }
+            | Expr::AllOp { .. } => Self::infer_comparison_operator_type(),
             Expr::Grouping { .. } | Expr::GroupingId { .. } => Some(DataType::Int64),
             Expr::StructLiteral { fields } => {
                 let mut struct_fields = Vec::with_capacity(fields.len());

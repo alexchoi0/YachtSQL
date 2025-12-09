@@ -240,6 +240,13 @@ impl QueryExecutor {
             self.fire_after_delete_triggers(&dataset_id, &table_id, &deleted_row, &schema)?;
         }
 
+        if !is_view {
+            let descendants = self.collect_all_descendant_tables_for_delete(&dataset_id, &table_id);
+            for (child_ds, child_tbl) in descendants {
+                self.delete_child_table_rows(&child_ds, &child_tbl, &delete.selection, &schema)?;
+            }
+        }
+
         debug_eprintln!(
             "[executor::dml::delete] Deleted {} rows (INSTEAD OF: {}, normal: {})",
             instead_of_count + deleted_count,
@@ -274,6 +281,98 @@ impl QueryExecutor {
             &contexts,
             schema,
         )
+    }
+
+    fn collect_all_descendant_tables_for_delete(
+        &self,
+        dataset_id: &str,
+        table_id: &str,
+    ) -> Vec<(String, String)> {
+        let storage = self.storage.borrow();
+        let mut descendants = Vec::new();
+        let mut to_process = vec![(dataset_id.to_string(), table_id.to_string())];
+        let mut processed = std::collections::HashSet::new();
+
+        while let Some((ds_id, tbl_id)) = to_process.pop() {
+            let key = format!("{}.{}", ds_id, tbl_id);
+            if processed.contains(&key) {
+                continue;
+            }
+            processed.insert(key);
+
+            if let Some(dataset) = storage.get_dataset(&ds_id) {
+                if let Some(table) = dataset.get_table(&tbl_id) {
+                    for child_full in table.schema().child_tables() {
+                        let (child_ds, child_tbl) = if child_full.contains('.') {
+                            let parts: Vec<&str> = child_full.splitn(2, '.').collect();
+                            (parts[0].to_string(), parts[1].to_string())
+                        } else {
+                            (ds_id.clone(), child_full.clone())
+                        };
+                        descendants.push((child_ds.clone(), child_tbl.clone()));
+                        to_process.push((child_ds, child_tbl));
+                    }
+                }
+            }
+        }
+
+        descendants
+    }
+
+    fn delete_child_table_rows(
+        &mut self,
+        dataset_id: &str,
+        table_id: &str,
+        selection: &Option<SqlExpr>,
+        parent_schema: &Schema,
+    ) -> Result<()> {
+        let child_schema = {
+            let storage = self.storage.borrow();
+            let dataset = storage.get_dataset(dataset_id).ok_or_else(|| {
+                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
+            })?;
+            let table = dataset.get_table(table_id).ok_or_else(|| {
+                Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
+            })?;
+            table.schema().clone()
+        };
+
+        let all_rows = {
+            let storage = self.storage.borrow();
+            let dataset = storage.get_dataset(dataset_id).unwrap();
+            let table = dataset.get_table(table_id).unwrap();
+            table.get_all_rows()
+        };
+
+        let rows_to_keep = if let Some(where_expr) = selection {
+            let processed_where = self.preprocess_subqueries_in_expr(where_expr)?;
+            let evaluator = ExpressionEvaluator::new(parent_schema);
+            let mut keep = Vec::new();
+
+            for row in all_rows {
+                let parent_values: Vec<_> = row
+                    .values()
+                    .iter()
+                    .take(parent_schema.field_count())
+                    .cloned()
+                    .collect();
+                let parent_row = Row::from_values(parent_values);
+
+                if !evaluator
+                    .evaluate_where(&processed_where, &parent_row)
+                    .unwrap_or(false)
+                {
+                    keep.push(row);
+                }
+            }
+            keep
+        } else {
+            Vec::new()
+        };
+
+        self.replace_table_with_rows(dataset_id, table_id, &child_schema, rows_to_keep)?;
+
+        Ok(())
     }
 
     fn execute_delete_with_join(&mut self, delete: &sqlparser::ast::Delete) -> Result<Table> {

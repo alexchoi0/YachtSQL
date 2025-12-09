@@ -421,15 +421,58 @@ impl QueryExecutor {
         resource_tracker.check_timeout()?;
 
         let optimized_plan = {
+            let session_vars = self.session.variables();
+            let has_variables = !session_vars.is_empty();
+
             let mut cache = self.plan_cache.borrow_mut();
-            if let Some(cached) = cache.get(&cache_key) {
-                (*cached.plan).clone()
+            if !has_variables {
+                if let Some(cached) = cache.get(&cache_key) {
+                    (*cached.plan).clone()
+                } else {
+                    drop(cache);
+
+                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
+                        .with_storage(Rc::clone(&self.storage))
+                        .with_dialect(self.dialect());
+                    let logical_plan = plan_builder.query_to_plan(&query_for_plan)?;
+
+                    resource_tracker.check_timeout()?;
+
+                    let optimized = self.optimizer.optimize(logical_plan)?;
+
+                    resource_tracker.check_timeout()?;
+
+                    let cached_plan = crate::plan_cache::CachedPlan::new(
+                        optimized.root().clone(),
+                        original_sql.to_string(),
+                    );
+                    self.plan_cache.borrow_mut().insert(cache_key, cached_plan);
+
+                    optimized.root().clone()
+                }
             } else {
                 drop(cache);
 
+                let parser_vars: std::collections::HashMap<
+                    String,
+                    yachtsql_parser::SessionVariable,
+                > = session_vars
+                    .iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            yachtsql_parser::SessionVariable {
+                                data_type: v.data_type.clone(),
+                                value: v.value.clone(),
+                            },
+                        )
+                    })
+                    .collect();
+
                 let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
                     .with_storage(Rc::clone(&self.storage))
-                    .with_dialect(self.dialect());
+                    .with_dialect(self.dialect())
+                    .with_variables(parser_vars);
                 let logical_plan = plan_builder.query_to_plan(&query_for_plan)?;
 
                 resource_tracker.check_timeout()?;
@@ -437,12 +480,6 @@ impl QueryExecutor {
                 let optimized = self.optimizer.optimize(logical_plan)?;
 
                 resource_tracker.check_timeout()?;
-
-                let cached_plan = crate::plan_cache::CachedPlan::new(
-                    optimized.root().clone(),
-                    original_sql.to_string(),
-                );
-                self.plan_cache.borrow_mut().insert(cache_key, cached_plan);
 
                 optimized.root().clone()
             }

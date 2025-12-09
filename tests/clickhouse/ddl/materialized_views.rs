@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_materialized_view_basic() {
     let mut executor = create_executor();
@@ -19,7 +18,6 @@ fn test_create_materialized_view_basic() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_create_materialized_view_to_table() {
     let mut executor = create_executor();
@@ -48,7 +46,6 @@ fn test_create_materialized_view_to_table() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_materialized_view_aggregation() {
     let mut executor = create_executor();
@@ -72,7 +69,7 @@ fn test_materialized_view_aggregation() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_materialized_view_insert_propagation() {
     let mut executor = create_executor();
@@ -102,7 +99,7 @@ fn test_materialized_view_insert_propagation() {
     assert!(result.num_rows() > 0);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_materialized_view_populate() {
     let mut executor = create_executor();
@@ -129,7 +126,7 @@ fn test_materialized_view_populate() {
     assert_eq!(view_data.num_rows(), 3);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_drop_materialized_view() {
     let mut executor = create_executor();
@@ -148,7 +145,7 @@ fn test_drop_materialized_view() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_alter_materialized_view() {
     let mut executor = create_executor();
@@ -169,7 +166,6 @@ fn test_alter_materialized_view() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_materialized_view_with_where() {
     let mut executor = create_executor();
@@ -187,7 +183,6 @@ fn test_materialized_view_with_where() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_materialized_view_with_join() {
     let mut executor = create_executor();
@@ -214,7 +209,6 @@ fn test_materialized_view_with_join() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_materialized_view_chain() {
     let mut executor = create_executor();
@@ -243,7 +237,7 @@ fn test_materialized_view_chain() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_show_create_materialized_view() {
     let mut executor = create_executor();
@@ -262,7 +256,6 @@ fn test_show_create_materialized_view() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_materialized_view_definer() {
     let mut executor = create_executor();
@@ -281,7 +274,6 @@ fn test_materialized_view_definer() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_refreshable_materialized_view() {
     let mut executor = create_executor();

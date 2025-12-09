@@ -1,6 +1,6 @@
 use sqlparser::ast;
 use yachtsql_core::error::{Error, Result};
-use yachtsql_ir::expr::{BinaryOp, Expr, UnaryOp};
+use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue, UnaryOp};
 
 use super::super::LogicalPlanBuilder;
 
@@ -19,6 +19,13 @@ impl LogicalPlanBuilder {
                 Expr::Subquery {
                     plan: Box::new(subquery_plan.root().clone()),
                 }
+            }
+            ast::Expr::Tuple(elements) => {
+                let array_elements = elements
+                    .iter()
+                    .map(|e| self.sql_expr_to_expr(e))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::Literal(LiteralValue::Array(array_elements))
             }
             _ => self.sql_expr_to_expr(right)?,
         };
@@ -46,6 +53,13 @@ impl LogicalPlanBuilder {
                 Expr::Subquery {
                     plan: Box::new(subquery_plan.root().clone()),
                 }
+            }
+            ast::Expr::Tuple(elements) => {
+                let array_elements = elements
+                    .iter()
+                    .map(|e| self.sql_expr_to_expr(e))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::Literal(LiteralValue::Array(array_elements))
             }
             _ => self.sql_expr_to_expr(right)?,
         };
@@ -91,6 +105,8 @@ impl LogicalPlanBuilder {
                 "<@" => Ok(BinaryOp::ArrayContainedBy),
                 "&&" => Ok(BinaryOp::ArrayOverlap),
                 "-|-" => Ok(BinaryOp::RangeAdjacent),
+                "<<=" => Ok(BinaryOp::InetContainedByOrEqual),
+                ">>=" => Ok(BinaryOp::InetContainsOrEqual),
                 _ => Err(Error::unsupported_feature(format!(
                     "Custom binary operator not supported: {:?}",
                     op_str

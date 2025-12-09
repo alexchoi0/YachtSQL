@@ -1,6 +1,6 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_basic() {
     let mut executor = create_executor();
@@ -26,7 +26,7 @@ fn test_with_fill_basic() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_from_to() {
     let mut executor = create_executor();
@@ -47,7 +47,7 @@ fn test_with_fill_from_to() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_step() {
     let mut executor = create_executor();
@@ -68,7 +68,7 @@ fn test_with_fill_step() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_date_step() {
     let mut executor = create_executor();
@@ -93,7 +93,7 @@ fn test_with_fill_date_step() {
     assert!(result.num_rows() >= 2);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_multiple_columns() {
     let mut executor = create_executor();
@@ -117,7 +117,7 @@ fn test_with_fill_multiple_columns() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_interpolate() {
     let mut executor = create_executor();
@@ -138,7 +138,7 @@ fn test_with_fill_interpolate() {
     assert!(result.num_rows() >= 2);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_descending() {
     let mut executor = create_executor();
@@ -159,7 +159,7 @@ fn test_with_fill_descending() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_aggregation() {
     let mut executor = create_executor();
@@ -185,7 +185,7 @@ fn test_with_fill_aggregation() {
     assert!(result.num_rows() >= 4);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_datetime() {
     let mut executor = create_executor();
@@ -210,7 +210,7 @@ fn test_with_fill_datetime() {
     assert!(result.num_rows() >= 2);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_null_handling() {
     let mut executor = create_executor();
@@ -231,7 +231,7 @@ fn test_with_fill_null_handling() {
     assert!(result.num_rows() >= 3);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_expression() {
     let mut executor = create_executor();
@@ -252,7 +252,7 @@ fn test_with_fill_expression() {
     assert!(result.num_rows() >= 2);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires WITH FILL support"]
 #[test]
 fn test_with_fill_subquery() {
     let mut executor = create_executor();

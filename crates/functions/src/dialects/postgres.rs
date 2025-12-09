@@ -267,6 +267,20 @@ pub fn postgres_scalar_functions() -> Vec<&'static str> {
         "INET_SERVER_ADDR",
         "INET_SERVER_PORT",
         "TXID_CURRENT",
+        "TXID_CURRENT_IF_ASSIGNED",
+        "TXID_CURRENT_SNAPSHOT",
+        "TXID_SNAPSHOT_XMIN",
+        "TXID_SNAPSHOT_XMAX",
+        "TXID_SNAPSHOT_XIP",
+        "TXID_VISIBLE_IN_SNAPSHOT",
+        "TXID_STATUS",
+        "PG_CURRENT_XACT_ID",
+        "PG_CURRENT_XACT_ID_IF_ASSIGNED",
+        "PG_SNAPSHOT_XMIN",
+        "PG_SNAPSHOT_XMAX",
+        "PG_SNAPSHOT_XIP",
+        "PG_VISIBLE_IN_SNAPSHOT",
+        "PG_XACT_STATUS",
     ]
 }
 

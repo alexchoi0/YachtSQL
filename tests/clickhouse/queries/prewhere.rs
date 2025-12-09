@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_basic() {
     let mut executor = create_executor();
@@ -20,7 +20,7 @@ fn test_prewhere_basic() {
     assert_table_eq!(result, [[2, "b"], [3, "c"]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_with_where() {
     let mut executor = create_executor();
@@ -37,7 +37,7 @@ fn test_prewhere_with_where() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_and_condition() {
     let mut executor = create_executor();
@@ -56,7 +56,7 @@ fn test_prewhere_and_condition() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_or_condition() {
     let mut executor = create_executor();
@@ -75,7 +75,7 @@ fn test_prewhere_or_condition() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_in() {
     let mut executor = create_executor();
@@ -94,7 +94,7 @@ fn test_prewhere_in() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_between() {
     let mut executor = create_executor();
@@ -113,7 +113,7 @@ fn test_prewhere_between() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_like() {
     let mut executor = create_executor();
@@ -132,7 +132,7 @@ fn test_prewhere_like() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_is_null() {
     let mut executor = create_executor();
@@ -149,7 +149,7 @@ fn test_prewhere_is_null() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_function() {
     let mut executor = create_executor();
@@ -170,7 +170,7 @@ fn test_prewhere_function() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_aggregate() {
     let mut executor = create_executor();
@@ -187,7 +187,7 @@ fn test_prewhere_aggregate() {
     assert_table_eq!(result, [["A", 20], ["B", 70]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_order_by() {
     let mut executor = create_executor();
@@ -206,7 +206,7 @@ fn test_prewhere_order_by() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PREWHERE support"]
 #[test]
 fn test_prewhere_limit() {
     let mut executor = create_executor();

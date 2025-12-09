@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_kafka_engine() {
     let mut executor = create_executor();
@@ -22,7 +22,7 @@ fn test_kafka_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_kafka_engine_multiple_topics() {
     let mut executor = create_executor();
@@ -122,7 +122,6 @@ fn test_hdfs_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_hdfs_engine_with_globs() {
     let mut executor = create_executor();
@@ -157,7 +156,7 @@ fn test_mysql_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_mysql_engine_with_options() {
     let mut executor = create_executor();
@@ -275,7 +274,7 @@ fn test_odbc_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_redis_engine() {
     let mut executor = create_executor();
@@ -309,7 +308,7 @@ fn test_sqlite_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_rabbitmq_engine() {
     let mut executor = create_executor();
@@ -328,7 +327,7 @@ fn test_rabbitmq_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Fix me!"]
 #[test]
 fn test_nats_engine() {
     let mut executor = create_executor();
@@ -381,7 +380,6 @@ fn test_deltalake_engine() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_iceberg_engine() {
     let mut executor = create_executor();

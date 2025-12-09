@@ -84,11 +84,7 @@ fn infer_column_type_from_plan(expr: &Expr, plan: &PlanNode) -> Option<DataType>
 
 fn find_column_type_in_plan(col_name: &str, plan: &PlanNode) -> Option<DataType> {
     match plan {
-        PlanNode::Scan {
-            table_name: _,
-            alias: _,
-            projection: _,
-        } => None,
+        PlanNode::Scan { .. } => None,
         PlanNode::Filter { input, .. } => find_column_type_in_plan(col_name, input),
         PlanNode::Projection { expressions, input } => {
             for (expr, alias) in expressions {
@@ -130,6 +126,8 @@ fn literal_type(lit: &yachtsql_optimizer::expr::LiteralValue) -> DataType {
         yachtsql_optimizer::expr::LiteralValue::String(_) => DataType::String,
         yachtsql_optimizer::expr::LiteralValue::Bytes(_) => DataType::Bytes,
         yachtsql_optimizer::expr::LiteralValue::Date(_) => DataType::Date,
+        yachtsql_optimizer::expr::LiteralValue::Time(_) => DataType::Time,
+        yachtsql_optimizer::expr::LiteralValue::DateTime(_) => DataType::DateTime,
         yachtsql_optimizer::expr::LiteralValue::Timestamp(_) => DataType::Timestamp,
         yachtsql_optimizer::expr::LiteralValue::Uuid(_) => DataType::String,
         yachtsql_optimizer::expr::LiteralValue::Json(_) => DataType::Json,
@@ -200,10 +198,10 @@ fn function_return_type(name: &yachtsql_ir::FunctionName) -> Option<DataType> {
         | FunctionName::TimestampMicros
         | FunctionName::TimestampAdd
         | FunctionName::TimestampSub
-        | FunctionName::TimestampTrunc
-        | FunctionName::DatetimeAdd
-        | FunctionName::DatetimeSub
-        | FunctionName::DatetimeTrunc => Some(DataType::Timestamp),
+        | FunctionName::TimestampTrunc => Some(DataType::Timestamp),
+        FunctionName::DatetimeAdd | FunctionName::DatetimeSub | FunctionName::DatetimeTrunc => {
+            Some(DataType::DateTime)
+        }
         FunctionName::TimeAdd | FunctionName::TimeSub | FunctionName::TimeTrunc => {
             Some(DataType::Time)
         }

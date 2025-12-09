@@ -326,6 +326,7 @@ pub struct TableScanExec {
     projection: Option<Vec<usize>>,
     statistics: ExecutionStatistics,
     storage: Rc<RefCell<yachtsql_storage::Storage>>,
+    only: bool,
 }
 
 impl TableScanExec {
@@ -340,6 +341,23 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
+            only: false,
+        }
+    }
+
+    pub fn new_with_only(
+        schema: Schema,
+        table_name: String,
+        storage: Rc<RefCell<yachtsql_storage::Storage>>,
+        only: bool,
+    ) -> Self {
+        Self {
+            schema,
+            table_name,
+            projection: None,
+            statistics: ExecutionStatistics::default(),
+            storage,
+            only,
         }
     }
 
@@ -353,6 +371,7 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
+            only: false,
         }
     }
 
@@ -391,14 +410,54 @@ impl ExecutionPlan for TableScanExec {
             .get_table(table_id)
             .ok_or_else(|| Error::TableNotFound(format!("Table '{}' not found", table_id)))?;
 
-        let rows = table.get_all_rows();
+        let mut all_rows = table.get_all_rows();
 
-        if rows.is_empty() {
+        if !self.only {
+            let parent_col_count = self.schema.fields().len();
+            let mut descendants_to_process: Vec<String> = table.schema().child_tables().to_vec();
+            let mut processed: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+            while let Some(child_full_name) = descendants_to_process.pop() {
+                if processed.contains(&child_full_name) {
+                    continue;
+                }
+                processed.insert(child_full_name.clone());
+
+                let (child_dataset_name, child_table_id) =
+                    if let Some(dot_pos) = child_full_name.find('.') {
+                        (&child_full_name[..dot_pos], &child_full_name[dot_pos + 1..])
+                    } else {
+                        ("default", child_full_name.as_str())
+                    };
+
+                if let Some(child_dataset) = storage.get_dataset(child_dataset_name) {
+                    if let Some(child_table) = child_dataset.get_table(child_table_id) {
+                        let child_rows = child_table.get_all_rows();
+                        for row in child_rows {
+                            let values: Vec<_> = row
+                                .values()
+                                .iter()
+                                .take(parent_col_count)
+                                .cloned()
+                                .collect();
+                            all_rows.push(yachtsql_storage::Row::from_values(values));
+                        }
+                        for grandchild in child_table.schema().child_tables() {
+                            if !processed.contains(grandchild) {
+                                descendants_to_process.push(grandchild.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if all_rows.is_empty() {
             return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         use yachtsql_storage::Column;
-        let num_rows = rows.len();
+        let num_rows = all_rows.len();
         let num_cols = self.schema.fields().len();
         let mut columns: Vec<Column> = Vec::with_capacity(num_cols);
 
@@ -406,7 +465,7 @@ impl ExecutionPlan for TableScanExec {
             let field = &self.schema.fields()[col_idx];
             let mut column = Column::new(&field.data_type, num_rows);
 
-            for row in &rows {
+            for row in &all_rows {
                 let value = match row.get(col_idx) {
                     Some(v) => v.clone(),
                     None => yachtsql_core::types::Value::null(),
@@ -1024,6 +1083,17 @@ impl UnnestExec {
                     })?;
                     Value::date(date)
                 }
+                LiteralValue::Time(t) => {
+                    use chrono::NaiveTime;
+                    let time = NaiveTime::parse_from_str(t, "%H:%M:%S")
+                        .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M:%S%.f"))
+                        .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M"))
+                        .map_err(|e| {
+                            Error::invalid_query(format!("Invalid time '{}': {}", t, e))
+                        })?;
+                    Value::time(time)
+                }
+                LiteralValue::DateTime(dt) => Value::datetime(Self::parse_timestamp(dt)?),
                 LiteralValue::Timestamp(t) => Value::timestamp(Self::parse_timestamp(t)?),
                 LiteralValue::Json(s) => match serde_json::from_str(s) {
                     Ok(json_val) => Value::json(json_val),
@@ -1557,6 +1627,205 @@ impl TableValuedFunctionExec {
 
         Table::new(self.schema.clone(), vec![key_col, val_col])
     }
+
+    fn execute_numbers(&self, args: &[crate::types::Value]) -> Result<Table> {
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        let (start, count) = match args.len() {
+            1 => {
+                let count = args[0].as_i64().unwrap_or(0);
+                (0i64, count)
+            }
+            2 => {
+                let offset = args[0].as_i64().unwrap_or(0);
+                let count = args[1].as_i64().unwrap_or(0);
+                (offset, count)
+            }
+            _ => (0i64, 0i64),
+        };
+
+        let mut col = Column::new(&DataType::Int64, count as usize);
+        for i in start..(start + count) {
+            col.push(Value::int64(i))?;
+        }
+
+        Table::new(self.schema.clone(), vec![col])
+    }
+
+    fn execute_zeros(&self, args: &[crate::types::Value]) -> Result<Table> {
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        let count = args.first().and_then(|v| v.as_i64()).unwrap_or(0) as usize;
+
+        let mut col = Column::new(&DataType::Int64, count);
+        for _ in 0..count {
+            col.push(Value::int64(0))?;
+        }
+
+        Table::new(self.schema.clone(), vec![col])
+    }
+
+    fn execute_one(&self) -> Result<Table> {
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        let mut col = Column::new(&DataType::Int64, 1);
+        col.push(Value::int64(0))?;
+
+        Table::new(self.schema.clone(), vec![col])
+    }
+
+    fn execute_generate_series(&self, args: &[crate::types::Value]) -> Result<Table> {
+        use yachtsql_core::error::Error;
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        let (start, stop, step) = match args.len() {
+            2 => {
+                let start = args[0].as_i64().unwrap_or(0);
+                let stop = args[1].as_i64().unwrap_or(0);
+                (start, stop, 1i64)
+            }
+            3 => {
+                let start = args[0].as_i64().unwrap_or(0);
+                let stop = args[1].as_i64().unwrap_or(0);
+                let step = args[2].as_i64().unwrap_or(1);
+                (start, stop, step)
+            }
+            _ => {
+                return Err(Error::InvalidQuery(
+                    "generateSeries requires 2 or 3 arguments".to_string(),
+                ));
+            }
+        };
+
+        if step == 0 {
+            return Err(Error::InvalidQuery(
+                "generateSeries step cannot be zero".to_string(),
+            ));
+        }
+
+        let mut values = Vec::new();
+        let mut current = start;
+        if step > 0 {
+            while current <= stop {
+                values.push(current);
+                current += step;
+            }
+        } else {
+            while current >= stop {
+                values.push(current);
+                current += step;
+            }
+        }
+
+        let mut col = Column::new(&DataType::Int64, values.len());
+        for v in values {
+            col.push(Value::int64(v))?;
+        }
+
+        Table::new(self.schema.clone(), vec![col])
+    }
+
+    fn execute_generate_random(&self, args: &[crate::types::Value]) -> Result<Table> {
+        use rand::{RngCore, SeedableRng};
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        let seed = if args.len() >= 2 {
+            args[1].as_i64().map(|s| s as u64)
+        } else {
+            None
+        };
+
+        let mut rng: Box<dyn rand::RngCore> = if let Some(s) = seed {
+            Box::new(rand::rngs::StdRng::seed_from_u64(s))
+        } else {
+            Box::new(rand::rngs::StdRng::from_entropy())
+        };
+
+        let mut columns: Vec<Column> = Vec::with_capacity(self.schema.fields().len());
+        for field in self.schema.fields() {
+            let mut col = Column::new(&field.data_type, 1);
+            let value = match &field.data_type {
+                DataType::Int64 => Value::int64(rng.next_u64() as i64),
+                DataType::Float64 => Value::float64(rng.next_u64() as f64 / u64::MAX as f64),
+                DataType::String => {
+                    let len = (rng.next_u32() % 15 + 5) as usize;
+                    let s: String = (0..len)
+                        .map(|_| ((rng.next_u32() % 26) as u8 + b'a') as char)
+                        .collect();
+                    Value::string(s)
+                }
+                DataType::Bool => Value::bool_val(rng.next_u32() % 2 == 0),
+                _ => Value::null(),
+            };
+            col.push(value)?;
+            columns.push(col);
+        }
+
+        Table::new(self.schema.clone(), columns)
+    }
+
+    fn execute_values(&self, args: &[crate::types::Value]) -> Result<Table> {
+        use yachtsql_storage::Column;
+
+        use crate::types::Value;
+
+        let num_cols = self.schema.fields().len();
+        let num_rows = (args.len().saturating_sub(1)) / num_cols;
+
+        let mut columns: Vec<Column> = self
+            .schema
+            .fields()
+            .iter()
+            .map(|f| Column::new(&f.data_type, num_rows))
+            .collect();
+
+        let value_args = &args[1..];
+        for row_idx in 0..num_rows {
+            for col_idx in 0..num_cols {
+                let arg_idx = row_idx * num_cols + col_idx;
+                let value = value_args.get(arg_idx).cloned().unwrap_or(Value::null());
+                columns[col_idx].push(value)?;
+            }
+        }
+
+        Table::new(self.schema.clone(), columns)
+    }
+
+    fn execute_null_table(&self) -> Result<Table> {
+        use yachtsql_storage::Column;
+
+        let columns: Vec<Column> = self
+            .schema
+            .fields()
+            .iter()
+            .map(|f| Column::new(&f.data_type, 0))
+            .collect();
+
+        Table::new(self.schema.clone(), columns)
+    }
+
+    fn execute_input(&self, _args: &[crate::types::Value]) -> Result<Table> {
+        use yachtsql_storage::Column;
+
+        let columns: Vec<Column> = self
+            .schema
+            .fields()
+            .iter()
+            .map(|f| Column::new(&f.data_type, 0))
+            .collect();
+
+        Table::new(self.schema.clone(), columns)
+    }
 }
 
 impl ExecutionPlan for TableValuedFunctionExec {
@@ -1576,6 +1845,15 @@ impl ExecutionPlan for TableValuedFunctionExec {
             "SKEYS" => self.execute_skeys(&args)?,
             "SVALS" => self.execute_svals(&args)?,
             "POPULATE_RECORD" => self.execute_populate_record(&args)?,
+            "NUMBERS" | "NUMBERS_MT" => self.execute_numbers(&args)?,
+            "ZEROS" | "ZEROS_MT" => self.execute_zeros(&args)?,
+            "ONE" => self.execute_one()?,
+            "GENERATESERIES" | "GENERATE_SERIES" => self.execute_generate_series(&args)?,
+            "GENERATERANDOM" | "GENERATE_RANDOM" => self.execute_generate_random(&args)?,
+            "VALUES" => self.execute_values(&args)?,
+            "NULL" => self.execute_null_table()?,
+            "CLUSTER" | "CLUSTERALLREPLICAS" => self.execute_one()?,
+            "INPUT" => self.execute_input(&args)?,
 
             _ => {
                 return Err(Error::UnsupportedFeature(format!(

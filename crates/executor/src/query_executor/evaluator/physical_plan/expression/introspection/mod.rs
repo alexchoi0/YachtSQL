@@ -89,7 +89,6 @@ impl ProjectionWithExprExec {
                 let now = Utc::now();
                 Ok(Value::timestamp(now))
             }
-            FunctionName::PgCurrentSnapshot => Ok(Value::string("".to_string())),
             FunctionName::PgGetViewdef => Ok(Value::string("".to_string())),
             FunctionName::HasTablePrivilege => Ok(Value::bool_val(true)),
             FunctionName::HasSchemaPrivilege => Ok(Value::bool_val(true)),
@@ -103,6 +102,21 @@ impl ProjectionWithExprExec {
             FunctionName::InetServerAddr => Ok(Value::null()),
             FunctionName::InetServerPort => Ok(Value::null()),
             FunctionName::TxidCurrent => Ok(Value::int64(1)),
+            FunctionName::TxidCurrentIfAssigned => Ok(Value::null()),
+            FunctionName::TxidCurrentSnapshot => Ok(Value::string("1:1:".to_string())),
+            FunctionName::TxidSnapshotXmin => Ok(Value::int64(1)),
+            FunctionName::TxidSnapshotXmax => Ok(Value::int64(1)),
+            FunctionName::TxidSnapshotXip => Ok(Value::array(vec![])),
+            FunctionName::TxidVisibleInSnapshot => Ok(Value::bool_val(true)),
+            FunctionName::TxidStatus => Ok(Value::string("committed".to_string())),
+            FunctionName::PgCurrentXactId => Ok(Value::int64(1)),
+            FunctionName::PgCurrentXactIdIfAssigned => Ok(Value::null()),
+            FunctionName::PgCurrentSnapshot => Ok(Value::string("1:1:".to_string())),
+            FunctionName::PgSnapshotXmin => Ok(Value::int64(1)),
+            FunctionName::PgSnapshotXmax => Ok(Value::int64(1)),
+            FunctionName::PgSnapshotXip => Ok(Value::array(vec![])),
+            FunctionName::PgVisibleInSnapshot => Ok(Value::bool_val(true)),
+            FunctionName::PgXactStatus => Ok(Value::string("committed".to_string())),
 
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown introspection function: {}",

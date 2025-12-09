@@ -37,3 +37,5 @@ example:
 10. Don't include
     `Generated with [Claude Code](https://claude.com/claude-code) Co-Authored-By: Claude <noreply@anthropic.com>` when
     making a commit.
+
+11. Use cargo nextest, not cargo test.

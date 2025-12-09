@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_create_table_inherits() {
     let mut executor = create_executor();
     executor
@@ -20,7 +19,6 @@ fn test_create_table_inherits() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_parent_sees_children() {
     let mut executor = create_executor();
     executor
@@ -44,7 +42,6 @@ fn test_inheritance_parent_sees_children() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_only_parent() {
     let mut executor = create_executor();
     executor
@@ -68,7 +65,6 @@ fn test_inheritance_only_parent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_multiple_parents() {
     let mut executor = create_executor();
     executor
@@ -89,7 +85,6 @@ fn test_inheritance_multiple_parents() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_chain() {
     let mut executor = create_executor();
     executor
@@ -152,7 +147,6 @@ fn test_alter_no_inherit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_update_parent() {
     let mut executor = create_executor();
     executor
@@ -174,7 +168,6 @@ fn test_inheritance_update_parent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_delete_parent() {
     let mut executor = create_executor();
     executor
@@ -196,7 +189,6 @@ fn test_inheritance_delete_parent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_index_on_parent() {
     let mut executor = create_executor();
     executor
@@ -219,7 +211,6 @@ fn test_inheritance_index_on_parent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_with_default() {
     let mut executor = create_executor();
     executor
@@ -254,7 +245,6 @@ fn test_inheritance_with_not_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_count_with_only() {
     let mut executor = create_executor();
     executor
@@ -283,7 +273,6 @@ fn test_inheritance_count_with_only() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_tableoid() {
     let mut executor = create_executor();
     executor
@@ -305,7 +294,6 @@ fn test_inheritance_tableoid() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inheritance_unique_on_child() {
     let mut executor = create_executor();
     executor

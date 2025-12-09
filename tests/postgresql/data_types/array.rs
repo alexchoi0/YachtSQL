@@ -2,31 +2,27 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_literal_integers() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ARRAY[1, 2, 3]").unwrap();
-    assert_table_eq!(result, [[1, 2, 3]]);
+    assert_table_eq!(result, [[[1, 2, 3]]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_literal_strings() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ARRAY['a', 'b', 'c']").unwrap();
-    assert_table_eq!(result, [["a", "b", "c"]]);
+    assert_table_eq!(result, [[["a", "b", "c"]]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_empty_array() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT ARRAY[]::INTEGER[]").unwrap();
-    assert_table_eq!(result, [[]]);
+    assert_table_eq!(result, [[[]]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_column() {
     let mut executor = create_executor();
     executor
@@ -37,7 +33,7 @@ fn test_array_column() {
         .unwrap();
 
     let result = executor.execute_sql("SELECT values FROM data").unwrap();
-    assert_table_eq!(result, [[10, 20, 30]]);
+    assert_table_eq!(result, [[[10, 20, 30]]]);
 }
 
 #[test]
@@ -50,7 +46,6 @@ fn test_array_subscript() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_with_null() {
     let mut executor = create_executor();
     executor
@@ -61,7 +56,7 @@ fn test_array_with_null() {
         .unwrap();
 
     let result = executor.execute_sql("SELECT values FROM data").unwrap();
-    assert_table_eq!(result, [[1, null, 3]]);
+    assert_table_eq!(result, [[[1, null, 3]]]);
 }
 
 #[test]
@@ -81,11 +76,10 @@ fn test_array_null_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_nested_array() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT ARRAY[ARRAY[1, 2], ARRAY[3, 4]]")
         .unwrap();
-    assert_table_eq!(result, [[[1, 2], [3, 4]]]);
+    assert_table_eq!(result, [[[[1, 2], [3, 4]]]]);
 }

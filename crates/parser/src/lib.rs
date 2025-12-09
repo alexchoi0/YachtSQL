@@ -13,13 +13,15 @@ pub mod sql_json;
 pub mod sql_types;
 pub mod validator;
 
-pub use ast_visitor::LogicalPlanBuilder;
+pub use ast_visitor::{LogicalPlanBuilder, SessionVariable};
 pub use parser::{
     DialectType, JSON_VALUE_OPTIONS_PREFIX, JsonValueRewriteOptions, Parser, Statement,
 };
 pub use sql_json::Sql2023Json;
 pub use sql_types::Sql2023Types;
-pub use validator::{CustomStatement, SetConstraintsMode, SetConstraintsTarget};
+pub use validator::{
+    ClickHouseSystemCommand, CustomStatement, SetConstraintsMode, SetConstraintsTarget,
+};
 
 #[macro_export]
 macro_rules! aggregate_function_names {

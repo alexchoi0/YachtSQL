@@ -26,15 +26,21 @@ impl ProjectionWithExprExec {
             return Ok(Value::null());
         }
 
-        let dt1 = dt1_val.as_timestamp().ok_or_else(|| Error::TypeMismatch {
-            expected: "DATETIME/TIMESTAMP".to_string(),
-            actual: dt1_val.data_type().to_string(),
-        })?;
+        let dt1 = dt1_val
+            .as_datetime()
+            .or_else(|| dt1_val.as_timestamp())
+            .ok_or_else(|| Error::TypeMismatch {
+                expected: "DATETIME/TIMESTAMP".to_string(),
+                actual: dt1_val.data_type().to_string(),
+            })?;
 
-        let dt2 = dt2_val.as_timestamp().ok_or_else(|| Error::TypeMismatch {
-            expected: "DATETIME/TIMESTAMP".to_string(),
-            actual: dt2_val.data_type().to_string(),
-        })?;
+        let dt2 = dt2_val
+            .as_datetime()
+            .or_else(|| dt2_val.as_timestamp())
+            .ok_or_else(|| Error::TypeMismatch {
+                expected: "DATETIME/TIMESTAMP".to_string(),
+                actual: dt2_val.data_type().to_string(),
+            })?;
 
         let part = part_val
             .as_str()

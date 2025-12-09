@@ -12,7 +12,6 @@ fn setup_tables(executor: &mut QueryExecutor) {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_number() {
     let mut executor = create_executor();
@@ -29,14 +28,13 @@ fn test_row_number() {
         [
             ["Alice", 2000, 1],
             ["Bob", 1500, 2],
-            ["Alice", 1000, 3],
-            ["Diana", 1200, 4],
+            ["Diana", 1200, 3],
+            ["Alice", 1000, 4],
             ["Charlie", 800, 5],
         ]
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_row_number_with_partition() {
     let mut executor = create_executor();
@@ -51,7 +49,6 @@ fn test_row_number_with_partition() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_rank() {
     let mut executor = create_executor();
@@ -75,7 +72,6 @@ fn test_rank() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_dense_rank() {
     let mut executor = create_executor();
@@ -99,7 +95,6 @@ fn test_dense_rank() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ntile() {
     let mut executor = create_executor();
@@ -114,7 +109,6 @@ fn test_ntile() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lag() {
     let mut executor = create_executor();
@@ -138,7 +132,6 @@ fn test_lag() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lag_with_offset() {
     let mut executor = create_executor();
@@ -162,7 +155,6 @@ fn test_lag_with_offset() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lag_with_default() {
     let mut executor = create_executor();
@@ -186,7 +178,6 @@ fn test_lag_with_default() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lead() {
     let mut executor = create_executor();
@@ -210,7 +201,6 @@ fn test_lead() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_first_value() {
     let mut executor = create_executor();
@@ -225,7 +215,6 @@ fn test_first_value() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_last_value() {
     let mut executor = create_executor();
@@ -240,7 +229,6 @@ fn test_last_value() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sum_over() {
     let mut executor = create_executor();
@@ -343,7 +331,6 @@ fn test_window_frame_range() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multiple_window_functions() {
     let mut executor = create_executor();
@@ -359,7 +346,6 @@ fn test_multiple_window_functions() {
     assert_eq!(result.num_columns(), 5);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_percent_rank() {
     let mut executor = create_executor();
@@ -374,7 +360,6 @@ fn test_percent_rank() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cume_dist() {
     let mut executor = create_executor();

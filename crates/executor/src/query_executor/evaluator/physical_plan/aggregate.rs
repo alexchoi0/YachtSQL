@@ -230,6 +230,8 @@ impl AggregateExec {
                     LiteralValue::String(_) => DataType::String,
                     LiteralValue::Boolean(_) => DataType::Bool,
                     LiteralValue::Date(_) => DataType::Date,
+                    LiteralValue::Time(_) => DataType::Time,
+                    LiteralValue::DateTime(_) => DataType::DateTime,
                     LiteralValue::Timestamp(_) => DataType::Timestamp,
                     LiteralValue::Json(_) => DataType::Json,
                     LiteralValue::Bytes(_) => DataType::Bytes,

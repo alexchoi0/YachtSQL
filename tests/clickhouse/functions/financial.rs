@@ -1,6 +1,6 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_to_decimal() {
     let mut executor = create_executor();
@@ -10,7 +10,7 @@ fn test_to_decimal() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_round_currency() {
     let mut executor = create_executor();
@@ -20,7 +20,7 @@ fn test_round_currency() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_simple_interest() {
     let mut executor = create_executor();
@@ -36,7 +36,7 @@ fn test_simple_interest() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_compound_interest() {
     let mut executor = create_executor();
@@ -52,7 +52,7 @@ fn test_compound_interest() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_present_value() {
     let mut executor = create_executor();
@@ -68,7 +68,7 @@ fn test_present_value() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_net_present_value() {
     let mut executor = create_executor();
@@ -87,7 +87,7 @@ fn test_net_present_value() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_annuity_payment() {
     let mut executor = create_executor();
@@ -117,7 +117,7 @@ fn test_percentage_change() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_cagr() {
     let mut executor = create_executor();
@@ -147,7 +147,7 @@ fn test_roi() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_currency_conversion() {
     let mut executor = create_executor();
@@ -182,7 +182,7 @@ fn test_currency_conversion() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_amortization_schedule() {
     let mut executor = create_executor();
@@ -201,7 +201,7 @@ fn test_amortization_schedule() {
     assert!(result.num_rows() == 12); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_weighted_average_cost() {
     let mut executor = create_executor();
@@ -282,7 +282,7 @@ fn test_depreciation_straight_line() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires toDecimal64 or window function support"]
 #[test]
 fn test_moving_average_price() {
     let mut executor = create_executor();

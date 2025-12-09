@@ -750,6 +750,69 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(l), Some(r)) = (left.as_inet(), right.as_inet()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(
+                    l.addr == r.addr && l.prefix_len == r.prefix_len,
+                )),
+                BinaryOp::NotEqual => Ok(Value::bool_val(
+                    l.addr != r.addr || l.prefix_len != r.prefix_len,
+                )),
+                BinaryOp::LessThan => {
+                    let cmp = Self::inet_compare(l, r);
+                    Ok(Value::bool_val(cmp == std::cmp::Ordering::Less))
+                }
+                BinaryOp::LessThanOrEqual => {
+                    let cmp = Self::inet_compare(l, r);
+                    Ok(Value::bool_val(cmp != std::cmp::Ordering::Greater))
+                }
+                BinaryOp::GreaterThan => {
+                    let cmp = Self::inet_compare(l, r);
+                    Ok(Value::bool_val(cmp == std::cmp::Ordering::Greater))
+                }
+                BinaryOp::GreaterThanOrEqual => {
+                    let cmp = Self::inet_compare(l, r);
+                    Ok(Value::bool_val(cmp != std::cmp::Ordering::Less))
+                }
+                BinaryOp::InetContainedBy | BinaryOp::ShiftLeft => {
+                    Ok(Value::bool_val(Self::inet_is_contained_by(l, r)))
+                }
+                BinaryOp::InetContains | BinaryOp::ShiftRight => {
+                    Ok(Value::bool_val(Self::inet_is_contained_by(r, l)))
+                }
+                BinaryOp::InetContainedByOrEqual => {
+                    Ok(Value::bool_val(Self::inet_is_contained_by_or_equal(l, r)))
+                }
+                BinaryOp::InetContainsOrEqual => {
+                    Ok(Value::bool_val(Self::inet_is_contained_by_or_equal(r, l)))
+                }
+                BinaryOp::InetOverlap | BinaryOp::ArrayOverlap => {
+                    Ok(Value::bool_val(Self::inet_overlaps(l, r)))
+                }
+                BinaryOp::BitwiseAnd => Self::inet_bitwise_and(l, r),
+                BinaryOp::BitwiseOr => Self::inet_bitwise_or(l, r),
+                BinaryOp::Add => Self::inet_add_int(l, &0i64),
+                BinaryOp::Subtract => Self::inet_subtract_inet(l, r),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for INET",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_inet().is_some() && right.as_i64().is_some() {
+            let inet = left.as_inet().unwrap();
+            let offset = right.as_i64().unwrap();
+            return match op {
+                BinaryOp::Add => Self::inet_add_int(inet, &offset),
+                BinaryOp::Subtract => Self::inet_add_int(inet, &(-offset)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for INET + INT",
+                    op
+                ))),
+            };
+        }
+
         if let (Some(l), Some(r)) = (left.as_uuid(), right.as_uuid()) {
             return match op {
                 BinaryOp::Equal => Ok(Value::bool_val(l == r)),
@@ -959,8 +1022,11 @@ impl ProjectionWithExprExec {
                 if let Some(i) = operand.as_i64() {
                     return Ok(Value::int64(!i));
                 }
+                if let Some(inet) = operand.as_inet() {
+                    return Self::inet_bitwise_not(inet);
+                }
                 Err(crate::error::Error::TypeMismatch {
-                    expected: "integer".to_string(),
+                    expected: "integer or INET".to_string(),
                     actual: operand.data_type().to_string(),
                 })
             }
@@ -1130,5 +1196,281 @@ impl ProjectionWithExprExec {
         }
 
         Self::evaluate_binary_op(left, op, right)
+    }
+
+    fn inet_compare(
+        l: &yachtsql_core::types::network::InetAddr,
+        r: &yachtsql_core::types::network::InetAddr,
+    ) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        use std::net::IpAddr;
+
+        let family_cmp = l.family().cmp(&r.family());
+        if family_cmp != Ordering::Equal {
+            return family_cmp;
+        }
+
+        match (&l.addr, &r.addr) {
+            (IpAddr::V4(l_ip), IpAddr::V4(r_ip)) => {
+                let l_bits = u32::from_be_bytes(l_ip.octets());
+                let r_bits = u32::from_be_bytes(r_ip.octets());
+                let addr_cmp = l_bits.cmp(&r_bits);
+                if addr_cmp != Ordering::Equal {
+                    return addr_cmp;
+                }
+                l.prefix_len.unwrap_or(32).cmp(&r.prefix_len.unwrap_or(32))
+            }
+            (IpAddr::V6(l_ip), IpAddr::V6(r_ip)) => {
+                let l_bits = u128::from_be_bytes(l_ip.octets());
+                let r_bits = u128::from_be_bytes(r_ip.octets());
+                let addr_cmp = l_bits.cmp(&r_bits);
+                if addr_cmp != Ordering::Equal {
+                    return addr_cmp;
+                }
+                l.prefix_len
+                    .unwrap_or(128)
+                    .cmp(&r.prefix_len.unwrap_or(128))
+            }
+            _ => Ordering::Equal,
+        }
+    }
+
+    fn inet_is_contained_by(
+        inner: &yachtsql_core::types::network::InetAddr,
+        outer: &yachtsql_core::types::network::InetAddr,
+    ) -> bool {
+        use std::net::IpAddr;
+
+        if inner.is_ipv4() != outer.is_ipv4() {
+            return false;
+        }
+
+        let outer_prefix = outer.prefix_len.unwrap_or(outer.max_prefix_len());
+        let inner_prefix = inner.prefix_len.unwrap_or(inner.max_prefix_len());
+
+        if inner_prefix < outer_prefix {
+            return false;
+        }
+
+        match (&inner.addr, &outer.addr) {
+            (IpAddr::V4(inner_ip), IpAddr::V4(outer_ip)) => {
+                let mask = if outer_prefix == 0 {
+                    0u32
+                } else {
+                    !0u32 << (32 - outer_prefix)
+                };
+                let inner_bits = u32::from_be_bytes(inner_ip.octets());
+                let outer_bits = u32::from_be_bytes(outer_ip.octets());
+                (inner_bits & mask) == (outer_bits & mask)
+            }
+            (IpAddr::V6(inner_ip), IpAddr::V6(outer_ip)) => {
+                let mask = if outer_prefix == 0 {
+                    0u128
+                } else {
+                    !0u128 << (128 - outer_prefix)
+                };
+                let inner_bits = u128::from_be_bytes(inner_ip.octets());
+                let outer_bits = u128::from_be_bytes(outer_ip.octets());
+                (inner_bits & mask) == (outer_bits & mask)
+            }
+            _ => false,
+        }
+    }
+
+    fn inet_is_contained_by_or_equal(
+        inner: &yachtsql_core::types::network::InetAddr,
+        outer: &yachtsql_core::types::network::InetAddr,
+    ) -> bool {
+        use std::net::IpAddr;
+
+        if inner.is_ipv4() != outer.is_ipv4() {
+            return false;
+        }
+
+        let outer_prefix = outer.prefix_len.unwrap_or(outer.max_prefix_len());
+        let inner_prefix = inner.prefix_len.unwrap_or(inner.max_prefix_len());
+
+        if inner_prefix < outer_prefix {
+            return false;
+        }
+
+        match (&inner.addr, &outer.addr) {
+            (IpAddr::V4(inner_ip), IpAddr::V4(outer_ip)) => {
+                let mask = if outer_prefix == 0 {
+                    0u32
+                } else {
+                    !0u32 << (32 - outer_prefix)
+                };
+                let inner_bits = u32::from_be_bytes(inner_ip.octets());
+                let outer_bits = u32::from_be_bytes(outer_ip.octets());
+                (inner_bits & mask) == (outer_bits & mask)
+            }
+            (IpAddr::V6(inner_ip), IpAddr::V6(outer_ip)) => {
+                let mask = if outer_prefix == 0 {
+                    0u128
+                } else {
+                    !0u128 << (128 - outer_prefix)
+                };
+                let inner_bits = u128::from_be_bytes(inner_ip.octets());
+                let outer_bits = u128::from_be_bytes(outer_ip.octets());
+                (inner_bits & mask) == (outer_bits & mask)
+            }
+            _ => false,
+        }
+    }
+
+    fn inet_overlaps(
+        a: &yachtsql_core::types::network::InetAddr,
+        b: &yachtsql_core::types::network::InetAddr,
+    ) -> bool {
+        Self::inet_is_contained_by_or_equal(a, b) || Self::inet_is_contained_by_or_equal(b, a)
+    }
+
+    fn inet_bitwise_not(inet: &yachtsql_core::types::network::InetAddr) -> Result<Value> {
+        use std::net::IpAddr;
+
+        use yachtsql_core::types::network::InetAddr;
+
+        let result_addr = match &inet.addr {
+            IpAddr::V4(ip) => {
+                let bits = u32::from_be_bytes(ip.octets());
+                IpAddr::V4(std::net::Ipv4Addr::from((!bits).to_be_bytes()))
+            }
+            IpAddr::V6(ip) => {
+                let bits = u128::from_be_bytes(ip.octets());
+                IpAddr::V6(std::net::Ipv6Addr::from((!bits).to_be_bytes()))
+            }
+        };
+
+        Ok(Value::inet(InetAddr::new(result_addr)))
+    }
+
+    fn inet_bitwise_and(
+        l: &yachtsql_core::types::network::InetAddr,
+        r: &yachtsql_core::types::network::InetAddr,
+    ) -> Result<Value> {
+        use std::net::IpAddr;
+
+        use yachtsql_core::types::network::InetAddr;
+
+        if l.is_ipv4() != r.is_ipv4() {
+            return Err(Error::InvalidOperation(
+                "Cannot perform bitwise AND on different IP families".to_string(),
+            ));
+        }
+
+        let result_addr = match (&l.addr, &r.addr) {
+            (IpAddr::V4(l_ip), IpAddr::V4(r_ip)) => {
+                let l_bits = u32::from_be_bytes(l_ip.octets());
+                let r_bits = u32::from_be_bytes(r_ip.octets());
+                IpAddr::V4(std::net::Ipv4Addr::from((l_bits & r_bits).to_be_bytes()))
+            }
+            (IpAddr::V6(l_ip), IpAddr::V6(r_ip)) => {
+                let l_bits = u128::from_be_bytes(l_ip.octets());
+                let r_bits = u128::from_be_bytes(r_ip.octets());
+                IpAddr::V6(std::net::Ipv6Addr::from((l_bits & r_bits).to_be_bytes()))
+            }
+            _ => unreachable!(),
+        };
+
+        Ok(Value::inet(InetAddr::new(result_addr)))
+    }
+
+    fn inet_bitwise_or(
+        l: &yachtsql_core::types::network::InetAddr,
+        r: &yachtsql_core::types::network::InetAddr,
+    ) -> Result<Value> {
+        use std::net::IpAddr;
+
+        use yachtsql_core::types::network::InetAddr;
+
+        if l.is_ipv4() != r.is_ipv4() {
+            return Err(Error::InvalidOperation(
+                "Cannot perform bitwise OR on different IP families".to_string(),
+            ));
+        }
+
+        let result_addr = match (&l.addr, &r.addr) {
+            (IpAddr::V4(l_ip), IpAddr::V4(r_ip)) => {
+                let l_bits = u32::from_be_bytes(l_ip.octets());
+                let r_bits = u32::from_be_bytes(r_ip.octets());
+                IpAddr::V4(std::net::Ipv4Addr::from((l_bits | r_bits).to_be_bytes()))
+            }
+            (IpAddr::V6(l_ip), IpAddr::V6(r_ip)) => {
+                let l_bits = u128::from_be_bytes(l_ip.octets());
+                let r_bits = u128::from_be_bytes(r_ip.octets());
+                IpAddr::V6(std::net::Ipv6Addr::from((l_bits | r_bits).to_be_bytes()))
+            }
+            _ => unreachable!(),
+        };
+
+        Ok(Value::inet(InetAddr::new(result_addr)))
+    }
+
+    fn inet_add_int(inet: &yachtsql_core::types::network::InetAddr, offset: &i64) -> Result<Value> {
+        use std::net::IpAddr;
+
+        use yachtsql_core::types::network::InetAddr;
+
+        let result_addr = match &inet.addr {
+            IpAddr::V4(ip) => {
+                let bits = u32::from_be_bytes(ip.octets());
+                let new_bits = if *offset >= 0 {
+                    bits.wrapping_add(*offset as u32)
+                } else {
+                    bits.wrapping_sub((-*offset) as u32)
+                };
+                IpAddr::V4(std::net::Ipv4Addr::from(new_bits.to_be_bytes()))
+            }
+            IpAddr::V6(ip) => {
+                let bits = u128::from_be_bytes(ip.octets());
+                let new_bits = if *offset >= 0 {
+                    bits.wrapping_add(*offset as u128)
+                } else {
+                    bits.wrapping_sub((-*offset) as u128)
+                };
+                IpAddr::V6(std::net::Ipv6Addr::from(new_bits.to_be_bytes()))
+            }
+        };
+
+        let result = if let Some(prefix) = inet.prefix_len {
+            InetAddr {
+                addr: result_addr,
+                prefix_len: Some(prefix),
+            }
+        } else {
+            InetAddr::new(result_addr)
+        };
+
+        Ok(Value::inet(result))
+    }
+
+    fn inet_subtract_inet(
+        l: &yachtsql_core::types::network::InetAddr,
+        r: &yachtsql_core::types::network::InetAddr,
+    ) -> Result<Value> {
+        use std::net::IpAddr;
+
+        if l.is_ipv4() != r.is_ipv4() {
+            return Err(Error::InvalidOperation(
+                "Cannot subtract addresses from different IP families".to_string(),
+            ));
+        }
+
+        let diff = match (&l.addr, &r.addr) {
+            (IpAddr::V4(l_ip), IpAddr::V4(r_ip)) => {
+                let l_bits = u32::from_be_bytes(l_ip.octets()) as i64;
+                let r_bits = u32::from_be_bytes(r_ip.octets()) as i64;
+                l_bits - r_bits
+            }
+            (IpAddr::V6(l_ip), IpAddr::V6(r_ip)) => {
+                let l_bits = u128::from_be_bytes(l_ip.octets()) as i128;
+                let r_bits = u128::from_be_bytes(r_ip.octets()) as i128;
+                (l_bits - r_bits) as i64
+            }
+            _ => unreachable!(),
+        };
+
+        Ok(Value::int64(diff))
     }
 }

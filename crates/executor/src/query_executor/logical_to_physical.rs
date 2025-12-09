@@ -24,7 +24,7 @@ use crate::system_schema::{SystemSchemaProvider, SystemTable};
 pub struct LogicalToPhysicalPlanner {
     storage: Rc<RefCell<yachtsql_storage::Storage>>,
     dialect: crate::DialectType,
-    cte_plans: RefCell<HashMap<String, Rc<dyn ExecutionPlan>>>,
+    cte_plans: RefCell<HashMap<String, (Rc<dyn ExecutionPlan>, Option<Vec<String>>)>>,
 }
 
 impl LogicalToPhysicalPlanner {
@@ -814,11 +814,31 @@ impl LogicalToPhysicalPlanner {
                 table_name,
                 alias,
                 projection: _,
+                only,
             } => {
                 {
                     let cte_plans = self.cte_plans.borrow();
-                    if let Some(cte_plan) = cte_plans.get(table_name) {
-                        return Ok(Rc::new(SubqueryScanExec::new(Rc::clone(cte_plan))));
+                    if let Some((cte_plan, column_aliases)) = cte_plans.get(table_name) {
+                        let exec = Rc::clone(cte_plan);
+                        if let Some(aliases) = column_aliases {
+                            let original_schema = exec.schema();
+                            let renamed_fields: Vec<yachtsql_storage::schema::Field> =
+                                original_schema
+                                    .fields()
+                                    .iter()
+                                    .zip(aliases.iter())
+                                    .map(|(field, alias)| {
+                                        let mut new_field = field.clone();
+                                        new_field.name = alias.clone();
+                                        new_field
+                                    })
+                                    .collect();
+                            let new_schema = yachtsql_storage::Schema::from_fields(renamed_fields);
+                            return Ok(Rc::new(SubqueryScanExec::new_with_schema(
+                                exec, new_schema,
+                            )));
+                        }
+                        return Ok(Rc::new(SubqueryScanExec::new(exec)));
                     }
                 }
 
@@ -952,10 +972,11 @@ impl LogicalToPhysicalPlanner {
 
                 let schema = self.expand_schema_custom_types(&base_schema);
 
-                Ok(Rc::new(TableScanExec::new(
+                Ok(Rc::new(TableScanExec::new_with_only(
                     schema,
                     table_name.clone(),
                     Rc::clone(&self.storage),
+                    *only,
                 )))
             }
 
@@ -1268,12 +1289,13 @@ impl LogicalToPhysicalPlanner {
                 recursive: _,
                 use_union_all: _,
                 materialization_hint,
+                column_aliases,
             } => {
                 let cte_exec = self.plan_node_to_exec(cte_plan)?;
 
                 self.cte_plans
                     .borrow_mut()
-                    .insert(name.clone(), Rc::clone(&cte_exec));
+                    .insert(name.clone(), (Rc::clone(&cte_exec), column_aliases.clone()));
 
                 let input_exec = self.plan_node_to_exec(input)?;
 
@@ -1428,6 +1450,44 @@ impl LogicalToPhysicalPlanner {
                         }
                         self.extract_record_type_schema(&args[0])?
                     }
+                    "NUMBERS" | "NUMBERS_MT" => Schema::from_fields(vec![Field::nullable(
+                        "number",
+                        yachtsql_core::types::DataType::Int64,
+                    )]),
+                    "ZEROS" | "ZEROS_MT" => Schema::from_fields(vec![Field::nullable(
+                        "zero",
+                        yachtsql_core::types::DataType::Int64,
+                    )]),
+                    "ONE" => Schema::from_fields(vec![Field::nullable(
+                        "dummy",
+                        yachtsql_core::types::DataType::Int64,
+                    )]),
+                    "GENERATESERIES" | "GENERATE_SERIES" => {
+                        Schema::from_fields(vec![Field::nullable(
+                            "generate_series",
+                            yachtsql_core::types::DataType::Int64,
+                        )])
+                    }
+                    "GENERATERANDOM" | "GENERATE_RANDOM" => {
+                        self.parse_generaterandom_schema(args)?
+                    }
+                    "VALUES" => self.parse_values_schema(args)?,
+                    "NULL" => self.parse_null_schema(args)?,
+                    "VIEW" => {
+                        return Err(Error::UnsupportedFeature(
+                            "VIEW table function not yet supported".to_string(),
+                        ));
+                    }
+                    "MERGE" => {
+                        return Err(Error::UnsupportedFeature(
+                            "MERGE table function not yet supported".to_string(),
+                        ));
+                    }
+                    "CLUSTER" | "CLUSTERALLREPLICAS" => Schema::from_fields(vec![Field::nullable(
+                        "dummy",
+                        yachtsql_core::types::DataType::Int64,
+                    )]),
+                    "INPUT" => self.parse_input_schema(args)?,
                     _ => {
                         return Err(Error::UnsupportedFeature(format!(
                             "Table-valued function '{}' not yet supported in optimizer path",
@@ -1623,6 +1683,8 @@ impl LogicalToPhysicalPlanner {
                 LiteralValue::String(_) => DataType::String,
                 LiteralValue::Bytes(_) => DataType::Bytes,
                 LiteralValue::Date(_) => DataType::Date,
+                LiteralValue::Time(_) => DataType::Time,
+                LiteralValue::DateTime(_) => DataType::DateTime,
                 LiteralValue::Timestamp(_) => DataType::Timestamp,
                 LiteralValue::Json(_) => DataType::Json,
                 LiteralValue::Uuid(_) => DataType::Uuid,
@@ -1683,6 +1745,130 @@ impl LogicalToPhysicalPlanner {
             },
             _ => Err(Error::InvalidQuery(
                 "populate_record requires first argument to be cast to a record type".to_string(),
+            )),
+        }
+    }
+
+    fn parse_schema_string(&self, schema_str: &str) -> Result<yachtsql_storage::Schema> {
+        use yachtsql_core::types::DataType;
+        use yachtsql_storage::{Field, Schema};
+
+        let mut fields = Vec::new();
+        for part in schema_str.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = part.split_whitespace().collect();
+            if parts.len() < 2 {
+                return Err(Error::InvalidQuery(format!(
+                    "Invalid column definition: {}",
+                    part
+                )));
+            }
+            let name = parts[0].to_string();
+            let type_str = parts[1..].join(" ");
+            let data_type = self.parse_clickhouse_type(&type_str)?;
+            fields.push(Field::nullable(&name, data_type));
+        }
+        Ok(Schema::from_fields(fields))
+    }
+
+    fn parse_clickhouse_type(&self, type_str: &str) -> Result<yachtsql_core::types::DataType> {
+        use yachtsql_core::types::DataType;
+        let upper = type_str.to_uppercase();
+        let dt = match upper.as_str() {
+            "UINT8" | "UINT16" | "UINT32" | "UINT64" => DataType::Int64,
+            "INT8" | "INT16" | "INT32" | "INT" => DataType::Int64,
+            "INT64" | "BIGINT" => DataType::Int64,
+            "FLOAT32" | "FLOAT" => DataType::Float64,
+            "FLOAT64" | "DOUBLE" => DataType::Float64,
+            "STRING" | "TEXT" => DataType::String,
+            "BOOL" | "BOOLEAN" => DataType::Bool,
+            "DATE" => DataType::Date,
+            "DATETIME" | "TIMESTAMP" => DataType::Timestamp,
+            "UUID" => DataType::Uuid,
+            _ => DataType::String,
+        };
+        Ok(dt)
+    }
+
+    fn parse_generaterandom_schema(
+        &self,
+        args: &[yachtsql_ir::expr::Expr],
+    ) -> Result<yachtsql_storage::Schema> {
+        use yachtsql_ir::expr::{Expr, LiteralValue};
+
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "generateRandom requires a schema argument".to_string(),
+            ));
+        }
+
+        match &args[0] {
+            Expr::Literal(LiteralValue::String(s)) => self.parse_schema_string(s),
+            _ => Err(Error::InvalidQuery(
+                "generateRandom requires a string schema argument".to_string(),
+            )),
+        }
+    }
+
+    fn parse_values_schema(
+        &self,
+        args: &[yachtsql_ir::expr::Expr],
+    ) -> Result<yachtsql_storage::Schema> {
+        use yachtsql_ir::expr::{Expr, LiteralValue};
+
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "VALUES requires a schema argument".to_string(),
+            ));
+        }
+
+        match &args[0] {
+            Expr::Literal(LiteralValue::String(s)) => self.parse_schema_string(s),
+            _ => Err(Error::InvalidQuery(
+                "VALUES requires a string schema argument".to_string(),
+            )),
+        }
+    }
+
+    fn parse_null_schema(
+        &self,
+        args: &[yachtsql_ir::expr::Expr],
+    ) -> Result<yachtsql_storage::Schema> {
+        use yachtsql_ir::expr::{Expr, LiteralValue};
+
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "null() requires a schema argument".to_string(),
+            ));
+        }
+
+        match &args[0] {
+            Expr::Literal(LiteralValue::String(s)) => self.parse_schema_string(s),
+            _ => Err(Error::InvalidQuery(
+                "null() requires a string schema argument".to_string(),
+            )),
+        }
+    }
+
+    fn parse_input_schema(
+        &self,
+        args: &[yachtsql_ir::expr::Expr],
+    ) -> Result<yachtsql_storage::Schema> {
+        use yachtsql_ir::expr::{Expr, LiteralValue};
+
+        if args.is_empty() {
+            return Err(Error::InvalidQuery(
+                "input() requires a schema argument".to_string(),
+            ));
+        }
+
+        match &args[0] {
+            Expr::Literal(LiteralValue::String(s)) => self.parse_schema_string(s),
+            _ => Err(Error::InvalidQuery(
+                "input() requires a string schema argument".to_string(),
             )),
         }
     }

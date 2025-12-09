@@ -287,6 +287,7 @@ impl InterestingOrderRule {
                 recursive,
                 use_union_all,
                 materialization_hint,
+                column_aliases,
             } => {
                 let (opt_cte, _cte_order, cte_changed) =
                     self.optimize_with_context(cte_plan, &OrderingProperty::empty())?;
@@ -300,6 +301,7 @@ impl InterestingOrderRule {
                     recursive: *recursive,
                     use_union_all: *use_union_all,
                     materialization_hint: materialization_hint.clone(),
+                    column_aliases: column_aliases.clone(),
                 };
                 Ok((new_node, input_order, cte_changed || input_changed))
             }
@@ -639,6 +641,7 @@ mod tests {
             table_name: "t".to_string(),
             alias: None,
             projection: None,
+            only: false,
         };
 
         let inner_sort = PlanNode::Sort {
@@ -673,6 +676,7 @@ mod tests {
             table_name: "t".to_string(),
             alias: None,
             projection: None,
+            only: false,
         };
 
         let inner_sort = PlanNode::Sort {
@@ -698,6 +702,7 @@ mod tests {
             table_name: "t".to_string(),
             alias: None,
             projection: None,
+            only: false,
         };
 
         let sort = PlanNode::Sort {
@@ -728,6 +733,7 @@ mod tests {
             table_name: "t".to_string(),
             alias: None,
             projection: None,
+            only: false,
         };
 
         let sort = PlanNode::Sort {
@@ -765,6 +771,7 @@ mod tests {
             table_name: "t".to_string(),
             alias: None,
             projection: None,
+            only: false,
         };
 
         let sort = PlanNode::Sort {

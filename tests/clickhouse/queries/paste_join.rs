@@ -1,6 +1,6 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_basic() {
     let mut executor = create_executor();
@@ -24,7 +24,7 @@ fn test_paste_join_basic() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_different_row_counts() {
     let mut executor = create_executor();
@@ -48,7 +48,7 @@ fn test_paste_join_different_row_counts() {
     assert!(result.num_rows() == 4); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_subqueries() {
     let mut executor = create_executor();
@@ -62,7 +62,7 @@ fn test_paste_join_subqueries() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_with_columns() {
     let mut executor = create_executor();
@@ -86,7 +86,7 @@ fn test_paste_join_with_columns() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_multiple_tables() {
     let mut executor = create_executor();
@@ -110,7 +110,7 @@ fn test_paste_join_multiple_tables() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_empty_table() {
     let mut executor = create_executor();
@@ -131,7 +131,7 @@ fn test_paste_join_empty_table() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_with_order() {
     let mut executor = create_executor();
@@ -160,7 +160,7 @@ fn test_paste_join_with_order() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_with_limit() {
     let mut executor = create_executor();
@@ -174,7 +174,7 @@ fn test_paste_join_with_limit() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_with_where() {
     let mut executor = create_executor();
@@ -201,7 +201,7 @@ fn test_paste_join_with_where() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_aggregation() {
     let mut executor = create_executor();
@@ -230,7 +230,7 @@ fn test_paste_join_aggregation() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_arrays() {
     let mut executor = create_executor();
@@ -254,7 +254,7 @@ fn test_paste_join_arrays() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_nullables() {
     let mut executor = create_executor();
@@ -278,7 +278,7 @@ fn test_paste_join_nullables() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires PASTE JOIN support"]
 #[test]
 fn test_paste_join_cte() {
     let mut executor = create_executor();

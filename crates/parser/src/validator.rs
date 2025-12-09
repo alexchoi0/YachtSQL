@@ -118,6 +118,157 @@ pub enum CustomStatement {
         index_type: ClickHouseIndexType,
         granularity: Option<u64>,
     },
+
+    ClickHouseAlterColumnCodec {
+        table_name: sqlparser::ast::ObjectName,
+        column_name: String,
+        codec: String,
+    },
+
+    ClickHouseAlterTableTtl {
+        table_name: sqlparser::ast::ObjectName,
+        operation: ClickHouseTtlOperation,
+    },
+
+    ClickHouseQuota {
+        statement: String,
+    },
+
+    ClickHouseRowPolicy {
+        statement: String,
+    },
+
+    ClickHouseSettingsProfile {
+        statement: String,
+    },
+
+    ClickHouseDictionary {
+        statement: String,
+    },
+
+    ClickHouseShow {
+        statement: String,
+    },
+
+    ClickHouseFunction {
+        statement: String,
+    },
+
+    ClickHouseMaterializedView {
+        statement: String,
+    },
+
+    ClickHouseProjection {
+        statement: String,
+    },
+
+    ClickHouseAlterUser {
+        statement: String,
+    },
+
+    ClickHouseGrant {
+        statement: String,
+    },
+
+    ClickHouseSystem {
+        command: ClickHouseSystemCommand,
+    },
+
+    ClickHouseCreateDictionary {
+        name: sqlparser::ast::ObjectName,
+    },
+
+    ClickHouseDatabase {
+        statement: String,
+    },
+
+    ClickHouseRenameDatabase {
+        statement: String,
+    },
+
+    ClickHouseUse {
+        database: String,
+    },
+
+    ClickHouseCreateTableWithProjection {
+        original: String,
+        stripped: String,
+    },
+
+    ClickHouseCreateTablePassthrough {
+        original: String,
+        stripped: String,
+    },
+
+    ClickHouseAlterTable {
+        statement: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClickHouseTtlOperation {
+    Modify { expression: String },
+    Remove,
+    Materialize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClickHouseSystemCommand {
+    ReloadDictionary {
+        name: Option<String>,
+    },
+    ReloadDictionaries,
+    DropDnsCache,
+    DropMarkCache,
+    DropUncompressedCache,
+    DropCompiledExpressionCache,
+    FlushLogs,
+    StopMerges {
+        table: Option<String>,
+    },
+    StartMerges {
+        table: Option<String>,
+    },
+    StopTtlMerges {
+        table: Option<String>,
+    },
+    StartTtlMerges {
+        table: Option<String>,
+    },
+    StopMoves {
+        table: Option<String>,
+    },
+    StartMoves {
+        table: Option<String>,
+    },
+    StopFetches {
+        table: Option<String>,
+    },
+    StartFetches {
+        table: Option<String>,
+    },
+    StopSends {
+        table: Option<String>,
+    },
+    StartSends {
+        table: Option<String>,
+    },
+    StopReplicationQueues {
+        table: Option<String>,
+    },
+    StartReplicationQueues {
+        table: Option<String>,
+    },
+    SyncReplica {
+        table: String,
+    },
+    DropReplica {
+        replica_name: String,
+        from_table: Option<String>,
+    },
+    ReloadConfig,
+    Shutdown,
+    Kill,
 }
 
 use crate::parser::ClickHouseIndexType;
@@ -249,6 +400,86 @@ impl StatementValidator {
             CustomStatement::BeginTransaction { .. } => Ok(()),
             CustomStatement::ClickHouseCreateIndex { .. } => {
                 self.require_clickhouse("CREATE INDEX with TYPE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterColumnCodec { .. } => {
+                self.require_clickhouse("ALTER TABLE MODIFY COLUMN CODEC")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterTableTtl { .. } => {
+                self.require_clickhouse("ALTER TABLE TTL")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseQuota { .. } => {
+                self.require_clickhouse("QUOTA")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseRowPolicy { .. } => {
+                self.require_clickhouse("ROW POLICY")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseSettingsProfile { .. } => {
+                self.require_clickhouse("SETTINGS PROFILE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseDictionary { .. } => {
+                self.require_clickhouse("DICTIONARY")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseShow { .. } => {
+                self.require_clickhouse("SHOW")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseFunction { .. } => {
+                self.require_clickhouse("FUNCTION")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseMaterializedView { .. } => {
+                self.require_clickhouse("MATERIALIZED VIEW")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseProjection { .. } => {
+                self.require_clickhouse("PROJECTION")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterUser { .. } => {
+                self.require_clickhouse("ALTER USER")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseGrant { .. } => {
+                self.require_clickhouse("GRANT/REVOKE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseSystem { .. } => {
+                self.require_clickhouse("SYSTEM commands")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseCreateDictionary { .. } => {
+                self.require_clickhouse("CREATE DICTIONARY")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseDatabase { .. } => {
+                self.require_clickhouse("CREATE DATABASE ENGINE/COMMENT")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseRenameDatabase { .. } => {
+                self.require_clickhouse("RENAME DATABASE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseUse { .. } => {
+                self.require_clickhouse("USE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseCreateTableWithProjection { .. } => {
+                self.require_clickhouse("CREATE TABLE WITH PROJECTION")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseCreateTablePassthrough { .. } => {
+                self.require_clickhouse("CREATE TABLE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterTable { .. } => {
+                self.require_clickhouse("ALTER TABLE")?;
                 Ok(())
             }
         }

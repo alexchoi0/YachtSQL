@@ -41,6 +41,7 @@ impl PhysicalPlanner {
                 table_name,
                 alias,
                 projection,
+                ..
             } => self.create_table_scan(table_name, alias.as_deref(), projection.as_deref()),
 
 
@@ -133,6 +134,7 @@ impl PhysicalPlanner {
                 recursive: _,
                 use_union_all: _,
                 materialization_hint,
+                column_aliases: _,
             } => self.create_cte(cte_plan, input, materialization_hint),
 
             PlanNode::SubqueryScan { subquery, alias: _ } => self.create_subquery_scan(subquery),

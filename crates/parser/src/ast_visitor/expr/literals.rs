@@ -48,6 +48,27 @@ impl LogicalPlanBuilder {
                 }
                 Ok(Expr::Literal(LiteralValue::Date(value.to_string())))
             }
+            ast::DataType::Time(_, _) => {
+                if chrono::NaiveTime::parse_from_str(value, "%H:%M:%S").is_err()
+                    && chrono::NaiveTime::parse_from_str(value, "%H:%M:%S%.f").is_err()
+                    && chrono::NaiveTime::parse_from_str(value, "%H:%M").is_err()
+                {
+                    return Err(Error::invalid_query(format!(
+                        "Invalid time format: '{}'. Expected format: HH:MM:SS",
+                        value
+                    )));
+                }
+                Ok(Expr::Literal(LiteralValue::Time(value.to_string())))
+            }
+            ast::DataType::Datetime(_) => {
+                if yachtsql_core::types::parse_timestamp_to_utc(value).is_none() {
+                    return Err(Error::invalid_query(format!(
+                        "Invalid datetime format: '{}'",
+                        value
+                    )));
+                }
+                Ok(Expr::Literal(LiteralValue::DateTime(value.to_string())))
+            }
             ast::DataType::Timestamp(_, _) => {
                 if yachtsql_core::types::parse_timestamp_to_utc(value).is_none() {
                     return Err(Error::invalid_query(format!(
@@ -378,5 +399,45 @@ impl LogicalPlanBuilder {
         }
 
         result
+    }
+
+    pub(super) fn value_to_literal(
+        &self,
+        value: &yachtsql_core::types::Value,
+    ) -> Result<LiteralValue> {
+        use yachtsql_core::types::DataType;
+
+        if value.is_null() {
+            return Ok(LiteralValue::Null);
+        }
+
+        match value.data_type() {
+            DataType::Int64 => Ok(LiteralValue::Int64(value.as_i64().unwrap_or(0))),
+            DataType::Float64 => Ok(LiteralValue::Float64(value.as_f64().unwrap_or(0.0))),
+            DataType::String => Ok(LiteralValue::String(
+                value.as_str().unwrap_or("").to_string(),
+            )),
+            DataType::Bool => Ok(LiteralValue::Boolean(value.as_bool().unwrap_or(false))),
+            DataType::Numeric(_) => {
+                if let Some(d) = value.as_numeric() {
+                    Ok(LiteralValue::Numeric(d))
+                } else {
+                    Ok(LiteralValue::String(value.to_string()))
+                }
+            }
+            DataType::Date => Ok(LiteralValue::Date(value.to_string())),
+            DataType::Timestamp => Ok(LiteralValue::Timestamp(value.to_string())),
+            DataType::Bytes => {
+                if let Some(bytes) = value.as_bytes() {
+                    Ok(LiteralValue::Bytes(bytes.to_vec()))
+                } else {
+                    Ok(LiteralValue::Bytes(vec![]))
+                }
+            }
+            _ => Err(Error::unsupported_feature(format!(
+                "Cannot convert value of type {:?} to literal",
+                value.data_type()
+            ))),
+        }
     }
 }
