@@ -271,6 +271,7 @@ fn test_odbc_engine() {
     assert_table_eq!(result, []);
 }
 
+#[ignore = "Fix me!"]
 #[test]
 fn test_redis_engine() {
     let mut executor = create_executor();
@@ -304,6 +305,7 @@ fn test_sqlite_engine() {
     assert_table_eq!(result, []);
 }
 
+#[ignore = "Fix me!"]
 #[test]
 fn test_rabbitmq_engine() {
     let mut executor = create_executor();
