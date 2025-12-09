@@ -17,15 +17,15 @@ pub use ddl::{
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
-    CopyOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation, StatementJob,
-    TxOperation, UtilityOperation,
+    CopyOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation, ScriptingOperation,
+    StatementJob, TxOperation, UtilityOperation,
 };
 pub use dml::{
     DmlDeleteExecutor, DmlInsertExecutor, DmlMergeExecutor, DmlTruncateExecutor, DmlUpdateExecutor,
 };
 pub use query::QueryExecutorTrait;
 use rust_decimal::prelude::ToPrimitive;
-pub use session::{DiagnosticsSnapshot, SessionDiagnostics};
+pub use session::{DiagnosticsSnapshot, SessionDiagnostics, SessionVariable};
 pub use utility::{
     add_interval_to_date, apply_interval_to_date, apply_numeric_precision_scale,
     calculate_date_diff, decode_values_match, evaluate_condition_as_bool, evaluate_numeric_op,
@@ -601,6 +601,8 @@ impl QueryExecutor {
             StatementJob::Procedure { name, args } => self.execute_procedure(&name, &args),
 
             StatementJob::Copy { operation } => self.execute_copy(&operation.stmt),
+
+            StatementJob::Scripting { operation } => self.execute_scripting(operation),
         }
     }
 
@@ -1711,6 +1713,128 @@ impl QueryExecutor {
         }
 
         value.to_string()
+    }
+
+    fn execute_scripting(&mut self, operation: ScriptingOperation) -> Result<Table> {
+        match operation {
+            ScriptingOperation::Declare {
+                names,
+                data_type,
+                default_expr,
+            } => {
+                let data_type = self.convert_sql_data_type(data_type)?;
+                let default_value = if let Some(expr) = default_expr {
+                    Some(self.evaluate_constant_expr(&expr)?)
+                } else {
+                    None
+                };
+
+                for name in names {
+                    self.session
+                        .declare_variable(name, data_type.clone(), default_value.clone());
+                }
+
+                Self::empty_result()
+            }
+            ScriptingOperation::SetVariable { name, value } => {
+                let evaluated = self.evaluate_constant_expr(&value)?;
+                self.session.set_variable(&name, evaluated)?;
+                Self::empty_result()
+            }
+        }
+    }
+
+    fn convert_sql_data_type(
+        &self,
+        sql_type: Option<sqlparser::ast::DataType>,
+    ) -> Result<DataType> {
+        use sqlparser::ast::DataType as SqlType;
+
+        match sql_type {
+            None => Ok(DataType::String),
+            Some(t) => match t {
+                SqlType::Int64 | SqlType::BigInt(_) => Ok(DataType::Int64),
+                SqlType::Int32 | SqlType::Int(_) | SqlType::Integer(_) => Ok(DataType::Int64),
+                SqlType::Float64 | SqlType::Double(_) => Ok(DataType::Float64),
+                SqlType::Float32 | SqlType::Float(_) | SqlType::Real => Ok(DataType::Float64),
+                SqlType::Bool | SqlType::Boolean => Ok(DataType::Bool),
+                SqlType::String(_) | SqlType::Text | SqlType::Varchar(_) | SqlType::Char(_) => {
+                    Ok(DataType::String)
+                }
+                SqlType::Date => Ok(DataType::Date),
+                SqlType::Timestamp(_, _) => Ok(DataType::Timestamp),
+                SqlType::Numeric(_) | SqlType::Decimal(_) => Ok(DataType::Numeric(None)),
+                SqlType::Bytes(_) => Ok(DataType::Bytes),
+                _ => Err(Error::unsupported_feature(format!(
+                    "Unsupported data type for variable declaration: {:?}",
+                    t
+                ))),
+            },
+        }
+    }
+
+    fn evaluate_constant_expr(&self, expr: &sqlparser::ast::Expr) -> Result<Value> {
+        use sqlparser::ast::{Expr as SqlExpr, UnaryOperator, Value as SqlValue, ValueWithSpan};
+
+        match expr {
+            SqlExpr::Value(ValueWithSpan { value, .. }) => match value {
+                SqlValue::Number(n, _) => {
+                    if n.contains('.') {
+                        n.parse::<f64>()
+                            .map(Value::float64)
+                            .map_err(|_| Error::invalid_query(format!("Invalid number: {}", n)))
+                    } else {
+                        n.parse::<i64>()
+                            .map(Value::int64)
+                            .map_err(|_| Error::invalid_query(format!("Invalid integer: {}", n)))
+                    }
+                }
+                SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s) => {
+                    Ok(Value::string(s.clone()))
+                }
+                SqlValue::Boolean(b) => Ok(Value::bool_val(*b)),
+                SqlValue::Null => Ok(Value::null()),
+                _ => Err(Error::unsupported_feature(format!(
+                    "Unsupported literal value type: {:?}",
+                    value
+                ))),
+            },
+            SqlExpr::UnaryOp { op, expr } => {
+                let inner = self.evaluate_constant_expr(expr)?;
+                match op {
+                    UnaryOperator::Minus => {
+                        if let Some(i) = inner.as_i64() {
+                            Ok(Value::int64(-i))
+                        } else if let Some(f) = inner.as_f64() {
+                            Ok(Value::float64(-f))
+                        } else {
+                            Err(Error::invalid_query(
+                                "Cannot negate non-numeric value".to_string(),
+                            ))
+                        }
+                    }
+                    UnaryOperator::Plus => Ok(inner),
+                    UnaryOperator::Not => {
+                        if let Some(b) = inner.as_bool() {
+                            Ok(Value::bool_val(!b))
+                        } else {
+                            Err(Error::invalid_query(
+                                "Cannot apply NOT to non-boolean value".to_string(),
+                            ))
+                        }
+                    }
+                    _ => Err(Error::unsupported_feature(format!(
+                        "Unsupported unary operator: {:?}",
+                        op
+                    ))),
+                }
+            }
+            SqlExpr::Nested(inner) => self.evaluate_constant_expr(inner),
+            _ => Err(Error::unsupported_feature(format!(
+                "Unsupported expression type for constant evaluation: {:?}",
+                expr
+            ))),
+        }
     }
 }
 

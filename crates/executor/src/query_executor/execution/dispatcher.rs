@@ -1,5 +1,5 @@
 use sqlparser::ast::{
-    Expr, ObjectName, Statement as SqlStatement, Value as SqlValue,
+    DataType as SqlDataType, Expr, ObjectName, Statement as SqlStatement, Value as SqlValue,
     ValueWithSpan as SqlValueWithSpan,
 };
 use yachtsql_capability::CapabilitySnapshot;
@@ -44,6 +44,10 @@ pub enum StatementJob {
 
     Copy {
         operation: CopyOperation,
+    },
+
+    Scripting {
+        operation: ScriptingOperation,
     },
 }
 
@@ -137,6 +141,19 @@ pub enum TransactionAccessModeInfo {
 pub struct MergeOperation {
     pub stmt: Box<SqlStatement>,
     pub merge_returning: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ScriptingOperation {
+    Declare {
+        names: Vec<String>,
+        data_type: Option<SqlDataType>,
+        default_expr: Option<Box<Expr>>,
+    },
+    SetVariable {
+        name: String,
+        value: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -529,6 +546,38 @@ impl Dispatcher {
                         stmt: Box::new(ast.clone()),
                     }),
 
+                    SqlStatement::Declare { stmts } => {
+                        if stmts.is_empty() {
+                            return Err(Error::invalid_query(
+                                "DECLARE statement requires at least one variable".to_string(),
+                            ));
+                        }
+                        let first = &stmts[0];
+                        let names: Vec<String> = first
+                            .names
+                            .iter()
+                            .map(|ident| ident.value.clone())
+                            .collect();
+                        let data_type = first.data_type.clone();
+                        let default_expr = first.assignment.as_ref().map(|a| {
+                            use sqlparser::ast::DeclareAssignment;
+                            match a {
+                                DeclareAssignment::Expr(e)
+                                | DeclareAssignment::Default(e)
+                                | DeclareAssignment::DuckAssignment(e)
+                                | DeclareAssignment::MsSqlAssignment(e)
+                                | DeclareAssignment::For(e) => e.clone(),
+                            }
+                        });
+                        Ok(StatementJob::Scripting {
+                            operation: ScriptingOperation::Declare {
+                                names,
+                                data_type,
+                                default_expr,
+                            },
+                        })
+                    }
+
                     _ => Err(Error::unsupported_feature(format!(
                         "Statement type {:?} is not yet supported",
                         ast
@@ -622,6 +671,15 @@ impl Dispatcher {
             let schemas = Self::parse_search_path_value(value)?;
             return Ok(StatementJob::Utility {
                 operation: UtilityOperation::SetSearchPath { schemas },
+            });
+        }
+
+        if value.len() == 1 {
+            return Ok(StatementJob::Scripting {
+                operation: ScriptingOperation::SetVariable {
+                    name: variable_name,
+                    value: Box::new(value[0].clone()),
+                },
             });
         }
 

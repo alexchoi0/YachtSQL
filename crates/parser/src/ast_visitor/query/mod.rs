@@ -49,6 +49,18 @@ impl LogicalPlanBuilder {
                     false
                 };
 
+                let column_aliases = if cte.alias.columns.is_empty() {
+                    None
+                } else {
+                    Some(
+                        cte.alias
+                            .columns
+                            .iter()
+                            .map(|c| c.name.value.clone())
+                            .collect(),
+                    )
+                };
+
                 current_plan = LogicalPlan::new(PlanNode::Cte {
                     name: cte_name,
                     cte_plan: cte_plan.root,
@@ -56,6 +68,7 @@ impl LogicalPlanBuilder {
                     recursive: with.recursive,
                     use_union_all,
                     materialization_hint: cte.materialized.clone(),
+                    column_aliases,
                 });
             }
 

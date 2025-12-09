@@ -1,6 +1,6 @@
 use sqlparser::ast;
 use yachtsql_core::error::{Error, Result};
-use yachtsql_ir::expr::{BinaryOp, Expr};
+use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue};
 
 use super::super::LogicalPlanBuilder;
 
@@ -88,5 +88,53 @@ impl LogicalPlanBuilder {
         let right_expr = self.sql_expr_to_expr(pattern)?;
         let op = if negated { negated_op } else { base_op };
         Ok(Expr::binary_op(left_expr, op, right_expr))
+    }
+
+    pub(super) fn convert_like_any_all_expr(
+        &self,
+        expr: &ast::Expr,
+        pattern: &ast::Expr,
+        negated: bool,
+        base_op: BinaryOp,
+        is_any: bool,
+    ) -> Result<Expr> {
+        let left_expr = self.sql_expr_to_expr(expr)?;
+
+        let patterns_array = match pattern {
+            ast::Expr::Tuple(elements) => {
+                let array_elements = elements
+                    .iter()
+                    .map(|e| self.sql_expr_to_expr(e))
+                    .collect::<Result<Vec<_>>>()?;
+                Expr::Literal(LiteralValue::Array(array_elements))
+            }
+            ast::Expr::Subquery(query) => {
+                let subquery_plan = self.query_to_plan(query)?;
+                Expr::Subquery {
+                    plan: Box::new(subquery_plan.root().clone()),
+                }
+            }
+            _ => self.sql_expr_to_expr(pattern)?,
+        };
+
+        let op_expr = if is_any {
+            Expr::AnyOp {
+                left: Box::new(left_expr),
+                compare_op: base_op,
+                right: Box::new(patterns_array),
+            }
+        } else {
+            Expr::AllOp {
+                left: Box::new(left_expr),
+                compare_op: base_op,
+                right: Box::new(patterns_array),
+            }
+        };
+
+        if negated {
+            Ok(Expr::unary_op(yachtsql_ir::expr::UnaryOp::Not, op_expr))
+        } else {
+            Ok(op_expr)
+        }
     }
 }

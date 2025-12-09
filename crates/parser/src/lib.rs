@@ -13,7 +13,7 @@ pub mod sql_json;
 pub mod sql_types;
 pub mod validator;
 
-pub use ast_visitor::LogicalPlanBuilder;
+pub use ast_visitor::{LogicalPlanBuilder, SessionVariable};
 pub use parser::{
     DialectType, JSON_VALUE_OPTIONS_PREFIX, JsonValueRewriteOptions, Parser, Statement,
 };

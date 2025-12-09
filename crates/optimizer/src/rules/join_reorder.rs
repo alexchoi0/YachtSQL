@@ -267,6 +267,7 @@ impl JoinReorder {
                 recursive,
                 use_union_all,
                 materialization_hint,
+                column_aliases,
             } => {
                 let cte_opt = self.optimize_join_chain(cte_plan);
                 let input_opt = self.optimize_join_chain(input);
@@ -279,6 +280,7 @@ impl JoinReorder {
                         recursive: *recursive,
                         use_union_all: *use_union_all,
                         materialization_hint: materialization_hint.clone(),
+                        column_aliases: column_aliases.clone(),
                     })
                 } else {
                     None

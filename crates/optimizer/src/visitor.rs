@@ -237,6 +237,7 @@ pub trait PlanRewriter {
                 recursive,
                 use_union_all,
                 materialization_hint,
+                column_aliases,
             } => {
                 let new_cte_plan = self.rewrite_plan_node(cte_plan)?;
                 let new_input = self.rewrite_plan_node(input)?;
@@ -251,6 +252,7 @@ pub trait PlanRewriter {
                         recursive: *recursive,
                         use_union_all: *use_union_all,
                         materialization_hint: materialization_hint.clone(),
+                        column_aliases: column_aliases.clone(),
                     }))
                 } else {
                     Ok(None)

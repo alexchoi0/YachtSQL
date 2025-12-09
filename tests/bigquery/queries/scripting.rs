@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_declare_variable() {
     let mut executor = create_executor();
 
@@ -14,7 +13,6 @@ fn test_declare_variable() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_declare_with_default() {
     let mut executor = create_executor();
 
@@ -25,7 +23,6 @@ fn test_declare_with_default() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_declare_multiple() {
     let mut executor = create_executor();
 
@@ -39,7 +36,6 @@ fn test_declare_multiple() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_declare_string() {
     let mut executor = create_executor();
 
@@ -463,7 +459,6 @@ fn test_labeled_block() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_variable_in_query() {
     let mut executor = create_executor();
     executor

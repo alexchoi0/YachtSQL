@@ -138,6 +138,7 @@ pub enum PlanNode {
         recursive: bool,
         use_union_all: bool,
         materialization_hint: Option<CteAsMaterialized>,
+        column_aliases: Option<Vec<String>>,
     },
 
     Update {

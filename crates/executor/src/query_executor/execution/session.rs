@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use yachtsql_capability::FeatureRegistry;
 use yachtsql_core::diagnostics::DiagnosticArea;
 use yachtsql_core::diagnostics::sqlstate::SqlState;
 use yachtsql_core::error::Error;
+use yachtsql_core::types::{DataType, Value};
 use yachtsql_parser::DialectType;
 use yachtsql_storage::ExtensionRegistry;
 
@@ -11,6 +13,12 @@ use crate::Table;
 
 const NO_EXCEPTION_DIAGNOSTIC_MESSAGE: &str =
     "No exception diagnostic available; the most recent statement completed successfully";
+
+#[derive(Debug, Clone)]
+pub struct SessionVariable {
+    pub data_type: DataType,
+    pub value: Option<Value>,
+}
 
 #[derive(Debug)]
 pub struct SessionState {
@@ -21,6 +29,7 @@ pub struct SessionState {
     feature_registry_snapshot: Option<Rc<FeatureRegistry>>,
     extension_registry: ExtensionRegistry,
     search_path: Vec<String>,
+    variables: HashMap<String, SessionVariable>,
 }
 
 impl SessionState {
@@ -38,6 +47,7 @@ impl SessionState {
             feature_registry_snapshot: None,
             extension_registry: ExtensionRegistry::new(),
             search_path: vec!["default".to_string()],
+            variables: HashMap::new(),
         }
     }
 
@@ -114,6 +124,41 @@ impl SessionState {
             .first()
             .map(|s| s.as_str())
             .unwrap_or("default")
+    }
+
+    pub fn declare_variable(
+        &mut self,
+        name: String,
+        data_type: DataType,
+        default_value: Option<Value>,
+    ) {
+        self.variables.insert(
+            name,
+            SessionVariable {
+                data_type,
+                value: default_value,
+            },
+        );
+    }
+
+    pub fn set_variable(&mut self, name: &str, value: Value) -> Result<(), Error> {
+        if let Some(var) = self.variables.get_mut(name) {
+            var.value = Some(value);
+            Ok(())
+        } else {
+            Err(Error::invalid_query(format!(
+                "Variable '{}' not declared",
+                name
+            )))
+        }
+    }
+
+    pub fn get_variable(&self, name: &str) -> Option<&SessionVariable> {
+        self.variables.get(name)
+    }
+
+    pub fn variables(&self) -> &HashMap<String, SessionVariable> {
+        &self.variables
     }
 }
 
