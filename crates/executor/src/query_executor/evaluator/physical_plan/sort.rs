@@ -455,6 +455,15 @@ fn compare_values(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
     if let (Some(x), Some(y)) = (a.as_uuid(), b.as_uuid()) {
         return Ok(x.cmp(y));
     }
+    if let (Some(x), Some(y)) = (a.as_ipv4(), b.as_ipv4()) {
+        return Ok(x.cmp(&y));
+    }
+    if let (Some(x), Some(y)) = (a.as_ipv6(), b.as_ipv6()) {
+        return Ok(x.cmp(&y));
+    }
+    if let (Some(x), Some(y)) = (a.as_date32(), b.as_date32()) {
+        return Ok(x.0.cmp(&y.0));
+    }
     if let (Some(x_struct), Some(y_struct)) = (a.as_struct(), b.as_struct()) {
         for (x_val, y_val) in x_struct.values().zip(y_struct.values()) {
             let cmp = compare_values(x_val, y_val)?;

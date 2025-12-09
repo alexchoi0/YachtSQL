@@ -133,6 +133,16 @@ impl ProjectionWithExprExec {
         if val1.is_null() || val2.is_null() {
             return Ok(Value::null());
         }
+        if let (Some(p1), Some(p2)) = (val1.as_geo_point(), val2.as_geo_point()) {
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            return Ok(Value::float64((dx * dx + dy * dy).sqrt()));
+        }
+        if let (Some(p1), Some(p2)) = (val1.as_point(), val2.as_point()) {
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            return Ok(Value::float64((dx * dx + dy * dy).sqrt()));
+        }
         let vec1 = Self::extract_vector(&val1)?;
         let vec2 = Self::extract_vector(&val2)?;
         if vec1.len() != vec2.len() {

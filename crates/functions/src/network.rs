@@ -648,7 +648,9 @@ pub fn ipv4_to_ipv6(num: i64) -> Result<Value> {
     }
     let ipv4 = Ipv4Addr::from((num as u32).to_be_bytes());
     let ipv6 = ipv4.to_ipv6_mapped();
-    Ok(Value::string(ipv6.to_string()))
+    Ok(Value::ipv6(yachtsql_core::types::IPv6Addr::from_bytes(
+        ipv6.octets(),
+    )))
 }
 
 pub fn ipv6_num_to_string(bytes: &[u8]) -> Result<Value> {
@@ -675,26 +677,38 @@ pub fn to_ipv4(addr_str: &str) -> Result<Value> {
     let ip: Ipv4Addr = addr_str
         .parse()
         .map_err(|_| Error::invalid_query(format!("Invalid IPv4 address: {}", addr_str)))?;
-    Ok(Value::string(ip.to_string()))
+    let octets = ip.octets();
+    Ok(Value::ipv4(yachtsql_core::types::IPv4Addr::from_octets(
+        octets[0], octets[1], octets[2], octets[3],
+    )))
 }
 
 pub fn to_ipv6(addr_str: &str) -> Result<Value> {
     let ip: Ipv6Addr = addr_str
         .parse()
         .map_err(|_| Error::invalid_query(format!("Invalid IPv6 address: {}", addr_str)))?;
-    Ok(Value::string(ip.to_string()))
+    Ok(Value::ipv6(yachtsql_core::types::IPv6Addr::from_bytes(
+        ip.octets(),
+    )))
 }
 
 pub fn to_ipv4_or_null(addr_str: &str) -> Result<Value> {
     match addr_str.parse::<Ipv4Addr>() {
-        Ok(ip) => Ok(Value::string(ip.to_string())),
+        Ok(ip) => {
+            let octets = ip.octets();
+            Ok(Value::ipv4(yachtsql_core::types::IPv4Addr::from_octets(
+                octets[0], octets[1], octets[2], octets[3],
+            )))
+        }
         Err(_) => Ok(Value::null()),
     }
 }
 
 pub fn to_ipv6_or_null(addr_str: &str) -> Result<Value> {
     match addr_str.parse::<Ipv6Addr>() {
-        Ok(ip) => Ok(Value::string(ip.to_string())),
+        Ok(ip) => Ok(Value::ipv6(yachtsql_core::types::IPv6Addr::from_bytes(
+            ip.octets(),
+        ))),
         Err(_) => Ok(Value::null()),
     }
 }

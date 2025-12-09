@@ -6302,6 +6302,18 @@ fn compare_values_for_sort_non_null(a: &Value, b: &Value) -> Ordering {
         return x.cmp(y);
     }
 
+    if let (Some(x), Some(y)) = (a.as_ipv4(), b.as_ipv4()) {
+        return x.cmp(&y);
+    }
+
+    if let (Some(x), Some(y)) = (a.as_ipv6(), b.as_ipv6()) {
+        return x.cmp(&y);
+    }
+
+    if let (Some(x), Some(y)) = (a.as_date32(), b.as_date32()) {
+        return x.0.cmp(&y.0);
+    }
+
     if let (Some(left_map), Some(right_map)) = (a.as_struct(), b.as_struct()) {
         let left_vals: Vec<&Value> = left_map.values().collect();
         let right_vals: Vec<&Value> = right_map.values().collect();

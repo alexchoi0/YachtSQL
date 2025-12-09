@@ -33,8 +33,13 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.year() as i64));
                 }
+                if let Some(d32) = args[0].as_date32() {
+                    if let Some(date) = d32.to_naive_date() {
+                        return Ok(Value::int64(date.year() as i64));
+                    }
+                }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP or DATE".to_string(),
+                    expected: "TIMESTAMP, DATE, or DATE32".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -58,8 +63,13 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.month() as i64));
                 }
+                if let Some(d32) = args[0].as_date32() {
+                    if let Some(date) = d32.to_naive_date() {
+                        return Ok(Value::int64(date.month() as i64));
+                    }
+                }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP or DATE".to_string(),
+                    expected: "TIMESTAMP, DATE, or DATE32".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -83,8 +93,13 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.day() as i64));
                 }
+                if let Some(d32) = args[0].as_date32() {
+                    if let Some(date) = d32.to_naive_date() {
+                        return Ok(Value::int64(date.day() as i64));
+                    }
+                }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP or DATE".to_string(),
+                    expected: "TIMESTAMP, DATE, or DATE32".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },

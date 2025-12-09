@@ -750,6 +750,106 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(l), Some(r)) = (left.as_ipv4(), right.as_ipv4()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for IPv4",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_ipv6(), right.as_ipv6()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for IPv6",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_date32(), right.as_date32()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l.0 == r.0)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(l.0 != r.0)),
+                BinaryOp::LessThan => Ok(Value::bool_val(l.0 < r.0)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l.0 <= r.0)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l.0 > r.0)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l.0 >= r.0)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for Date32",
+                    op
+                ))),
+            };
+        }
+
+        if left.as_date32().is_some() && right.as_str().is_some() {
+            if let (Some(l), Some(r_str)) = (left.as_date32(), right.as_str()) {
+                if let Some(r) = yachtsql_core::types::Date32Value::parse(r_str) {
+                    return match op {
+                        BinaryOp::Equal => Ok(Value::bool_val(l.0 == r.0)),
+                        BinaryOp::NotEqual => Ok(Value::bool_val(l.0 != r.0)),
+                        BinaryOp::LessThan => Ok(Value::bool_val(l.0 < r.0)),
+                        BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l.0 <= r.0)),
+                        BinaryOp::GreaterThan => Ok(Value::bool_val(l.0 > r.0)),
+                        BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l.0 >= r.0)),
+                        _ => Err(crate::error::Error::unsupported_feature(format!(
+                            "Operator {:?} not supported for Date32",
+                            op
+                        ))),
+                    };
+                }
+            }
+        }
+
+        if left.as_str().is_some() && right.as_date32().is_some() {
+            if let (Some(l_str), Some(r)) = (left.as_str(), right.as_date32()) {
+                if let Some(l) = yachtsql_core::types::Date32Value::parse(l_str) {
+                    return match op {
+                        BinaryOp::Equal => Ok(Value::bool_val(l.0 == r.0)),
+                        BinaryOp::NotEqual => Ok(Value::bool_val(l.0 != r.0)),
+                        BinaryOp::LessThan => Ok(Value::bool_val(l.0 < r.0)),
+                        BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l.0 <= r.0)),
+                        BinaryOp::GreaterThan => Ok(Value::bool_val(l.0 > r.0)),
+                        BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l.0 >= r.0)),
+                        _ => Err(crate::error::Error::unsupported_feature(format!(
+                            "Operator {:?} not supported for Date32",
+                            op
+                        ))),
+                    };
+                }
+            }
+        }
+
+        if left.as_date32().is_some() && right.as_i64().is_some() {
+            if let (Some(l), Some(r)) = (left.as_date32(), right.as_i64()) {
+                return match op {
+                    BinaryOp::Add => Ok(Value::date32(yachtsql_core::types::Date32Value(
+                        l.0 + r as i32,
+                    ))),
+                    BinaryOp::Subtract => Ok(Value::date32(yachtsql_core::types::Date32Value(
+                        l.0 - r as i32,
+                    ))),
+                    _ => Err(crate::error::Error::unsupported_feature(format!(
+                        "Operator {:?} not supported for Date32 and INT64",
+                        op
+                    ))),
+                };
+            }
+        }
+
         if let (Some(l), Some(r)) = (left.as_inet(), right.as_inet()) {
             return match op {
                 BinaryOp::Equal => Ok(Value::bool_val(

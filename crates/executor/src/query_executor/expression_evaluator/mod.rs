@@ -2240,6 +2240,18 @@ impl<'a> ExpressionEvaluator<'a> {
             return Ok(a.cmp(&b));
         }
 
+        if let (Some(a), Some(b)) = (left.as_ipv4(), right.as_ipv4()) {
+            return Ok(a.cmp(&b));
+        }
+
+        if let (Some(a), Some(b)) = (left.as_ipv6(), right.as_ipv6()) {
+            return Ok(a.cmp(&b));
+        }
+
+        if let (Some(a), Some(b)) = (left.as_date32(), right.as_date32()) {
+            return Ok(a.0.cmp(&b.0));
+        }
+
         if let (Some(left_map), Some(right_map)) = (left.as_struct(), right.as_struct()) {
             let left_vals: Vec<&Value> = left_map.values().collect();
             let right_vals: Vec<&Value> = right_map.values().collect();
@@ -2964,6 +2976,12 @@ impl<'a> ExpressionEvaluator<'a> {
                 format!("{}", c.radius)
             };
             Ok(format!("<({},{}),{}>", x, y, r))
+        } else if let Some(ipv4) = value.as_ipv4() {
+            Ok(ipv4.to_string())
+        } else if let Some(ipv6) = value.as_ipv6() {
+            Ok(ipv6.to_string())
+        } else if let Some(d32) = value.as_date32() {
+            Ok(d32.to_string())
         } else if value.is_null() {
             Ok(String::new())
         } else if value.as_bytes().is_some() {
@@ -8873,14 +8891,17 @@ impl<'a> ExpressionEvaluator<'a> {
                         "IPv4ToIPv6() requires 1 argument".to_string(),
                     ));
                 }
-                let num = self
-                    .evaluate_function_arg(&args[0], row)?
-                    .as_i64()
-                    .ok_or_else(|| Error::TypeMismatch {
-                        expected: "INT64".to_string(),
-                        actual: "other".to_string(),
-                    })?;
-                yachtsql_functions::network::ipv4_to_ipv6(num)
+                let arg_val = self.evaluate_function_arg(&args[0], row)?;
+                if let Some(ipv4) = arg_val.as_ipv4() {
+                    Ok(Value::ipv6(ipv4.to_ipv6()))
+                } else if let Some(num) = arg_val.as_i64() {
+                    yachtsql_functions::network::ipv4_to_ipv6(num)
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "IPv4 or INT64".to_string(),
+                        actual: arg_val.data_type().to_string(),
+                    })
+                }
             }
             "IPV6NUMTOSTRING" => {
                 if args.is_empty() {
@@ -9529,6 +9550,13 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Unknown => None,
             DataType::MacAddr => Some("macaddr"),
             DataType::MacAddr8 => Some("macaddr8"),
+            DataType::IPv4 => Some("ipv4"),
+            DataType::IPv6 => Some("ipv6"),
+            DataType::Date32 => Some("date"),
+            DataType::GeoPoint
+            | DataType::GeoRing
+            | DataType::GeoPolygon
+            | DataType::GeoMultiPolygon => Some("geometric"),
         }
     }
 

@@ -205,6 +205,9 @@ impl ProjectionWithExprExec {
                 (Some(DataType::Date), Some(DataType::Interval))
                 | (Some(DataType::Interval), Some(DataType::Date)) => Some(DataType::Date),
 
+                (Some(DataType::Date32), Some(DataType::Int64))
+                | (Some(DataType::Int64), Some(DataType::Date32)) => Some(DataType::Date32),
+
                 (Some(DataType::Interval), Some(DataType::Interval)) => Some(DataType::Interval),
 
                 (Some(DataType::Inet), Some(DataType::Int64))
@@ -241,6 +244,8 @@ impl ProjectionWithExprExec {
                 }
 
                 (Some(DataType::Date), Some(DataType::Interval)) => Some(DataType::Date),
+
+                (Some(DataType::Date32), Some(DataType::Int64)) => Some(DataType::Date32),
 
                 (Some(DataType::Interval), Some(DataType::Interval)) => Some(DataType::Interval),
 
@@ -596,6 +601,34 @@ impl ProjectionWithExprExec {
             FunctionName::Custom(s) if s == "MACADDR8_SET7BIT" => Some(DataType::MacAddr8),
 
             FunctionName::Custom(s)
+                if matches!(s.as_str(), "TOYEAR" | "TOMONTH" | "TODAYOFMONTH") =>
+            {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "POLYGONAREACARTESIAN" | "POLYGONPERIMETERCARTESIAN" | "L2DISTANCE"
+                ) =>
+            {
+                Some(DataType::Float64)
+            }
+
+            FunctionName::Custom(s) if s == "POLYGONCONVEXHULLCARTESIAN" => {
+                Some(DataType::GeoPolygon)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(
+                    s.as_str(),
+                    "POLYGONSINTERSECTIONCARTESIAN" | "POLYGONSUNIONCARTESIAN"
+                ) =>
+            {
+                Some(DataType::GeoMultiPolygon)
+            }
+
+            FunctionName::Custom(s)
                 if matches!(
                     s.as_str(),
                     "EXTRACTURLPARAMETERS"
@@ -718,17 +751,22 @@ impl ProjectionWithExprExec {
                     s.as_str(),
                     "IPV4NUMTOSTRING"
                         | "IPV4NUMTOSTRINGCLASSC"
-                        | "IPV4TOIPV6"
-                        | "TOIPV4"
-                        | "TOIPV6"
-                        | "TOIPV4ORNULL"
-                        | "TOIPV6ORNULL"
                         | "IPV4CIDRTORANGE"
                         | "IPV6CIDRTORANGE"
                         | "MACNUMTOSTRING"
                 ) =>
             {
                 Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "TOIPV4" | "TOIPV4ORNULL") => {
+                Some(DataType::IPv4)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "TOIPV6" | "TOIPV6ORNULL" | "IPV4TOIPV6") =>
+            {
+                Some(DataType::IPv6)
             }
 
             FunctionName::Custom(s)

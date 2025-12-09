@@ -49,6 +49,13 @@ pub enum DataType {
     Circle,
     MacAddr,
     MacAddr8,
+    IPv4,
+    IPv6,
+    Date32,
+    GeoPoint,
+    GeoRing,
+    GeoPolygon,
+    GeoMultiPolygon,
     Enum {
         type_name: String,
         labels: Vec<String>,
@@ -129,6 +136,13 @@ impl fmt::Display for DataType {
             DataType::Circle => write!(f, "CIRCLE"),
             DataType::MacAddr => write!(f, "MACADDR"),
             DataType::MacAddr8 => write!(f, "MACADDR8"),
+            DataType::IPv4 => write!(f, "IPv4"),
+            DataType::IPv6 => write!(f, "IPv6"),
+            DataType::Date32 => write!(f, "Date32"),
+            DataType::GeoPoint => write!(f, "Point"),
+            DataType::GeoRing => write!(f, "Ring"),
+            DataType::GeoPolygon => write!(f, "Polygon"),
+            DataType::GeoMultiPolygon => write!(f, "MultiPolygon"),
             DataType::Enum { type_name, .. } => write!(f, "{}", type_name),
             DataType::Custom(name) => write!(f, "{}", name),
         }
@@ -154,6 +168,13 @@ const TAG_POINT: u8 = 142;
 const TAG_PGBOX: u8 = 143;
 const TAG_CIRCLE: u8 = 144;
 const TAG_HSTORE: u8 = 145;
+const TAG_IPV4: u8 = 153;
+const TAG_IPV6: u8 = 154;
+const TAG_DATE32: u8 = 155;
+const TAG_GEO_POINT: u8 = 156;
+const TAG_GEO_RING: u8 = 157;
+const TAG_GEO_POLYGON: u8 = 158;
+const TAG_GEO_MULTIPOLYGON: u8 = 159;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PgPoint {
@@ -357,6 +378,296 @@ impl fmt::Display for PgCircle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<{},{}>", self.center, self.radius)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct IPv4Addr(pub u32);
+
+impl IPv4Addr {
+    pub fn new(addr: u32) -> Self {
+        Self(addr)
+    }
+
+    pub fn from_octets(a: u8, b: u8, c: u8, d: u8) -> Self {
+        Self(((a as u32) << 24) | ((b as u32) << 16) | ((c as u32) << 8) | (d as u32))
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        let parts: Vec<&str> = s.split('.').collect();
+        if parts.len() != 4 {
+            return None;
+        }
+        let a = parts[0].parse::<u8>().ok()?;
+        let b = parts[1].parse::<u8>().ok()?;
+        let c = parts[2].parse::<u8>().ok()?;
+        let d = parts[3].parse::<u8>().ok()?;
+        Some(Self::from_octets(a, b, c, d))
+    }
+
+    pub fn octets(&self) -> [u8; 4] {
+        [
+            ((self.0 >> 24) & 0xFF) as u8,
+            ((self.0 >> 16) & 0xFF) as u8,
+            ((self.0 >> 8) & 0xFF) as u8,
+            (self.0 & 0xFF) as u8,
+        ]
+    }
+
+    pub fn to_ipv6(&self) -> IPv6Addr {
+        let octets = self.octets();
+        IPv6Addr::from_bytes([
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, octets[0], octets[1], octets[2], octets[3],
+        ])
+    }
+}
+
+impl fmt::Display for IPv4Addr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let octets = self.octets();
+        write!(f, "{}.{}.{}.{}", octets[0], octets[1], octets[2], octets[3])
+    }
+}
+
+impl PartialOrd for IPv4Addr {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IPv4Addr {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct IPv6Addr(pub u128);
+
+impl IPv6Addr {
+    pub fn new(addr: u128) -> Self {
+        Self(addr)
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        let mut addr: u128 = 0;
+        for b in bytes {
+            addr = (addr << 8) | (b as u128);
+        }
+        Self(addr)
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        if let Some(mapped) = s.strip_prefix("::ffff:")
+            && let Some(ipv4) = IPv4Addr::parse(mapped)
+        {
+            return Some(ipv4.to_ipv6());
+        }
+        let addr: std::net::Ipv6Addr = s.parse().ok()?;
+        Some(Self::from_bytes(addr.octets()))
+    }
+
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut bytes = [0u8; 16];
+        let mut val = self.0;
+        for i in (0..16).rev() {
+            bytes[i] = (val & 0xFF) as u8;
+            val >>= 8;
+        }
+        bytes
+    }
+
+    pub fn is_ipv4_mapped(&self) -> bool {
+        let bytes = self.to_bytes();
+        bytes[0..10] == [0; 10] && bytes[10] == 0xFF && bytes[11] == 0xFF
+    }
+
+    pub fn to_ipv4(&self) -> Option<IPv4Addr> {
+        if self.is_ipv4_mapped() {
+            let bytes = self.to_bytes();
+            Some(IPv4Addr::from_octets(
+                bytes[12], bytes[13], bytes[14], bytes[15],
+            ))
+        } else {
+            None
+        }
+    }
+}
+
+impl fmt::Display for IPv6Addr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let bytes = self.to_bytes();
+        let addr = std::net::Ipv6Addr::from(bytes);
+        write!(f, "{}", addr)
+    }
+}
+
+impl PartialOrd for IPv6Addr {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IPv6Addr {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Date32Value(pub i32);
+
+impl Date32Value {
+    pub fn new(days_since_epoch: i32) -> Self {
+        Self(days_since_epoch)
+    }
+
+    pub fn from_ymd(year: i32, month: u32, day: u32) -> Option<Self> {
+        let date = chrono::NaiveDate::from_ymd_opt(year, month, day)?;
+        let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1)?;
+        let days = date.signed_duration_since(epoch).num_days() as i32;
+        Some(Self(days))
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim().trim_matches('\'');
+        let date = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()?;
+        let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1)?;
+        let days = date.signed_duration_since(epoch).num_days() as i32;
+        Some(Self(days))
+    }
+
+    pub fn to_naive_date(&self) -> Option<chrono::NaiveDate> {
+        let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1)?;
+        epoch.checked_add_signed(chrono::Duration::days(self.0 as i64))
+    }
+
+    pub fn year(&self) -> Option<i32> {
+        self.to_naive_date().map(|d| d.year())
+    }
+
+    pub fn month(&self) -> Option<u32> {
+        self.to_naive_date().map(|d| d.month())
+    }
+
+    pub fn day(&self) -> Option<u32> {
+        self.to_naive_date().map(|d| d.day())
+    }
+}
+
+impl fmt::Display for Date32Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(date) = self.to_naive_date() {
+            write!(f, "{}", date.format("%Y-%m-%d"))
+        } else {
+            write!(f, "Invalid Date32")
+        }
+    }
+}
+
+impl PartialOrd for Date32Value {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Date32Value {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+use chrono::Datelike;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GeoPointValue {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl GeoPointValue {
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        let s = s.strip_prefix('(')?.strip_suffix(')')?;
+        let parts: Vec<&str> = s.split(',').collect();
+        if parts.len() != 2 {
+            return None;
+        }
+        let x = parts[0].trim().parse::<f64>().ok()?;
+        let y = parts[1].trim().parse::<f64>().ok()?;
+        Some(Self::new(x, y))
+    }
+
+    pub fn distance(&self, other: &GeoPointValue) -> f64 {
+        let dx = self.x - other.x;
+        let dy = self.y - other.y;
+        (dx * dx + dy * dy).sqrt()
+    }
+}
+
+impl Eq for GeoPointValue {}
+
+impl std::hash::Hash for GeoPointValue {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.y.to_bits().hash(state);
+    }
+}
+
+impl fmt::Display for GeoPointValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({},{})", self.x, self.y)
+    }
+}
+
+pub type GeoRingValue = Vec<GeoPointValue>;
+pub type GeoPolygonValue = Vec<GeoRingValue>;
+pub type GeoMultiPolygonValue = Vec<GeoPolygonValue>;
+
+pub fn parse_geo_ring(s: &str) -> Option<GeoRingValue> {
+    let s = s.trim();
+    let s = s.strip_prefix('[')?.strip_suffix(']')?;
+    let mut ring = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    let point_str = &s[start..=i];
+                    ring.push(GeoPointValue::parse(point_str)?);
+                    start = i + 1;
+                }
+            }
+            ',' if depth == 0 => {
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    Some(ring)
+}
+
+pub fn format_geo_ring(ring: &GeoRingValue) -> String {
+    let points: Vec<String> = ring.iter().map(|p| format!("{}", p)).collect();
+    format!("[{}]", points.join(", "))
+}
+
+pub fn format_geo_polygon(polygon: &GeoPolygonValue) -> String {
+    let rings: Vec<String> = polygon.iter().map(format_geo_ring).collect();
+    format!("[{}]", rings.join(", "))
+}
+
+pub fn format_geo_multipolygon(mp: &GeoMultiPolygonValue) -> String {
+    let polys: Vec<String> = mp.iter().map(format_geo_polygon).collect();
+    format!("[{}]", polys.join(", "))
 }
 
 fn parse_hstore_text(s: &str) -> Result<IndexMap<String, Option<String>>, String> {
@@ -1339,6 +1650,123 @@ impl Value {
             },
         }
     }
+
+    #[inline]
+    pub fn ipv4(addr: IPv4Addr) -> Self {
+        let rc = Rc::new(addr);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_IPV4,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    pub fn ipv4_from_str(s: &str) -> Option<Self> {
+        IPv4Addr::parse(s).map(Self::ipv4)
+    }
+
+    #[inline]
+    pub fn ipv6(addr: IPv6Addr) -> Self {
+        let rc = Rc::new(addr);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_IPV6,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    pub fn ipv6_from_str(s: &str) -> Option<Self> {
+        IPv6Addr::parse(s).map(Self::ipv6)
+    }
+
+    #[inline]
+    pub fn date32(value: Date32Value) -> Self {
+        let rc = Rc::new(value);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_DATE32,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    pub fn date32_from_str(s: &str) -> Option<Self> {
+        Date32Value::parse(s).map(Self::date32)
+    }
+
+    #[inline]
+    pub fn geo_point(p: GeoPointValue) -> Self {
+        let rc = Rc::new(p);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_GEO_POINT,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn geo_ring(ring: GeoRingValue) -> Self {
+        let rc = Rc::new(ring);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_GEO_RING,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn geo_polygon(polygon: GeoPolygonValue) -> Self {
+        let rc = Rc::new(polygon);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_GEO_POLYGON,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn geo_multipolygon(mp: GeoMultiPolygonValue) -> Self {
+        let rc = Rc::new(mp);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_GEO_MULTIPOLYGON,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
 }
 
 impl Value {
@@ -1487,6 +1915,13 @@ impl Value {
                     TAG_POINT => DataType::Point,
                     TAG_PGBOX => DataType::PgBox,
                     TAG_CIRCLE => DataType::Circle,
+                    TAG_IPV4 => DataType::IPv4,
+                    TAG_IPV6 => DataType::IPv6,
+                    TAG_DATE32 => DataType::Date32,
+                    TAG_GEO_POINT => DataType::GeoPoint,
+                    TAG_GEO_RING => DataType::GeoRing,
+                    TAG_GEO_POLYGON => DataType::GeoPolygon,
+                    TAG_GEO_MULTIPOLYGON => DataType::GeoMultiPolygon,
                     _ => DataType::Unknown,
                 }
             }
@@ -1924,6 +2359,90 @@ impl Value {
             }
         }
     }
+
+    pub fn as_ipv4(&self) -> Option<&IPv4Addr> {
+        unsafe {
+            if self.tag() == TAG_IPV4 {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const IPv4Addr;
+                Some(&*ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_ipv6(&self) -> Option<&IPv6Addr> {
+        unsafe {
+            if self.tag() == TAG_IPV6 {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const IPv6Addr;
+                Some(&*ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_date32(&self) -> Option<&Date32Value> {
+        unsafe {
+            if self.tag() == TAG_DATE32 {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const Date32Value;
+                Some(&*ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_geo_point(&self) -> Option<&GeoPointValue> {
+        unsafe {
+            if self.tag() == TAG_GEO_POINT {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const GeoPointValue;
+                Some(&*ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_geo_ring(&self) -> Option<&GeoRingValue> {
+        unsafe {
+            if self.tag() == TAG_GEO_RING {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const GeoRingValue;
+                Some(&*ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_geo_polygon(&self) -> Option<&GeoPolygonValue> {
+        unsafe {
+            if self.tag() == TAG_GEO_POLYGON {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const GeoPolygonValue;
+                Some(&*ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_geo_multipolygon(&self) -> Option<&GeoMultiPolygonValue> {
+        unsafe {
+            if self.tag() == TAG_GEO_MULTIPOLYGON {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const GeoMultiPolygonValue;
+                Some(&*ptr)
+            } else {
+                None
+            }
+        }
+    }
 }
 
 impl Drop for Value {
@@ -1987,6 +2506,27 @@ impl Drop for Value {
                     }
                     TAG_MACADDR | TAG_MACADDR8 => {
                         let _ = Rc::from_raw(heap.ptr as *const MacAddress);
+                    }
+                    TAG_IPV4 => {
+                        let _ = Rc::from_raw(heap.ptr as *const IPv4Addr);
+                    }
+                    TAG_IPV6 => {
+                        let _ = Rc::from_raw(heap.ptr as *const IPv6Addr);
+                    }
+                    TAG_DATE32 => {
+                        let _ = Rc::from_raw(heap.ptr as *const Date32Value);
+                    }
+                    TAG_GEO_POINT => {
+                        let _ = Rc::from_raw(heap.ptr as *const GeoPointValue);
+                    }
+                    TAG_GEO_RING => {
+                        let _ = Rc::from_raw(heap.ptr as *const GeoRingValue);
+                    }
+                    TAG_GEO_POLYGON => {
+                        let _ = Rc::from_raw(heap.ptr as *const GeoPolygonValue);
+                    }
+                    TAG_GEO_MULTIPOLYGON => {
+                        let _ = Rc::from_raw(heap.ptr as *const GeoMultiPolygonValue);
                     }
                     TAG_DEFAULT => {}
                     _ => {}
@@ -2299,6 +2839,118 @@ impl Clone for Value {
                             },
                         }
                     }
+                    TAG_IPV4 => {
+                        let arc_ptr = heap.ptr as *const IPv4Addr;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_IPV4,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_IPV6 => {
+                        let arc_ptr = heap.ptr as *const IPv6Addr;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_IPV6,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_DATE32 => {
+                        let arc_ptr = heap.ptr as *const Date32Value;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_DATE32,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_GEO_POINT => {
+                        let arc_ptr = heap.ptr as *const GeoPointValue;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_GEO_POINT,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_GEO_RING => {
+                        let arc_ptr = heap.ptr as *const GeoRingValue;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_GEO_RING,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_GEO_POLYGON => {
+                        let arc_ptr = heap.ptr as *const GeoPolygonValue;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_GEO_POLYGON,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_GEO_MULTIPOLYGON => {
+                        let arc_ptr = heap.ptr as *const GeoMultiPolygonValue;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_GEO_MULTIPOLYGON,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
                     TAG_DEFAULT => Self::default_value(),
                     _ => Self::null(),
                 }
@@ -2410,6 +3062,41 @@ impl PartialEq for Value {
                         let self_map = &*(self_heap.ptr as *const Vec<(Value, Value)>);
                         let other_map = &*(other_heap.ptr as *const Vec<(Value, Value)>);
                         self_map == other_map
+                    }
+                    TAG_IPV4 => {
+                        let self_ip = &*(self_heap.ptr as *const IPv4Addr);
+                        let other_ip = &*(other_heap.ptr as *const IPv4Addr);
+                        self_ip == other_ip
+                    }
+                    TAG_IPV6 => {
+                        let self_ip = &*(self_heap.ptr as *const IPv6Addr);
+                        let other_ip = &*(other_heap.ptr as *const IPv6Addr);
+                        self_ip == other_ip
+                    }
+                    TAG_DATE32 => {
+                        let self_d = &*(self_heap.ptr as *const Date32Value);
+                        let other_d = &*(other_heap.ptr as *const Date32Value);
+                        self_d == other_d
+                    }
+                    TAG_GEO_POINT => {
+                        let self_p = &*(self_heap.ptr as *const GeoPointValue);
+                        let other_p = &*(other_heap.ptr as *const GeoPointValue);
+                        self_p == other_p
+                    }
+                    TAG_GEO_RING => {
+                        let self_r = &*(self_heap.ptr as *const GeoRingValue);
+                        let other_r = &*(other_heap.ptr as *const GeoRingValue);
+                        self_r == other_r
+                    }
+                    TAG_GEO_POLYGON => {
+                        let self_p = &*(self_heap.ptr as *const GeoPolygonValue);
+                        let other_p = &*(other_heap.ptr as *const GeoPolygonValue);
+                        self_p == other_p
+                    }
+                    TAG_GEO_MULTIPOLYGON => {
+                        let self_mp = &*(self_heap.ptr as *const GeoMultiPolygonValue);
+                        let other_mp = &*(other_heap.ptr as *const GeoMultiPolygonValue);
+                        self_mp == other_mp
                     }
                     TAG_DEFAULT => true,
 
@@ -2583,6 +3270,59 @@ impl std::hash::Hash for Value {
                             mac.hash(state);
                         }
                     }
+                    TAG_IPV4 => {
+                        if let Some(ipv4) = self.as_ipv4() {
+                            ipv4.hash(state);
+                        }
+                    }
+                    TAG_IPV6 => {
+                        if let Some(ipv6) = self.as_ipv6() {
+                            ipv6.hash(state);
+                        }
+                    }
+                    TAG_DATE32 => {
+                        if let Some(d32) = self.as_date32() {
+                            d32.hash(state);
+                        }
+                    }
+                    TAG_GEO_POINT => {
+                        if let Some(p) = self.as_geo_point() {
+                            p.hash(state);
+                        }
+                    }
+                    TAG_GEO_RING => {
+                        if let Some(r) = self.as_geo_ring() {
+                            r.len().hash(state);
+                            for p in r {
+                                p.hash(state);
+                            }
+                        }
+                    }
+                    TAG_GEO_POLYGON => {
+                        if let Some(poly) = self.as_geo_polygon() {
+                            poly.len().hash(state);
+                            for ring in poly {
+                                ring.len().hash(state);
+                                for p in ring {
+                                    p.hash(state);
+                                }
+                            }
+                        }
+                    }
+                    TAG_GEO_MULTIPOLYGON => {
+                        if let Some(mp) = self.as_geo_multipolygon() {
+                            mp.len().hash(state);
+                            for poly in mp {
+                                poly.len().hash(state);
+                                for ring in poly {
+                                    ring.len().hash(state);
+                                    for p in ring {
+                                        p.hash(state);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -2676,6 +3416,34 @@ impl std::fmt::Debug for Value {
                     TAG_MACADDR8 => {
                         let mac = &*(heap.ptr as *const MacAddress);
                         write!(f, "Value::macaddr8({:?})", mac)
+                    }
+                    TAG_IPV4 => {
+                        let ip = &*(heap.ptr as *const IPv4Addr);
+                        write!(f, "Value::ipv4({:?})", ip)
+                    }
+                    TAG_IPV6 => {
+                        let ip = &*(heap.ptr as *const IPv6Addr);
+                        write!(f, "Value::ipv6({:?})", ip)
+                    }
+                    TAG_DATE32 => {
+                        let d = &*(heap.ptr as *const Date32Value);
+                        write!(f, "Value::date32({:?})", d)
+                    }
+                    TAG_GEO_POINT => {
+                        let p = &*(heap.ptr as *const GeoPointValue);
+                        write!(f, "Value::geo_point({:?})", p)
+                    }
+                    TAG_GEO_RING => {
+                        let r = &*(heap.ptr as *const GeoRingValue);
+                        write!(f, "Value::geo_ring({:?})", r)
+                    }
+                    TAG_GEO_POLYGON => {
+                        let p = &*(heap.ptr as *const GeoPolygonValue);
+                        write!(f, "Value::geo_polygon({:?})", p)
+                    }
+                    TAG_GEO_MULTIPOLYGON => {
+                        let mp = &*(heap.ptr as *const GeoMultiPolygonValue);
+                        write!(f, "Value::geo_multipolygon({:?})", mp)
                     }
                     _ => write!(f, "Value::Unknown(tag={})", tag),
                 }

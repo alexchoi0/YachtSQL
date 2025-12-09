@@ -2218,6 +2218,15 @@ fn value_to_json(value: &Value) -> serde_json::Value {
         }
         return serde_json::Value::String(numeric.to_string());
     }
+    if let Some(ipv4) = value.as_ipv4() {
+        return serde_json::Value::String(format!("ipv4:{}", ipv4.0));
+    }
+    if let Some(ipv6) = value.as_ipv6() {
+        return serde_json::Value::String(format!("ipv6:{}", ipv6.0));
+    }
+    if let Some(d32) = value.as_date32() {
+        return serde_json::Value::Number(serde_json::Number::from(d32.0));
+    }
     serde_json::Value::String(format!("{:?}", value))
 }
 
@@ -3711,6 +3720,15 @@ fn compare_values(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
     }
     if let (Some(x), Some(y)) = (a.as_str(), b.as_str()) {
         return Ok(x.cmp(y));
+    }
+    if let (Some(x), Some(y)) = (a.as_ipv4(), b.as_ipv4()) {
+        return Ok(x.cmp(&y));
+    }
+    if let (Some(x), Some(y)) = (a.as_ipv6(), b.as_ipv6()) {
+        return Ok(x.cmp(&y));
+    }
+    if let (Some(x), Some(y)) = (a.as_date32(), b.as_date32()) {
+        return Ok(x.0.cmp(&y.0));
     }
     Ok(std::cmp::Ordering::Equal)
 }

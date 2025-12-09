@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_create() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_date32_create() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_extended_range() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_date32_extended_range() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_comparison() {
     let mut executor = create_executor();
@@ -54,7 +51,6 @@ fn test_date32_comparison() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_ordering() {
     let mut executor = create_executor();
@@ -73,7 +69,6 @@ fn test_date32_ordering() {
     assert_table_eq!(result, [[2], [3], [1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_arithmetic() {
     let mut executor = create_executor();
@@ -90,7 +85,6 @@ fn test_date32_arithmetic() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_functions() {
     let mut executor = create_executor();
@@ -107,7 +101,6 @@ fn test_date32_functions() {
     assert_table_eq!(result, [[2023, 6, 15]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_null() {
     let mut executor = create_executor();
@@ -124,7 +117,6 @@ fn test_date32_null() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_group_by() {
     let mut executor = create_executor();
@@ -141,7 +133,6 @@ fn test_date32_group_by() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_between() {
     let mut executor = create_executor();
@@ -158,7 +149,6 @@ fn test_date32_between() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_date32_distinct() {
     let mut executor = create_executor();

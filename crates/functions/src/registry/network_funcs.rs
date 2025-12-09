@@ -2,12 +2,192 @@ use std::rc::Rc;
 
 use yachtsql_core::error::Error;
 use yachtsql_core::types::network::{CidrAddr, InetAddr};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_core::types::{DataType, IPv4Addr, IPv6Addr, Value};
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;
 
 pub(super) fn register(registry: &mut FunctionRegistry) {
+    registry.register_scalar(
+        "TOIPV4".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "TOIPV4".to_string(),
+            arg_types: vec![DataType::String],
+            return_type: DataType::IPv4,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(s) = args[0].as_str() {
+                    match IPv4Addr::parse(s) {
+                        Some(ipv4) => Ok(Value::ipv4(ipv4)),
+                        None => Err(Error::InvalidOperation(format!(
+                            "Cannot parse '{}' as IPv4 address",
+                            s
+                        ))),
+                    }
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "TOIPV6".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "TOIPV6".to_string(),
+            arg_types: vec![DataType::String],
+            return_type: DataType::IPv6,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(s) = args[0].as_str() {
+                    match IPv6Addr::parse(s) {
+                        Some(ipv6) => Ok(Value::ipv6(ipv6)),
+                        None => Err(Error::InvalidOperation(format!(
+                            "Cannot parse '{}' as IPv6 address",
+                            s
+                        ))),
+                    }
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "IPV4TOIPV6".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "IPV4TOIPV6".to_string(),
+            arg_types: vec![DataType::IPv4],
+            return_type: DataType::IPv6,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ipv4) = args[0].as_ipv4() {
+                    Ok(Value::ipv6(ipv4.to_ipv6()))
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "IPv4".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "ISIPADDRESSINRANGE".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "ISIPADDRESSINRANGE".to_string(),
+            arg_types: vec![DataType::String, DataType::String],
+            return_type: DataType::Bool,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let (Some(ip_str), Some(cidr_str)) = (args[0].as_str(), args[1].as_str()) else {
+                    return Err(Error::TypeMismatch {
+                        expected: "STRING, STRING".to_string(),
+                        actual: format!("{:?}, {:?}", args[0].data_type(), args[1].data_type()),
+                    });
+                };
+
+                let parts: Vec<&str> = cidr_str.split('/').collect();
+                if parts.len() != 2 {
+                    return Err(Error::InvalidOperation(format!(
+                        "Invalid CIDR notation: {}",
+                        cidr_str
+                    )));
+                }
+                let network_str = parts[0];
+                let prefix_len: u8 = parts[1].parse().map_err(|_| {
+                    Error::InvalidOperation(format!("Invalid prefix length in CIDR: {}", cidr_str))
+                })?;
+
+                if let Some(ipv4) = IPv4Addr::parse(ip_str) {
+                    if let Some(network) = IPv4Addr::parse(network_str) {
+                        if prefix_len > 32 {
+                            return Err(Error::InvalidOperation(format!(
+                                "Invalid IPv4 prefix length: {}",
+                                prefix_len
+                            )));
+                        }
+                        let mask = if prefix_len == 0 {
+                            0u32
+                        } else {
+                            !0u32 << (32 - prefix_len)
+                        };
+                        let in_range = (ipv4.0 & mask) == (network.0 & mask);
+                        return Ok(Value::bool_val(in_range));
+                    }
+                }
+
+                if let Some(ipv6) = IPv6Addr::parse(ip_str) {
+                    if let Some(network) = IPv6Addr::parse(network_str) {
+                        if prefix_len > 128 {
+                            return Err(Error::InvalidOperation(format!(
+                                "Invalid IPv6 prefix length: {}",
+                                prefix_len
+                            )));
+                        }
+                        let mask = if prefix_len == 0 {
+                            0u128
+                        } else {
+                            !0u128 << (128 - prefix_len)
+                        };
+                        let in_range = (ipv6.0 & mask) == (network.0 & mask);
+                        return Ok(Value::bool_val(in_range));
+                    }
+                }
+
+                Err(Error::InvalidOperation(format!(
+                    "Cannot parse '{}' or '{}' as IP address",
+                    ip_str, network_str
+                )))
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "TOSTRING".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "TOSTRING".to_string(),
+            arg_types: vec![DataType::IPv4],
+            return_type: DataType::String,
+            variadic: false,
+            evaluator: |args| {
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ipv4) = args[0].as_ipv4() {
+                    Ok(Value::string(ipv4.to_string()))
+                } else if let Some(ipv6) = args[0].as_ipv6() {
+                    Ok(Value::string(ipv6.to_string()))
+                } else {
+                    Err(Error::TypeMismatch {
+                        expected: "IPv4 or IPv6".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })
+                }
+            },
+        }),
+    );
+
     registry.register_scalar(
         "HOST".to_string(),
         Rc::new(ScalarFunctionImpl {

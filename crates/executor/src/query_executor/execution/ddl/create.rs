@@ -649,6 +649,7 @@ impl DdlExecutor for QueryExecutor {
             SqlDataType::Bytea | SqlDataType::Bytes(_) => Ok(DataType::Bytes),
             SqlDataType::Bit(_) | SqlDataType::BitVarying(_) => Ok(DataType::Bytes),
             SqlDataType::Date => Ok(DataType::Date),
+            SqlDataType::Date32 => Ok(DataType::Date32),
             SqlDataType::Timestamp(_, _)
             | SqlDataType::Datetime(_)
             | SqlDataType::Datetime64(_, _) => Ok(DataType::Timestamp),
@@ -790,7 +791,7 @@ impl DdlExecutor for QueryExecutor {
                     return self.parse_domain_base_type(&base_type);
                 }
 
-                match canonical.as_str() {
+                match type_upper.as_str() {
                     "GEOGRAPHY" => Ok(DataType::Geography),
                     "JSON" => Ok(DataType::Json),
                     "HSTORE" => Ok(DataType::Hstore),
@@ -804,6 +805,12 @@ impl DdlExecutor for QueryExecutor {
                     "SERIAL" | "SERIAL4" => Ok(DataType::Int64),
                     "BIGSERIAL" | "SERIAL8" => Ok(DataType::Int64),
                     "SMALLSERIAL" | "SERIAL2" => Ok(DataType::Int64),
+                    "IPV4" => Ok(DataType::IPv4),
+                    "IPV6" => Ok(DataType::IPv6),
+                    "DATE32" => Ok(DataType::Date32),
+                    "RING" => Ok(DataType::GeoRing),
+                    "POLYGON" => Ok(DataType::GeoPolygon),
+                    "MULTIPOLYGON" => Ok(DataType::GeoMultiPolygon),
 
                     _ => Ok(DataType::Custom(type_name)),
                 }

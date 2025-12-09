@@ -203,8 +203,53 @@ impl CoercionRules {
             (DataType::PgBox, DataType::PgBox) => true,
             (DataType::Circle, DataType::Circle) => true,
 
+            (DataType::String, DataType::IPv4) => true,
+            (DataType::String, DataType::IPv6) => true,
+            (DataType::String, DataType::Date32) => true,
+            (DataType::String, DataType::GeoPoint) => true,
+            (DataType::String, DataType::GeoRing) => true,
+            (DataType::String, DataType::GeoPolygon) => true,
+            (DataType::String, DataType::GeoMultiPolygon) => true,
+
+            (DataType::Struct(fields), DataType::Point) => {
+                fields.len() == 2
+                    && Self::is_numeric_like(&fields[0].data_type)
+                    && Self::is_numeric_like(&fields[1].data_type)
+            }
+
+            (DataType::Struct(fields), DataType::GeoPoint) => {
+                fields.len() == 2
+                    && Self::is_numeric_like(&fields[0].data_type)
+                    && Self::is_numeric_like(&fields[1].data_type)
+            }
+
+            (DataType::Array(elem), DataType::GeoRing) => match elem.as_ref() {
+                DataType::Struct(fields) => {
+                    fields.len() == 2
+                        && Self::is_numeric_like(&fields[0].data_type)
+                        && Self::is_numeric_like(&fields[1].data_type)
+                }
+                DataType::GeoPoint => true,
+                _ => false,
+            },
+
+            (DataType::Array(elem), DataType::GeoPolygon) => {
+                Self::can_implicitly_coerce(elem, &DataType::GeoRing)
+            }
+
+            (DataType::Array(elem), DataType::GeoMultiPolygon) => {
+                Self::can_implicitly_coerce(elem, &DataType::GeoPolygon)
+            }
+
             _ => false,
         }
+    }
+
+    fn is_numeric_like(dt: &DataType) -> bool {
+        matches!(
+            dt,
+            DataType::Int64 | DataType::Float64 | DataType::Numeric(_)
+        )
     }
 
     pub fn find_common_type(types: &[DataType]) -> Result<DataType> {
@@ -640,6 +685,270 @@ impl CoercionRules {
 
             (DataType::Custom(_), DataType::Custom(_)) => Ok(value),
 
+            (DataType::String, DataType::IPv4) => {
+                if let Some(s) = value.as_str() {
+                    use crate::types::IPv4Addr;
+                    IPv4Addr::parse(s)
+                        .map(Value::ipv4)
+                        .ok_or_else(|| Error::invalid_query(format!("Invalid IPv4 string '{}'", s)))
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::String, DataType::IPv6) => {
+                if let Some(s) = value.as_str() {
+                    use crate::types::IPv6Addr;
+                    IPv6Addr::parse(s)
+                        .map(Value::ipv6)
+                        .ok_or_else(|| Error::invalid_query(format!("Invalid IPv6 string '{}'", s)))
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::String, DataType::Date32) => {
+                if let Some(s) = value.as_str() {
+                    use crate::types::Date32Value;
+                    Date32Value::parse(s).map(Value::date32).ok_or_else(|| {
+                        Error::invalid_query(format!("Invalid Date32 string '{}'", s))
+                    })
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::String, DataType::GeoPoint) => {
+                if let Some(s) = value.as_str() {
+                    use crate::types::GeoPointValue;
+                    GeoPointValue::parse(s)
+                        .map(Value::geo_point)
+                        .ok_or_else(|| {
+                            Error::invalid_query(format!("Invalid Point string '{}'", s))
+                        })
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::String, DataType::GeoRing) => {
+                if let Some(s) = value.as_str() {
+                    use crate::types::parse_geo_ring;
+                    parse_geo_ring(s)
+                        .map(Value::geo_ring)
+                        .ok_or_else(|| Error::invalid_query(format!("Invalid Ring string '{}'", s)))
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::String, DataType::GeoPolygon) => Err(Error::unsupported_feature(
+                "STRING to Polygon coercion not yet implemented",
+            )),
+
+            (DataType::String, DataType::GeoMultiPolygon) => Err(Error::unsupported_feature(
+                "STRING to MultiPolygon coercion not yet implemented",
+            )),
+
+            (DataType::Struct(_), DataType::Point) => {
+                if let Some(st) = value.as_struct() {
+                    let vals: Vec<_> = st.values().collect();
+                    if vals.len() == 2 {
+                        let x = vals[0]
+                            .as_f64()
+                            .or_else(|| vals[0].as_i64().map(|i| i as f64))
+                            .or_else(|| {
+                                vals[0].as_numeric().and_then(|d| {
+                                    use rust_decimal::prelude::ToPrimitive;
+                                    d.to_f64()
+                                })
+                            });
+                        let y = vals[1]
+                            .as_f64()
+                            .or_else(|| vals[1].as_i64().map(|i| i as f64))
+                            .or_else(|| {
+                                vals[1].as_numeric().and_then(|d| {
+                                    use rust_decimal::prelude::ToPrimitive;
+                                    d.to_f64()
+                                })
+                            });
+                        if let (Some(x), Some(y)) = (x, y) {
+                            use crate::types::PgPoint;
+                            return Ok(Value::point(PgPoint::new(x, y)));
+                        }
+                    }
+                }
+                Err(Error::type_coercion_error(
+                    &source_type,
+                    target_type,
+                    "cannot convert struct to Point",
+                ))
+            }
+
+            (DataType::Struct(_), DataType::GeoPoint) => {
+                if let Some(st) = value.as_struct() {
+                    let vals: Vec<_> = st.values().collect();
+                    if vals.len() == 2 {
+                        let x = vals[0]
+                            .as_f64()
+                            .or_else(|| vals[0].as_i64().map(|i| i as f64))
+                            .or_else(|| {
+                                vals[0].as_numeric().and_then(|d| {
+                                    use rust_decimal::prelude::ToPrimitive;
+                                    d.to_f64()
+                                })
+                            });
+                        let y = vals[1]
+                            .as_f64()
+                            .or_else(|| vals[1].as_i64().map(|i| i as f64))
+                            .or_else(|| {
+                                vals[1].as_numeric().and_then(|d| {
+                                    use rust_decimal::prelude::ToPrimitive;
+                                    d.to_f64()
+                                })
+                            });
+                        if let (Some(x), Some(y)) = (x, y) {
+                            use crate::types::GeoPointValue;
+                            return Ok(Value::geo_point(GeoPointValue { x, y }));
+                        }
+                    }
+                }
+                Err(Error::type_coercion_error(
+                    &source_type,
+                    target_type,
+                    "cannot convert struct to GeoPoint",
+                ))
+            }
+
+            (DataType::Array(_), DataType::GeoRing) => {
+                if let Some(arr) = value.as_array() {
+                    let mut points = Vec::with_capacity(arr.len());
+                    for elem in arr {
+                        let point = if let Some(gp) = elem.as_geo_point() {
+                            gp.clone()
+                        } else if let Some(st) = elem.as_struct() {
+                            let vals: Vec<_> = st.values().collect();
+                            if vals.len() == 2 {
+                                let x = vals[0]
+                                    .as_f64()
+                                    .or_else(|| vals[0].as_i64().map(|i| i as f64))
+                                    .or_else(|| {
+                                        vals[0].as_numeric().and_then(|d| {
+                                            use rust_decimal::prelude::ToPrimitive;
+                                            d.to_f64()
+                                        })
+                                    });
+                                let y = vals[1]
+                                    .as_f64()
+                                    .or_else(|| vals[1].as_i64().map(|i| i as f64))
+                                    .or_else(|| {
+                                        vals[1].as_numeric().and_then(|d| {
+                                            use rust_decimal::prelude::ToPrimitive;
+                                            d.to_f64()
+                                        })
+                                    });
+                                if let (Some(x), Some(y)) = (x, y) {
+                                    crate::types::GeoPointValue { x, y }
+                                } else {
+                                    return Err(Error::type_coercion_error(
+                                        &source_type,
+                                        target_type,
+                                        "cannot extract point coordinates",
+                                    ));
+                                }
+                            } else {
+                                return Err(Error::type_coercion_error(
+                                    &source_type,
+                                    target_type,
+                                    "point requires exactly 2 coordinates",
+                                ));
+                            }
+                        } else {
+                            return Err(Error::type_coercion_error(
+                                &source_type,
+                                target_type,
+                                "cannot convert element to point",
+                            ));
+                        };
+                        points.push(point);
+                    }
+                    return Ok(Value::geo_ring(points));
+                }
+                Err(Error::type_coercion_error(
+                    &source_type,
+                    target_type,
+                    "cannot convert to GeoRing",
+                ))
+            }
+
+            (DataType::Array(_), DataType::GeoPolygon) => {
+                if let Some(arr) = value.as_array() {
+                    let mut rings = Vec::with_capacity(arr.len());
+                    for elem in arr {
+                        let coerced = Self::coerce_value(elem.clone(), &DataType::GeoRing)?;
+                        if let Some(ring) = coerced.as_geo_ring() {
+                            rings.push(ring.clone());
+                        } else {
+                            return Err(Error::type_coercion_error(
+                                &source_type,
+                                target_type,
+                                "cannot convert element to ring",
+                            ));
+                        }
+                    }
+                    return Ok(Value::geo_polygon(rings));
+                }
+                Err(Error::type_coercion_error(
+                    &source_type,
+                    target_type,
+                    "cannot convert to GeoPolygon",
+                ))
+            }
+
+            (DataType::Array(_), DataType::GeoMultiPolygon) => {
+                if let Some(arr) = value.as_array() {
+                    let mut polygons = Vec::with_capacity(arr.len());
+                    for elem in arr {
+                        let coerced = Self::coerce_value(elem.clone(), &DataType::GeoPolygon)?;
+                        if let Some(poly) = coerced.as_geo_polygon() {
+                            polygons.push(poly.clone());
+                        } else {
+                            return Err(Error::type_coercion_error(
+                                &source_type,
+                                target_type,
+                                "cannot convert element to polygon",
+                            ));
+                        }
+                    }
+                    return Ok(Value::geo_multipolygon(polygons));
+                }
+                Err(Error::type_coercion_error(
+                    &source_type,
+                    target_type,
+                    "cannot convert to GeoMultiPolygon",
+                ))
+            }
+
             _ => Err(Error::type_coercion_error(
                 &source_type,
                 target_type,
@@ -813,5 +1122,26 @@ mod tests {
         let value = Value::point(point.clone());
         let result = CoercionRules::coerce_value(value.clone(), &DataType::Point).unwrap();
         assert_eq!(result, value);
+    }
+
+    #[test]
+    fn test_can_implicitly_coerce_string_to_ipv4() {
+        assert!(CoercionRules::can_implicitly_coerce(
+            &DataType::String,
+            &DataType::IPv4
+        ));
+    }
+
+    #[test]
+    fn test_coerce_value_string_to_ipv4() {
+        let value = Value::string("192.168.1.1".to_string());
+        let result = CoercionRules::coerce_value(value, &DataType::IPv4);
+        assert!(
+            result.is_ok(),
+            "Failed to coerce string to IPv4: {:?}",
+            result.err()
+        );
+        let ipv4_value = result.unwrap();
+        assert_eq!(ipv4_value.data_type(), DataType::IPv4);
     }
 }

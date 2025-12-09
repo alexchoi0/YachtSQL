@@ -131,6 +131,34 @@ impl Value {
                         serde_json::Value::String(crate::types::format_uuid_string(u))
                     }
                     crate::types::TAG_DEFAULT => serde_json::Value::String("DEFAULT".to_string()),
+                    crate::types::TAG_IPV4 => {
+                        let ip = &*(heap.ptr as *const crate::types::IPv4Addr);
+                        serde_json::Value::String(format!("ipv4:{}", ip.0))
+                    }
+                    crate::types::TAG_IPV6 => {
+                        let ip = &*(heap.ptr as *const crate::types::IPv6Addr);
+                        serde_json::Value::String(format!("ipv6:{}", ip.0))
+                    }
+                    crate::types::TAG_DATE32 => {
+                        let d = &*(heap.ptr as *const crate::types::Date32Value);
+                        serde_json::Value::Number(d.0.into())
+                    }
+                    crate::types::TAG_GEO_POINT => {
+                        let p = &*(heap.ptr as *const crate::types::GeoPointValue);
+                        serde_json::Value::String(format!("point:{},{}", p.x, p.y))
+                    }
+                    crate::types::TAG_GEO_RING => {
+                        let r = &*(heap.ptr as *const crate::types::GeoRingValue);
+                        serde_json::Value::String(format!("ring:{:?}", r))
+                    }
+                    crate::types::TAG_GEO_POLYGON => {
+                        let p = &*(heap.ptr as *const crate::types::GeoPolygonValue);
+                        serde_json::Value::String(format!("polygon:{:?}", p))
+                    }
+                    crate::types::TAG_GEO_MULTIPOLYGON => {
+                        let mp = &*(heap.ptr as *const crate::types::GeoMultiPolygonValue);
+                        serde_json::Value::String(format!("multipolygon:{:?}", mp))
+                    }
                     _ => serde_json::Value::Null,
                 }
             }

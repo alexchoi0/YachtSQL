@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_column() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_ipv4_column() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv6_column() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_ipv6_column() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_comparison() {
     let mut executor = create_executor();
@@ -54,7 +51,6 @@ fn test_ipv4_comparison() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_ordering() {
     let mut executor = create_executor();
@@ -73,7 +69,6 @@ fn test_ipv4_ordering() {
     assert_table_eq!(result, [[2], [3], [1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_range_query() {
     let mut executor = create_executor();
@@ -90,7 +85,6 @@ fn test_ipv4_range_query() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_cidr_match() {
     let mut executor = create_executor();
@@ -109,7 +103,6 @@ fn test_ipv4_cidr_match() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv6_comparison() {
     let mut executor = create_executor();
@@ -126,7 +119,6 @@ fn test_ipv6_comparison() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_to_ipv6_conversion() {
     let mut executor = create_executor();
@@ -143,7 +135,6 @@ fn test_ipv4_to_ipv6_conversion() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_null() {
     let mut executor = create_executor();
@@ -160,7 +151,6 @@ fn test_ipv4_null() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_group_by() {
     let mut executor = create_executor();
@@ -177,7 +167,6 @@ fn test_ipv4_group_by() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv4_distinct() {
     let mut executor = create_executor();
@@ -196,7 +185,6 @@ fn test_ipv4_distinct() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ipv6_mapped_ipv4() {
     let mut executor = create_executor();

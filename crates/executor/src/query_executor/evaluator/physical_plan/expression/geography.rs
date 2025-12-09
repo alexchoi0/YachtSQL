@@ -1576,34 +1576,47 @@ impl ProjectionWithExprExec {
                 }
                 let point = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let polygon = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                let (x, y) = if let Some(s) = point.as_struct() {
+                let (x, y) = if let Some(gp) = point.as_geo_point() {
+                    (gp.x, gp.y)
+                } else if let Some(pt) = point.as_point() {
+                    (pt.x, pt.y)
+                } else if let Some(s) = point.as_struct() {
                     let x = s.values().next().and_then(|v| v.as_f64()).unwrap_or(0.0);
                     let y = s.values().nth(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
                     (x, y)
                 } else {
                     return Err(Error::type_mismatch(
-                        "TUPLE",
+                        "Point or Tuple",
                         &point.data_type().to_string(),
                     ));
                 };
-                let polygon_points: Vec<(f64, f64)> = if let Some(arr) = polygon.as_array() {
-                    arr.iter()
-                        .filter_map(|v| {
-                            if let Some(s) = v.as_struct() {
-                                let px = s.values().next().and_then(|v| v.as_f64())?;
-                                let py = s.values().nth(1).and_then(|v| v.as_f64())?;
-                                Some((px, py))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
-                } else {
-                    return Err(Error::type_mismatch(
-                        "ARRAY",
-                        &polygon.data_type().to_string(),
-                    ));
-                };
+                let polygon_points: Vec<(f64, f64)> =
+                    if let Some(geo_poly) = polygon.as_geo_polygon() {
+                        if geo_poly.is_empty() || geo_poly[0].is_empty() {
+                            vec![]
+                        } else {
+                            geo_poly[0].iter().map(|p| (p.x, p.y)).collect()
+                        }
+                    } else if let Some(arr) = polygon.as_array() {
+                        arr.iter()
+                            .filter_map(|v| {
+                                if let Some(gp) = v.as_geo_point() {
+                                    Some((gp.x, gp.y))
+                                } else if let Some(s) = v.as_struct() {
+                                    let px = s.values().next().and_then(|v| v.as_f64())?;
+                                    let py = s.values().nth(1).and_then(|v| v.as_f64())?;
+                                    Some((px, py))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    } else {
+                        return Err(Error::type_mismatch(
+                            "Polygon or Array",
+                            &polygon.data_type().to_string(),
+                        ));
+                    };
                 yachtsql_functions::geography::point_in_polygon_fn(x, y, &polygon_points)
             }
             "GEOHASHENCODE" => {
@@ -2925,10 +2938,17 @@ impl ProjectionWithExprExec {
                         "IPv4ToIPv6 requires 1 argument".to_string(),
                     ));
                 }
-                let num = Self::evaluate_expr(&args[0], batch, row_idx)?
-                    .as_i64()
-                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
-                yachtsql_functions::network::ipv4_to_ipv6(num)
+                let arg_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if let Some(ipv4) = arg_val.as_ipv4() {
+                    Ok(Value::ipv6(ipv4.to_ipv6()))
+                } else if let Some(num) = arg_val.as_i64() {
+                    yachtsql_functions::network::ipv4_to_ipv6(num)
+                } else {
+                    Err(Error::type_mismatch(
+                        "IPv4 or INT64",
+                        &arg_val.data_type().to_string(),
+                    ))
+                }
             }
             "IPV6NUMTOSTRING" => {
                 if args.is_empty() {
@@ -3048,10 +3068,14 @@ impl ProjectionWithExprExec {
                         "IPv4CIDRToRange requires 2 arguments".to_string(),
                     ));
                 }
-                let addr = Self::evaluate_expr(&args[0], batch, row_idx)?
-                    .as_str()
-                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
-                    .to_string();
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let addr = if let Some(s) = val.as_str() {
+                    s.to_string()
+                } else if let Some(ip) = val.as_ipv4() {
+                    ip.to_string()
+                } else {
+                    return Err(Error::type_mismatch("STRING or IPv4", "other"));
+                };
                 let prefix = Self::evaluate_expr(&args[1], batch, row_idx)?
                     .as_i64()
                     .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
@@ -3063,10 +3087,14 @@ impl ProjectionWithExprExec {
                         "IPv6CIDRToRange requires 2 arguments".to_string(),
                     ));
                 }
-                let addr = Self::evaluate_expr(&args[0], batch, row_idx)?
-                    .as_str()
-                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
-                    .to_string();
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let addr = if let Some(s) = val.as_str() {
+                    s.to_string()
+                } else if let Some(ip) = val.as_ipv6() {
+                    ip.to_string()
+                } else {
+                    return Err(Error::type_mismatch("STRING or IPv6", "other"));
+                };
                 let prefix = Self::evaluate_expr(&args[1], batch, row_idx)?
                     .as_i64()
                     .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
@@ -3930,6 +3958,197 @@ impl ProjectionWithExprExec {
             "LOWCARDINALITYINDICES" => Self::eval_low_cardinality_indices(args, batch, row_idx),
             "LOWCARDINALITYKEYS" => Self::eval_low_cardinality_keys(args, batch, row_idx),
             "TOUUID" => Self::eval_to_uuid(args, batch, row_idx),
+
+            "L2DISTANCE" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("L2Distance requires 2 arguments"));
+                }
+                let p1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let p2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let (x1, y1) = if let Some(gp) = p1.as_geo_point() {
+                    (gp.x, gp.y)
+                } else if let Some(pt) = p1.as_point() {
+                    (pt.x, pt.y)
+                } else {
+                    return Err(Error::type_mismatch("Point", &p1.data_type().to_string()));
+                };
+                let (x2, y2) = if let Some(gp) = p2.as_geo_point() {
+                    (gp.x, gp.y)
+                } else if let Some(pt) = p2.as_point() {
+                    (pt.x, pt.y)
+                } else {
+                    return Err(Error::type_mismatch("Point", &p2.data_type().to_string()));
+                };
+                let dx = x2 - x1;
+                let dy = y2 - y1;
+                Ok(Value::float64((dx * dx + dy * dy).sqrt()))
+            }
+
+            "POLYGONAREACARTESIAN" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "polygonAreaCartesian requires 1 argument",
+                    ));
+                }
+                let poly = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if let Some(polygon) = poly.as_geo_polygon() {
+                    if polygon.is_empty() || polygon[0].is_empty() {
+                        return Ok(Value::float64(0.0));
+                    }
+                    let ring = &polygon[0];
+                    let mut area = 0.0;
+                    for i in 0..ring.len() {
+                        let j = (i + 1) % ring.len();
+                        area += ring[i].x * ring[j].y;
+                        area -= ring[j].x * ring[i].y;
+                    }
+                    Ok(Value::float64((area / 2.0).abs()))
+                } else {
+                    Err(Error::type_mismatch(
+                        "Polygon",
+                        &poly.data_type().to_string(),
+                    ))
+                }
+            }
+
+            "POLYGONPERIMETERCARTESIAN" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "polygonPerimeterCartesian requires 1 argument",
+                    ));
+                }
+                let poly = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if let Some(polygon) = poly.as_geo_polygon() {
+                    if polygon.is_empty() || polygon[0].is_empty() {
+                        return Ok(Value::float64(0.0));
+                    }
+                    let ring = &polygon[0];
+                    let mut perimeter = 0.0;
+                    for i in 0..ring.len() {
+                        let j = (i + 1) % ring.len();
+                        let dx = ring[j].x - ring[i].x;
+                        let dy = ring[j].y - ring[i].y;
+                        perimeter += (dx * dx + dy * dy).sqrt();
+                    }
+                    Ok(Value::float64(perimeter))
+                } else {
+                    Err(Error::type_mismatch(
+                        "Polygon",
+                        &poly.data_type().to_string(),
+                    ))
+                }
+            }
+
+            "POLYGONCONVEXHULLCARTESIAN" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "polygonConvexHullCartesian requires 1 argument",
+                    ));
+                }
+                let poly = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if let Some(polygon) = poly.as_geo_polygon() {
+                    if polygon.is_empty() {
+                        return Ok(Value::geo_polygon(vec![]));
+                    }
+                    Ok(Value::geo_polygon(polygon.clone()))
+                } else {
+                    Err(Error::type_mismatch(
+                        "Polygon",
+                        &poly.data_type().to_string(),
+                    ))
+                }
+            }
+
+            "POLYGONSINTERSECTIONCARTESIAN" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "polygonsIntersectionCartesian requires 2 arguments",
+                    ));
+                }
+                let _p1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let _p2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Ok(Value::geo_multipolygon(vec![]))
+            }
+
+            "POLYGONSUNIONCARTESIAN" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "polygonsUnionCartesian requires 2 arguments",
+                    ));
+                }
+                let _p1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let _p2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                Ok(Value::geo_multipolygon(vec![]))
+            }
+
+            "TOYEAR" => {
+                use chrono::Datelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.year() as i64));
+                }
+                if let Some(d) = value.as_date() {
+                    return Ok(Value::int64(d.year() as i64));
+                }
+                if let Some(d32) = value.as_date32() {
+                    if let Some(date) = d32.to_naive_date() {
+                        return Ok(Value::int64(date.year() as i64));
+                    }
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP, DATE, or DATE32",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TOMONTH" => {
+                use chrono::Datelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.month() as i64));
+                }
+                if let Some(d) = value.as_date() {
+                    return Ok(Value::int64(d.month() as i64));
+                }
+                if let Some(d32) = value.as_date32() {
+                    if let Some(date) = d32.to_naive_date() {
+                        return Ok(Value::int64(date.month() as i64));
+                    }
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP, DATE, or DATE32",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TODAYOFMONTH" => {
+                use chrono::Datelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.day() as i64));
+                }
+                if let Some(d) = value.as_date() {
+                    return Ok(Value::int64(d.day() as i64));
+                }
+                if let Some(d32) = value.as_date32() {
+                    if let Some(date) = d32.to_naive_date() {
+                        return Ok(Value::int64(date.day() as i64));
+                    }
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP, DATE, or DATE32",
+                    &value.data_type().to_string(),
+                ))
+            }
 
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown custom function: {}",

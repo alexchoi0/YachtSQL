@@ -1537,6 +1537,26 @@ impl ProjectionWithExprExec {
             return Some(v >= l && v <= h);
         }
 
+        if let Some(v) = val.as_date32() {
+            let l_val = if let Some(d32) = low.as_date32() {
+                Some(d32.0)
+            } else if let Some(s) = low.as_str() {
+                yachtsql_core::types::Date32Value::parse(s).map(|d| d.0)
+            } else {
+                None
+            };
+            let h_val = if let Some(d32) = high.as_date32() {
+                Some(d32.0)
+            } else if let Some(s) = high.as_str() {
+                yachtsql_core::types::Date32Value::parse(s).map(|d| d.0)
+            } else {
+                None
+            };
+            if let (Some(l), Some(h)) = (l_val, h_val) {
+                return Some(v.0 >= l && v.0 <= h);
+            }
+        }
+
         None
     }
 }

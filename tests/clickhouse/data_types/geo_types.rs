@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_point_create() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_point_create() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ring_create() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_ring_create() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_polygon_create() {
     let mut executor = create_executor();
@@ -44,7 +41,7 @@ fn test_polygon_create() {
         .unwrap();
     executor
         .execute_sql(
-            "INSERT INTO polygon_test VALUES (1, [[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]]",
+            "INSERT INTO polygon_test VALUES (1, [[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]])",
         )
         .unwrap();
 
@@ -52,7 +49,6 @@ fn test_polygon_create() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_multipolygon_create() {
     let mut executor = create_executor();
@@ -60,7 +56,7 @@ fn test_multipolygon_create() {
         .execute_sql("CREATE TABLE multipolygon_test (id INT64, areas MultiPolygon)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO multipolygon_test VALUES (1, [[[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]]]")
+        .execute_sql("INSERT INTO multipolygon_test VALUES (1, [[[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]]])")
         .unwrap();
 
     let result = executor
@@ -69,7 +65,6 @@ fn test_multipolygon_create() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_point_distance() {
     let mut executor = create_executor();
@@ -86,7 +81,6 @@ fn test_point_distance() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_polygon_area() {
     let mut executor = create_executor();
@@ -95,7 +89,7 @@ fn test_polygon_area() {
         .unwrap();
     executor
         .execute_sql(
-            "INSERT INTO polygon_area VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]]",
+            "INSERT INTO polygon_area VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]])",
         )
         .unwrap();
 
@@ -105,7 +99,6 @@ fn test_polygon_area() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_point_in_polygon() {
     let mut executor = create_executor();
@@ -114,7 +107,7 @@ fn test_point_in_polygon() {
         .unwrap();
     executor
         .execute_sql(
-            "INSERT INTO pip_test VALUES ((5, 5), [[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]]",
+            "INSERT INTO pip_test VALUES ((5, 5), [[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]])",
         )
         .unwrap();
 
@@ -124,7 +117,6 @@ fn test_point_in_polygon() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_geo_null() {
     let mut executor = create_executor();
@@ -141,7 +133,6 @@ fn test_geo_null() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_polygon_perimeter() {
     let mut executor = create_executor();
@@ -150,7 +141,7 @@ fn test_polygon_perimeter() {
         .unwrap();
     executor
         .execute_sql(
-            "INSERT INTO polygon_perim VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]]",
+            "INSERT INTO polygon_perim VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]])",
         )
         .unwrap();
 
@@ -160,7 +151,6 @@ fn test_polygon_perimeter() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_polygon_convex_hull() {
     let mut executor = create_executor();
@@ -168,7 +158,7 @@ fn test_polygon_convex_hull() {
         .execute_sql("CREATE TABLE polygon_hull (p Polygon)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO polygon_hull VALUES ([[(0, 0), (10, 0), (5, 5), (10, 10), (0, 10), (0, 0)]]")
+        .execute_sql("INSERT INTO polygon_hull VALUES ([[(0, 0), (10, 0), (5, 5), (10, 10), (0, 10), (0, 0)]])")
         .unwrap();
 
     let result = executor
@@ -177,7 +167,6 @@ fn test_polygon_convex_hull() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_polygons_intersection() {
     let mut executor = create_executor();
@@ -185,7 +174,7 @@ fn test_polygons_intersection() {
         .execute_sql("CREATE TABLE poly_intersect (p1 Polygon, p2 Polygon)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO poly_intersect VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]], [[(5, 5), (15, 5), (15, 15), (5, 15), (5, 5)]]")
+        .execute_sql("INSERT INTO poly_intersect VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]], [[(5, 5), (15, 5), (15, 15), (5, 15), (5, 5)]])")
         .unwrap();
 
     let result = executor
@@ -194,7 +183,6 @@ fn test_polygons_intersection() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_polygons_union() {
     let mut executor = create_executor();
@@ -202,7 +190,7 @@ fn test_polygons_union() {
         .execute_sql("CREATE TABLE poly_union (p1 Polygon, p2 Polygon)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO poly_union VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]], [[(5, 5), (15, 5), (15, 15), (5, 15), (5, 5)]]")
+        .execute_sql("INSERT INTO poly_union VALUES ([[(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]], [[(5, 5), (15, 5), (15, 15), (5, 15), (5, 5)]])")
         .unwrap();
 
     let result = executor

@@ -1,5 +1,5 @@
 use crate::assert_table_eq;
-use crate::common::create_executor;
+use crate::common::{create_executor, ipv4, ipv6};
 
 #[test]
 fn test_ipv4_num_to_string() {
@@ -60,14 +60,14 @@ fn test_to_ipv4() {
     let result = executor
         .execute_sql("SELECT toIPv4('192.168.1.1')")
         .unwrap();
-    assert_table_eq!(result, [["192.168.1.1"]]);
+    assert_table_eq!(result, [[ipv4("192.168.1.1")]]);
 }
 
 #[test]
 fn test_to_ipv6() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT toIPv6('::1')").unwrap();
-    assert_table_eq!(result, [["::1"]]);
+    assert_table_eq!(result, [[ipv6("::1")]]);
 }
 
 #[test]

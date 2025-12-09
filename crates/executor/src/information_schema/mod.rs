@@ -58,6 +58,13 @@ fn data_type_to_postgres_name(data_type: &DataType) -> String {
         DataType::Struct(_) => "RECORD".to_string(),
         DataType::Enum { type_name, .. } => type_name.clone(),
         DataType::Custom(name) => name.clone(),
+        DataType::IPv4 => "IPv4".to_string(),
+        DataType::IPv6 => "IPv6".to_string(),
+        DataType::Date32 => "Date32".to_string(),
+        DataType::GeoPoint => "Point".to_string(),
+        DataType::GeoRing => "Ring".to_string(),
+        DataType::GeoPolygon => "Polygon".to_string(),
+        DataType::GeoMultiPolygon => "MultiPolygon".to_string(),
     }
 }
 

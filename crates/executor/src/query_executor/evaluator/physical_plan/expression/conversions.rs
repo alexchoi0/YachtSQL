@@ -81,6 +81,15 @@ impl ProjectionWithExprExec {
             if let Some(c) = value.as_circle() {
                 return Ok(Value::string(c.to_string()));
             }
+            if let Some(ipv4) = value.as_ipv4() {
+                return Ok(Value::string(ipv4.to_string()));
+            }
+            if let Some(ipv6) = value.as_ipv6() {
+                return Ok(Value::string(ipv6.to_string()));
+            }
+            if let Some(d32) = value.as_date32() {
+                return Ok(Value::string(d32.to_string()));
+            }
         }
 
         if matches!(target_type, CastDataType::Date) {
