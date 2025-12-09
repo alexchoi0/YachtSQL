@@ -22,7 +22,6 @@ fn test_create_table_with_projection() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_projection_with_order_by() {
     let mut executor = create_executor();
@@ -57,7 +56,6 @@ fn test_projection_with_order_by() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_projection_aggregate() {
     let mut executor = create_executor();
@@ -93,7 +91,6 @@ fn test_projection_aggregate() {
     assert_table_eq!(result, [["North", 250], ["South", 500]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_multiple_projections() {
     let mut executor = create_executor();
@@ -104,7 +101,7 @@ fn test_multiple_projections() {
                 date Date,
                 category String,
                 subcategory String,
-                amount Decimal64(2),
+                amount Float64,
                 PROJECTION proj_by_date (
                     SELECT date, sum(amount)
                     GROUP BY date
@@ -125,9 +122,9 @@ fn test_multiple_projections() {
     executor
         .execute_sql(
             "INSERT INTO multi_proj VALUES
-            (1, '2023-01-01', 'Electronics', 'Phones', 500.00),
-            (2, '2023-01-01', 'Electronics', 'Laptops', 1000.00),
-            (3, '2023-01-02', 'Clothing', 'Shirts', 50.00)",
+            (1, '2023-01-01', 'Electronics', 'Phones', 500.0),
+            (2, '2023-01-01', 'Electronics', 'Laptops', 1000.0),
+            (3, '2023-01-02', 'Clothing', 'Shirts', 50.0)",
         )
         .unwrap();
 
@@ -220,7 +217,6 @@ fn test_materialize_projection() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_projection_with_where() {
     let mut executor = create_executor();
@@ -254,7 +250,6 @@ fn test_projection_with_where() {
     assert_table_eq!(result, [[300]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_projection_count() {
     let mut executor = create_executor();
@@ -285,7 +280,6 @@ fn test_projection_count() {
     assert_table_eq!(result, [["A", 3], ["B", 2]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_projection_min_max() {
     let mut executor = create_executor();
@@ -317,7 +311,6 @@ fn test_projection_min_max() {
     assert_table_eq!(result, [[1, 10.5, 20.5], [2, 15.0, 25.0]]);
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_clear_projection() {
     let mut executor = create_executor();
