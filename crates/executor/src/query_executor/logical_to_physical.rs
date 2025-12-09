@@ -168,6 +168,10 @@ impl LogicalToPhysicalPlanner {
                     return Ok(());
                 }
                 if let Some(table_name) = table {
+                    let qualified_name = format!("{}.{}", table_name, name);
+                    if schema.field(&qualified_name).is_some() {
+                        return Ok(());
+                    }
                     if let Some(field) = schema.field(table_name) {
                         if let yachtsql_core::types::DataType::Struct(fields) = &field.data_type {
                             if fields.iter().any(|f| f.name.eq_ignore_ascii_case(name)) {
@@ -654,6 +658,14 @@ impl LogicalToPhysicalPlanner {
 
         match expr {
             Expr::Column { name, table } => {
+                if let Some(tbl) = table {
+                    let qualified_name = format!("{}.{}", tbl, name);
+                    for field in schema.fields() {
+                        if field.name.eq_ignore_ascii_case(&qualified_name) {
+                            return field.data_type.clone();
+                        }
+                    }
+                }
                 for field in schema.fields() {
                     if let Some(tbl) = table {
                         if let Some(source) = &field.source_table {
