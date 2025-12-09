@@ -693,9 +693,24 @@ impl ProjectionWithExprExec {
                         | "BITTEST"
                         | "BITTESTALL"
                         | "BITTESTANY"
+                        | "BITROTATELEFT"
+                        | "BITROTATERIGHT"
+                        | "BITHAMMINGDISTANCE"
+                        | "BITSLICE"
+                        | "BYTESWAP"
                 ) =>
             {
                 Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s) if s == "BITPOSITIONSTOARRAY" => {
+                Some(DataType::Array(Box::new(DataType::Int64)))
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "ISNULL" | "ISNOTNULL" | "ISZEROORNULL") =>
+            {
+                Some(DataType::Bool)
             }
 
             FunctionName::Custom(s)
@@ -1354,6 +1369,38 @@ impl ProjectionWithExprExec {
                 )))))
             }
             FunctionName::StringToArray => Some(DataType::Array(Box::new(DataType::String))),
+
+            FunctionName::Stem
+            | FunctionName::Lemmatize
+            | FunctionName::DetectLanguage
+            | FunctionName::DetectLanguageUnknown
+            | FunctionName::DetectCharset
+            | FunctionName::DetectTonality
+            | FunctionName::DetectProgrammingLanguage
+            | FunctionName::NormalizeQuery => Some(DataType::String),
+            FunctionName::Synonyms | FunctionName::DetectLanguageMixed => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
+            FunctionName::NormalizedQueryHash
+            | FunctionName::NgramSimHash
+            | FunctionName::WordShingleSimHash => Some(DataType::Int64),
+            FunctionName::WordShingleMinHash => Some(DataType::Array(Box::new(DataType::Int64))),
+
+            FunctionName::L1Norm
+            | FunctionName::L2Norm
+            | FunctionName::LinfNorm
+            | FunctionName::LpNorm
+            | FunctionName::L1Distance
+            | FunctionName::L2Distance
+            | FunctionName::LinfDistance
+            | FunctionName::LpDistance
+            | FunctionName::CosineDistance
+            | FunctionName::DotProduct
+            | FunctionName::L2SquaredDistance => Some(DataType::Float64),
+            FunctionName::L1Normalize
+            | FunctionName::L2Normalize
+            | FunctionName::LinfNormalize
+            | FunctionName::LpNormalize => Some(DataType::Array(Box::new(DataType::Float64))),
 
             FunctionName::GenerateArray => Some(DataType::Array(Box::new(DataType::Int64))),
             FunctionName::GenerateDateArray => Some(DataType::Array(Box::new(DataType::Date))),

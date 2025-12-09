@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with standalone NULL literal"]
 #[test]
 fn test_is_null() {
     let mut executor = create_executor();
@@ -9,7 +9,6 @@ fn test_is_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_is_not_null() {
     let mut executor = create_executor();
@@ -67,7 +66,7 @@ fn test_null_if_not_equal() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with standalone literal"]
 #[test]
 fn test_assume_not_null() {
     let mut executor = create_executor();
@@ -75,7 +74,7 @@ fn test_assume_not_null() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with standalone literal"]
 #[test]
 fn test_to_nullable() {
     let mut executor = create_executor();
@@ -83,7 +82,7 @@ fn test_to_nullable() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires nullIn function implementation"]
 #[test]
 fn test_null_in() {
     let mut executor = create_executor();
@@ -93,7 +92,7 @@ fn test_null_in() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires notNullIn function implementation"]
 #[test]
 fn test_not_null_in() {
     let mut executor = create_executor();
@@ -103,7 +102,7 @@ fn test_not_null_in() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires nullInIgnoreNull function implementation"]
 #[test]
 fn test_null_in_ignore_null() {
     let mut executor = create_executor();
@@ -113,7 +112,6 @@ fn test_null_in_ignore_null() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_is_zero_or_null() {
     let mut executor = create_executor();
@@ -121,7 +119,7 @@ fn test_is_zero_or_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Type inference issue with standalone NULL literal"]
 #[test]
 fn test_is_zero_or_null_with_null() {
     let mut executor = create_executor();
@@ -129,7 +127,6 @@ fn test_is_zero_or_null_with_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_is_zero_or_null_non_zero() {
     let mut executor = create_executor();
@@ -153,7 +150,7 @@ fn test_nullable_in_table() {
     assert_table_eq!(result, [[1, 100], [2, 0], [3, 300]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support <=> null-safe equals operator"]
 #[test]
 fn test_null_safe_equals() {
     let mut executor = create_executor();
@@ -161,7 +158,7 @@ fn test_null_safe_equals() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support <=> null-safe equals operator"]
 #[test]
 fn test_null_safe_not_equals() {
     let mut executor = create_executor();

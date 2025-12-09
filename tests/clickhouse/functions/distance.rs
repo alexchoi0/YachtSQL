@@ -1,146 +1,130 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_l1_norm() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT L1Norm([1, 2, 3])").unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_l2_norm() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT L2Norm([3, 4])").unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_linf_norm() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT LinfNorm([1, -5, 3])").unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lp_norm() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT LpNorm([1, 2, 3], 2)").unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_l1_distance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT L1Distance([1, 2, 3], [4, 5, 6])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_l2_distance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT L2Distance([0, 0], [3, 4])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_linf_distance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT LinfDistance([1, 2, 3], [4, 6, 5])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lp_distance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT LpDistance([1, 2, 3], [4, 5, 6], 2)")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_l1_normalize() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT L1Normalize([1, 2, 3])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_l2_normalize() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT L2Normalize([3, 4])").unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_linf_normalize() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT LinfNormalize([1, -5, 3])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lp_normalize() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT LpNormalize([1, 2, 3], 2)")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cosine_distance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT cosineDistance([1, 2], [2, 4])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_dot_product() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT dotProduct([1, 2, 3], [4, 5, 6])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_l2_squared_distance() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT L2SquaredDistance([0, 0], [3, 4])")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distance_column() {
     let mut executor = create_executor();
@@ -164,15 +148,14 @@ fn test_distance_column() {
             ORDER BY dist",
         )
         .unwrap();
-    assert!(result.num_rows() == 4); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 4);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_cosine_similarity() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE embeddings (id UInt32, embedding Array(Float32))")
+        .execute_sql("CREATE TABLE embeddings (id UInt32, embedding Array(Float64))")
         .unwrap();
     executor
         .execute_sql(
@@ -190,10 +173,9 @@ fn test_cosine_similarity() {
             ORDER BY similarity DESC",
         )
         .unwrap();
-    assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 3);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_knn_search_simulation() {
     let mut executor = create_executor();
@@ -218,10 +200,9 @@ fn test_knn_search_simulation() {
             LIMIT 3",
         )
         .unwrap();
-    assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 3);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_normalize_and_distance() {
     let mut executor = create_executor();
@@ -232,5 +213,5 @@ fn test_normalize_and_distance() {
                 L2Norm(L2Normalize([3, 4])) AS norm_of_normalized",
         )
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }

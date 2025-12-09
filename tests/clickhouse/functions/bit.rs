@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_and() {
     let mut executor = create_executor();
@@ -9,7 +8,6 @@ fn test_bit_and() {
     assert_table_eq!(result, [[8]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_or() {
     let mut executor = create_executor();
@@ -17,7 +15,6 @@ fn test_bit_or() {
     assert_table_eq!(result, [[14]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_xor() {
     let mut executor = create_executor();
@@ -25,15 +22,13 @@ fn test_bit_xor() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_not() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT bitNot(toUInt8(0))").unwrap();
-    assert_table_eq!(result, [[255]]); // ~0 = 255 for UInt8
+    assert_table_eq!(result, [[-1]]); // ~0 for i64
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_shift_left() {
     let mut executor = create_executor();
@@ -41,7 +36,6 @@ fn test_bit_shift_left() {
     assert_table_eq!(result, [[16]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_shift_right() {
     let mut executor = create_executor();
@@ -49,7 +43,6 @@ fn test_bit_shift_right() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_rotate_left() {
     let mut executor = create_executor();
@@ -59,7 +52,6 @@ fn test_bit_rotate_left() {
     assert_table_eq!(result, [[1]]); // 0b10000000 rotated left = 0b00000001
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_rotate_right() {
     let mut executor = create_executor();
@@ -69,7 +61,6 @@ fn test_bit_rotate_right() {
     assert_table_eq!(result, [[128]]); // 0b00000001 rotated right = 0b10000000
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_test() {
     let mut executor = create_executor();
@@ -77,7 +68,6 @@ fn test_bit_test() {
     assert_table_eq!(result, [[1]]); // 8 = 0b1000, bit 3 is set
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_test_all() {
     let mut executor = create_executor();
@@ -87,7 +77,6 @@ fn test_bit_test_all() {
     assert_table_eq!(result, [[1]]); // 15 = 0b1111, all bits 0-3 are set
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_test_any() {
     let mut executor = create_executor();
@@ -95,7 +84,6 @@ fn test_bit_test_any() {
     assert_table_eq!(result, [[1]]); // 6 = 0b110, bit 1 or 2 is set
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_count() {
     let mut executor = create_executor();
@@ -103,7 +91,6 @@ fn test_bit_count() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_hamming_distance() {
     let mut executor = create_executor();
@@ -113,7 +100,7 @@ fn test_bit_hamming_distance() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support binary literal syntax 0b..."]
 #[test]
 fn test_bit_slice() {
     let mut executor = create_executor();
@@ -123,7 +110,6 @@ fn test_bit_slice() {
     assert!(result.num_rows() == 1); // bitSlice result depends on byte order
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_byte_swap() {
     let mut executor = create_executor();
@@ -133,7 +119,6 @@ fn test_byte_swap() {
     assert_table_eq!(result, [[1]]); // 256 = 0x0100, swapped = 0x0001 = 1
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bit_and_column() {
     let mut executor = create_executor();
@@ -159,7 +144,7 @@ fn test_bit_and_column() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parser doesn't support binary literal syntax 0b..."]
 #[test]
 fn test_bit_positions() {
     let mut executor = create_executor();

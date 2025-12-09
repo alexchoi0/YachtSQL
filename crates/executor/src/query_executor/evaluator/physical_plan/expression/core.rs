@@ -1241,6 +1241,47 @@ impl ProjectionWithExprExec {
             return Self::evaluate_bitmap_function(name, args, batch, row_idx);
         }
 
+        if matches!(
+            name,
+            FunctionName::Stem
+                | FunctionName::Lemmatize
+                | FunctionName::Synonyms
+                | FunctionName::DetectLanguage
+                | FunctionName::DetectLanguageMixed
+                | FunctionName::DetectLanguageUnknown
+                | FunctionName::DetectCharset
+                | FunctionName::DetectTonality
+                | FunctionName::DetectProgrammingLanguage
+                | FunctionName::NormalizeQuery
+                | FunctionName::NormalizedQueryHash
+                | FunctionName::WordShingleMinHash
+                | FunctionName::WordShingleSimHash
+                | FunctionName::NgramSimHash
+        ) {
+            return Self::evaluate_nlp_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(
+            name,
+            FunctionName::L1Norm
+                | FunctionName::L2Norm
+                | FunctionName::LinfNorm
+                | FunctionName::LpNorm
+                | FunctionName::L1Distance
+                | FunctionName::L2Distance
+                | FunctionName::LinfDistance
+                | FunctionName::LpDistance
+                | FunctionName::L1Normalize
+                | FunctionName::L2Normalize
+                | FunctionName::LinfNormalize
+                | FunctionName::LpNormalize
+                | FunctionName::CosineDistance
+                | FunctionName::DotProduct
+                | FunctionName::L2SquaredDistance
+        ) {
+            return Self::evaluate_distance_function(func_name, args, batch, row_idx);
+        }
+
         if let FunctionName::Custom(custom_name) = name {
             return Self::evaluate_custom_function(custom_name, args, batch, row_idx);
         }
