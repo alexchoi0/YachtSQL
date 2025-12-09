@@ -165,7 +165,10 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
                 if let Some(inet) = args[0].as_inet() {
                     match inet.broadcast() {
                         Some(broadcast) => {
-                            let inet_broadcast = InetAddr::new(broadcast);
+                            let inet_broadcast = InetAddr {
+                                addr: broadcast,
+                                prefix_len: inet.prefix_len,
+                            };
                             Ok(Value::inet(inet_broadcast))
                         }
                         None => Ok(args[0].clone()),
@@ -288,7 +291,35 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
                     Ok(Value::inet(new_inet))
                 } else if let (Some(cidr), Some(new_len)) = (args[0].as_cidr(), args[1].as_i64()) {
                     let new_prefix = new_len as u8;
-                    match CidrAddr::new(cidr.network, new_prefix) {
+                    let truncated_network = match cidr.network {
+                        std::net::IpAddr::V4(ip) => {
+                            let bits = u32::from_be_bytes(ip.octets());
+                            let mask = if new_prefix == 0 {
+                                0u32
+                            } else if new_prefix >= 32 {
+                                !0u32
+                            } else {
+                                !0u32 << (32 - new_prefix)
+                            };
+                            std::net::IpAddr::V4(std::net::Ipv4Addr::from(
+                                (bits & mask).to_be_bytes(),
+                            ))
+                        }
+                        std::net::IpAddr::V6(ip) => {
+                            let bits = u128::from_be_bytes(ip.octets());
+                            let mask = if new_prefix == 0 {
+                                0u128
+                            } else if new_prefix >= 128 {
+                                !0u128
+                            } else {
+                                !0u128 << (128 - new_prefix)
+                            };
+                            std::net::IpAddr::V6(std::net::Ipv6Addr::from(
+                                (bits & mask).to_be_bytes(),
+                            ))
+                        }
+                    };
+                    match CidrAddr::new(truncated_network, new_prefix) {
                         Ok(new_cidr) => Ok(Value::cidr(new_cidr)),
                         Err(e) => Err(Error::InvalidOperation(format!(
                             "Invalid prefix length: {}",

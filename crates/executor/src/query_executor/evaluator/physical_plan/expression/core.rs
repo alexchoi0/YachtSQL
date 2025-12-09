@@ -1046,6 +1046,20 @@ impl ProjectionWithExprExec {
                 | FunctionName::InetServerAddr
                 | FunctionName::InetServerPort
                 | FunctionName::TxidCurrent
+                | FunctionName::TxidCurrentIfAssigned
+                | FunctionName::TxidCurrentSnapshot
+                | FunctionName::TxidSnapshotXmin
+                | FunctionName::TxidSnapshotXmax
+                | FunctionName::TxidSnapshotXip
+                | FunctionName::TxidVisibleInSnapshot
+                | FunctionName::TxidStatus
+                | FunctionName::PgCurrentXactId
+                | FunctionName::PgCurrentXactIdIfAssigned
+                | FunctionName::PgSnapshotXmin
+                | FunctionName::PgSnapshotXmax
+                | FunctionName::PgSnapshotXip
+                | FunctionName::PgVisibleInSnapshot
+                | FunctionName::PgXactStatus
         ) {
             return Self::evaluate_introspection_function(name, args, batch, row_idx);
         }

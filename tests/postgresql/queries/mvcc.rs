@@ -104,7 +104,6 @@ fn test_system_column_tableoid() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_current() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT txid_current()").unwrap();
@@ -112,7 +111,6 @@ fn test_txid_current() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_current_if_assigned() {
     let mut executor = create_executor();
     let result = executor
@@ -122,7 +120,6 @@ fn test_txid_current_if_assigned() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_current_snapshot() {
     let mut executor = create_executor();
     let result = executor
@@ -132,7 +129,6 @@ fn test_txid_current_snapshot() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_snapshot_xmin() {
     let mut executor = create_executor();
     let result = executor
@@ -142,7 +138,6 @@ fn test_txid_snapshot_xmin() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_snapshot_xmax() {
     let mut executor = create_executor();
     let result = executor
@@ -152,7 +147,6 @@ fn test_txid_snapshot_xmax() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_snapshot_xip() {
     let mut executor = create_executor();
     let result = executor
@@ -162,7 +156,6 @@ fn test_txid_snapshot_xip() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_visible_in_snapshot() {
     let mut executor = create_executor();
     let result = executor
@@ -172,7 +165,6 @@ fn test_txid_visible_in_snapshot() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_txid_status() {
     let mut executor = create_executor();
     let result = executor
@@ -182,7 +174,6 @@ fn test_txid_status() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_current_xact_id() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT pg_current_xact_id()").unwrap();
@@ -190,7 +181,6 @@ fn test_pg_current_xact_id() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_current_xact_id_if_assigned() {
     let mut executor = create_executor();
     let result = executor
@@ -200,7 +190,6 @@ fn test_pg_current_xact_id_if_assigned() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_current_snapshot() {
     let mut executor = create_executor();
     let result = executor
@@ -210,7 +199,6 @@ fn test_pg_current_snapshot() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_snapshot_xmin() {
     let mut executor = create_executor();
     let result = executor
@@ -220,7 +208,6 @@ fn test_pg_snapshot_xmin() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_snapshot_xmax() {
     let mut executor = create_executor();
     let result = executor
@@ -230,7 +217,6 @@ fn test_pg_snapshot_xmax() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_snapshot_xip() {
     let mut executor = create_executor();
     let result = executor

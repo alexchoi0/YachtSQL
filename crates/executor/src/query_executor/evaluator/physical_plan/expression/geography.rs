@@ -3521,9 +3521,13 @@ impl ProjectionWithExprExec {
                 }
                 if let Some(inet) = value.as_inet() {
                     match inet.broadcast() {
-                        Some(bcast) => Ok(Value::inet(
-                            yachtsql_core::types::network::InetAddr::new(bcast),
-                        )),
+                        Some(bcast) => {
+                            let inet_broadcast = yachtsql_core::types::network::InetAddr {
+                                addr: bcast,
+                                prefix_len: inet.prefix_len,
+                            };
+                            Ok(Value::inet(inet_broadcast))
+                        }
                         None => Ok(value.clone()),
                     }
                 } else {
@@ -3607,7 +3611,35 @@ impl ProjectionWithExprExec {
                         prefix_len: Some(new_len),
                     }))
                 } else if let Some(cidr) = value.as_cidr() {
-                    match yachtsql_core::types::network::CidrAddr::new(cidr.network, new_len) {
+                    let truncated_network = match cidr.network {
+                        std::net::IpAddr::V4(ip) => {
+                            let bits = u32::from_be_bytes(ip.octets());
+                            let mask = if new_len == 0 {
+                                0u32
+                            } else if new_len >= 32 {
+                                !0u32
+                            } else {
+                                !0u32 << (32 - new_len)
+                            };
+                            std::net::IpAddr::V4(std::net::Ipv4Addr::from(
+                                (bits & mask).to_be_bytes(),
+                            ))
+                        }
+                        std::net::IpAddr::V6(ip) => {
+                            let bits = u128::from_be_bytes(ip.octets());
+                            let mask = if new_len == 0 {
+                                0u128
+                            } else if new_len >= 128 {
+                                !0u128
+                            } else {
+                                !0u128 << (128 - new_len)
+                            };
+                            std::net::IpAddr::V6(std::net::Ipv6Addr::from(
+                                (bits & mask).to_be_bytes(),
+                            ))
+                        }
+                    };
+                    match yachtsql_core::types::network::CidrAddr::new(truncated_network, new_len) {
                         Ok(new_cidr) => Ok(Value::cidr(new_cidr)),
                         Err(e) => Err(Error::invalid_operation(format!(
                             "Invalid prefix length: {}",

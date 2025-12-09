@@ -91,6 +91,8 @@ impl LogicalPlanBuilder {
                 "<@" => Ok(BinaryOp::ArrayContainedBy),
                 "&&" => Ok(BinaryOp::ArrayOverlap),
                 "-|-" => Ok(BinaryOp::RangeAdjacent),
+                "<<=" => Ok(BinaryOp::InetContainedByOrEqual),
+                ">>=" => Ok(BinaryOp::InetContainsOrEqual),
                 _ => Err(Error::unsupported_feature(format!(
                     "Custom binary operator not supported: {:?}",
                     op_str
