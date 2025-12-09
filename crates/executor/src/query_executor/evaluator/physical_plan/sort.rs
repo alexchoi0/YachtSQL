@@ -267,6 +267,206 @@ impl SortExec {
         ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
 
+    fn get_fill_column_index(&self, sort_idx: usize) -> Option<usize> {
+        let sort_expr = &self.sort_exprs[sort_idx];
+        if let Expr::Column { name, .. } = &sort_expr.expr {
+            self.schema.field_index(name)
+        } else {
+            None
+        }
+    }
+
+    fn evaluate_fill_expr(&self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Literal(lit) => Ok(lit.to_value()),
+            _ => Ok(Value::null()),
+        }
+    }
+
+    fn apply_with_fill(
+        &self,
+        sorted_rows: Vec<(Vec<Value>, Vec<Value>)>,
+    ) -> Result<Vec<Vec<Value>>> {
+        if sorted_rows.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let first_fill_idx = self
+            .sort_exprs
+            .iter()
+            .position(|e| e.with_fill.is_some())
+            .unwrap_or(0);
+
+        let sort_expr = &self.sort_exprs[first_fill_idx];
+        let fill_opts = sort_expr.with_fill.as_ref().unwrap();
+        let col_idx = match self.get_fill_column_index(first_fill_idx) {
+            Some(idx) => idx,
+            None => return Ok(sorted_rows.into_iter().map(|(_, row)| row).collect()),
+        };
+
+        let is_asc = sort_expr.asc.unwrap_or(true);
+        let step = fill_opts
+            .step
+            .as_ref()
+            .map(|e| self.evaluate_fill_expr(e))
+            .transpose()?
+            .unwrap_or_else(|| Value::int64(if is_asc { 1 } else { -1 }));
+
+        let from_val = fill_opts
+            .from
+            .as_ref()
+            .map(|e| self.evaluate_fill_expr(e))
+            .transpose()?;
+        let to_val = fill_opts
+            .to
+            .as_ref()
+            .map(|e| self.evaluate_fill_expr(e))
+            .transpose()?;
+
+        let mut result: Vec<Vec<Value>> = Vec::new();
+        let num_cols = self.schema.fields().len();
+
+        let first_row = &sorted_rows[0].1;
+        if let Some(ref from) = from_val {
+            let first_key = &first_row[col_idx];
+            let mut current = from.clone();
+            while self.should_fill_before(&current, first_key, &step, is_asc)? {
+                let mut fill_row = vec![Value::null(); num_cols];
+                fill_row[col_idx] = current.clone();
+                result.push(fill_row);
+                current = self.add_step(&current, &step)?;
+            }
+        }
+
+        for (i, (_, row)) in sorted_rows.iter().enumerate() {
+            result.push(row.clone());
+
+            if i + 1 < sorted_rows.len() {
+                let current_key = &row[col_idx];
+                let next_key = &sorted_rows[i + 1].1[col_idx];
+
+                if !current_key.is_null() && !next_key.is_null() {
+                    let mut fill_val = self.add_step(current_key, &step)?;
+                    while self.should_fill_between(&fill_val, next_key, &step, is_asc)? {
+                        let mut fill_row = vec![Value::null(); num_cols];
+                        fill_row[col_idx] = fill_val.clone();
+                        result.push(fill_row);
+                        fill_val = self.add_step(&fill_val, &step)?;
+                    }
+                }
+            }
+        }
+
+        if let Some(ref to) = to_val {
+            let last_row = &sorted_rows.last().unwrap().1;
+            let last_key = &last_row[col_idx];
+            if !last_key.is_null() {
+                let mut current = self.add_step(last_key, &step)?;
+                while self.should_fill_to(&current, to, &step, is_asc)? {
+                    let mut fill_row = vec![Value::null(); num_cols];
+                    fill_row[col_idx] = current.clone();
+                    result.push(fill_row);
+                    current = self.add_step(&current, &step)?;
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn should_fill_before(
+        &self,
+        current: &Value,
+        target: &Value,
+        _step: &Value,
+        is_asc: bool,
+    ) -> Result<bool> {
+        if current.is_null() || target.is_null() {
+            return Ok(false);
+        }
+        let cmp = compare_values(current, target)?;
+        Ok(if is_asc {
+            cmp == std::cmp::Ordering::Less
+        } else {
+            cmp == std::cmp::Ordering::Greater
+        })
+    }
+
+    fn should_fill_between(
+        &self,
+        current: &Value,
+        target: &Value,
+        _step: &Value,
+        is_asc: bool,
+    ) -> Result<bool> {
+        if current.is_null() || target.is_null() {
+            return Ok(false);
+        }
+        let cmp = compare_values(current, target)?;
+        Ok(if is_asc {
+            cmp == std::cmp::Ordering::Less
+        } else {
+            cmp == std::cmp::Ordering::Greater
+        })
+    }
+
+    fn should_fill_to(
+        &self,
+        current: &Value,
+        to: &Value,
+        _step: &Value,
+        is_asc: bool,
+    ) -> Result<bool> {
+        if current.is_null() || to.is_null() {
+            return Ok(false);
+        }
+        let cmp = compare_values(current, to)?;
+        Ok(if is_asc {
+            cmp != std::cmp::Ordering::Greater
+        } else {
+            cmp != std::cmp::Ordering::Less
+        })
+    }
+
+    fn add_step(&self, value: &Value, step: &Value) -> Result<Value> {
+        use chrono::Duration;
+        use yachtsql_core::types::Date32Value;
+
+        if value.is_null() {
+            return Ok(Value::null());
+        }
+
+        if let (Some(v), Some(s)) = (value.as_i64(), step.as_i64()) {
+            return Ok(Value::int64(v + s));
+        }
+        if let (Some(v), Some(s)) = (value.as_f64(), step.as_f64()) {
+            return Ok(Value::float64(v + s));
+        }
+        if let Some(d) = value.as_date() {
+            let step_days = step.as_i64().unwrap_or(1);
+            return Ok(Value::date(d + Duration::days(step_days)));
+        }
+        if let Some(ts) = value.as_timestamp() {
+            if let Some(interval) = step.as_interval() {
+                let days = interval.days as i64;
+                let months = interval.months as i64;
+                let micros = interval.micros;
+                let step_duration = Duration::days(days)
+                    + Duration::days(months * 30)
+                    + Duration::microseconds(micros);
+                return Ok(Value::timestamp(ts + step_duration));
+            }
+            let step_val = step.as_i64().unwrap_or(1);
+            return Ok(Value::timestamp(ts + Duration::seconds(step_val)));
+        }
+        if let Some(d32) = value.as_date32() {
+            let step_days = step.as_i64().unwrap_or(1) as i32;
+            return Ok(Value::date32(Date32Value(d32.0 + step_days)));
+        }
+
+        Ok(value.clone())
+    }
+
     fn compare_sort_keys(&self, a: &[Value], b: &[Value]) -> Result<std::cmp::Ordering> {
         for (idx, sort_expr) in self.sort_exprs.iter().enumerate() {
             let val_a = &a[idx];
@@ -370,7 +570,14 @@ impl ExecutionPlan for SortExec {
             return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
-        let num_output_rows = all_rows.len();
+        let has_with_fill = self.sort_exprs.iter().any(|e| e.with_fill.is_some());
+        let final_rows = if has_with_fill {
+            self.apply_with_fill(all_rows)?
+        } else {
+            all_rows.into_iter().map(|(_, row)| row).collect()
+        };
+
+        let num_output_rows = final_rows.len();
         let num_cols = self.schema.fields().len();
         let mut columns = Vec::new();
 
@@ -378,7 +585,7 @@ impl ExecutionPlan for SortExec {
             let field = &self.schema.fields()[col_idx];
             let mut column = Column::new(&field.data_type, num_output_rows);
 
-            for (_sort_key, row_data) in &all_rows {
+            for row_data in &final_rows {
                 column.push(row_data[col_idx].clone())?;
             }
 
@@ -543,6 +750,7 @@ mod tests {
             asc: Some(true),
             nulls_first: None,
             collation: None,
+            with_fill: None,
         }];
 
         let sort_exec = SortExec::new(input_exec, sort_exprs);
@@ -571,6 +779,7 @@ mod tests {
             asc: Some(false),
             nulls_first: Some(true),
             collation: None,
+            with_fill: None,
         }];
 
         let sort_exec = SortExec::new(input_exec, sort_exprs).unwrap();

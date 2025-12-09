@@ -1362,6 +1362,7 @@ impl LogicalPlanBuilder {
                     asc: ob.asc,
                     nulls_first: ob.nulls_first,
                     collation: ob.collation.clone(),
+                    with_fill: ob.with_fill.clone(),
                 }
             })
             .collect();
@@ -1827,11 +1828,27 @@ impl LogicalPlanBuilder {
         order_by_exprs
             .iter()
             .map(|order_expr| {
-                if order_expr.with_fill.is_some() {
-                    return Err(Error::unsupported_feature(
-                        "ORDER BY WITH FILL not supported".to_string(),
-                    ));
-                }
+                let with_fill = if let Some(wf) = &order_expr.with_fill {
+                    Some(yachtsql_ir::expr::WithFill {
+                        from: wf
+                            .from
+                            .as_ref()
+                            .map(|e| self.sql_expr_to_expr(e))
+                            .transpose()?,
+                        to: wf
+                            .to
+                            .as_ref()
+                            .map(|e| self.sql_expr_to_expr(e))
+                            .transpose()?,
+                        step: wf
+                            .step
+                            .as_ref()
+                            .map(|e| self.sql_expr_to_expr(e))
+                            .transpose()?,
+                    })
+                } else {
+                    None
+                };
 
                 let asc = order_expr.options.asc;
                 let nulls_first = order_expr.options.nulls_first;
@@ -1864,6 +1881,7 @@ impl LogicalPlanBuilder {
                     asc,
                     nulls_first,
                     collation,
+                    with_fill,
                 })
             })
             .collect()
@@ -1954,6 +1972,18 @@ impl LogicalPlanBuilder {
 
             let is_paste_join = Self::is_paste_join_marker(&join.relation);
             let asof_marker = Self::is_asof_join_marker(&join.relation);
+            let array_join_marker = Self::is_array_join_marker(&join.relation);
+
+            if let Some((columns_str, is_left)) = array_join_marker {
+                let arrays = self.parse_array_join_columns(&columns_str)?;
+                plan = LogicalPlan::new(PlanNode::ArrayJoin {
+                    input: plan.root,
+                    arrays,
+                    is_left,
+                    is_unaligned: false,
+                });
+                continue;
+            }
 
             let right_plan = if is_paste_join {
                 self.plan_paste_join_relation(&join.relation, &plan)?

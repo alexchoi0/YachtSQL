@@ -529,7 +529,6 @@ fn test_describe_table() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_show_create_table() {
     let mut executor = create_executor();
@@ -545,7 +544,6 @@ fn test_show_create_table() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_show_tables() {
     let mut executor = create_executor();
@@ -562,7 +560,6 @@ fn test_show_tables() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_show_columns() {
     let mut executor = create_executor();

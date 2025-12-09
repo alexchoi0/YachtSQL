@@ -140,11 +140,19 @@ pub enum Expr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct WithFill {
+    pub from: Option<Expr>,
+    pub to: Option<Expr>,
+    pub step: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct OrderByExpr {
     pub expr: Expr,
     pub asc: Option<bool>,
     pub nulls_first: Option<bool>,
     pub collation: Option<String>,
+    pub with_fill: Option<WithFill>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

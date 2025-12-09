@@ -206,6 +206,7 @@ impl LogicalPlanBuilder {
                                             asc: order_expr.options.asc,
                                             nulls_first: order_expr.options.nulls_first,
                                             collation: None,
+                                            with_fill: None,
                                         });
                                     }
                                 }
@@ -251,6 +252,7 @@ impl LogicalPlanBuilder {
                             asc: order_expr.options.asc,
                             nulls_first: order_expr.options.nulls_first,
                             collation: None,
+                            with_fill: None,
                         });
                     }
                     Some(order_exprs)
@@ -303,6 +305,7 @@ impl LogicalPlanBuilder {
                                 asc: order_expr.options.asc,
                                 nulls_first: order_expr.options.nulls_first,
                                 collation: None,
+                                with_fill: None,
                             })
                         })
                         .collect::<Result<Vec<_>>>()?;

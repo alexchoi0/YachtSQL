@@ -384,6 +384,7 @@ fn test_sort_exec_sets_is_sorted_flag() {
         asc: Some(true),
         nulls_first: Some(false),
         collation: None,
+        with_fill: None,
     }];
 
     let sort_exec = SortExec::new(input, order_by).unwrap();

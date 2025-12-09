@@ -25,21 +25,59 @@ impl ArrayJoinExec {
         is_unaligned: bool,
     ) -> Result<Self> {
         let input_schema = input.schema();
-        let mut fields = input_schema.fields().to_vec();
+        let mut fields = Vec::new();
+
+        let array_col_names: std::collections::HashSet<String> = arrays
+            .iter()
+            .filter(|(_, alias)| alias.is_none())
+            .filter_map(|(expr, _)| {
+                if let Expr::Column { name, .. } = expr {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for field in input_schema.fields() {
+            if array_col_names.contains(&field.name) {
+                let element_type =
+                    if let yachtsql_core::types::DataType::Array(inner) = &field.data_type {
+                        inner.as_ref().clone()
+                    } else {
+                        yachtsql_core::types::DataType::String
+                    };
+                fields.push(yachtsql_storage::Field::nullable(
+                    field.name.clone(),
+                    element_type,
+                ));
+            } else {
+                fields.push(field.clone());
+            }
+        }
 
         for (expr, alias) in &arrays {
-            let field_name = alias.clone().unwrap_or_else(|| {
-                if let Expr::Column { name, .. } = expr {
-                    name.clone()
+            if let Some(alias_name) = alias {
+                let field_name = alias_name.clone();
+                let element_type = if let Expr::Column { name, .. } = expr {
+                    input_schema
+                        .fields()
+                        .iter()
+                        .find(|f| &f.name == name)
+                        .map(|f| {
+                            if let yachtsql_core::types::DataType::Array(inner) = &f.data_type {
+                                inner.as_ref().clone()
+                            } else {
+                                yachtsql_core::types::DataType::String
+                            }
+                        })
+                        .unwrap_or(yachtsql_core::types::DataType::String)
                 } else {
-                    "array_element".to_string()
-                }
-            });
+                    yachtsql_core::types::DataType::String
+                };
 
-            fields.push(yachtsql_storage::Field::nullable(
-                field_name,
-                yachtsql_core::types::DataType::String,
-            ));
+                fields.push(yachtsql_storage::Field::nullable(field_name, element_type));
+            }
         }
 
         let schema = Schema::from_fields(fields);
@@ -92,6 +130,18 @@ impl ArrayJoinExec {
         Ok(result)
     }
 
+    fn get_array_col_map(&self) -> std::collections::HashMap<String, usize> {
+        let mut map = std::collections::HashMap::new();
+        for (idx, (expr, alias)) in self.arrays.iter().enumerate() {
+            if alias.is_none() {
+                if let Expr::Column { name, .. } = expr {
+                    map.insert(name.clone(), idx);
+                }
+            }
+        }
+        map
+    }
+
     fn generate_aligned_rows(
         &self,
         batch: &Table,
@@ -103,15 +153,28 @@ impl ArrayJoinExec {
         }
 
         let max_len = arrays.iter().map(|arr| arr.len()).max().unwrap_or(0);
+        let array_col_map = self.get_array_col_map();
 
         if max_len == 0 && self.is_left {
             let mut row = Vec::new();
-            for col in batch.expect_columns() {
-                row.push(col.get(row_idx)?);
+            let input_cols = batch.expect_columns();
+            let input_fields = batch.schema().fields();
+
+            for (col_idx, col) in input_cols.iter().enumerate() {
+                if let Some(arr_idx) = array_col_map.get(&input_fields[col_idx].name) {
+                    row.push(Value::null());
+                    let _ = arr_idx;
+                } else {
+                    row.push(col.get(row_idx)?);
+                }
             }
-            for _ in &self.arrays {
-                row.push(Value::null());
+
+            for (_, alias) in &self.arrays {
+                if alias.is_some() {
+                    row.push(Value::null());
+                }
             }
+
             return Ok(vec![row]);
         }
 
@@ -120,21 +183,34 @@ impl ArrayJoinExec {
         }
 
         let mut result_rows = Vec::new();
+        let input_cols = batch.expect_columns();
+        let input_fields = batch.schema().fields();
 
         for i in 0..max_len {
             let mut row = Vec::new();
 
-            for col in batch.expect_columns() {
-                row.push(col.get(row_idx)?);
+            for (col_idx, col) in input_cols.iter().enumerate() {
+                if let Some(arr_idx) = array_col_map.get(&input_fields[col_idx].name) {
+                    let val = if i < arrays[*arr_idx].len() {
+                        arrays[*arr_idx][i].clone()
+                    } else {
+                        Value::null()
+                    };
+                    row.push(val);
+                } else {
+                    row.push(col.get(row_idx)?);
+                }
             }
 
-            for arr in &arrays {
-                let val = if i < arr.len() {
-                    arr[i].clone()
-                } else {
-                    Value::null()
-                };
-                row.push(val);
+            for (arr_idx, (_, alias)) in self.arrays.iter().enumerate() {
+                if alias.is_some() {
+                    let val = if i < arrays[arr_idx].len() {
+                        arrays[arr_idx][i].clone()
+                    } else {
+                        Value::null()
+                    };
+                    row.push(val);
+                }
             }
 
             result_rows.push(row);
@@ -159,27 +235,47 @@ impl ArrayJoinExec {
             return Ok(vec![]);
         }
 
+        let array_col_map = self.get_array_col_map();
         let mut result_rows = Vec::new();
+        let input_cols = batch.expect_columns();
+        let input_fields = batch.schema().fields();
 
         for combo_idx in 0..total_combinations {
             let mut row = Vec::new();
 
-            for col in batch.expect_columns() {
-                row.push(col.get(row_idx)?);
-            }
-
+            let mut indices: Vec<usize> = Vec::new();
             let mut divisor = total_combinations;
             for arr in &arrays {
                 let arr_len = arr.len().max(1);
                 divisor /= arr_len;
                 let idx = (combo_idx / divisor) % arr_len;
+                indices.push(idx);
+            }
 
-                let val = if !arr.is_empty() {
-                    arr[idx].clone()
+            for (col_idx, col) in input_cols.iter().enumerate() {
+                if let Some(arr_idx) = array_col_map.get(&input_fields[col_idx].name) {
+                    let idx = indices[*arr_idx];
+                    let val = if !arrays[*arr_idx].is_empty() {
+                        arrays[*arr_idx][idx].clone()
+                    } else {
+                        Value::null()
+                    };
+                    row.push(val);
                 } else {
-                    Value::null()
-                };
-                row.push(val);
+                    row.push(col.get(row_idx)?);
+                }
+            }
+
+            for (arr_idx, (_, alias)) in self.arrays.iter().enumerate() {
+                if alias.is_some() {
+                    let idx = indices[arr_idx];
+                    let val = if !arrays[arr_idx].is_empty() {
+                        arrays[arr_idx][idx].clone()
+                    } else {
+                        Value::null()
+                    };
+                    row.push(val);
+                }
             }
 
             result_rows.push(row);

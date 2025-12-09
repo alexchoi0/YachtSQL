@@ -582,6 +582,140 @@ impl LogicalPlanBuilder {
         }
     }
 
+    fn is_array_join_marker(factor: &ast::TableFactor) -> Option<(String, bool)> {
+        match factor {
+            ast::TableFactor::Table { name, .. } => {
+                let table_name = name
+                    .0
+                    .first()
+                    .and_then(|p| p.as_ident())
+                    .map(|ident| &ident.value)?;
+
+                if let Some(rest) = table_name.strip_prefix("__LEFT_ARRAY_JOIN__") {
+                    let columns = rest.strip_suffix("__").unwrap_or(rest);
+                    let decoded = Self::decode_array_join_columns(columns);
+                    return Some((decoded, true));
+                }
+                if let Some(rest) = table_name.strip_prefix("__ARRAY_JOIN__") {
+                    let columns = rest.strip_suffix("__").unwrap_or(rest);
+                    let decoded = Self::decode_array_join_columns(columns);
+                    return Some((decoded, false));
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn decode_array_join_columns(encoded: &str) -> String {
+        encoded
+            .replace("_SP_", " ")
+            .replace("_CM_", ",")
+            .replace("_LP_", "(")
+            .replace("_RP_", ")")
+    }
+
+    fn parse_array_join_columns(&self, columns_str: &str) -> Result<Vec<(Expr, Option<String>)>> {
+        let mut result = Vec::new();
+        let trimmed = columns_str.trim();
+
+        if trimmed.is_empty() {
+            return Err(Error::parse_error(
+                "ARRAY JOIN requires at least one array expression".to_string(),
+            ));
+        }
+
+        let parts: Vec<&str> = Self::split_respecting_parens(trimmed);
+
+        for part in parts {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            let upper = part.to_uppercase();
+            let (expr_str, alias) = if let Some(as_pos) = Self::find_as_keyword(&upper) {
+                let expr_part = part[..as_pos].trim();
+                let skip = if as_pos + 4 <= part.len()
+                    && &upper.as_bytes()[as_pos..as_pos + 4] == b" AS "
+                {
+                    4
+                } else {
+                    3
+                };
+                let alias_part = if as_pos + skip < part.len() {
+                    part[as_pos + skip..].trim()
+                } else {
+                    ""
+                };
+                if alias_part.is_empty() {
+                    (part.to_string(), None)
+                } else {
+                    (expr_part.to_string(), Some(alias_part.to_string()))
+                }
+            } else {
+                (part.to_string(), None)
+            };
+
+            let expr = Expr::Column {
+                name: expr_str.clone(),
+                table: None,
+            };
+
+            result.push((expr, alias));
+        }
+
+        if result.is_empty() {
+            return Err(Error::parse_error(
+                "ARRAY JOIN requires at least one array expression".to_string(),
+            ));
+        }
+
+        Ok(result)
+    }
+
+    fn split_respecting_parens(s: &str) -> Vec<&str> {
+        let mut result = Vec::new();
+        let mut depth = 0;
+        let mut start = 0;
+
+        for (i, ch) in s.char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                ',' if depth == 0 => {
+                    result.push(&s[start..i]);
+                    start = i + 1;
+                }
+                _ => {}
+            }
+        }
+
+        if start < s.len() {
+            result.push(&s[start..]);
+        }
+
+        result
+    }
+
+    fn find_as_keyword(upper_str: &str) -> Option<usize> {
+        let mut idx = 0;
+        let bytes = upper_str.as_bytes();
+
+        while idx + 4 <= bytes.len() {
+            if &bytes[idx..idx + 4] == b" AS " {
+                return Some(idx);
+            }
+            idx += 1;
+        }
+
+        if bytes.len() >= 3 && &bytes[bytes.len() - 3..] == b" AS" {
+            return Some(bytes.len() - 3);
+        }
+
+        None
+    }
+
     fn plan_asof_join_relation(
         &self,
         relation: &ast::TableFactor,

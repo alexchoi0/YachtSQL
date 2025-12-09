@@ -272,6 +272,7 @@ impl NullPropagation {
                             asc: o.asc,
                             nulls_first: o.nulls_first,
                             collation: o.collation.clone(),
+                            with_fill: o.with_fill.clone(),
                         })
                         .collect()
                 });

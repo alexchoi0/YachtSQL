@@ -677,6 +677,7 @@ mod tests {
             asc: Some(true),
             nulls_first: Some(false),
             collation: None,
+            with_fill: None,
         }
     }
 
