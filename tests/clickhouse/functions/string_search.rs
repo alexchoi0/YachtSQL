@@ -290,7 +290,6 @@ fn test_search_column() {
     assert_table_eq!(result, [[2, "jumps over the lazy dog"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fuzzy_search() {
     let mut executor = create_executor();
