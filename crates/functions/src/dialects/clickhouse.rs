@@ -859,9 +859,5 @@ pub fn clickhouse_aggregate_functions() -> Vec<&'static str> {
         "SUM_MAP_FILTERED",
         "SUMMAPFILTEREDIF",
         "SUM_MAP_FILTERED_IF",
-        "ARRAYFLATTEN",
-        "ARRAY_FLATTEN",
-        "BITMAPCARDINALITY",
-        "BITMAP_CARDINALITY",
     ]
 }
