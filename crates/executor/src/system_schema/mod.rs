@@ -38,6 +38,7 @@ pub enum SystemTable {
     Contributors,
     BuildOptions,
     TimeZones,
+    One,
 }
 
 impl SystemTable {
@@ -74,6 +75,7 @@ impl SystemTable {
             "contributors" => Ok(SystemTable::Contributors),
             "build_options" => Ok(SystemTable::BuildOptions),
             "time_zones" => Ok(SystemTable::TimeZones),
+            "one" => Ok(SystemTable::One),
             _ => Err(Error::table_not_found(format!(
                 "system.{} is not supported",
                 s
@@ -124,7 +126,14 @@ impl SystemSchemaProvider {
             SystemTable::Contributors => self.get_contributors(),
             SystemTable::BuildOptions => self.get_build_options(),
             SystemTable::TimeZones => self.get_time_zones(),
+            SystemTable::One => self.get_one(),
         }
+    }
+
+    fn get_one(&self) -> Result<(Schema, Vec<Row>)> {
+        let schema = Schema::from_fields(vec![Field::required("dummy", DataType::Int64)]);
+        let rows = vec![Row::from_values(vec![Value::int64(0)])];
+        Ok((schema, rows))
     }
 
     fn get_tables(&self) -> Result<(Schema, Vec<Row>)> {
@@ -881,7 +890,24 @@ impl SystemSchemaProvider {
             ),
         ]);
 
-        Ok((schema, Vec::new()))
+        let storage = self.storage.borrow();
+        let rows: Vec<Row> = storage
+            .quotas()
+            .map(|quota| {
+                Row::from_values(vec![
+                    Value::string(quota.name.clone()),
+                    Value::string(quota.name.clone()),
+                    Value::string("local_directory".to_string()),
+                    Value::null(),
+                    Value::null(),
+                    Value::int64(0),
+                    Value::null(),
+                    Value::null(),
+                ])
+            })
+            .collect();
+
+        Ok((schema, rows))
     }
 
     fn get_row_policies(&self) -> Result<(Schema, Vec<Row>)> {
@@ -902,7 +928,27 @@ impl SystemSchemaProvider {
             ),
         ]);
 
-        Ok((schema, Vec::new()))
+        let storage = self.storage.borrow();
+        let rows: Vec<Row> = storage
+            .row_policies()
+            .map(|policy| {
+                Row::from_values(vec![
+                    Value::string(policy.name.clone()),
+                    Value::string(policy.name.clone()),
+                    Value::string(policy.database.clone()),
+                    Value::string(policy.table.clone()),
+                    Value::string(policy.name.clone()),
+                    Value::string("local_directory".to_string()),
+                    Value::null(),
+                    Value::int64(0),
+                    Value::int64(0),
+                    Value::null(),
+                    Value::null(),
+                ])
+            })
+            .collect();
+
+        Ok((schema, rows))
     }
 
     fn get_settings_profiles(&self) -> Result<(Schema, Vec<Row>)> {
@@ -919,7 +965,23 @@ impl SystemSchemaProvider {
             ),
         ]);
 
-        Ok((schema, Vec::new()))
+        let storage = self.storage.borrow();
+        let rows: Vec<Row> = storage
+            .settings_profiles()
+            .map(|profile| {
+                Row::from_values(vec![
+                    Value::string(profile.name.clone()),
+                    Value::string(profile.name.clone()),
+                    Value::string("local_directory".to_string()),
+                    Value::int64(0),
+                    Value::int64(0),
+                    Value::null(),
+                    Value::null(),
+                ])
+            })
+            .collect();
+
+        Ok((schema, rows))
     }
 
     fn get_metrics(&self) -> Result<(Schema, Vec<Row>)> {

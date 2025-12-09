@@ -193,7 +193,6 @@ fn test_format_native() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_format_null() {
     let mut executor = create_executor();

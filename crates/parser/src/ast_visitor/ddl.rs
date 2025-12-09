@@ -123,6 +123,33 @@ impl LogicalPlanBuilder {
                             .unwrap_or(0);
                         return Ok(DataType::Vector(dims));
                     }
+                    "DECIMAL32" => {
+                        let scale = modifiers
+                            .first()
+                            .and_then(|s| s.parse::<u8>().ok())
+                            .unwrap_or(0);
+                        return Ok(DataType::Numeric(Some((9, scale))));
+                    }
+                    "DECIMAL64" => {
+                        let scale = modifiers
+                            .first()
+                            .and_then(|s| s.parse::<u8>().ok())
+                            .unwrap_or(0);
+                        return Ok(DataType::Numeric(Some((18, scale))));
+                    }
+                    "DECIMAL128" => {
+                        let scale = modifiers
+                            .first()
+                            .and_then(|s| s.parse::<u8>().ok())
+                            .unwrap_or(0);
+                        return Ok(DataType::Numeric(Some((38, scale))));
+                    }
+                    "DATETIME64" => {
+                        return Ok(DataType::Timestamp);
+                    }
+                    "FIXEDSTRING" => {
+                        return Ok(DataType::String);
+                    }
                     _ => {}
                 }
 

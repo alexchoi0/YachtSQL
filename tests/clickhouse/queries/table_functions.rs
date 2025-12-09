@@ -42,7 +42,7 @@ fn test_zeros_mt() {
     assert!(result.num_rows() == 10);
 }
 
-#[ignore = "Requires system table support"]
+#[ignore = "Requires implicit system table resolution (SELECT * FROM one -> system.one)"]
 #[test]
 fn test_one() {
     let mut executor = create_executor();
@@ -50,7 +50,6 @@ fn test_one() {
     assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Requires system table support"]
 #[test]
 fn test_system_one() {
     let mut executor = create_executor();

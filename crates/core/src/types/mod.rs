@@ -20,6 +20,7 @@ pub enum DataType {
     Unknown,
     Bool,
     Int64,
+    Float32,
     Float64,
     Numeric(Option<(u8, u8)>),
     BigNumeric,
@@ -85,6 +86,7 @@ impl fmt::Display for DataType {
         match self {
             DataType::Bool => write!(f, "BOOL"),
             DataType::Int64 => write!(f, "INT64"),
+            DataType::Float32 => write!(f, "FLOAT32"),
             DataType::Float64 => write!(f, "FLOAT64"),
             DataType::Unknown => write!(f, "UNKNOWN"),
             DataType::Numeric(None) => write!(f, "NUMERIC"),

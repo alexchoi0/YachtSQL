@@ -345,6 +345,89 @@ static PASSTHROUGH_PROJECTION: PassthroughParser = PassthroughParser::new(
     },
 );
 
+fn strip_inline_indexes(sql: &str) -> String {
+    let mut result = sql.to_string();
+    let upper = result.to_uppercase();
+
+    let mut positions_to_remove: Vec<(usize, usize)> = Vec::new();
+    let mut pos = 0;
+
+    while let Some(idx) = upper[pos..].find("INDEX") {
+        let abs_idx = pos + idx;
+
+        let before_ok = abs_idx == 0
+            || !result.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && result.as_bytes()[abs_idx - 1] != b'_';
+
+        let after_idx = abs_idx + "INDEX".len();
+        let after_ok = after_idx >= result.len()
+            || (!result.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && result.as_bytes()[after_idx] != b'_');
+
+        if before_ok && after_ok {
+            let before_index = &result[..abs_idx];
+            let in_create_table = before_index.to_uppercase().contains("CREATE TABLE");
+            let after_create_index = before_index
+                .to_uppercase()
+                .rfind("CREATE")
+                .map(|create_pos| {
+                    let after_create = &before_index[create_pos + 6..].trim_start().to_uppercase();
+                    after_create.starts_with("INDEX") || after_create.starts_with("UNIQUE")
+                })
+                .unwrap_or(false);
+
+            if in_create_table && !after_create_index {
+                let rest = &result[abs_idx..];
+                let mut end_pos = rest.len();
+                let mut paren_depth = 0;
+                let mut in_string = false;
+                let mut prev_char = ' ';
+
+                for (i, c) in rest.chars().enumerate() {
+                    if c == '\'' && prev_char != '\\' {
+                        in_string = !in_string;
+                    }
+                    if !in_string {
+                        match c {
+                            '(' => paren_depth += 1,
+                            ')' => {
+                                if paren_depth == 0 {
+                                    end_pos = i;
+                                    break;
+                                }
+                                paren_depth -= 1;
+                            }
+                            ',' if paren_depth == 0 => {
+                                end_pos = i;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    prev_char = c;
+                }
+
+                let comma_before = if abs_idx > 0 && result[..abs_idx].trim_end().ends_with(',') {
+                    result[..abs_idx].rfind(',').unwrap()
+                } else {
+                    abs_idx
+                };
+
+                positions_to_remove.push((comma_before, abs_idx + end_pos));
+            }
+        }
+
+        pos = abs_idx + 1;
+    }
+
+    positions_to_remove.reverse();
+    for (start, end) in positions_to_remove {
+        result = format!("{}{}", &result[..start], &result[end..]);
+    }
+
+    result
+}
+
 fn strip_inline_projections(sql: &str) -> String {
     let mut result = sql.to_string();
     while let Some(start) = result.find("PROJECTION") {
@@ -399,6 +482,68 @@ impl ClickHouseStatementParser for CreateTableWithProjectionParser {
 
 static CREATE_TABLE_WITH_PROJECTION_PARSER: CreateTableWithProjectionParser =
     CreateTableWithProjectionParser;
+
+struct CreateTableWithInlineIndexParser;
+
+impl ClickHouseStatementParser for CreateTableWithInlineIndexParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "INDEX",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if !has_inline_index(sql) {
+            return Ok(None);
+        }
+        let stripped = strip_inline_indexes(sql);
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+fn has_inline_index(sql: &str) -> bool {
+    let upper = sql.to_uppercase();
+    if !upper.contains("CREATE TABLE") {
+        return false;
+    }
+
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("INDEX") {
+        let abs_idx = pos + idx;
+
+        let before_ok = abs_idx == 0
+            || !sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_';
+
+        let after_idx = abs_idx + "INDEX".len();
+        let after_ok = after_idx >= sql.len()
+            || (!sql.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && sql.as_bytes()[after_idx] != b'_');
+
+        if before_ok && after_ok {
+            let before_index = &upper[..abs_idx];
+            if before_index.contains("CREATE TABLE") {
+                let after_last_create = before_index.rfind("CREATE");
+                if let Some(create_pos) = after_last_create {
+                    let after_create = &before_index[create_pos + 6..].trim_start();
+                    if !after_create.starts_with("INDEX") && !after_create.starts_with("UNIQUE") {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        pos = abs_idx + 1;
+    }
+    false
+}
+
+static CREATE_TABLE_WITH_INLINE_INDEX_PARSER: CreateTableWithInlineIndexParser =
+    CreateTableWithInlineIndexParser;
 
 fn find_keyword_partition_by(sql: &str) -> Option<usize> {
     let upper = sql.to_uppercase();
@@ -722,6 +867,81 @@ impl ClickHouseStatementParser for AlterTableModifyParser {
 
 static ALTER_TABLE_MODIFY_PARSER: AlterTableModifyParser = AlterTableModifyParser;
 
+struct AlterTableMaterializeIndexParser;
+
+impl ClickHouseStatementParser for AlterTableMaterializeIndexParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["ALTER", "TABLE"],
+            contains: "MATERIALIZE",
+        }
+    }
+
+    fn parse(&self, tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if !has_materialize_index(tokens) {
+            return Ok(None);
+        }
+        Ok(Some(CustomStatement::ClickHouseAlterTable {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+fn has_materialize_index(tokens: &[&Token]) -> bool {
+    let mut found_materialize = false;
+    for token in tokens.iter() {
+        if let Token::Word(w) = token {
+            if w.value.eq_ignore_ascii_case("MATERIALIZE") {
+                found_materialize = true;
+            }
+            if found_materialize && w.value.eq_ignore_ascii_case("INDEX") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+static ALTER_TABLE_MATERIALIZE_INDEX_PARSER: AlterTableMaterializeIndexParser =
+    AlterTableMaterializeIndexParser;
+
+struct AlterTableClearIndexParser;
+
+impl ClickHouseStatementParser for AlterTableClearIndexParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["ALTER", "TABLE"],
+            contains: "CLEAR",
+        }
+    }
+
+    fn parse(&self, tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if !has_clear_index(tokens) {
+            return Ok(None);
+        }
+        Ok(Some(CustomStatement::ClickHouseAlterTable {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+fn has_clear_index(tokens: &[&Token]) -> bool {
+    let mut found_clear = false;
+    for token in tokens.iter() {
+        if let Token::Word(w) = token {
+            if w.value.eq_ignore_ascii_case("CLEAR") {
+                found_clear = true;
+            }
+            if found_clear && w.value.eq_ignore_ascii_case("INDEX") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+static ALTER_TABLE_CLEAR_INDEX_PARSER: AlterTableClearIndexParser = AlterTableClearIndexParser;
+
 static PASSTHROUGH_ALTER_USER: PassthroughParser =
     PassthroughParser::new(KeywordPattern::StartsWith(&["ALTER", "USER"]), |sql| {
         CustomStatement::ClickHouseAlterUser {
@@ -826,7 +1046,10 @@ static PARSERS: &[&dyn ClickHouseStatementParser] = &[
     &CREATE_TABLE_WITH_PARTITION_PARSER,
     &CREATE_TABLE_WITH_SETTINGS_PARSER,
     &CREATE_TABLE_WITH_PROJECTION_PARSER,
+    &CREATE_TABLE_WITH_INLINE_INDEX_PARSER,
     &ALTER_TABLE_MODIFY_PARSER,
+    &ALTER_TABLE_MATERIALIZE_INDEX_PARSER,
+    &ALTER_TABLE_CLEAR_INDEX_PARSER,
     &PASSTHROUGH_PROJECTION,
     &PASSTHROUGH_ALTER_USER,
     &GRANT_ROLE_PARSER,
@@ -1824,5 +2047,37 @@ mod tests {
                 command: ClickHouseSystemCommand::FlushLogs
             })
         ));
+    }
+
+    #[test]
+    fn test_strip_inline_indexes() {
+        let sql = "CREATE TABLE fulltext_search (
+                id UInt64,
+                content String,
+                INDEX idx_content content TYPE inverted GRANULARITY 1
+            ) ENGINE = MergeTree()
+            ORDER BY id";
+
+        let stripped = super::strip_inline_indexes(sql);
+        assert!(
+            stripped.contains("id UInt64"),
+            "Should contain id column: {}",
+            stripped
+        );
+        assert!(
+            stripped.contains("content String"),
+            "Should contain content column: {}",
+            stripped
+        );
+        assert!(
+            !stripped.contains("INDEX"),
+            "Should NOT contain INDEX: {}",
+            stripped
+        );
+        assert!(
+            stripped.contains("ENGINE"),
+            "Should contain ENGINE: {}",
+            stripped
+        );
     }
 }

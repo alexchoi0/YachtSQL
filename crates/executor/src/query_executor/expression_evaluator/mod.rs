@@ -9522,7 +9522,7 @@ impl<'a> ExpressionEvaluator<'a> {
         use yachtsql_core::types::DataType;
         match value.data_type() {
             DataType::Int64 => Some("integer"),
-            DataType::Float64 => Some("numeric"),
+            DataType::Float32 | DataType::Float64 => Some("numeric"),
             DataType::Numeric(_) | DataType::BigNumeric => Some("numeric"),
             DataType::String => Some("string"),
             DataType::Bool => Some("boolean"),

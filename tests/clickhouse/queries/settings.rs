@@ -221,7 +221,6 @@ fn test_settings_format() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_set_command() {
     let mut executor = create_executor();

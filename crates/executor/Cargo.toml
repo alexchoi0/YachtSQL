@@ -74,6 +74,11 @@ farmhash = "1.1"
 crc32fast = "1.4"
 crc32c = "0.6"
 blake3 = "1.5"
+xxhash-rust = { version = "0.8", features = ["xxh64", "xxh32"] }
+siphasher = "1.0"
+murmur3 = "0.5"
+metrohash = "1.0"
+cityhasher = "0.1"
 
 # AES encryption
 aes = "0.8"

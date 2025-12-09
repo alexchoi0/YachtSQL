@@ -152,7 +152,6 @@ fn test_inherit_settings_profile() {
         .unwrap();
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_show_settings_profiles() {
     let mut executor = create_executor();

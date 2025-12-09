@@ -132,7 +132,6 @@ fn test_create_index_tokenbf() {
     assert!(result.is_ok());
 }
 
-#[ignore = "numbers() function not supported"]
 #[test]
 fn test_index_performance() {
     let mut executor = create_executor();
@@ -152,7 +151,6 @@ fn test_index_performance() {
     assert_table_eq!(result, [[50]]);
 }
 
-#[ignore = "ALTER TABLE MATERIALIZE INDEX not supported"]
 #[test]
 fn test_materialize_index() {
     let mut executor = create_executor();
@@ -170,7 +168,6 @@ fn test_materialize_index() {
     assert!(result.is_ok());
 }
 
-#[ignore = "ALTER TABLE CLEAR INDEX not supported"]
 #[test]
 fn test_clear_index() {
     let mut executor = create_executor();
@@ -214,7 +211,6 @@ fn test_create_index_full_text() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Float32 data type not supported"]
 #[test]
 fn test_create_index_annoy() {
     let mut executor = create_executor();
@@ -226,7 +222,6 @@ fn test_create_index_annoy() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Float32 data type not supported"]
 #[test]
 fn test_create_index_usearch() {
     let mut executor = create_executor();
@@ -253,7 +248,6 @@ fn test_create_index_hypothesis() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_inline_minmax_index() {
     let mut executor = create_executor();
@@ -270,7 +264,6 @@ fn test_inline_minmax_index() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_inline_bloom_filter_index() {
     let mut executor = create_executor();
@@ -287,7 +280,6 @@ fn test_inline_bloom_filter_index() {
     assert_table_eq!(result, []);
 }
 
-#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_inline_multiple_indexes() {
     let mut executor = create_executor();
@@ -333,7 +325,6 @@ fn test_index_with_function() {
     assert!(result.is_ok());
 }
 
-#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_bloom_filter_query() {
     let mut executor = create_executor();
@@ -363,7 +354,6 @@ fn test_bloom_filter_query() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_set_index_in_query() {
     let mut executor = create_executor();
@@ -391,7 +381,6 @@ fn test_set_index_in_query() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_fulltext_has_token() {
     let mut executor = create_executor();
@@ -416,12 +405,11 @@ fn test_fulltext_has_token() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT count() FROM fulltext_search WHERE hasToken(content, 'quick')")
+        .execute_sql("SELECT count() FROM fulltext_search WHERE hasToken(content, 'quick') = 1")
         .unwrap();
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Parser doesn't support inline INDEX definition in CREATE TABLE"]
 #[test]
 fn test_vector_l2_distance() {
     let mut executor = create_executor();

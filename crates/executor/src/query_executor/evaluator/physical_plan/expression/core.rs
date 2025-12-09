@@ -788,6 +788,19 @@ impl ProjectionWithExprExec {
                 | FunctionName::Digest
                 | FunctionName::Crc32
                 | FunctionName::Crc32c
+                | FunctionName::XxHash32
+                | FunctionName::XxHash64
+                | FunctionName::CityHash64
+                | FunctionName::SipHash64
+                | FunctionName::MurmurHash2_32
+                | FunctionName::MurmurHash2_64
+                | FunctionName::MurmurHash3_32
+                | FunctionName::MurmurHash3_64
+                | FunctionName::MurmurHash3_128
+                | FunctionName::JavaHash
+                | FunctionName::HalfMd5
+                | FunctionName::FarmHash64
+                | FunctionName::MetroHash64
                 | FunctionName::NetIpFromString
                 | FunctionName::NetSafeIpFromString
                 | FunctionName::NetIpv4FromInt64

@@ -37,7 +37,6 @@ fn test_sha512() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_xxhash32() {
     let mut executor = create_executor();
@@ -45,7 +44,6 @@ fn test_xxhash32() {
     assert_table_eq!(result, [[4211111929i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_xxhash64() {
     let mut executor = create_executor();
@@ -53,33 +51,29 @@ fn test_xxhash64() {
     assert_table_eq!(result, [[2794345569481354659i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_city_hash64() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT cityHash64('hello')").unwrap();
-    assert_table_eq!(result, [[2578220239953316063i64]]);
+    assert_table_eq!(result, [[-5436999610281751320i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sip_hash64() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT sipHash64('hello')").unwrap();
-    assert_table_eq!(result, [[-7596970930667211927i64]]);
+    assert_table_eq!(result, [[-8304253580878589255i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_murmur_hash2_32() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT murmurHash2_32('hello')")
         .unwrap();
-    assert_table_eq!(result, [[613153351]]);
+    assert_table_eq!(result, [[3848350155i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_murmur_hash2_64() {
     let mut executor = create_executor();
@@ -89,7 +83,6 @@ fn test_murmur_hash2_64() {
     assert_table_eq!(result, [[2191231550387646743i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_murmur_hash3_32() {
     let mut executor = create_executor();
@@ -99,27 +92,24 @@ fn test_murmur_hash3_32() {
     assert_table_eq!(result, [[613153351]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_murmur_hash3_64() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT murmurHash3_64('hello')")
         .unwrap();
-    assert_table_eq!(result, [[-7104595330021830481i64]]);
+    assert_table_eq!(result, [[-3758069500696749310i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_murmur_hash3_128() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT murmurHash3_128('hello')")
         .unwrap();
-    assert_table_eq!(result, [["cbd8a7b341bd9b025b1e906a48ae1d19"]]);
+    assert_table_eq!(result, [["5b1e906a48ae1d19cbd8a7b341bd9b02"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_java_hash() {
     let mut executor = create_executor();
@@ -127,7 +117,6 @@ fn test_java_hash() {
     assert_table_eq!(result, [[99162322]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_hash_with_column() {
     let mut executor = create_executor();
@@ -143,30 +132,27 @@ fn test_hash_with_column() {
         .unwrap();
     assert_table_eq!(
         result,
-        [[1, 2578220239953316063i64], [2, -2010201635338800018i64],]
+        [[1, -5436999610281751320i64], [2, -2010201635338800018i64],]
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_half_md5() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT halfMD5('hello')").unwrap();
-    assert_table_eq!(result, [[8562109039458423490i64]]);
+    assert_table_eq!(result, [[6719722671305337462i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_farm_hash64() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT farmHash64('hello')").unwrap();
-    assert_table_eq!(result, [[-6615550055289275125i64]]);
+    assert_table_eq!(result, [[-5436999610281751320i64]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_metro_hash64() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT metroHash64('hello')").unwrap();
-    assert_table_eq!(result, [[6603486138107675570i64]]);
+    assert_table_eq!(result, [[4571129541730210044i64]]);
 }

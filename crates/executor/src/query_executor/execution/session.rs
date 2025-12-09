@@ -152,13 +152,16 @@ impl SessionState {
     pub fn set_variable(&mut self, name: &str, value: Value) -> Result<(), Error> {
         if let Some(var) = self.variables.get_mut(name) {
             var.value = Some(value);
-            Ok(())
         } else {
-            Err(Error::invalid_query(format!(
-                "Variable '{}' not declared",
-                name
-            )))
+            self.variables.insert(
+                name.to_string(),
+                SessionVariable {
+                    data_type: value.data_type(),
+                    value: Some(value),
+                },
+            );
         }
+        Ok(())
     }
 
     pub fn get_variable(&self, name: &str) -> Option<&SessionVariable> {

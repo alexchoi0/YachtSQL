@@ -11,14 +11,62 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
-        if args.len() != 1 {
+        if args.is_empty() || args.len() > 2 {
             return Err(Error::invalid_query(
-                "JSON_LENGTH requires exactly 1 argument".to_string(),
+                "JSON_LENGTH requires 1 or 2 arguments".to_string(),
             ));
         }
 
         let json_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        yachtsql_functions::json::json_length(&json_val)
+
+        if args.len() == 1 {
+            return yachtsql_functions::json::json_length(&json_val);
+        }
+
+        let json_str = match json_val.as_str() {
+            Some(s) => s,
+            None => return Ok(Value::int64(0)),
+        };
+
+        let path_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        let path = match path_val.as_str() {
+            Some(s) => s,
+            None => return Ok(Value::int64(0)),
+        };
+
+        let parsed: serde_json::Value = match serde_json::from_str(json_str) {
+            Ok(v) => v,
+            Err(_) => return Ok(Value::int64(0)),
+        };
+
+        let mut current = &parsed;
+        for part in path.split('.').filter(|s| !s.is_empty()) {
+            match current {
+                serde_json::Value::Object(obj) => {
+                    current = match obj.get(part) {
+                        Some(v) => v,
+                        None => return Ok(Value::int64(0)),
+                    };
+                }
+                serde_json::Value::Array(arr) => {
+                    let idx: usize = match part.parse() {
+                        Ok(i) => i,
+                        Err(_) => return Ok(Value::int64(0)),
+                    };
+                    current = match arr.get(idx) {
+                        Some(v) => v,
+                        None => return Ok(Value::int64(0)),
+                    };
+                }
+                _ => return Ok(Value::int64(0)),
+            }
+        }
+
+        match current {
+            serde_json::Value::Array(arr) => Ok(Value::int64(arr.len() as i64)),
+            serde_json::Value::Object(obj) => Ok(Value::int64(obj.len() as i64)),
+            _ => Ok(Value::int64(0)),
+        }
     }
 }
 
@@ -71,6 +119,6 @@ mod tests {
         let batch = create_batch(schema, vec![vec![Value::string(r#"[1,2,3]"#.into())]]);
         let err =
             ProjectionWithExprExec::evaluate_json_length(&[], &batch, 0).expect_err("no args");
-        assert_error_contains(&err, "JSON_LENGTH");
+        assert_error_contains(&err, "1 or 2 arguments");
     }
 }

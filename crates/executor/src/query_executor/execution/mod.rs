@@ -407,9 +407,15 @@ impl QueryExecutor {
                 CustomStatement::ClickHouseCreateIndex { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseAlterColumnCodec { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseAlterTableTtl { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseQuota { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseRowPolicy { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseSettingsProfile { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseQuota { statement } => {
+                    return self.execute_clickhouse_quota(statement);
+                }
+                CustomStatement::ClickHouseRowPolicy { statement } => {
+                    return self.execute_clickhouse_row_policy(statement);
+                }
+                CustomStatement::ClickHouseSettingsProfile { statement } => {
+                    return self.execute_clickhouse_settings_profile(statement);
+                }
                 CustomStatement::ClickHouseDictionary { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseShow { statement } => {
                     return self.execute_clickhouse_show(statement);
@@ -1143,7 +1149,11 @@ impl QueryExecutor {
             yachtsql_storage::Field::required("id".to_string(), DataType::String),
         ]);
 
-        let rows = Vec::new();
+        let storage = self.storage.borrow();
+        let rows: Vec<Vec<Value>> = storage
+            .quotas()
+            .map(|q| vec![Value::string(q.name.clone()), Value::string(q.name.clone())])
+            .collect();
 
         Table::from_values(schema, rows)
     }
@@ -1155,7 +1165,17 @@ impl QueryExecutor {
             yachtsql_storage::Field::required("table".to_string(), DataType::String),
         ]);
 
-        let rows = Vec::new();
+        let storage = self.storage.borrow();
+        let rows: Vec<Vec<Value>> = storage
+            .row_policies()
+            .map(|p| {
+                vec![
+                    Value::string(p.name.clone()),
+                    Value::string(p.database.clone()),
+                    Value::string(p.table.clone()),
+                ]
+            })
+            .collect();
 
         Table::from_values(schema, rows)
     }
@@ -1166,9 +1186,97 @@ impl QueryExecutor {
             yachtsql_storage::Field::required("id".to_string(), DataType::String),
         ]);
 
-        let rows = Vec::new();
+        let storage = self.storage.borrow();
+        let rows: Vec<Vec<Value>> = storage
+            .settings_profiles()
+            .map(|p| vec![Value::string(p.name.clone()), Value::string(p.name.clone())])
+            .collect();
 
         Table::from_values(schema, rows)
+    }
+
+    fn execute_clickhouse_quota(&mut self, statement: &str) -> Result<Table> {
+        let statement_upper = statement.to_uppercase();
+        if statement_upper.starts_with("CREATE QUOTA") {
+            let name = Self::extract_object_name(statement, "CREATE QUOTA");
+            if !name.is_empty() {
+                self.storage.borrow_mut().add_quota(name);
+            }
+        } else if statement_upper.starts_with("DROP QUOTA") {
+            let name = Self::extract_object_name(statement, "DROP QUOTA");
+            if !name.is_empty() {
+                self.storage.borrow_mut().remove_quota(&name);
+            }
+        }
+        Self::empty_result()
+    }
+
+    fn execute_clickhouse_row_policy(&mut self, statement: &str) -> Result<Table> {
+        let statement_upper = statement.to_uppercase();
+        if statement_upper.starts_with("CREATE ROW POLICY") {
+            let trimmed = statement["CREATE ROW POLICY".len()..].trim();
+            let (name, remainder) = Self::extract_first_word(trimmed);
+            let table_part = remainder.to_uppercase().find("ON ").map(|pos| {
+                let after_on = remainder[pos + 3..].trim();
+                Self::extract_first_word(after_on).0
+            });
+            let table_name = table_part.unwrap_or_default();
+            if !name.is_empty() {
+                self.storage
+                    .borrow_mut()
+                    .add_row_policy(name, "default".to_string(), table_name);
+            }
+        } else if statement_upper.starts_with("DROP ROW POLICY") {
+            let name = Self::extract_object_name(statement, "DROP ROW POLICY");
+            if !name.is_empty() {
+                self.storage.borrow_mut().remove_row_policy(&name);
+            }
+        }
+        Self::empty_result()
+    }
+
+    fn execute_clickhouse_settings_profile(&mut self, statement: &str) -> Result<Table> {
+        let statement_upper = statement.to_uppercase();
+        if statement_upper.starts_with("CREATE SETTINGS PROFILE") {
+            let name = Self::extract_object_name(statement, "CREATE SETTINGS PROFILE");
+            if !name.is_empty() {
+                self.storage.borrow_mut().add_settings_profile(name);
+            }
+        } else if statement_upper.starts_with("DROP SETTINGS PROFILE") {
+            let name = Self::extract_object_name(statement, "DROP SETTINGS PROFILE");
+            if !name.is_empty() {
+                self.storage.borrow_mut().remove_settings_profile(&name);
+            }
+        } else if statement_upper.starts_with("ALTER SETTINGS PROFILE") {
+        }
+        Self::empty_result()
+    }
+
+    fn extract_object_name(statement: &str, prefix: &str) -> String {
+        let rest = statement[prefix.len()..].trim();
+        let (name, _) = Self::extract_first_word(rest);
+        name.trim_end_matches([',', ';']).to_string()
+    }
+
+    fn extract_first_word(s: &str) -> (String, &str) {
+        let s = s.trim();
+        let mut in_quotes = false;
+        let mut quote_char = ' ';
+
+        for (i, c) in s.char_indices() {
+            if !in_quotes && (c == '\'' || c == '"' || c == '`') {
+                in_quotes = true;
+                quote_char = c;
+            } else if in_quotes && c == quote_char {
+                in_quotes = false;
+            } else if !in_quotes && c.is_whitespace() {
+                let word = s[..i].trim_matches(|c| c == '\'' || c == '"' || c == '`');
+                return (word.to_string(), &s[i..]);
+            }
+        }
+
+        let word = s.trim_matches(|c| c == '\'' || c == '"' || c == '`');
+        (word.to_string(), "")
     }
 
     fn execute_show_dictionaries(&mut self) -> Result<Table> {
@@ -1977,7 +2085,19 @@ impl QueryExecutor {
                 use chrono::TimeZone;
 
                 if let Ok(naive_ts) =
+                    chrono::NaiveDateTime::parse_from_str(val, "%Y-%m-%d %H:%M:%S%.f")
+                {
+                    let ts = chrono::Utc.from_utc_datetime(&naive_ts);
+                    return Ok(Value::timestamp(ts));
+                }
+                if let Ok(naive_ts) =
                     chrono::NaiveDateTime::parse_from_str(val, "%Y-%m-%d %H:%M:%S")
+                {
+                    let ts = chrono::Utc.from_utc_datetime(&naive_ts);
+                    return Ok(Value::timestamp(ts));
+                }
+                if let Ok(naive_ts) =
+                    chrono::NaiveDateTime::parse_from_str(val, "%Y-%m-%dT%H:%M:%S%.f")
                 {
                     let ts = chrono::Utc.from_utc_datetime(&naive_ts);
                     return Ok(Value::timestamp(ts));
@@ -2056,7 +2176,8 @@ impl QueryExecutor {
                 SqlType::Int64 | SqlType::BigInt(_) => Ok(DataType::Int64),
                 SqlType::Int32 | SqlType::Int(_) | SqlType::Integer(_) => Ok(DataType::Int64),
                 SqlType::Float64 | SqlType::Double(_) => Ok(DataType::Float64),
-                SqlType::Float32 | SqlType::Float(_) | SqlType::Real => Ok(DataType::Float64),
+                SqlType::Float32 => Ok(DataType::Float32),
+                SqlType::Float(_) | SqlType::Real => Ok(DataType::Float64),
                 SqlType::Bool | SqlType::Boolean => Ok(DataType::Bool),
                 SqlType::String(_) | SqlType::Text | SqlType::Varchar(_) | SqlType::Char(_) => {
                     Ok(DataType::String)

@@ -150,10 +150,15 @@ impl CoercionRules {
         }
 
         match (from_type, to_type) {
+            (DataType::Int64, DataType::Float32) => true,
             (DataType::Int64, DataType::Float64) => true,
             (DataType::Int64, DataType::Numeric(_)) => true,
 
+            (DataType::Float32, DataType::Float64) => true,
+            (DataType::Float32, DataType::Numeric(_)) => true,
+            (DataType::Float64, DataType::Float32) => true,
             (DataType::Float64, DataType::Numeric(_)) => true,
+            (DataType::Numeric(_), DataType::Float32) => true,
             (DataType::Numeric(_), DataType::Float64) => true,
 
             (DataType::Numeric(_), DataType::Numeric(_)) => true,
@@ -345,6 +350,18 @@ impl CoercionRules {
                 }
             }
 
+            (DataType::Float64, DataType::Float32) => {
+                if let Some(f) = value.as_f64() {
+                    Ok(Value::float64(f))
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
             (DataType::Float64, DataType::Numeric(precision_scale)) => {
                 if let Some(f) = value.as_f64() {
                     match Decimal::try_from(f) {
@@ -355,6 +372,27 @@ impl CoercionRules {
                             "float value cannot be represented as NUMERIC",
                         )),
                     }
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::Numeric(_), DataType::Float32) => {
+                if let Some(d) = value.as_numeric() {
+                    use rust_decimal::prelude::ToPrimitive;
+                    d.to_f64()
+                        .ok_or_else(|| {
+                            Error::type_coercion_error(
+                                DataType::Numeric(None),
+                                target_type,
+                                "NUMERIC value out of range for FLOAT32",
+                            )
+                        })
+                        .map(Value::float64)
                 } else {
                     Err(Error::type_coercion_error(
                         &source_type,

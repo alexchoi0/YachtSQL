@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_create() {
     let mut executor = create_executor();
@@ -18,8 +17,8 @@ fn test_fixedstring_create() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "FixedString zero-padding not yet implemented"]
 fn test_fixedstring_padding() {
     let mut executor = create_executor();
     executor
@@ -35,7 +34,6 @@ fn test_fixedstring_padding() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_comparison() {
     let mut executor = create_executor();
@@ -52,7 +50,6 @@ fn test_fixedstring_comparison() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_ordering() {
     let mut executor = create_executor();
@@ -69,8 +66,8 @@ fn test_fixedstring_ordering() {
     assert_table_eq!(result, [[2], [3], [1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "FixedString zero-padding not yet implemented"]
 fn test_fixedstring_concat() {
     let mut executor = create_executor();
     executor
@@ -86,7 +83,6 @@ fn test_fixedstring_concat() {
     assert_table_eq!(result, [["ABC\0\0\0XYZ\0\0\0"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_substring() {
     let mut executor = create_executor();
@@ -103,7 +99,6 @@ fn test_fixedstring_substring() {
     assert_table_eq!(result, [["ABC"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_hex() {
     let mut executor = create_executor();
@@ -120,7 +115,6 @@ fn test_fixedstring_hex() {
     assert_table_eq!(result, [["74657374"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_unhex() {
     let mut executor = create_executor();
@@ -130,7 +124,6 @@ fn test_fixedstring_unhex() {
     assert_table_eq!(result, [["test"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_null() {
     let mut executor = create_executor();
@@ -147,7 +140,6 @@ fn test_fixedstring_null() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_group_by() {
     let mut executor = create_executor();
@@ -164,7 +156,6 @@ fn test_fixedstring_group_by() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_fixedstring_distinct() {
     let mut executor = create_executor();
@@ -181,8 +172,8 @@ fn test_fixedstring_distinct() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "FixedString zero-padding not yet implemented"]
 fn test_fixedstring_binary_data() {
     let mut executor = create_executor();
     executor

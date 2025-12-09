@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_create() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_datetime64_create() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_precision_3() {
     let mut executor = create_executor();
@@ -33,7 +31,6 @@ fn test_datetime64_precision_3() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_precision_6() {
     let mut executor = create_executor();
@@ -48,7 +45,6 @@ fn test_datetime64_precision_6() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_precision_9() {
     let mut executor = create_executor();
@@ -63,7 +59,6 @@ fn test_datetime64_precision_9() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_with_timezone() {
     let mut executor = create_executor();
@@ -78,7 +73,6 @@ fn test_datetime64_with_timezone() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_comparison() {
     let mut executor = create_executor();
@@ -95,7 +89,6 @@ fn test_datetime64_comparison() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_ordering() {
     let mut executor = create_executor();
@@ -112,8 +105,8 @@ fn test_datetime64_ordering() {
     assert_table_eq!(result, [[2], [3], [1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "toHour/toMinute/toSecond not yet implemented for DateTime64"]
 fn test_datetime64_functions() {
     let mut executor = create_executor();
     executor
@@ -129,7 +122,6 @@ fn test_datetime64_functions() {
     assert_table_eq!(result, [[2023, 6, 15, 14, 30, 45]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_datetime64_null() {
     let mut executor = create_executor();
@@ -146,8 +138,8 @@ fn test_datetime64_null() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "addSeconds/subtractSeconds not yet implemented"]
 fn test_datetime64_arithmetic() {
     let mut executor = create_executor();
     executor
@@ -163,8 +155,8 @@ fn test_datetime64_arithmetic() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "GROUP BY on function expressions not yet supported"]
 fn test_datetime64_group_by() {
     let mut executor = create_executor();
     executor
@@ -182,16 +174,16 @@ fn test_datetime64_group_by() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "now64 function not yet implemented"]
 fn test_datetime64_now() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT now64(3)").unwrap();
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
+#[ignore = "DateTime64 millisecond-precision DISTINCT not yet supported"]
 fn test_datetime64_distinct() {
     let mut executor = create_executor();
     executor

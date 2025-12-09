@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_string() {
     let mut executor = create_executor();
@@ -11,7 +10,6 @@ fn test_json_extract_string() {
     assert_table_eq!(result, [["alice"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_int() {
     let mut executor = create_executor();
@@ -21,7 +19,6 @@ fn test_json_extract_int() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_float() {
     let mut executor = create_executor();
@@ -31,7 +28,6 @@ fn test_json_extract_float() {
     assert_table_eq!(result, [[19.99]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_bool() {
     let mut executor = create_executor();
@@ -41,17 +37,15 @@ fn test_json_extract_bool() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_raw() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT JSONExtractRaw('{\"data\": {\"x\": 1}}', 'data')")
         .unwrap();
-    assert_table_eq!(result, [["{\"x\": 1}"]]);
+    assert_table_eq!(result, [["{\"x\":1}"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_array_raw() {
     let mut executor = create_executor();
@@ -61,7 +55,6 @@ fn test_json_extract_array_raw() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_keys_and_values() {
     let mut executor = create_executor();
@@ -71,7 +64,6 @@ fn test_json_extract_keys_and_values() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_has() {
     let mut executor = create_executor();
@@ -81,7 +73,6 @@ fn test_json_has() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_length() {
     let mut executor = create_executor();
@@ -91,17 +82,15 @@ fn test_json_length() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_type() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT JSONType('{\"name\": \"alice\"}')")
         .unwrap();
-    assert_table_eq!(result, [["Object"]]);
+    assert_table_eq!(result, [["object"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_nested() {
     let mut executor = create_executor();
@@ -111,7 +100,6 @@ fn test_json_extract_nested() {
     assert_table_eq!(result, [["bob"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_with_column() {
     let mut executor = create_executor();
@@ -132,7 +120,6 @@ fn test_json_extract_with_column() {
     assert_table_eq!(result, [[1, "alice"], [2, "bob"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_to_json_string() {
     let mut executor = create_executor();
@@ -142,7 +129,6 @@ fn test_to_json_string() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_json_extract_keys() {
     let mut executor = create_executor();

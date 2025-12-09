@@ -560,6 +560,74 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(l), Some(r_str)) = (left.as_timestamp(), right.as_str()) {
+            use chrono::{NaiveDateTime, TimeZone, Utc};
+            if let Ok(dt) = NaiveDateTime::parse_from_str(r_str.trim(), "%Y-%m-%d %H:%M:%S%.f") {
+                let r = Utc.from_utc_datetime(&dt);
+                return match op {
+                    BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                    BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                    BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                    BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                    BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                    BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                    _ => Err(crate::error::Error::unsupported_feature(format!(
+                        "Operator {:?} not supported for TIMESTAMP vs STRING",
+                        op
+                    ))),
+                };
+            }
+            if let Ok(dt) = NaiveDateTime::parse_from_str(r_str.trim(), "%Y-%m-%d %H:%M:%S") {
+                let r = Utc.from_utc_datetime(&dt);
+                return match op {
+                    BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                    BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                    BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                    BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                    BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                    BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                    _ => Err(crate::error::Error::unsupported_feature(format!(
+                        "Operator {:?} not supported for TIMESTAMP vs STRING",
+                        op
+                    ))),
+                };
+            }
+        }
+
+        if let (Some(l_str), Some(r)) = (left.as_str(), right.as_timestamp()) {
+            use chrono::{NaiveDateTime, TimeZone, Utc};
+            if let Ok(dt) = NaiveDateTime::parse_from_str(l_str.trim(), "%Y-%m-%d %H:%M:%S%.f") {
+                let l = Utc.from_utc_datetime(&dt);
+                return match op {
+                    BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                    BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                    BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                    BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                    BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                    BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                    _ => Err(crate::error::Error::unsupported_feature(format!(
+                        "Operator {:?} not supported for STRING vs TIMESTAMP",
+                        op
+                    ))),
+                };
+            }
+            if let Ok(dt) = NaiveDateTime::parse_from_str(l_str.trim(), "%Y-%m-%d %H:%M:%S") {
+                let l = Utc.from_utc_datetime(&dt);
+                return match op {
+                    BinaryOp::Equal => Ok(Value::bool_val(l == r)),
+                    BinaryOp::NotEqual => Ok(Value::bool_val(l != r)),
+                    BinaryOp::LessThan => Ok(Value::bool_val(l < r)),
+                    BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l <= r)),
+                    BinaryOp::GreaterThan => Ok(Value::bool_val(l > r)),
+                    BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l >= r)),
+                    _ => Err(crate::error::Error::unsupported_feature(format!(
+                        "Operator {:?} not supported for STRING vs TIMESTAMP",
+                        op
+                    ))),
+                };
+            }
+        }
+
         if let (Some(l), Some(r)) = (left.as_datetime(), right.as_datetime()) {
             return match op {
                 BinaryOp::Equal => Ok(Value::bool_val(l == r)),

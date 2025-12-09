@@ -65,10 +65,30 @@ pub use type_registry::{TypeDefinition, TypeRegistry, UserDefinedType};
 pub use view::{ViewDefinition, ViewRegistry, WithCheckOption};
 use yachtsql_core::error::Result;
 
+#[derive(Debug, Clone, Default)]
+pub struct QuotaMetadata {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RowPolicyMetadata {
+    pub name: String,
+    pub database: String,
+    pub table: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SettingsProfileMetadata {
+    pub name: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Storage {
     datasets: IndexMap<String, Dataset>,
     default_layout: StorageLayout,
+    quotas: IndexMap<String, QuotaMetadata>,
+    row_policies: IndexMap<String, RowPolicyMetadata>,
+    settings_profiles: IndexMap<String, SettingsProfileMetadata>,
 }
 
 impl Default for Storage {
@@ -76,6 +96,9 @@ impl Default for Storage {
         Self {
             datasets: IndexMap::new(),
             default_layout: StorageLayout::Columnar,
+            quotas: IndexMap::new(),
+            row_policies: IndexMap::new(),
+            settings_profiles: IndexMap::new(),
         }
     }
 }
@@ -89,7 +112,54 @@ impl Storage {
         Self {
             datasets: IndexMap::new(),
             default_layout: layout,
+            quotas: IndexMap::new(),
+            row_policies: IndexMap::new(),
+            settings_profiles: IndexMap::new(),
         }
+    }
+
+    pub fn add_quota(&mut self, name: String) {
+        self.quotas.insert(name.clone(), QuotaMetadata { name });
+    }
+
+    pub fn remove_quota(&mut self, name: &str) -> bool {
+        self.quotas.shift_remove(name).is_some()
+    }
+
+    pub fn quotas(&self) -> impl Iterator<Item = &QuotaMetadata> {
+        self.quotas.values()
+    }
+
+    pub fn add_row_policy(&mut self, name: String, database: String, table: String) {
+        self.row_policies.insert(
+            name.clone(),
+            RowPolicyMetadata {
+                name,
+                database,
+                table,
+            },
+        );
+    }
+
+    pub fn remove_row_policy(&mut self, name: &str) -> bool {
+        self.row_policies.shift_remove(name).is_some()
+    }
+
+    pub fn row_policies(&self) -> impl Iterator<Item = &RowPolicyMetadata> {
+        self.row_policies.values()
+    }
+
+    pub fn add_settings_profile(&mut self, name: String) {
+        self.settings_profiles
+            .insert(name.clone(), SettingsProfileMetadata { name });
+    }
+
+    pub fn remove_settings_profile(&mut self, name: &str) -> bool {
+        self.settings_profiles.shift_remove(name).is_some()
+    }
+
+    pub fn settings_profiles(&self) -> impl Iterator<Item = &SettingsProfileMetadata> {
+        self.settings_profiles.values()
     }
 
     pub fn create_dataset(&mut self, dataset_id: String) -> Result<()> {

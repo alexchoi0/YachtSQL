@@ -577,6 +577,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cityhasher"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ceab37c9e94f42414cccae77e930232c517f1bb190947018cffb0ab41fc40992"
+
+[[package]]
 name = "clap"
 version = "4.5.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1613,6 +1619,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "metrohash"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a84011bfadc339f60fbcc38181da8a0a91cd16375394dd52edf9da80deacd8c5"
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1670,6 +1682,12 @@ dependencies = [
  "quote",
  "syn 2.0.111",
 ]
+
+[[package]]
+name = "murmur3"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9252111cf132ba0929b6f8e030cac2a24b507f3a4d6db6fb2896f27b354c714b"
 
 [[package]]
 name = "native-tls"
@@ -4024,6 +4042,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "xxhash-rust"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
+
+[[package]]
 name = "yachtsql"
 version = "0.1.0"
 dependencies = [
@@ -4158,6 +4182,7 @@ dependencies = [
  "cbc",
  "chrono",
  "chrono-tz",
+ "cityhasher",
  "crc32c",
  "crc32fast",
  "criterion",
@@ -4174,7 +4199,9 @@ dependencies = [
  "log",
  "lru",
  "md5",
+ "metrohash",
  "mockall",
+ "murmur3",
  "natord",
  "ordered-float",
  "publicsuffix",
@@ -4188,6 +4215,7 @@ dependencies = [
  "serde_json_path",
  "sha1",
  "sha2",
+ "siphasher",
  "sqlparser",
  "thiserror 2.0.17",
  "tokio",
@@ -4195,6 +4223,7 @@ dependencies = [
  "unicode-normalization",
  "url",
  "uuid",
+ "xxhash-rust",
  "yachtsql",
  "yachtsql-capability",
  "yachtsql-core",
@@ -4215,6 +4244,7 @@ dependencies = [
  "blake3",
  "bloomfilter",
  "chrono",
+ "cityhasher",
  "debug_print",
  "farmhash",
  "hex",
@@ -4222,6 +4252,8 @@ dependencies = [
  "indexmap",
  "ipnetwork",
  "md5",
+ "metrohash",
+ "murmur3",
  "publicsuffix",
  "rand 0.8.5",
  "regex",
@@ -4231,10 +4263,12 @@ dependencies = [
  "serde_json_path",
  "sha1",
  "sha2",
+ "siphasher",
  "sqlparser",
  "url",
  "urlencoding",
  "uuid",
+ "xxhash-rust",
  "yachtsql",
  "yachtsql-core",
  "yachtsql-parser",

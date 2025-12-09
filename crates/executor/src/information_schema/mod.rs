@@ -11,6 +11,7 @@ fn data_type_to_postgres_name(data_type: &DataType) -> String {
     use yachtsql_core::types::RangeType;
     match data_type {
         DataType::Int64 => "BIGINT".to_string(),
+        DataType::Float32 => "REAL".to_string(),
         DataType::Float64 => "DOUBLE PRECISION".to_string(),
         DataType::String => "TEXT".to_string(),
         DataType::Bool => "BOOLEAN".to_string(),

@@ -6,6 +6,7 @@ mod from_base64;
 mod from_hex;
 mod md5;
 mod net_functions;
+mod non_crypto_hash;
 mod sha1;
 mod sha224;
 mod sha256;
@@ -48,6 +49,19 @@ impl ProjectionWithExprExec {
             "DECODE" => Self::eval_pgcrypto_decode(args, batch, row_idx),
             "CRC32" => Self::eval_crc32(args, batch, row_idx),
             "CRC32C" => Self::eval_crc32c(args, batch, row_idx),
+            "XXHASH32" => Self::eval_xxhash32(args, batch, row_idx),
+            "XXHASH64" => Self::eval_xxhash64(args, batch, row_idx),
+            "CITYHASH64" => Self::eval_cityhash64(args, batch, row_idx),
+            "SIPHASH64" => Self::eval_siphash64(args, batch, row_idx),
+            "MURMURHASH2_32" => Self::eval_murmurhash2_32(args, batch, row_idx),
+            "MURMURHASH2_64" => Self::eval_murmurhash2_64(args, batch, row_idx),
+            "MURMURHASH3_32" => Self::eval_murmurhash3_32(args, batch, row_idx),
+            "MURMURHASH3_64" => Self::eval_murmurhash3_64(args, batch, row_idx),
+            "MURMURHASH3_128" => Self::eval_murmurhash3_128(args, batch, row_idx),
+            "JAVAHASH" => Self::eval_javahash(args, batch, row_idx),
+            "HALFMD5" => Self::eval_halfmd5(args, batch, row_idx),
+            "FARMHASH64" => Self::eval_farmhash64(args, batch, row_idx),
+            "METROHASH64" => Self::eval_metrohash64(args, batch, row_idx),
             name if name.starts_with("NET.") => Self::eval_net_function(name, args, batch, row_idx),
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown crypto/hash/network function: {}",
