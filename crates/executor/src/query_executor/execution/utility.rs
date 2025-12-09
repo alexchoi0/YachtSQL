@@ -84,11 +84,7 @@ fn infer_column_type_from_plan(expr: &Expr, plan: &PlanNode) -> Option<DataType>
 
 fn find_column_type_in_plan(col_name: &str, plan: &PlanNode) -> Option<DataType> {
     match plan {
-        PlanNode::Scan {
-            table_name: _,
-            alias: _,
-            projection: _,
-        } => None,
+        PlanNode::Scan { .. } => None,
         PlanNode::Filter { input, .. } => find_column_type_in_plan(col_name, input),
         PlanNode::Projection { expressions, input } => {
             for (expr, alias) in expressions {

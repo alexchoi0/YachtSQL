@@ -177,6 +177,32 @@ pub enum CustomStatement {
     ClickHouseCreateDictionary {
         name: sqlparser::ast::ObjectName,
     },
+
+    ClickHouseDatabase {
+        statement: String,
+    },
+
+    ClickHouseRenameDatabase {
+        statement: String,
+    },
+
+    ClickHouseUse {
+        database: String,
+    },
+
+    ClickHouseCreateTableWithProjection {
+        original: String,
+        stripped: String,
+    },
+
+    ClickHouseCreateTablePassthrough {
+        original: String,
+        stripped: String,
+    },
+
+    ClickHouseAlterTable {
+        statement: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -430,6 +456,30 @@ impl StatementValidator {
             }
             CustomStatement::ClickHouseCreateDictionary { .. } => {
                 self.require_clickhouse("CREATE DICTIONARY")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseDatabase { .. } => {
+                self.require_clickhouse("CREATE DATABASE ENGINE/COMMENT")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseRenameDatabase { .. } => {
+                self.require_clickhouse("RENAME DATABASE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseUse { .. } => {
+                self.require_clickhouse("USE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseCreateTableWithProjection { .. } => {
+                self.require_clickhouse("CREATE TABLE WITH PROJECTION")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseCreateTablePassthrough { .. } => {
+                self.require_clickhouse("CREATE TABLE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseAlterTable { .. } => {
+                self.require_clickhouse("ALTER TABLE")?;
                 Ok(())
             }
         }

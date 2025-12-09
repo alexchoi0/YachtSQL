@@ -645,6 +645,7 @@ impl LogicalPlanBuilder {
                     table_name,
                     projection: None,
                     alias: None,
+                    only: false,
                 };
                 Ok((plan, alias))
             }

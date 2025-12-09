@@ -17,15 +17,15 @@ pub use ddl::{
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
-    CopyOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation, StatementJob,
-    TxOperation, UtilityOperation,
+    CopyOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation, ScriptingOperation,
+    StatementJob, TxOperation, UtilityOperation,
 };
 pub use dml::{
     DmlDeleteExecutor, DmlInsertExecutor, DmlMergeExecutor, DmlTruncateExecutor, DmlUpdateExecutor,
 };
 pub use query::QueryExecutorTrait;
 use rust_decimal::prelude::ToPrimitive;
-pub use session::{DiagnosticsSnapshot, SessionDiagnostics};
+pub use session::{DiagnosticsSnapshot, SessionDiagnostics, SessionVariable};
 pub use utility::{
     add_interval_to_date, apply_interval_to_date, apply_numeric_precision_scale,
     calculate_date_diff, decode_values_match, evaluate_condition_as_bool, evaluate_numeric_op,
@@ -405,7 +405,9 @@ impl QueryExecutor {
                 CustomStatement::ClickHouseRowPolicy { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseSettingsProfile { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseDictionary { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseShow { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseShow { statement } => {
+                    return self.execute_clickhouse_show(statement);
+                }
                 CustomStatement::ClickHouseFunction { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseMaterializedView { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseProjection { .. } => Self::empty_result(),
@@ -413,6 +415,16 @@ impl QueryExecutor {
                 CustomStatement::ClickHouseGrant { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseSystem { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseCreateDictionary { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseDatabase { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseRenameDatabase { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseUse { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseCreateTableWithProjection { stripped, .. } => {
+                    return self.execute_sql(stripped);
+                }
+                CustomStatement::ClickHouseCreateTablePassthrough { stripped, .. } => {
+                    return self.execute_sql(stripped);
+                }
+                CustomStatement::ClickHouseAlterTable { .. } => Self::empty_result(),
                 CustomStatement::AlterTableRestartIdentity { .. }
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
@@ -505,6 +517,10 @@ impl QueryExecutor {
                         Self::empty_result()
                     }
 
+                    DdlOperation::DropDatabase => {
+                        self.execute_drop_database(&stmt)?;
+                        Self::empty_result()
+                    }
                     DdlOperation::CreateUser => Self::empty_result(),
                     DdlOperation::DropUser => Self::empty_result(),
                     DdlOperation::AlterUser => Self::empty_result(),
@@ -601,6 +617,8 @@ impl QueryExecutor {
             StatementJob::Procedure { name, args } => self.execute_procedure(&name, &args),
 
             StatementJob::Copy { operation } => self.execute_copy(&operation.stmt),
+
+            StatementJob::Scripting { operation } => self.execute_scripting(operation),
         }
     }
 
@@ -918,6 +936,127 @@ impl QueryExecutor {
         Table::from_values(schema, rows)
     }
 
+    fn execute_clickhouse_show(&mut self, statement: &str) -> Result<Table> {
+        let statement_upper = statement.to_uppercase();
+
+        if statement_upper.starts_with("SHOW DATABASES") {
+            return self.execute_show_databases();
+        }
+        if statement_upper.starts_with("SHOW QUOTAS") {
+            return self.execute_show_quotas();
+        }
+        if statement_upper.starts_with("SHOW ROW POLICIES") {
+            return self.execute_show_row_policies();
+        }
+        if statement_upper.starts_with("SHOW SETTINGS PROFILES") {
+            return self.execute_show_settings_profiles();
+        }
+        if statement_upper.starts_with("SHOW DICTIONARIES") {
+            return self.execute_show_dictionaries();
+        }
+        if statement_upper.starts_with("SHOW CREATE TABLE") {
+            let prefix_len = "SHOW CREATE TABLE".len();
+            let table_name = statement[prefix_len..].trim();
+            let obj_name =
+                sqlparser::ast::ObjectName(vec![sqlparser::ast::ObjectNamePart::Identifier(
+                    sqlparser::ast::Ident::new(table_name),
+                )]);
+            return self.execute_show_create_table(&obj_name);
+        }
+        if statement_upper.starts_with("SHOW TABLES") {
+            let prefix_len = "SHOW TABLES".len();
+            let rest = statement[prefix_len..].trim();
+            let rest_upper = rest.to_uppercase();
+            let filter = if let Some(pos) = rest_upper.find("LIKE") {
+                let pattern = rest[pos + 4..].trim().trim_matches('\'');
+                Some(pattern.to_string())
+            } else {
+                None
+            };
+            return self.execute_show_tables(filter.as_deref());
+        }
+        if statement_upper.starts_with("SHOW COLUMNS FROM") {
+            let prefix_len = "SHOW COLUMNS FROM".len();
+            let table_name = statement[prefix_len..].trim();
+            let obj_name =
+                sqlparser::ast::ObjectName(vec![sqlparser::ast::ObjectNamePart::Identifier(
+                    sqlparser::ast::Ident::new(table_name),
+                )]);
+            return self.execute_show_columns(&obj_name);
+        }
+        if statement_upper.starts_with("SHOW COLUMNS IN") {
+            let prefix_len = "SHOW COLUMNS IN".len();
+            let table_name = statement[prefix_len..].trim();
+            let obj_name =
+                sqlparser::ast::ObjectName(vec![sqlparser::ast::ObjectNamePart::Identifier(
+                    sqlparser::ast::Ident::new(table_name),
+                )]);
+            return self.execute_show_columns(&obj_name);
+        }
+        Self::empty_result()
+    }
+
+    fn execute_show_databases(&mut self) -> Result<Table> {
+        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+            "name".to_string(),
+            DataType::String,
+        )]);
+
+        let mut rows = Vec::new();
+        let storage = self.storage.borrow();
+
+        for db_id in storage.list_datasets() {
+            rows.push(vec![Value::string(db_id.to_string())]);
+        }
+
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_show_quotas(&mut self) -> Result<Table> {
+        let schema = Schema::from_fields(vec![
+            yachtsql_storage::Field::required("name".to_string(), DataType::String),
+            yachtsql_storage::Field::required("id".to_string(), DataType::String),
+        ]);
+
+        let rows = Vec::new();
+
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_show_row_policies(&mut self) -> Result<Table> {
+        let schema = Schema::from_fields(vec![
+            yachtsql_storage::Field::required("name".to_string(), DataType::String),
+            yachtsql_storage::Field::required("database".to_string(), DataType::String),
+            yachtsql_storage::Field::required("table".to_string(), DataType::String),
+        ]);
+
+        let rows = Vec::new();
+
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_show_settings_profiles(&mut self) -> Result<Table> {
+        let schema = Schema::from_fields(vec![
+            yachtsql_storage::Field::required("name".to_string(), DataType::String),
+            yachtsql_storage::Field::required("id".to_string(), DataType::String),
+        ]);
+
+        let rows = Vec::new();
+
+        Table::from_values(schema, rows)
+    }
+
+    fn execute_show_dictionaries(&mut self) -> Result<Table> {
+        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+            "name".to_string(),
+            DataType::String,
+        )]);
+
+        let rows = Vec::new();
+
+        Table::from_values(schema, rows)
+    }
+
     fn execute_exists_table(&mut self, table_name: &sqlparser::ast::ObjectName) -> Result<Table> {
         let table_str = table_name.to_string();
         let (dataset_id, table_id) = self.parse_ddl_table_name(&table_str)?;
@@ -977,6 +1116,42 @@ impl QueryExecutor {
         Ok(())
     }
 
+    fn execute_drop_database(&mut self, stmt: &sqlparser::ast::Statement) -> Result<()> {
+        use sqlparser::ast::Statement;
+
+        let Statement::Drop {
+            names, if_exists, ..
+        } = stmt
+        else {
+            return Err(Error::InternalError(
+                "Not a DROP DATABASE statement".to_string(),
+            ));
+        };
+
+        for db_name_obj in names {
+            let db_id = db_name_obj.to_string();
+
+            let mut storage = self.storage.borrow_mut();
+
+            match storage.get_dataset(&db_id) {
+                Some(_) => {
+                    storage.delete_dataset(&db_id)?;
+                }
+                None => {
+                    if !*if_exists {
+                        return Err(Error::DatasetNotFound(format!(
+                            "Database '{}' not found",
+                            db_id
+                        )));
+                    }
+                }
+            }
+        }
+
+        self.plan_cache.borrow_mut().invalidate_all();
+
+        Ok(())
+    }
     fn execute_show_users(&mut self) -> Result<Table> {
         let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
             "name".to_string(),
@@ -1711,6 +1886,128 @@ impl QueryExecutor {
         }
 
         value.to_string()
+    }
+
+    fn execute_scripting(&mut self, operation: ScriptingOperation) -> Result<Table> {
+        match operation {
+            ScriptingOperation::Declare {
+                names,
+                data_type,
+                default_expr,
+            } => {
+                let data_type = self.convert_sql_data_type(data_type)?;
+                let default_value = if let Some(expr) = default_expr {
+                    Some(self.evaluate_constant_expr(&expr)?)
+                } else {
+                    None
+                };
+
+                for name in names {
+                    self.session
+                        .declare_variable(name, data_type.clone(), default_value.clone());
+                }
+
+                Self::empty_result()
+            }
+            ScriptingOperation::SetVariable { name, value } => {
+                let evaluated = self.evaluate_constant_expr(&value)?;
+                self.session.set_variable(&name, evaluated)?;
+                Self::empty_result()
+            }
+        }
+    }
+
+    fn convert_sql_data_type(
+        &self,
+        sql_type: Option<sqlparser::ast::DataType>,
+    ) -> Result<DataType> {
+        use sqlparser::ast::DataType as SqlType;
+
+        match sql_type {
+            None => Ok(DataType::String),
+            Some(t) => match t {
+                SqlType::Int64 | SqlType::BigInt(_) => Ok(DataType::Int64),
+                SqlType::Int32 | SqlType::Int(_) | SqlType::Integer(_) => Ok(DataType::Int64),
+                SqlType::Float64 | SqlType::Double(_) => Ok(DataType::Float64),
+                SqlType::Float32 | SqlType::Float(_) | SqlType::Real => Ok(DataType::Float64),
+                SqlType::Bool | SqlType::Boolean => Ok(DataType::Bool),
+                SqlType::String(_) | SqlType::Text | SqlType::Varchar(_) | SqlType::Char(_) => {
+                    Ok(DataType::String)
+                }
+                SqlType::Date => Ok(DataType::Date),
+                SqlType::Timestamp(_, _) => Ok(DataType::Timestamp),
+                SqlType::Numeric(_) | SqlType::Decimal(_) => Ok(DataType::Numeric(None)),
+                SqlType::Bytes(_) => Ok(DataType::Bytes),
+                _ => Err(Error::unsupported_feature(format!(
+                    "Unsupported data type for variable declaration: {:?}",
+                    t
+                ))),
+            },
+        }
+    }
+
+    fn evaluate_constant_expr(&self, expr: &sqlparser::ast::Expr) -> Result<Value> {
+        use sqlparser::ast::{Expr as SqlExpr, UnaryOperator, Value as SqlValue, ValueWithSpan};
+
+        match expr {
+            SqlExpr::Value(ValueWithSpan { value, .. }) => match value {
+                SqlValue::Number(n, _) => {
+                    if n.contains('.') {
+                        n.parse::<f64>()
+                            .map(Value::float64)
+                            .map_err(|_| Error::invalid_query(format!("Invalid number: {}", n)))
+                    } else {
+                        n.parse::<i64>()
+                            .map(Value::int64)
+                            .map_err(|_| Error::invalid_query(format!("Invalid integer: {}", n)))
+                    }
+                }
+                SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s) => {
+                    Ok(Value::string(s.clone()))
+                }
+                SqlValue::Boolean(b) => Ok(Value::bool_val(*b)),
+                SqlValue::Null => Ok(Value::null()),
+                _ => Err(Error::unsupported_feature(format!(
+                    "Unsupported literal value type: {:?}",
+                    value
+                ))),
+            },
+            SqlExpr::UnaryOp { op, expr } => {
+                let inner = self.evaluate_constant_expr(expr)?;
+                match op {
+                    UnaryOperator::Minus => {
+                        if let Some(i) = inner.as_i64() {
+                            Ok(Value::int64(-i))
+                        } else if let Some(f) = inner.as_f64() {
+                            Ok(Value::float64(-f))
+                        } else {
+                            Err(Error::invalid_query(
+                                "Cannot negate non-numeric value".to_string(),
+                            ))
+                        }
+                    }
+                    UnaryOperator::Plus => Ok(inner),
+                    UnaryOperator::Not => {
+                        if let Some(b) = inner.as_bool() {
+                            Ok(Value::bool_val(!b))
+                        } else {
+                            Err(Error::invalid_query(
+                                "Cannot apply NOT to non-boolean value".to_string(),
+                            ))
+                        }
+                    }
+                    _ => Err(Error::unsupported_feature(format!(
+                        "Unsupported unary operator: {:?}",
+                        op
+                    ))),
+                }
+            }
+            SqlExpr::Nested(inner) => self.evaluate_constant_expr(inner),
+            _ => Err(Error::unsupported_feature(format!(
+                "Unsupported expression type for constant evaluation: {:?}",
+                expr
+            ))),
+        }
     }
 }
 

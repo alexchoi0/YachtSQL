@@ -58,7 +58,6 @@ fn test_multiple_ctes() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cte_used_multiple_times() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -73,7 +72,6 @@ fn test_cte_used_multiple_times() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cte_with_join() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -276,7 +274,7 @@ fn test_recursive_cte_path_finding() {
                 WHERE from_node = 'A'
                 UNION ALL
                 SELECT p.start_node, e.to_node, p.total_weight + e.weight,
-                       ARRAY_CONCAT(p.path, [e.to_node]
+                       ARRAY_CONCAT(p.path, [e.to_node])
                 FROM paths p
                 JOIN edges e ON p.end_node = e.from_node
                 WHERE NOT e.to_node IN UNNEST(p.path)
@@ -339,7 +337,6 @@ fn test_recursive_cte_tree_aggregation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_recursive_cte_generate_series() {
     let mut executor = create_executor();
 
@@ -517,7 +514,6 @@ fn test_cte_referencing_another_cte() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cte_with_window_functions() {
     let mut executor = create_executor();
     setup_tables(&mut executor);

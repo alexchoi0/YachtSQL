@@ -76,6 +76,7 @@ mod tests {
                     table_name: "users".to_string(),
                     alias: None,
                     projection: None,
+                    only: false,
                 }),
             }),
         });
@@ -110,6 +111,7 @@ mod tests {
                         table_name: "users".to_string(),
                         alias: None,
                         projection: None,
+                        only: false,
                     }),
                 }),
             }),
@@ -142,6 +144,7 @@ mod tests {
                         table_name: "users".to_string(),
                         alias: None,
                         projection: None,
+                        only: false,
                     }),
                 }),
             }),

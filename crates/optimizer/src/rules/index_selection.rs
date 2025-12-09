@@ -154,6 +154,7 @@ impl PlanRewriter for IndexSelectionRule {
             table_name,
             alias,
             projection,
+            ..
         } = input.as_ref()
         else {
             return Ok(None);
@@ -239,6 +240,7 @@ mod tests {
                 table_name: table.to_string(),
                 alias: None,
                 projection: None,
+                only: false,
             }),
         })
     }

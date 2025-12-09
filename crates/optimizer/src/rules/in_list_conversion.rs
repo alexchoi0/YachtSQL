@@ -362,6 +362,7 @@ impl InListConversion {
                 recursive,
                 use_union_all,
                 materialization_hint,
+                column_aliases,
             } => {
                 let cte_opt = self.optimize_node(cte_plan);
                 let input_opt = self.optimize_node(input);
@@ -374,6 +375,7 @@ impl InListConversion {
                         recursive: *recursive,
                         use_union_all: *use_union_all,
                         materialization_hint: materialization_hint.clone(),
+                        column_aliases: column_aliases.clone(),
                     })
                 } else {
                     None
@@ -537,6 +539,7 @@ mod tests {
             alias: None,
             table_name: "test_table".to_string(),
             projection: None,
+            only: false,
         };
 
         let filter = PlanNode::Filter {

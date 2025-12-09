@@ -17,7 +17,6 @@ fn test_uniq() {
     assert_table_eq!(result, [[3]]); // 'a', 'b', 'c' are unique
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_exact() {
     let mut executor = create_executor();
@@ -34,7 +33,6 @@ fn test_uniq_exact() {
     assert_table_eq!(result, [[3]]); // 'a', 'b', 'c' are unique
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_combined() {
     let mut executor = create_executor();
@@ -51,7 +49,6 @@ fn test_uniq_combined() {
     assert_table_eq!(result, [[5]]); // 'a', 'b', 'c', 'd', 'e' are unique
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_combined64() {
     let mut executor = create_executor();
@@ -68,7 +65,6 @@ fn test_uniq_combined64() {
     assert_table_eq!(result, [[3]]); // 'a', 'b', 'c' are unique
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_hll12() {
     let mut executor = create_executor();
@@ -190,7 +186,6 @@ fn test_uniq_with_if() {
     assert_table_eq!(result, [[2]]); // 'a', 'b' are unique where active = 1
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_numeric() {
     let mut executor = create_executor();
@@ -207,7 +202,6 @@ fn test_uniq_numeric() {
     assert_table_eq!(result, [[4]]); // 1, 2, 3, 4 are unique
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_null_handling() {
     let mut executor = create_executor();
@@ -224,7 +218,6 @@ fn test_uniq_null_handling() {
     assert_table_eq!(result, [[2, 2]]); // 'a', 'b' are unique (NULL not counted)
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_count_distinct_comparison() {
     let mut executor = create_executor();
@@ -294,7 +287,6 @@ fn test_avg_distinct() {
     assert_table_eq!(result, [[2.0]]); // (1 + 2 + 3) / 3 = 2.0
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_combined_with_precision() {
     let mut executor = create_executor();
@@ -364,7 +356,6 @@ fn test_uniq_state_merge() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uniq_large_cardinality() {
     let mut executor = create_executor();

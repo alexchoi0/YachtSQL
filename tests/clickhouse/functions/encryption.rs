@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_md5() {
     let mut executor = create_executor();
@@ -8,7 +7,6 @@ fn test_md5() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha1() {
     let mut executor = create_executor();
@@ -16,7 +14,6 @@ fn test_sha1() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha224() {
     let mut executor = create_executor();
@@ -24,7 +21,6 @@ fn test_sha224() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha256() {
     let mut executor = create_executor();
@@ -32,7 +28,6 @@ fn test_sha256() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha384() {
     let mut executor = create_executor();
@@ -40,7 +35,6 @@ fn test_sha384() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sha512() {
     let mut executor = create_executor();
@@ -48,7 +42,6 @@ fn test_sha512() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_blake3() {
     let mut executor = create_executor();
@@ -56,7 +49,6 @@ fn test_blake3() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_hex() {
     let mut executor = create_executor();
@@ -64,7 +56,6 @@ fn test_hex() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_unhex() {
     let mut executor = create_executor();
@@ -128,7 +119,6 @@ fn test_aes_decrypt_mysql() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_base64_encode() {
     let mut executor = create_executor();
@@ -138,7 +128,6 @@ fn test_base64_encode() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_base64_decode() {
     let mut executor = create_executor();
@@ -148,7 +137,6 @@ fn test_base64_decode() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_try_base64_decode() {
     let mut executor = create_executor();
@@ -178,7 +166,6 @@ fn test_base64_url_decode() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_md5_column() {
     let mut executor = create_executor();

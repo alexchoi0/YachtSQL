@@ -2730,6 +2730,90 @@ impl ProjectionWithExprExec {
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 yachtsql_functions::encoding::bit_test_any(value, &positions)
             }
+            "BITROTATELEFT" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitRotateLeft requires 2 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u8;
+                let shift = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_rotate_left(value, shift)
+            }
+            "BITROTATERIGHT" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitRotateRight requires 2 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u8;
+                let shift = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_rotate_right(value, shift)
+            }
+            "BITHAMMINGDISTANCE" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "bitHammingDistance requires 2 arguments".to_string(),
+                    ));
+                }
+                let a = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let b = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_hamming_distance(a, b)
+            }
+            "BITSLICE" => {
+                if args.len() < 3 {
+                    return Err(Error::invalid_query(
+                        "bitSlice requires 3 arguments".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?
+                    as u8;
+                let start = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                let length = Self::evaluate_expr(&args[2], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_slice(value, start, length)
+            }
+            "BYTESWAP" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "byteSwap requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::byte_swap_16(value as u16)
+            }
+            "BITPOSITIONSTOARRAY" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "bitPositionsToArray requires 1 argument".to_string(),
+                    ));
+                }
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_i64()
+                    .ok_or_else(|| Error::type_mismatch("INT64", "other"))?;
+                yachtsql_functions::encoding::bit_positions_to_array(value)
+            }
             "CHAR" => {
                 if args.is_empty() {
                     return Err(Error::invalid_query(
@@ -2745,6 +2829,61 @@ impl ProjectionWithExprExec {
                     })
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 yachtsql_functions::encoding::char_fn(&codes)
+            }
+            "ISNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Value::bool_val(val.is_null()))
+            }
+            "ISNOTNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isNotNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                Ok(Value::bool_val(!val.is_null()))
+            }
+            "ASSUMENOTNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "assumeNotNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if val.is_null() {
+                    Err(Error::invalid_query(
+                        "assumeNotNull: value is NULL".to_string(),
+                    ))
+                } else {
+                    Ok(val)
+                }
+            }
+            "TONULLABLE" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "toNullable requires 1 argument".to_string(),
+                    ));
+                }
+                Self::evaluate_expr(&args[0], batch, row_idx)
+            }
+            "ISZEROORNULL" => {
+                if args.is_empty() {
+                    return Err(Error::invalid_query(
+                        "isZeroOrNull requires 1 argument".to_string(),
+                    ));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if val.is_null() {
+                    return Ok(Value::bool_val(true));
+                }
+                let is_zero = val.as_i64().map(|v| v == 0).unwrap_or(false)
+                    || val.as_f64().map(|v| v == 0.0).unwrap_or(false);
+                Ok(Value::bool_val(is_zero))
             }
             "IPV4NUMTOSTRING" => {
                 if args.is_empty() {

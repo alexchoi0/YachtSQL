@@ -18,7 +18,6 @@ fn test_quantile() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_quantile_exact() {
     let mut executor = create_executor();
@@ -88,7 +87,6 @@ fn test_quantile_exact_weighted() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_quantile_timing() {
     let mut executor = create_executor();
@@ -145,7 +143,6 @@ fn test_quantile_deterministic() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_quantile_tdigest() {
     let mut executor = create_executor();
@@ -272,7 +269,6 @@ fn test_quantiles_exact() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_quantiles_tdigest() {
     let mut executor = create_executor();
@@ -391,7 +387,6 @@ fn test_quantile_with_if() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_approx_top_k() {
     let mut executor = create_executor();

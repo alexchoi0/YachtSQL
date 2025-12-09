@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_build() {
     let mut executor = create_executor();
@@ -10,7 +9,6 @@ fn test_bitmap_build() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_to_array() {
     let mut executor = create_executor();
@@ -20,7 +18,6 @@ fn test_bitmap_to_array() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_cardinality() {
     let mut executor = create_executor();
@@ -30,7 +27,6 @@ fn test_bitmap_cardinality() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_and() {
     let mut executor = create_executor();
@@ -42,7 +38,6 @@ fn test_bitmap_and() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_or() {
     let mut executor = create_executor();
@@ -52,7 +47,6 @@ fn test_bitmap_or() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_xor() {
     let mut executor = create_executor();
@@ -64,7 +58,6 @@ fn test_bitmap_xor() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_and_not() {
     let mut executor = create_executor();
@@ -74,7 +67,6 @@ fn test_bitmap_and_not() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_contains() {
     let mut executor = create_executor();
@@ -84,7 +76,6 @@ fn test_bitmap_contains() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_has_any() {
     let mut executor = create_executor();
@@ -94,7 +85,6 @@ fn test_bitmap_has_any() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_has_all() {
     let mut executor = create_executor();
@@ -104,7 +94,6 @@ fn test_bitmap_has_all() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_and_cardinality() {
     let mut executor = create_executor();
@@ -114,7 +103,6 @@ fn test_bitmap_and_cardinality() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_or_cardinality() {
     let mut executor = create_executor();
@@ -124,7 +112,6 @@ fn test_bitmap_or_cardinality() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_xor_cardinality() {
     let mut executor = create_executor();
@@ -134,7 +121,6 @@ fn test_bitmap_xor_cardinality() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_andnot_cardinality() {
     let mut executor = create_executor();
@@ -144,7 +130,6 @@ fn test_bitmap_andnot_cardinality() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_min() {
     let mut executor = create_executor();
@@ -154,7 +139,6 @@ fn test_bitmap_min() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_max() {
     let mut executor = create_executor();
@@ -164,7 +148,6 @@ fn test_bitmap_max() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_subset_in_range() {
     let mut executor = create_executor();
@@ -176,7 +159,6 @@ fn test_bitmap_subset_in_range() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_subset_limit() {
     let mut executor = create_executor();
@@ -186,7 +168,6 @@ fn test_bitmap_subset_limit() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_transform() {
     let mut executor = create_executor();
@@ -198,7 +179,6 @@ fn test_bitmap_transform() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sub_bitmap() {
     let mut executor = create_executor();
@@ -208,7 +188,6 @@ fn test_sub_bitmap() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bitmap_column_aggregate() {
     let mut executor = create_executor();

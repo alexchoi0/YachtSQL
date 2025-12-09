@@ -1,6 +1,6 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get() {
     let mut executor = create_executor();
@@ -24,7 +24,7 @@ fn test_dict_get() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_or_default() {
     let mut executor = create_executor();
@@ -47,7 +47,7 @@ fn test_dict_get_or_default() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_or_null() {
     let mut executor = create_executor();
@@ -70,7 +70,7 @@ fn test_dict_get_or_null() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_has() {
     let mut executor = create_executor();
@@ -93,7 +93,7 @@ fn test_dict_has() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_uint64() {
     let mut executor = create_executor();
@@ -116,7 +116,7 @@ fn test_dict_get_uint64() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_int64() {
     let mut executor = create_executor();
@@ -139,7 +139,7 @@ fn test_dict_get_int64() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_float64() {
     let mut executor = create_executor();
@@ -162,7 +162,7 @@ fn test_dict_get_float64() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_string() {
     let mut executor = create_executor();
@@ -185,7 +185,7 @@ fn test_dict_get_string() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_date() {
     let mut executor = create_executor();
@@ -208,7 +208,7 @@ fn test_dict_get_date() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_date_time() {
     let mut executor = create_executor();
@@ -231,7 +231,7 @@ fn test_dict_get_date_time() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_uuid() {
     let mut executor = create_executor();
@@ -254,7 +254,7 @@ fn test_dict_get_uuid() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_hierarchy() {
     let mut executor = create_executor();
@@ -278,7 +278,7 @@ fn test_dict_get_hierarchy() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_is_in() {
     let mut executor = create_executor();
@@ -301,7 +301,7 @@ fn test_dict_is_in() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_children() {
     let mut executor = create_executor();
@@ -324,7 +324,7 @@ fn test_dict_get_children() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_descendant() {
     let mut executor = create_executor();
@@ -347,7 +347,7 @@ fn test_dict_get_descendant() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires CREATE DICTIONARY DDL support"]
 #[test]
 fn test_dict_get_all() {
     let mut executor = create_executor();

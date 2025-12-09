@@ -97,6 +97,13 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
         registry.register_aggregate(func.name().to_string(), func);
     }
 
+    registry.register_aggregate("STDDEVPOP".to_string(), Rc::new(StddevPopFunction));
+    registry.register_aggregate("STDDEVSAMP".to_string(), Rc::new(StddevSampFunction));
+    registry.register_aggregate("VARPOP".to_string(), Rc::new(VarPopFunction));
+    registry.register_aggregate("VARSAMP".to_string(), Rc::new(VarSampFunction));
+    registry.register_aggregate("COVARPOP".to_string(), Rc::new(CovarPopFunction));
+    registry.register_aggregate("COVARSAMP".to_string(), Rc::new(CovarSampFunction));
+
     registry.register_aggregate("LISTAGG".to_string(), Rc::new(ListAggFunction::new()));
     registry.register_aggregate(
         "STRING_AGG".to_string(),

@@ -208,6 +208,7 @@ impl ProjectionPushdown {
             table_name,
             alias,
             projection,
+            only,
         } = scan
             && projection.is_none()
             && !required_cols.is_empty()
@@ -216,6 +217,7 @@ impl ProjectionPushdown {
                 table_name: table_name.clone(),
                 alias: alias.clone(),
                 projection: Some(required_cols.iter().cloned().collect()),
+                only: *only,
             });
         }
         None
@@ -400,6 +402,7 @@ impl ProjectionPushdown {
                 recursive,
                 use_union_all,
                 materialization_hint,
+                column_aliases,
             } => {
                 let cte_opt = self.optimize_node(cte_plan, required_cols);
                 let input_opt = self.optimize_node(input, required_cols);
@@ -412,6 +415,7 @@ impl ProjectionPushdown {
                         recursive: *recursive,
                         use_union_all: *use_union_all,
                         materialization_hint: materialization_hint.clone(),
+                        column_aliases: column_aliases.clone(),
                     })
                 } else {
                     None

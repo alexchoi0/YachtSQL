@@ -326,6 +326,7 @@ pub struct TableScanExec {
     projection: Option<Vec<usize>>,
     statistics: ExecutionStatistics,
     storage: Rc<RefCell<yachtsql_storage::Storage>>,
+    only: bool,
 }
 
 impl TableScanExec {
@@ -340,6 +341,23 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
+            only: false,
+        }
+    }
+
+    pub fn new_with_only(
+        schema: Schema,
+        table_name: String,
+        storage: Rc<RefCell<yachtsql_storage::Storage>>,
+        only: bool,
+    ) -> Self {
+        Self {
+            schema,
+            table_name,
+            projection: None,
+            statistics: ExecutionStatistics::default(),
+            storage,
+            only,
         }
     }
 
@@ -353,6 +371,7 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
+            only: false,
         }
     }
 
@@ -391,14 +410,54 @@ impl ExecutionPlan for TableScanExec {
             .get_table(table_id)
             .ok_or_else(|| Error::TableNotFound(format!("Table '{}' not found", table_id)))?;
 
-        let rows = table.get_all_rows();
+        let mut all_rows = table.get_all_rows();
 
-        if rows.is_empty() {
+        if !self.only {
+            let parent_col_count = self.schema.fields().len();
+            let mut descendants_to_process: Vec<String> = table.schema().child_tables().to_vec();
+            let mut processed: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+            while let Some(child_full_name) = descendants_to_process.pop() {
+                if processed.contains(&child_full_name) {
+                    continue;
+                }
+                processed.insert(child_full_name.clone());
+
+                let (child_dataset_name, child_table_id) =
+                    if let Some(dot_pos) = child_full_name.find('.') {
+                        (&child_full_name[..dot_pos], &child_full_name[dot_pos + 1..])
+                    } else {
+                        ("default", child_full_name.as_str())
+                    };
+
+                if let Some(child_dataset) = storage.get_dataset(child_dataset_name) {
+                    if let Some(child_table) = child_dataset.get_table(child_table_id) {
+                        let child_rows = child_table.get_all_rows();
+                        for row in child_rows {
+                            let values: Vec<_> = row
+                                .values()
+                                .iter()
+                                .take(parent_col_count)
+                                .cloned()
+                                .collect();
+                            all_rows.push(yachtsql_storage::Row::from_values(values));
+                        }
+                        for grandchild in child_table.schema().child_tables() {
+                            if !processed.contains(grandchild) {
+                                descendants_to_process.push(grandchild.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if all_rows.is_empty() {
             return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
         use yachtsql_storage::Column;
-        let num_rows = rows.len();
+        let num_rows = all_rows.len();
         let num_cols = self.schema.fields().len();
         let mut columns: Vec<Column> = Vec::with_capacity(num_cols);
 
@@ -406,7 +465,7 @@ impl ExecutionPlan for TableScanExec {
             let field = &self.schema.fields()[col_idx];
             let mut column = Column::new(&field.data_type, num_rows);
 
-            for row in &rows {
+            for row in &all_rows {
                 let value = match row.get(col_idx) {
                     Some(v) => v.clone(),
                     None => yachtsql_core::types::Value::null(),

@@ -290,7 +290,6 @@ fn test_max_intersections_position() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_categories10_overflow_function() {
     let mut executor = create_executor();
@@ -404,7 +403,6 @@ fn test_bounded_sample() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sum_with_overflow() {
     let mut executor = create_executor();
@@ -455,7 +453,6 @@ fn test_nothing() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_count_if() {
     let mut executor = create_executor();

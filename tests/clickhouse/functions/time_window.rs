@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_executor, datetime};
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_tumble() {
     let mut executor = create_executor();
@@ -35,7 +35,7 @@ fn test_tumble() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_tumble_start() {
     let mut executor = create_executor();
@@ -45,7 +45,7 @@ fn test_tumble_start() {
     assert_table_eq!(result, [[datetime(2023, 1, 1, 10, 0, 0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_tumble_end() {
     let mut executor = create_executor();
@@ -55,7 +55,7 @@ fn test_tumble_end() {
     assert_table_eq!(result, [[datetime(2023, 1, 1, 11, 0, 0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_hop() {
     let mut executor = create_executor();
@@ -91,7 +91,7 @@ fn test_hop() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_hop_start() {
     let mut executor = create_executor();
@@ -101,7 +101,7 @@ fn test_hop_start() {
     assert_table_eq!(result, [[datetime(2023, 1, 1, 10, 0, 0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_hop_end() {
     let mut executor = create_executor();
@@ -111,7 +111,7 @@ fn test_hop_end() {
     assert_table_eq!(result, [[datetime(2023, 1, 1, 10, 30, 0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_time_slot() {
     let mut executor = create_executor();
@@ -121,7 +121,7 @@ fn test_time_slot() {
     assert_table_eq!(result, [[datetime(2023, 1, 1, 10, 30, 0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_time_slots() {
     let mut executor = create_executor();
@@ -139,7 +139,7 @@ fn test_time_slots() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_time_slots_with_size() {
     let mut executor = create_executor();
@@ -157,7 +157,7 @@ fn test_time_slots_with_size() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_tumble_aggregation() {
     let mut executor = create_executor();
@@ -213,7 +213,7 @@ fn test_tumble_aggregation() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_hop_sliding_window() {
     let mut executor = create_executor();
@@ -253,7 +253,7 @@ fn test_hop_sliding_window() {
     );
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_date_bin() {
     let mut executor = create_executor();
@@ -263,7 +263,7 @@ fn test_date_bin() {
     assert_table_eq!(result, [[datetime(2023, 1, 1, 10, 45, 0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_date_bin_with_origin() {
     let mut executor = create_executor();
@@ -275,7 +275,7 @@ fn test_date_bin_with_origin() {
     assert_table_eq!(result, [[datetime(2023, 1, 1, 10, 45, 0)]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Requires time windowing function implementation"]
 #[test]
 fn test_window_id() {
     let mut executor = create_executor();

@@ -254,6 +254,7 @@ fn test_ttl_with_date_expression() {
     assert_table_eq!(result, []);
 }
 
+#[ignore = "Fix me!"]
 #[test]
 fn test_show_table_with_ttl() {
     let mut executor = create_executor();

@@ -24,7 +24,7 @@ use crate::system_schema::{SystemSchemaProvider, SystemTable};
 pub struct LogicalToPhysicalPlanner {
     storage: Rc<RefCell<yachtsql_storage::Storage>>,
     dialect: crate::DialectType,
-    cte_plans: RefCell<HashMap<String, Rc<dyn ExecutionPlan>>>,
+    cte_plans: RefCell<HashMap<String, (Rc<dyn ExecutionPlan>, Option<Vec<String>>)>>,
 }
 
 impl LogicalToPhysicalPlanner {
@@ -814,11 +814,31 @@ impl LogicalToPhysicalPlanner {
                 table_name,
                 alias,
                 projection: _,
+                only,
             } => {
                 {
                     let cte_plans = self.cte_plans.borrow();
-                    if let Some(cte_plan) = cte_plans.get(table_name) {
-                        return Ok(Rc::new(SubqueryScanExec::new(Rc::clone(cte_plan))));
+                    if let Some((cte_plan, column_aliases)) = cte_plans.get(table_name) {
+                        let exec = Rc::clone(cte_plan);
+                        if let Some(aliases) = column_aliases {
+                            let original_schema = exec.schema();
+                            let renamed_fields: Vec<yachtsql_storage::schema::Field> =
+                                original_schema
+                                    .fields()
+                                    .iter()
+                                    .zip(aliases.iter())
+                                    .map(|(field, alias)| {
+                                        let mut new_field = field.clone();
+                                        new_field.name = alias.clone();
+                                        new_field
+                                    })
+                                    .collect();
+                            let new_schema = yachtsql_storage::Schema::from_fields(renamed_fields);
+                            return Ok(Rc::new(SubqueryScanExec::new_with_schema(
+                                exec, new_schema,
+                            )));
+                        }
+                        return Ok(Rc::new(SubqueryScanExec::new(exec)));
                     }
                 }
 
@@ -952,10 +972,11 @@ impl LogicalToPhysicalPlanner {
 
                 let schema = self.expand_schema_custom_types(&base_schema);
 
-                Ok(Rc::new(TableScanExec::new(
+                Ok(Rc::new(TableScanExec::new_with_only(
                     schema,
                     table_name.clone(),
                     Rc::clone(&self.storage),
+                    *only,
                 )))
             }
 
@@ -1268,12 +1289,13 @@ impl LogicalToPhysicalPlanner {
                 recursive: _,
                 use_union_all: _,
                 materialization_hint,
+                column_aliases,
             } => {
                 let cte_exec = self.plan_node_to_exec(cte_plan)?;
 
                 self.cte_plans
                     .borrow_mut()
-                    .insert(name.clone(), Rc::clone(&cte_exec));
+                    .insert(name.clone(), (Rc::clone(&cte_exec), column_aliases.clone()));
 
                 let input_exec = self.plan_node_to_exec(input)?;
 

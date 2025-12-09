@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_stddev_pop() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_stddev_pop() {
     assert_table_eq!(result, [[2.0]]); // sqrt(variance) = sqrt(4) = 2.0
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_stddev_samp() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_stddev_samp() {
     assert_table_eq!(result, [[15.811388300841896]]); // sqrt(250) = 15.811...
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_var_pop() {
     let mut executor = create_executor();
@@ -52,7 +49,6 @@ fn test_var_pop() {
     assert_table_eq!(result, [[4.0]]); // Variance = 4.0
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_var_samp() {
     let mut executor = create_executor();
@@ -69,7 +65,6 @@ fn test_var_samp() {
     assert_table_eq!(result, [[250.0]]); // Sample variance = 250.0
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_covar_pop() {
     let mut executor = create_executor();
@@ -86,7 +81,6 @@ fn test_covar_pop() {
     assert_table_eq!(result, [[4.0]]); // Covariance = 4.0 (y = 2x)
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_covar_samp() {
     let mut executor = create_executor();
@@ -119,7 +113,6 @@ fn test_corr() {
     assert_table_eq!(result, [[1.0]]); // Perfect positive correlation (y = 2x)
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_any_heavy() {
     let mut executor = create_executor();
@@ -136,7 +129,7 @@ fn test_any_heavy() {
     assert_table_eq!(result, [["a"]]); // 'a' is the heavy hitter (appears 3 times)
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "Parsing issue with String type"]
 #[test]
 fn test_any_last() {
     let mut executor = create_executor();
@@ -276,7 +269,6 @@ fn test_kurt_samp() {
     assert!(result.num_rows() == 1); // Kurtosis value is implementation-specific
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_simple_linear_regression() {
     let mut executor = create_executor();
@@ -293,7 +285,6 @@ fn test_simple_linear_regression() {
     assert!(result.num_rows() == 1); // Returns (slope=2, intercept=0) tuple
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_stochastic_linear_regression() {
     let mut executor = create_executor();
@@ -314,7 +305,6 @@ fn test_stochastic_linear_regression() {
     assert!(result.num_rows() == 1); // SGD result varies
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_entropy() {
     let mut executor = create_executor();
@@ -354,7 +344,6 @@ fn test_exponential_moving_average() {
     assert!(result.num_rows() == 1); // EMA result depends on algorithm specifics
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_student_t_test() {
     let mut executor = create_executor();
@@ -375,7 +364,6 @@ fn test_student_t_test() {
     assert!(result.num_rows() == 1); // t-test result is implementation-specific
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_welch_t_test() {
     let mut executor = create_executor();
@@ -396,7 +384,6 @@ fn test_welch_t_test() {
     assert!(result.num_rows() == 1); // Welch t-test result is implementation-specific
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_mann_whitney_u_test() {
     let mut executor = create_executor();
@@ -417,7 +404,6 @@ fn test_mann_whitney_u_test() {
     assert!(result.num_rows() == 1); // Mann-Whitney U result is implementation-specific
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_median() {
     let mut executor = create_executor();

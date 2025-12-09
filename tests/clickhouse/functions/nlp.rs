@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_stem() {
     let mut executor = create_executor();
@@ -11,7 +10,6 @@ fn test_stem() {
     assert_table_eq!(result, [["run"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_stem_multiple_words() {
     let mut executor = create_executor();
@@ -21,7 +19,6 @@ fn test_stem_multiple_words() {
     assert_table_eq!(result, [["cat", "run", "better"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_stem_different_languages() {
     let mut executor = create_executor();
@@ -31,7 +28,6 @@ fn test_stem_different_languages() {
     assert_table_eq!(result, [["walk", "бегущ", "laufend"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_lemmatize() {
     let mut executor = create_executor();
@@ -41,7 +37,6 @@ fn test_lemmatize() {
     assert_table_eq!(result, [["run"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_synonyms() {
     let mut executor = create_executor();
@@ -51,7 +46,6 @@ fn test_synonyms() {
     assert_table_eq!(result, [[["large", "great", "huge"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_detect_language() {
     let mut executor = create_executor();
@@ -61,7 +55,6 @@ fn test_detect_language() {
     assert_table_eq!(result, [["en"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_detect_language_mixed() {
     let mut executor = create_executor();
@@ -71,7 +64,6 @@ fn test_detect_language_mixed() {
     assert_table_eq!(result, [[["de", "en"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_detect_language_unknown() {
     let mut executor = create_executor();
@@ -81,7 +73,6 @@ fn test_detect_language_unknown() {
     assert_table_eq!(result, [["unknown"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_detect_charset() {
     let mut executor = create_executor();
@@ -91,7 +82,6 @@ fn test_detect_charset() {
     assert_table_eq!(result, [["UTF-8"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_detect_tone_sentiment() {
     let mut executor = create_executor();
@@ -101,7 +91,6 @@ fn test_detect_tone_sentiment() {
     assert_table_eq!(result, [["positive"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_detect_programming_language() {
     let mut executor = create_executor();
@@ -111,7 +100,6 @@ fn test_detect_programming_language() {
     assert_table_eq!(result, [["Python"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_tokenize() {
     let mut executor = create_executor();
@@ -121,7 +109,6 @@ fn test_tokenize() {
     assert_table_eq!(result, [[["Hello", "World", "How", "are", "you"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_ngrams_text() {
     let mut executor = create_executor();
@@ -129,7 +116,6 @@ fn test_ngrams_text() {
     assert_table_eq!(result, [[["hel", "ell", "llo"]]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_normalize_query() {
     let mut executor = create_executor();
@@ -139,17 +125,15 @@ fn test_normalize_query() {
     assert_table_eq!(result, [["SELECT * FROM table WHERE id = ?"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_normalized_query_hash() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT normalizedQueryHash('SELECT * FROM table WHERE id = 123')")
         .unwrap();
-    assert!(result.num_rows() == 1); // Hash value is implementation-specific
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_nlp_column() {
     let mut executor = create_executor();
@@ -182,27 +166,24 @@ fn test_nlp_column() {
     );
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_word_shingles() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT wordShingleMinHash('The quick brown fox', 3, 3)")
         .unwrap();
-    assert!(result.num_rows() == 1); // Hash values are implementation-specific
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_word_shingle_sim_hash() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT wordShingleSimHash('The quick brown fox', 3)")
         .unwrap();
-    assert!(result.num_rows() == 1); // Hash value is implementation-specific
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sentence_similarity() {
     let mut executor = create_executor();
@@ -212,5 +193,5 @@ fn test_sentence_similarity() {
                     ngramSimHash('The fast brown fox', 3)",
         )
         .unwrap();
-    assert!(result.num_rows() == 1); // Hash values are implementation-specific
+    assert!(result.num_rows() == 1);
 }

@@ -37,10 +37,822 @@ pub enum ClickHouseIndexType {
     Hypothesis,
 }
 
+#[derive(Clone)]
+pub enum KeywordPattern {
+    StartsWith(&'static [&'static str]),
+    Contains(&'static str),
+    Consecutive(&'static [&'static str]),
+    StartsWithAndContains {
+        prefix: &'static [&'static str],
+        contains: &'static str,
+    },
+    FirstKeywordThenContains {
+        first: &'static [&'static str],
+        contains: &'static str,
+    },
+}
+
+impl KeywordPattern {
+    pub fn matches(&self, tokens: &[&Token]) -> bool {
+        match self {
+            KeywordPattern::StartsWith(keywords) => {
+                let mut idx = 0;
+                for kw in *keywords {
+                    if !ParserHelpers::expect_keyword(tokens, &mut idx, kw) {
+                        return false;
+                    }
+                }
+                true
+            }
+            KeywordPattern::Contains(keyword) => tokens
+                .iter()
+                .any(|t| matches!(t, Token::Word(w) if w.value.eq_ignore_ascii_case(keyword))),
+            KeywordPattern::Consecutive(keywords) => {
+                for (i, token) in tokens.iter().enumerate() {
+                    if let Token::Word(w) = token
+                        && w.value.eq_ignore_ascii_case(keywords[0])
+                    {
+                        let mut all_match = true;
+                        for (offset, kw) in keywords.iter().enumerate().skip(1) {
+                            match tokens.get(i + offset) {
+                                Some(Token::Word(w2)) if w2.value.eq_ignore_ascii_case(kw) => {}
+                                _ => {
+                                    all_match = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if all_match {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            KeywordPattern::StartsWithAndContains { prefix, contains } => {
+                let mut idx = 0;
+                for kw in *prefix {
+                    if !ParserHelpers::expect_keyword(tokens, &mut idx, kw) {
+                        return false;
+                    }
+                }
+                tokens
+                    .iter()
+                    .skip(idx)
+                    .any(|t| matches!(t, Token::Word(w) if w.value.eq_ignore_ascii_case(contains)))
+            }
+            KeywordPattern::FirstKeywordThenContains { first, contains } => {
+                let first_keyword = tokens.iter().find_map(|t| {
+                    if let Token::Word(w) = t {
+                        Some(w.value.to_uppercase())
+                    } else {
+                        None
+                    }
+                });
+                let Some(kw) = first_keyword else {
+                    return false;
+                };
+                if !first.iter().any(|f| kw.eq_ignore_ascii_case(f)) {
+                    return false;
+                }
+                tokens
+                    .iter()
+                    .any(|t| matches!(t, Token::Word(w) if w.value.eq_ignore_ascii_case(contains)))
+            }
+        }
+    }
+}
+
+pub trait ClickHouseStatementParser: Sync {
+    fn pattern(&self) -> KeywordPattern;
+    fn parse(&self, tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>>;
+
+    fn matches(&self, tokens: &[&Token]) -> bool {
+        self.pattern().matches(tokens)
+    }
+}
+
+struct PassthroughParser {
+    pattern: KeywordPattern,
+    constructor: fn(&str) -> CustomStatement,
+}
+
+impl PassthroughParser {
+    const fn new(pattern: KeywordPattern, constructor: fn(&str) -> CustomStatement) -> Self {
+        Self {
+            pattern,
+            constructor,
+        }
+    }
+}
+
+impl ClickHouseStatementParser for PassthroughParser {
+    fn pattern(&self) -> KeywordPattern {
+        self.pattern.clone()
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some((self.constructor)(sql)))
+    }
+}
+
+struct CreateIndexParser;
+
+impl ClickHouseStatementParser for CreateIndexParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "INDEX"],
+            contains: "TYPE",
+        }
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        Parsing::parse_create_index(tokens)
+    }
+}
+
+struct AlterColumnCodecParser;
+
+impl ClickHouseStatementParser for AlterColumnCodecParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["ALTER", "TABLE"],
+            contains: "CODEC",
+        }
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        if !has_modify_column_before_codec(tokens) {
+            return Ok(None);
+        }
+        Parsing::parse_alter_column_codec(tokens)
+    }
+}
+
+fn has_modify_column_before_codec(tokens: &[&Token]) -> bool {
+    let mut found_modify = false;
+    for token in tokens.iter() {
+        if let Token::Word(w) = token {
+            if w.value.eq_ignore_ascii_case("MODIFY") {
+                found_modify = true;
+            }
+            if w.value.eq_ignore_ascii_case("CODEC") {
+                return found_modify;
+            }
+        }
+    }
+    false
+}
+
+struct AlterTableTtlParser;
+
+impl ClickHouseStatementParser for AlterTableTtlParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["ALTER", "TABLE"],
+            contains: "TTL",
+        }
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        if !has_ttl_operation(tokens) {
+            return Ok(None);
+        }
+        Parsing::parse_alter_table_ttl(tokens)
+    }
+}
+
+fn has_ttl_operation(tokens: &[&Token]) -> bool {
+    for token in tokens.iter() {
+        if let Token::Word(w) = token
+            && (w.value.eq_ignore_ascii_case("MODIFY")
+                || w.value.eq_ignore_ascii_case("REMOVE")
+                || w.value.eq_ignore_ascii_case("MATERIALIZE"))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+struct SystemCommandParser;
+
+impl ClickHouseStatementParser for SystemCommandParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWith(&["SYSTEM"])
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        Parsing::parse_system_command(tokens)
+    }
+}
+
+struct CreateDictionaryParser;
+
+impl ClickHouseStatementParser for CreateDictionaryParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWith(&["CREATE", "DICTIONARY"])
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        Parsing::parse_create_dictionary(tokens)
+    }
+}
+
+struct GrantRoleParser;
+
+impl ClickHouseStatementParser for GrantRoleParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::FirstKeywordThenContains {
+            first: &["GRANT", "REVOKE"],
+            contains: "ROLE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseGrant {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+struct FunctionParser;
+
+impl ClickHouseStatementParser for FunctionParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::FirstKeywordThenContains {
+            first: &["CREATE", "DROP"],
+            contains: "FUNCTION",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseFunction {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+static PASSTHROUGH_QUOTA: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::Contains("QUOTA"), |sql| {
+        CustomStatement::ClickHouseQuota {
+            statement: sql.to_string(),
+        }
+    });
+
+static PASSTHROUGH_ROW_POLICY: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::Consecutive(&["ROW", "POLICY"]), |sql| {
+        CustomStatement::ClickHouseRowPolicy {
+            statement: sql.to_string(),
+        }
+    });
+
+static PASSTHROUGH_SETTINGS_PROFILE: PassthroughParser = PassthroughParser::new(
+    KeywordPattern::Consecutive(&["SETTINGS", "PROFILE"]),
+    |sql| CustomStatement::ClickHouseSettingsProfile {
+        statement: sql.to_string(),
+    },
+);
+
+static PASSTHROUGH_DICTIONARY: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::Contains("DICTIONARY"), |sql| {
+        CustomStatement::ClickHouseDictionary {
+            statement: sql.to_string(),
+        }
+    });
+
+static PASSTHROUGH_SHOW: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::StartsWith(&["SHOW"]), |sql| {
+        CustomStatement::ClickHouseShow {
+            statement: sql.to_string(),
+        }
+    });
+
+static PASSTHROUGH_MATERIALIZED_VIEW: PassthroughParser = PassthroughParser::new(
+    KeywordPattern::Consecutive(&["MATERIALIZED", "VIEW"]),
+    |sql| CustomStatement::ClickHouseMaterializedView {
+        statement: sql.to_string(),
+    },
+);
+
+static PASSTHROUGH_PROJECTION: PassthroughParser = PassthroughParser::new(
+    KeywordPattern::StartsWithAndContains {
+        prefix: &["ALTER"],
+        contains: "PROJECTION",
+    },
+    |sql| CustomStatement::ClickHouseProjection {
+        statement: sql.to_string(),
+    },
+);
+
+fn strip_inline_projections(sql: &str) -> String {
+    let mut result = sql.to_string();
+    while let Some(start) = result.find("PROJECTION") {
+        if let Some(paren_start) = result[start..].find('(') {
+            let abs_paren_start = start + paren_start;
+            let mut paren_count = 1;
+            let mut paren_end = abs_paren_start + 1;
+            for (i, c) in result[abs_paren_start + 1..].chars().enumerate() {
+                match c {
+                    '(' => paren_count += 1,
+                    ')' => {
+                        paren_count -= 1;
+                        if paren_count == 0 {
+                            paren_end = abs_paren_start + 1 + i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let comma_before = if start > 0 && result[..start].trim_end().ends_with(',') {
+                result[..start].rfind(',').unwrap()
+            } else {
+                start
+            };
+            result = format!("{}{}", &result[..comma_before], &result[paren_end..]);
+        } else {
+            break;
+        }
+    }
+    result
+}
+
+struct CreateTableWithProjectionParser;
+
+impl ClickHouseStatementParser for CreateTableWithProjectionParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "PROJECTION",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        let stripped = strip_inline_projections(sql);
+        Ok(Some(CustomStatement::ClickHouseCreateTableWithProjection {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_PROJECTION_PARSER: CreateTableWithProjectionParser =
+    CreateTableWithProjectionParser;
+
+fn find_keyword_partition_by(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("PARTITION") {
+        let abs_idx = pos + idx;
+        let before_ok = abs_idx == 0
+            || !sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_';
+        let after_idx = abs_idx + "PARTITION".len();
+        let after = &upper[after_idx..].trim_start();
+        let after_ok = after.starts_with("BY");
+        if before_ok && after_ok {
+            return Some(abs_idx);
+        }
+        pos = abs_idx + 1;
+    }
+    None
+}
+
+fn strip_partition_by(sql: &str) -> String {
+    if let Some(partition_start) = find_keyword_partition_by(sql) {
+        let after_partition = &sql[partition_start + "PARTITION".len()..].trim_start();
+        if let Some(rest) = after_partition.strip_prefix("BY") {
+            let rest = rest.trim_start();
+            let mut paren_count = 0;
+            let mut actual_end = 0;
+            let mut found_closing = false;
+
+            for (i, c) in rest.chars().enumerate() {
+                match c {
+                    '(' => paren_count += 1,
+                    ')' => {
+                        paren_count -= 1;
+                        if paren_count == 0 {
+                            actual_end = i + 1;
+                            found_closing = true;
+                        }
+                    }
+                    c if paren_count == 0 && c.is_ascii_alphabetic() => {
+                        actual_end = i;
+                        break;
+                    }
+                    _ => {
+                        if paren_count == 0 && !c.is_whitespace() {
+                            actual_end = i + 1;
+                        }
+                    }
+                }
+            }
+
+            if !found_closing && paren_count == 0 {
+                actual_end = rest.len();
+            }
+
+            return format!(
+                "{} {}",
+                sql[..partition_start].trim_end(),
+                rest[actual_end..].trim_start()
+            );
+        }
+    }
+    sql.to_string()
+}
+
+struct CreateTableWithPartitionParser;
+
+impl ClickHouseStatementParser for CreateTableWithPartitionParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "PARTITION",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if find_keyword_partition_by(sql).is_none() {
+            return Ok(None);
+        }
+        let stripped = strip_partition_by(sql);
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_PARTITION_PARSER: CreateTableWithPartitionParser =
+    CreateTableWithPartitionParser;
+
+fn find_settings_clause(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("SETTINGS") {
+        let abs_idx = pos + idx;
+        let before_ok = abs_idx == 0
+            || (!sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_');
+        let after_idx = abs_idx + "SETTINGS".len();
+        let after_ok = after_idx >= sql.len()
+            || (!sql.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && sql.as_bytes()[after_idx] != b'_');
+        if before_ok && after_ok {
+            let after_settings = sql[after_idx..].trim_start();
+            let starts_with_ident = after_settings
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_alphabetic() || c == '_')
+                .unwrap_or(false);
+            if starts_with_ident && let Some(eq_pos) = after_settings.find('=') {
+                let between = after_settings[..eq_pos].trim();
+                if !between.is_empty()
+                    && between
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+                {
+                    return Some(abs_idx);
+                }
+            }
+        }
+        pos = abs_idx + 1;
+    }
+    None
+}
+
+fn strip_settings(sql: &str) -> String {
+    if let Some(settings_pos) = find_settings_clause(sql) {
+        return sql[..settings_pos].trim_end().to_string();
+    }
+    sql.to_string()
+}
+
+struct CreateTableWithSettingsParser;
+
+impl ClickHouseStatementParser for CreateTableWithSettingsParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "SETTINGS",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        let stripped = strip_settings(sql);
+        if stripped == sql {
+            return Ok(None);
+        }
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_SETTINGS_PARSER: CreateTableWithSettingsParser =
+    CreateTableWithSettingsParser;
+
+#[allow(dead_code)]
+fn find_engine_clause(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("ENGINE") {
+        let abs_idx = pos + idx;
+        let before_ok = abs_idx == 0
+            || (!sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_');
+        let after_idx = abs_idx + "ENGINE".len();
+        let after_ok = after_idx >= sql.len()
+            || (!sql.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && sql.as_bytes()[after_idx] != b'_');
+        if before_ok && after_ok {
+            let after_engine = sql[after_idx..].trim_start();
+            if after_engine.starts_with('=') {
+                return Some(abs_idx);
+            }
+        }
+        pos = abs_idx + 1;
+    }
+    None
+}
+
+#[allow(dead_code)]
+fn has_complex_engine(sql: &str) -> bool {
+    if let Some(engine_pos) = find_engine_clause(sql) {
+        let after_engine = &sql[engine_pos + "ENGINE".len()..].trim_start();
+        if let Some(after_eq) = after_engine.strip_prefix('=') {
+            let after_eq = after_eq.trim_start();
+            let engine_names = [
+                "Distributed",
+                "Merge",
+                "Buffer",
+                "GenerateRandom",
+                "Set",
+                "Null",
+            ];
+            for name in &engine_names {
+                if after_eq.to_uppercase().starts_with(&name.to_uppercase()) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+#[allow(dead_code)]
+fn add_dummy_column_if_needed(sql: &str) -> String {
+    let upper = sql.to_uppercase();
+    if let Some(table_pos) = upper.find("CREATE TABLE") {
+        let after_create_table = &sql[table_pos + "CREATE TABLE".len()..].trim_start();
+
+        let mut name_end = 0;
+        for (i, c) in after_create_table.chars().enumerate() {
+            if c.is_whitespace() || c == '(' {
+                name_end = i;
+                break;
+            }
+        }
+
+        if name_end == 0 {
+            name_end = after_create_table.len();
+        }
+
+        let rest = &after_create_table[name_end..].trim_start();
+
+        if !rest.starts_with('(') {
+            let table_name = &after_create_table[..name_end];
+            return format!("CREATE TABLE {} (_dummy Int64) {}", table_name, rest);
+        }
+    }
+    sql.to_string()
+}
+
+#[allow(dead_code)]
+fn strip_engine_params(sql: &str) -> String {
+    if let Some(engine_pos) = find_engine_clause(sql) {
+        let after_engine = &sql[engine_pos + "ENGINE".len()..].trim_start();
+        if let Some(after_eq) = after_engine.strip_prefix('=') {
+            let after_eq = after_eq.trim_start();
+            let mut engine_name_end = 0;
+            for (i, c) in after_eq.chars().enumerate() {
+                if c == '(' || c.is_whitespace() {
+                    break;
+                }
+                engine_name_end = i + 1;
+            }
+            let rest = &after_eq[engine_name_end..].trim_start();
+
+            let before_engine = &sql[..engine_pos];
+
+            if rest.starts_with('(') {
+                let mut paren_count = 0;
+                let mut param_end = 0;
+                for (i, c) in rest.chars().enumerate() {
+                    match c {
+                        '(' => paren_count += 1,
+                        ')' => {
+                            paren_count -= 1;
+                            if paren_count == 0 {
+                                param_end = i + 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                let after_params = if param_end > 0 {
+                    &rest[param_end..]
+                } else {
+                    ""
+                };
+
+                return format!(
+                    "{} ENGINE = Memory {}",
+                    before_engine.trim_end(),
+                    after_params.trim_start()
+                );
+            } else {
+                return format!("{} ENGINE = Memory {}", before_engine.trim_end(), rest);
+            }
+        }
+    }
+    sql.to_string()
+}
+
+struct CreateTableWithComplexEngineParser;
+
+impl ClickHouseStatementParser for CreateTableWithComplexEngineParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "ENGINE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(None)
+    }
+}
+
+static CREATE_TABLE_WITH_COMPLEX_ENGINE_PARSER: CreateTableWithComplexEngineParser =
+    CreateTableWithComplexEngineParser;
+
+struct AlterTableModifyParser;
+
+impl ClickHouseStatementParser for AlterTableModifyParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["ALTER", "TABLE"],
+            contains: "MODIFY",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseAlterTable {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+static ALTER_TABLE_MODIFY_PARSER: AlterTableModifyParser = AlterTableModifyParser;
+
+static PASSTHROUGH_ALTER_USER: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::StartsWith(&["ALTER", "USER"]), |sql| {
+        CustomStatement::ClickHouseAlterUser {
+            statement: sql.to_string(),
+        }
+    });
+
+static PASSTHROUGH_RENAME_DATABASE: PassthroughParser =
+    PassthroughParser::new(KeywordPattern::StartsWith(&["RENAME", "DATABASE"]), |sql| {
+        CustomStatement::ClickHouseRenameDatabase {
+            statement: sql.to_string(),
+        }
+    });
+
+struct CreateDatabaseEngineParser;
+
+impl ClickHouseStatementParser for CreateDatabaseEngineParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "DATABASE"],
+            contains: "ENGINE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseDatabase {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+struct CreateDatabaseCommentParser;
+
+impl ClickHouseStatementParser for CreateDatabaseCommentParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "DATABASE"],
+            contains: "COMMENT",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        Ok(Some(CustomStatement::ClickHouseDatabase {
+            statement: sql.to_string(),
+        }))
+    }
+}
+
+struct UseParser;
+
+impl ClickHouseStatementParser for UseParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWith(&["USE"])
+    }
+
+    fn parse(&self, tokens: &[&Token], _sql: &str) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "USE") {
+            return Ok(None);
+        }
+
+        let database = match tokens.get(idx) {
+            Some(Token::Word(w)) => w.value.clone(),
+            _ => {
+                return Err(Error::parse_error("Expected database name after USE"));
+            }
+        };
+
+        Ok(Some(CustomStatement::ClickHouseUse { database }))
+    }
+}
+
+static CREATE_INDEX_PARSER: CreateIndexParser = CreateIndexParser;
+static ALTER_CODEC_PARSER: AlterColumnCodecParser = AlterColumnCodecParser;
+static ALTER_TTL_PARSER: AlterTableTtlParser = AlterTableTtlParser;
+static SYSTEM_PARSER: SystemCommandParser = SystemCommandParser;
+static CREATE_DICT_PARSER: CreateDictionaryParser = CreateDictionaryParser;
+static GRANT_ROLE_PARSER: GrantRoleParser = GrantRoleParser;
+static FUNCTION_PARSER: FunctionParser = FunctionParser;
+static CREATE_DATABASE_ENGINE_PARSER: CreateDatabaseEngineParser = CreateDatabaseEngineParser;
+static CREATE_DATABASE_COMMENT_PARSER: CreateDatabaseCommentParser = CreateDatabaseCommentParser;
+static USE_PARSER: UseParser = UseParser;
+
+static PARSERS: &[&dyn ClickHouseStatementParser] = &[
+    &CREATE_DICT_PARSER,
+    &CREATE_INDEX_PARSER,
+    &CREATE_DATABASE_ENGINE_PARSER,
+    &CREATE_DATABASE_COMMENT_PARSER,
+    &PASSTHROUGH_RENAME_DATABASE,
+    &USE_PARSER,
+    &ALTER_CODEC_PARSER,
+    &ALTER_TTL_PARSER,
+    &SYSTEM_PARSER,
+    &PASSTHROUGH_QUOTA,
+    &PASSTHROUGH_ROW_POLICY,
+    &PASSTHROUGH_SETTINGS_PROFILE,
+    &PASSTHROUGH_MATERIALIZED_VIEW,
+    &PASSTHROUGH_DICTIONARY,
+    &PASSTHROUGH_SHOW,
+    &FUNCTION_PARSER,
+    &CREATE_TABLE_WITH_COMPLEX_ENGINE_PARSER,
+    &CREATE_TABLE_WITH_PARTITION_PARSER,
+    &CREATE_TABLE_WITH_SETTINGS_PARSER,
+    &CREATE_TABLE_WITH_PROJECTION_PARSER,
+    &ALTER_TABLE_MODIFY_PARSER,
+    &PASSTHROUGH_PROJECTION,
+    &PASSTHROUGH_ALTER_USER,
+    &GRANT_ROLE_PARSER,
+];
+
 pub struct ClickHouseParser;
 
 impl ClickHouseParser {
-    pub fn parse_alter_column_codec(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+    pub fn try_parse(tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        for parser in PARSERS {
+            if parser.matches(tokens) {
+                match parser.parse(tokens, sql) {
+                    Ok(Some(stmt)) => return Ok(Some(stmt)),
+                    Ok(None) => continue,
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        Ok(None)
+    }
+}
+
+struct Parsing;
+
+impl Parsing {
+    fn parse_alter_column_codec(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
         let mut idx = 0;
 
         if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
@@ -74,7 +886,7 @@ impl ClickHouseParser {
         }))
     }
 
-    pub fn parse_alter_table_ttl(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+    fn parse_alter_table_ttl(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
         let mut idx = 0;
 
         if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
@@ -110,33 +922,6 @@ impl ClickHouseParser {
             table_name,
             operation,
         }))
-    }
-
-    pub fn is_clickhouse_alter_table_ttl(tokens: &[&Token]) -> bool {
-        let mut idx = 0;
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
-            return false;
-        }
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
-            return false;
-        }
-
-        for token in tokens.iter().skip(idx) {
-            if let Token::Word(w) = token
-                && w.value.eq_ignore_ascii_case("TTL")
-            {
-                for t in tokens.iter().skip(idx) {
-                    if let Token::Word(w) = t
-                        && (w.value.eq_ignore_ascii_case("MODIFY")
-                            || w.value.eq_ignore_ascii_case("REMOVE")
-                            || w.value.eq_ignore_ascii_case("MATERIALIZE"))
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
     }
 
     fn collect_remaining_tokens(tokens: &[&Token], idx: &mut usize) -> String {
@@ -197,33 +982,6 @@ impl ClickHouseParser {
         result.trim().to_string()
     }
 
-    pub fn is_clickhouse_alter_column_codec(tokens: &[&Token]) -> bool {
-        let mut idx = 0;
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
-            return false;
-        }
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
-            return false;
-        }
-
-        for token in tokens.iter().skip(idx) {
-            if let Token::Word(w) = token
-                && w.value.eq_ignore_ascii_case("CODEC")
-            {
-                let mut has_modify_column = false;
-                for t in tokens.iter().skip(idx) {
-                    if let Token::Word(w) = t
-                        && w.value.eq_ignore_ascii_case("MODIFY")
-                    {
-                        has_modify_column = true;
-                    }
-                }
-                return has_modify_column;
-            }
-        }
-        false
-    }
-
     fn collect_remaining_parens(tokens: &[&Token], idx: &mut usize) -> Result<String> {
         let mut result = String::new();
         let mut paren_depth = 0;
@@ -271,7 +1029,7 @@ impl ClickHouseParser {
         Ok(result)
     }
 
-    pub fn parse_create_index(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+    fn parse_create_index(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
         let mut idx = 0;
 
         if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
@@ -328,226 +1086,251 @@ impl ClickHouseParser {
         }))
     }
 
-    pub fn parse_quota(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseQuota {
-            statement: sql.to_string(),
-        })
+    fn parse_create_dictionary(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
+            return Ok(None);
+        }
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "DICTIONARY") {
+            return Ok(None);
+        }
+
+        let name = Self::parse_qualified_name(tokens, &mut idx)?;
+
+        Ok(Some(CustomStatement::ClickHouseCreateDictionary { name }))
     }
 
-    pub fn is_quota_statement(tokens: &[&Token]) -> bool {
-        for token in tokens.iter() {
-            if let Token::Word(w) = token
-                && w.value.eq_ignore_ascii_case("QUOTA")
-            {
-                return true;
+    fn parse_system_command(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "SYSTEM") {
+            return Ok(None);
+        }
+
+        let command = Self::parse_system_command_type(tokens, &mut idx)?;
+
+        Ok(Some(CustomStatement::ClickHouseSystem { command }))
+    }
+
+    fn parse_system_command_type(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "RELOAD" => Self::parse_reload_command(tokens, idx),
+            "DROP" => Self::parse_drop_cache_command(tokens, idx),
+            "FLUSH" => Self::parse_flush_command(tokens, idx),
+            "STOP" => Self::parse_stop_command(tokens, idx),
+            "START" => Self::parse_start_command(tokens, idx),
+            "SYNC" => Self::parse_sync_command(tokens, idx),
+            "SHUTDOWN" => Ok(ClickHouseSystemCommand::Shutdown),
+            "KILL" => Ok(ClickHouseSystemCommand::Kill),
+            _ => Err(Error::parse_error(format!(
+                "Unknown SYSTEM command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_reload_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "DICTIONARY" => {
+                let name = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::ReloadDictionary { name })
+            }
+            "DICTIONARIES" => Ok(ClickHouseSystemCommand::ReloadDictionaries),
+            "CONFIG" => Ok(ClickHouseSystemCommand::ReloadConfig),
+            _ => Err(Error::parse_error(format!(
+                "Unknown RELOAD command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_drop_cache_command(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<ClickHouseSystemCommand> {
+        let mut keywords = Vec::new();
+        while *idx < tokens.len() {
+            if let Some(Token::Word(w)) = tokens.get(*idx) {
+                keywords.push(w.value.to_uppercase());
+                *idx += 1;
+            } else {
+                break;
             }
         }
-        false
-    }
 
-    pub fn parse_row_policy(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseRowPolicy {
-            statement: sql.to_string(),
-        })
-    }
+        let combined = keywords.join(" ");
+        match combined.as_str() {
+            "DNS CACHE" => Ok(ClickHouseSystemCommand::DropDnsCache),
+            "MARK CACHE" => Ok(ClickHouseSystemCommand::DropMarkCache),
+            "UNCOMPRESSED CACHE" => Ok(ClickHouseSystemCommand::DropUncompressedCache),
+            "COMPILED EXPRESSION CACHE" => Ok(ClickHouseSystemCommand::DropCompiledExpressionCache),
+            s if s.starts_with("REPLICA") => {
+                let replica_name = if keywords.len() >= 2 {
+                    keywords.get(1).cloned()
+                } else {
+                    Self::try_parse_string_literal(tokens, idx)
+                };
+                let replica_name = replica_name.ok_or_else(|| {
+                    Error::parse_error("Expected replica name after DROP REPLICA".to_string())
+                })?;
 
-    pub fn is_row_policy_statement(tokens: &[&Token]) -> bool {
-        let mut found_row = false;
-        let mut found_policy = false;
-        for token in tokens.iter() {
-            if let Token::Word(w) = token {
-                if w.value.eq_ignore_ascii_case("ROW") {
-                    found_row = true;
-                }
-                if w.value.eq_ignore_ascii_case("POLICY") && found_row {
-                    found_policy = true;
-                }
-            }
-        }
-        found_row && found_policy
-    }
-
-    pub fn parse_settings_profile(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseSettingsProfile {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_settings_profile_statement(tokens: &[&Token]) -> bool {
-        let mut found_settings = false;
-        let mut found_profile = false;
-        for token in tokens.iter() {
-            if let Token::Word(w) = token {
-                if w.value.eq_ignore_ascii_case("SETTINGS") {
-                    found_settings = true;
-                }
-                if w.value.eq_ignore_ascii_case("PROFILE") && found_settings {
-                    found_profile = true;
-                }
-            }
-        }
-        found_settings && found_profile
-    }
-
-    pub fn parse_dictionary(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseDictionary {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_dictionary_statement(tokens: &[&Token]) -> bool {
-        for token in tokens.iter() {
-            if let Token::Word(w) = token
-                && w.value.eq_ignore_ascii_case("DICTIONARY")
-            {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn parse_show(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseShow {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_show_statement(tokens: &[&Token]) -> bool {
-        if let Some(Token::Word(w)) = tokens.first()
-            && w.value.eq_ignore_ascii_case("SHOW")
-        {
-            return true;
-        }
-        false
-    }
-
-    pub fn parse_function(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseFunction {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_function_statement(tokens: &[&Token]) -> bool {
-        let first_keyword = tokens
-            .iter()
-            .find_map(|t| {
-                if let Token::Word(w) = t {
-                    Some(w.value.to_uppercase())
+                let from_table = if ParserHelpers::consume_keyword(tokens, idx, "FROM") {
+                    ParserHelpers::consume_keyword(tokens, idx, "TABLE");
+                    Self::try_parse_qualified_name_string(tokens, idx)
                 } else {
                     None
+                };
+
+                Ok(ClickHouseSystemCommand::DropReplica {
+                    replica_name: replica_name.trim_matches('\'').to_string(),
+                    from_table,
+                })
+            }
+            _ => Err(Error::parse_error(format!(
+                "Unknown DROP cache command: {}",
+                combined
+            ))),
+        }
+    }
+
+    fn parse_flush_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "LOGS" => Ok(ClickHouseSystemCommand::FlushLogs),
+            _ => Err(Error::parse_error(format!(
+                "Unknown FLUSH command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_stop_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "MERGES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopMerges { table })
+            }
+            "TTL" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "MERGES") {
+                    return Err(Error::parse_error("Expected MERGES after TTL".to_string()));
                 }
-            })
-            .unwrap_or_default();
-
-        if !matches!(first_keyword.as_str(), "CREATE" | "DROP") {
-            return false;
-        }
-
-        for token in tokens.iter() {
-            if let Token::Word(w) = token
-                && w.value.eq_ignore_ascii_case("FUNCTION")
-            {
-                return true;
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopTtlMerges { table })
             }
-        }
-        false
-    }
-
-    pub fn parse_materialized_view(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseMaterializedView {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_materialized_view_statement(tokens: &[&Token]) -> bool {
-        let mut found_materialized = false;
-        let mut found_view = false;
-
-        for token in tokens.iter() {
-            if let Token::Word(w) = token {
-                if w.value.eq_ignore_ascii_case("MATERIALIZED") {
-                    found_materialized = true;
+            "MOVES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopMoves { table })
+            }
+            "FETCHES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopFetches { table })
+            }
+            "SENDS" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopSends { table })
+            }
+            "REPLICATION" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "QUEUES") {
+                    return Err(Error::parse_error(
+                        "Expected QUEUES after REPLICATION".to_string(),
+                    ));
                 }
-                if w.value.eq_ignore_ascii_case("VIEW") && found_materialized {
-                    found_view = true;
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StopReplicationQueues { table })
+            }
+            _ => Err(Error::parse_error(format!(
+                "Unknown STOP command: {}",
+                keyword
+            ))),
+        }
+    }
+
+    fn parse_start_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
+
+        match keyword.to_uppercase().as_str() {
+            "MERGES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartMerges { table })
+            }
+            "TTL" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "MERGES") {
+                    return Err(Error::parse_error("Expected MERGES after TTL".to_string()));
                 }
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartTtlMerges { table })
             }
-        }
-        found_materialized && found_view
-    }
-
-    pub fn parse_projection(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseProjection {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_projection_statement(tokens: &[&Token]) -> bool {
-        for token in tokens.iter() {
-            if let Token::Word(w) = token
-                && w.value.eq_ignore_ascii_case("PROJECTION")
-            {
-                return true;
+            "MOVES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartMoves { table })
             }
-        }
-        false
-    }
-
-    pub fn parse_alter_user(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseAlterUser {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_alter_user_statement(tokens: &[&Token]) -> bool {
-        let mut idx = 0;
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
-            return false;
-        }
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "USER") {
-            return false;
-        }
-        true
-    }
-
-    pub fn parse_grant(sql: &str) -> Option<CustomStatement> {
-        Some(CustomStatement::ClickHouseGrant {
-            statement: sql.to_string(),
-        })
-    }
-
-    pub fn is_grant_statement(tokens: &[&Token]) -> bool {
-        if let Some(Token::Word(w)) = tokens.first()
-            && (w.value.eq_ignore_ascii_case("GRANT") || w.value.eq_ignore_ascii_case("REVOKE"))
-        {
-            for token in tokens.iter() {
-                if let Token::Word(w) = token
-                    && w.value.eq_ignore_ascii_case("ROLE")
-                {
-                    return true;
+            "FETCHES" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartFetches { table })
+            }
+            "SENDS" => {
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartSends { table })
+            }
+            "REPLICATION" => {
+                if !ParserHelpers::consume_keyword(tokens, idx, "QUEUES") {
+                    return Err(Error::parse_error(
+                        "Expected QUEUES after REPLICATION".to_string(),
+                    ));
                 }
+                let table = Self::try_parse_identifier(tokens, idx);
+                Ok(ClickHouseSystemCommand::StartReplicationQueues { table })
             }
+            _ => Err(Error::parse_error(format!(
+                "Unknown START command: {}",
+                keyword
+            ))),
         }
-        false
     }
 
-    pub fn is_clickhouse_create_index(tokens: &[&Token]) -> bool {
-        let mut idx = 0;
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
-            return false;
-        }
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "INDEX") {
-            return false;
-        }
+    fn parse_sync_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
+        let keyword = Self::get_keyword(tokens, *idx)?;
+        *idx += 1;
 
-        for token in tokens.iter() {
-            if let Token::Word(w) = token
-                && w.value.eq_ignore_ascii_case("TYPE")
-            {
-                return true;
+        match keyword.to_uppercase().as_str() {
+            "REPLICA" => {
+                let table = Self::try_parse_identifier(tokens, idx).ok_or_else(|| {
+                    Error::parse_error("Expected table name after SYNC REPLICA".to_string())
+                })?;
+                Ok(ClickHouseSystemCommand::SyncReplica { table })
             }
+            _ => Err(Error::parse_error(format!(
+                "Unknown SYNC command: {}",
+                keyword
+            ))),
         }
-        false
+    }
+
+    fn get_keyword(tokens: &[&Token], idx: usize) -> Result<String> {
+        match tokens.get(idx) {
+            Some(Token::Word(w)) => Ok(w.value.clone()),
+            other => Err(Error::parse_error(format!(
+                "Expected keyword, found {:?}",
+                other
+            ))),
+        }
     }
 
     fn parse_identifier(tokens: &[&Token], idx: &mut usize) -> Result<String> {
@@ -564,6 +1347,30 @@ impl ClickHouseParser {
                 "Expected identifier, found {:?}",
                 other
             ))),
+        }
+    }
+
+    fn try_parse_identifier(tokens: &[&Token], idx: &mut usize) -> Option<String> {
+        match tokens.get(*idx) {
+            Some(Token::Word(w)) => {
+                *idx += 1;
+                Some(w.value.clone())
+            }
+            Some(Token::DoubleQuotedString(s)) | Some(Token::SingleQuotedString(s)) => {
+                *idx += 1;
+                Some(s.clone())
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_string_literal(tokens: &[&Token], idx: &mut usize) -> Option<String> {
+        match tokens.get(*idx) {
+            Some(Token::SingleQuotedString(s)) | Some(Token::DoubleQuotedString(s)) => {
+                *idx += 1;
+                Some(s.clone())
+            }
+            _ => None,
         }
     }
 
@@ -584,6 +1391,27 @@ impl ClickHouseParser {
         }
 
         Ok(ObjectName(parts))
+    }
+
+    fn try_parse_qualified_name_string(tokens: &[&Token], idx: &mut usize) -> Option<String> {
+        let mut parts = vec![];
+
+        if let Some(first) = Self::try_parse_identifier(tokens, idx) {
+            parts.push(first);
+        } else {
+            return None;
+        }
+
+        while matches!(tokens.get(*idx), Some(Token::Period)) {
+            *idx += 1;
+            if let Some(next) = Self::try_parse_identifier(tokens, idx) {
+                parts.push(next);
+            } else {
+                break;
+            }
+        }
+
+        Some(parts.join("."))
     }
 
     fn parse_column_list(tokens: &[&Token], idx: &mut usize) -> Result<Vec<String>> {
@@ -835,310 +1663,6 @@ impl ClickHouseParser {
             ))),
         }
     }
-
-    pub fn is_system_command(tokens: &[&Token]) -> bool {
-        matches!(tokens.first(), Some(Token::Word(w)) if w.value.eq_ignore_ascii_case("SYSTEM"))
-    }
-
-    pub fn is_create_dictionary(tokens: &[&Token]) -> bool {
-        let mut idx = 0;
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
-            return false;
-        }
-        ParserHelpers::expect_keyword(tokens, &mut idx, "DICTIONARY")
-    }
-
-    pub fn parse_create_dictionary(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
-        let mut idx = 0;
-
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
-            return Ok(None);
-        }
-
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "DICTIONARY") {
-            return Ok(None);
-        }
-
-        let name = Self::parse_qualified_name(tokens, &mut idx)?;
-
-        Ok(Some(CustomStatement::ClickHouseCreateDictionary { name }))
-    }
-
-    pub fn parse_system_command(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
-        let mut idx = 0;
-
-        if !ParserHelpers::expect_keyword(tokens, &mut idx, "SYSTEM") {
-            return Ok(None);
-        }
-
-        let command = Self::parse_system_command_type(tokens, &mut idx)?;
-
-        Ok(Some(CustomStatement::ClickHouseSystem { command }))
-    }
-
-    fn parse_system_command_type(
-        tokens: &[&Token],
-        idx: &mut usize,
-    ) -> Result<ClickHouseSystemCommand> {
-        let keyword = Self::get_keyword(tokens, *idx)?;
-        *idx += 1;
-
-        match keyword.to_uppercase().as_str() {
-            "RELOAD" => Self::parse_reload_command(tokens, idx),
-            "DROP" => Self::parse_drop_cache_command(tokens, idx),
-            "FLUSH" => Self::parse_flush_command(tokens, idx),
-            "STOP" => Self::parse_stop_command(tokens, idx),
-            "START" => Self::parse_start_command(tokens, idx),
-            "SYNC" => Self::parse_sync_command(tokens, idx),
-            "SHUTDOWN" => Ok(ClickHouseSystemCommand::Shutdown),
-            "KILL" => Ok(ClickHouseSystemCommand::Kill),
-            _ => Err(Error::parse_error(format!(
-                "Unknown SYSTEM command: {}",
-                keyword
-            ))),
-        }
-    }
-
-    fn parse_reload_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
-        let keyword = Self::get_keyword(tokens, *idx)?;
-        *idx += 1;
-
-        match keyword.to_uppercase().as_str() {
-            "DICTIONARY" => {
-                let name = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::ReloadDictionary { name })
-            }
-            "DICTIONARIES" => Ok(ClickHouseSystemCommand::ReloadDictionaries),
-            "CONFIG" => Ok(ClickHouseSystemCommand::ReloadConfig),
-            _ => Err(Error::parse_error(format!(
-                "Unknown RELOAD command: {}",
-                keyword
-            ))),
-        }
-    }
-
-    fn parse_drop_cache_command(
-        tokens: &[&Token],
-        idx: &mut usize,
-    ) -> Result<ClickHouseSystemCommand> {
-        let mut keywords = Vec::new();
-        while *idx < tokens.len() {
-            if let Some(Token::Word(w)) = tokens.get(*idx) {
-                keywords.push(w.value.to_uppercase());
-                *idx += 1;
-            } else {
-                break;
-            }
-        }
-
-        let combined = keywords.join(" ");
-        match combined.as_str() {
-            "DNS CACHE" => Ok(ClickHouseSystemCommand::DropDnsCache),
-            "MARK CACHE" => Ok(ClickHouseSystemCommand::DropMarkCache),
-            "UNCOMPRESSED CACHE" => Ok(ClickHouseSystemCommand::DropUncompressedCache),
-            "COMPILED EXPRESSION CACHE" => Ok(ClickHouseSystemCommand::DropCompiledExpressionCache),
-            s if s.starts_with("REPLICA") => {
-                let replica_name = if keywords.len() >= 2 {
-                    keywords.get(1).cloned()
-                } else {
-                    Self::try_parse_string_literal(tokens, idx)
-                };
-                let replica_name = replica_name.ok_or_else(|| {
-                    Error::parse_error("Expected replica name after DROP REPLICA".to_string())
-                })?;
-
-                let from_table = if ParserHelpers::consume_keyword(tokens, idx, "FROM") {
-                    ParserHelpers::consume_keyword(tokens, idx, "TABLE");
-                    Self::try_parse_qualified_name_string(tokens, idx)
-                } else {
-                    None
-                };
-
-                Ok(ClickHouseSystemCommand::DropReplica {
-                    replica_name: replica_name.trim_matches('\'').to_string(),
-                    from_table,
-                })
-            }
-            _ => Err(Error::parse_error(format!(
-                "Unknown DROP cache command: {}",
-                combined
-            ))),
-        }
-    }
-
-    fn parse_flush_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
-        let keyword = Self::get_keyword(tokens, *idx)?;
-        *idx += 1;
-
-        match keyword.to_uppercase().as_str() {
-            "LOGS" => Ok(ClickHouseSystemCommand::FlushLogs),
-            _ => Err(Error::parse_error(format!(
-                "Unknown FLUSH command: {}",
-                keyword
-            ))),
-        }
-    }
-
-    fn parse_stop_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
-        let keyword = Self::get_keyword(tokens, *idx)?;
-        *idx += 1;
-
-        match keyword.to_uppercase().as_str() {
-            "MERGES" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StopMerges { table })
-            }
-            "TTL" => {
-                if !ParserHelpers::consume_keyword(tokens, idx, "MERGES") {
-                    return Err(Error::parse_error("Expected MERGES after TTL".to_string()));
-                }
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StopTtlMerges { table })
-            }
-            "MOVES" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StopMoves { table })
-            }
-            "FETCHES" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StopFetches { table })
-            }
-            "SENDS" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StopSends { table })
-            }
-            "REPLICATION" => {
-                if !ParserHelpers::consume_keyword(tokens, idx, "QUEUES") {
-                    return Err(Error::parse_error(
-                        "Expected QUEUES after REPLICATION".to_string(),
-                    ));
-                }
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StopReplicationQueues { table })
-            }
-            _ => Err(Error::parse_error(format!(
-                "Unknown STOP command: {}",
-                keyword
-            ))),
-        }
-    }
-
-    fn parse_start_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
-        let keyword = Self::get_keyword(tokens, *idx)?;
-        *idx += 1;
-
-        match keyword.to_uppercase().as_str() {
-            "MERGES" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StartMerges { table })
-            }
-            "TTL" => {
-                if !ParserHelpers::consume_keyword(tokens, idx, "MERGES") {
-                    return Err(Error::parse_error("Expected MERGES after TTL".to_string()));
-                }
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StartTtlMerges { table })
-            }
-            "MOVES" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StartMoves { table })
-            }
-            "FETCHES" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StartFetches { table })
-            }
-            "SENDS" => {
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StartSends { table })
-            }
-            "REPLICATION" => {
-                if !ParserHelpers::consume_keyword(tokens, idx, "QUEUES") {
-                    return Err(Error::parse_error(
-                        "Expected QUEUES after REPLICATION".to_string(),
-                    ));
-                }
-                let table = Self::try_parse_identifier(tokens, idx);
-                Ok(ClickHouseSystemCommand::StartReplicationQueues { table })
-            }
-            _ => Err(Error::parse_error(format!(
-                "Unknown START command: {}",
-                keyword
-            ))),
-        }
-    }
-
-    fn parse_sync_command(tokens: &[&Token], idx: &mut usize) -> Result<ClickHouseSystemCommand> {
-        let keyword = Self::get_keyword(tokens, *idx)?;
-        *idx += 1;
-
-        match keyword.to_uppercase().as_str() {
-            "REPLICA" => {
-                let table = Self::try_parse_identifier(tokens, idx).ok_or_else(|| {
-                    Error::parse_error("Expected table name after SYNC REPLICA".to_string())
-                })?;
-                Ok(ClickHouseSystemCommand::SyncReplica { table })
-            }
-            _ => Err(Error::parse_error(format!(
-                "Unknown SYNC command: {}",
-                keyword
-            ))),
-        }
-    }
-
-    fn get_keyword(tokens: &[&Token], idx: usize) -> Result<String> {
-        match tokens.get(idx) {
-            Some(Token::Word(w)) => Ok(w.value.clone()),
-            other => Err(Error::parse_error(format!(
-                "Expected keyword, found {:?}",
-                other
-            ))),
-        }
-    }
-
-    fn try_parse_identifier(tokens: &[&Token], idx: &mut usize) -> Option<String> {
-        match tokens.get(*idx) {
-            Some(Token::Word(w)) => {
-                *idx += 1;
-                Some(w.value.clone())
-            }
-            Some(Token::DoubleQuotedString(s)) | Some(Token::SingleQuotedString(s)) => {
-                *idx += 1;
-                Some(s.clone())
-            }
-            _ => None,
-        }
-    }
-
-    fn try_parse_string_literal(tokens: &[&Token], idx: &mut usize) -> Option<String> {
-        match tokens.get(*idx) {
-            Some(Token::SingleQuotedString(s)) | Some(Token::DoubleQuotedString(s)) => {
-                *idx += 1;
-                Some(s.clone())
-            }
-            _ => None,
-        }
-    }
-
-    fn try_parse_qualified_name_string(tokens: &[&Token], idx: &mut usize) -> Option<String> {
-        let mut parts = vec![];
-
-        if let Some(first) = Self::try_parse_identifier(tokens, idx) {
-            parts.push(first);
-        } else {
-            return None;
-        }
-
-        while matches!(tokens.get(*idx), Some(Token::Period)) {
-            *idx += 1;
-            if let Some(next) = Self::try_parse_identifier(tokens, idx) {
-                parts.push(next);
-            } else {
-                break;
-            }
-        }
-
-        Some(parts.join("."))
-    }
 }
 
 #[cfg(test)]
@@ -1167,7 +1691,7 @@ mod tests {
         let tokens = tokenize(sql);
         let filtered: Vec<&Token> = filter_tokens(&tokens);
 
-        let result = ClickHouseParser::parse_create_index(&filtered).unwrap();
+        let result = ClickHouseParser::try_parse(&filtered, sql).unwrap();
         assert!(result.is_some());
 
         match result.unwrap() {
@@ -1193,7 +1717,7 @@ mod tests {
         let tokens = tokenize(sql);
         let filtered: Vec<&Token> = filter_tokens(&tokens);
 
-        let result = ClickHouseParser::parse_create_index(&filtered).unwrap();
+        let result = ClickHouseParser::try_parse(&filtered, sql).unwrap();
         assert!(result.is_some());
 
         match result.unwrap() {
@@ -1213,7 +1737,7 @@ mod tests {
         let tokens = tokenize(sql);
         let filtered: Vec<&Token> = filter_tokens(&tokens);
 
-        let result = ClickHouseParser::parse_create_index(&filtered).unwrap();
+        let result = ClickHouseParser::try_parse(&filtered, sql).unwrap();
         assert!(result.is_some());
 
         match result.unwrap() {
@@ -1232,11 +1756,73 @@ mod tests {
         let sql_with_type = "CREATE INDEX idx ON t (c) TYPE minmax";
         let tokens = tokenize(sql_with_type);
         let filtered: Vec<&Token> = filter_tokens(&tokens);
-        assert!(ClickHouseParser::is_clickhouse_create_index(&filtered));
+        assert!(
+            ClickHouseParser::try_parse(&filtered, sql_with_type)
+                .unwrap()
+                .is_some()
+        );
 
         let sql_without_type = "CREATE INDEX idx ON t (c)";
         let tokens = tokenize(sql_without_type);
         let filtered: Vec<&Token> = filter_tokens(&tokens);
-        assert!(!ClickHouseParser::is_clickhouse_create_index(&filtered));
+        assert!(
+            ClickHouseParser::try_parse(&filtered, sql_without_type)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_passthrough_quota() {
+        let sql = "CREATE QUOTA my_quota";
+        let tokens = tokenize(sql);
+        let filtered: Vec<&Token> = filter_tokens(&tokens);
+
+        let result = ClickHouseParser::try_parse(&filtered, sql).unwrap();
+        assert!(matches!(
+            result,
+            Some(CustomStatement::ClickHouseQuota { .. })
+        ));
+    }
+
+    #[test]
+    fn test_passthrough_row_policy() {
+        let sql = "CREATE ROW POLICY my_policy ON table";
+        let tokens = tokenize(sql);
+        let filtered: Vec<&Token> = filter_tokens(&tokens);
+
+        let result = ClickHouseParser::try_parse(&filtered, sql).unwrap();
+        assert!(matches!(
+            result,
+            Some(CustomStatement::ClickHouseRowPolicy { .. })
+        ));
+    }
+
+    #[test]
+    fn test_passthrough_show() {
+        let sql = "SHOW TABLES";
+        let tokens = tokenize(sql);
+        let filtered: Vec<&Token> = filter_tokens(&tokens);
+
+        let result = ClickHouseParser::try_parse(&filtered, sql).unwrap();
+        assert!(matches!(
+            result,
+            Some(CustomStatement::ClickHouseShow { .. })
+        ));
+    }
+
+    #[test]
+    fn test_system_command() {
+        let sql = "SYSTEM FLUSH LOGS";
+        let tokens = tokenize(sql);
+        let filtered: Vec<&Token> = filter_tokens(&tokens);
+
+        let result = ClickHouseParser::try_parse(&filtered, sql).unwrap();
+        assert!(matches!(
+            result,
+            Some(CustomStatement::ClickHouseSystem {
+                command: ClickHouseSystemCommand::FlushLogs
+            })
+        ));
     }
 }

@@ -49,6 +49,18 @@ impl LogicalPlanBuilder {
                     false
                 };
 
+                let column_aliases = if cte.alias.columns.is_empty() {
+                    None
+                } else {
+                    Some(
+                        cte.alias
+                            .columns
+                            .iter()
+                            .map(|c| c.name.value.clone())
+                            .collect(),
+                    )
+                };
+
                 current_plan = LogicalPlan::new(PlanNode::Cte {
                     name: cte_name,
                     cte_plan: cte_plan.root,
@@ -56,6 +68,7 @@ impl LogicalPlanBuilder {
                     recursive: with.recursive,
                     use_union_all,
                     materialization_hint: cte.materialized.clone(),
+                    column_aliases,
                 });
             }
 
@@ -2089,12 +2102,26 @@ impl LogicalPlanBuilder {
             ast::TableFactor::Table { name, alias, .. } => {
                 let original_name = name.to_string();
 
-                let table_name = self.resolve_table_name(&original_name);
-                let table_alias = alias.as_ref().map(|a| a.name.value.clone());
+                let (table_name, only) = if original_name.eq_ignore_ascii_case("ONLY") {
+                    let table_alias = alias.as_ref().map(|a| a.name.value.clone());
+                    if let Some(real_table) = table_alias {
+                        (self.resolve_table_name(&real_table), true)
+                    } else {
+                        (self.resolve_table_name(&original_name), false)
+                    }
+                } else {
+                    (self.resolve_table_name(&original_name), false)
+                };
+                let table_alias = if only {
+                    None
+                } else {
+                    alias.as_ref().map(|a| a.name.value.clone())
+                };
                 Ok(LogicalPlan::new(PlanNode::Scan {
                     table_name,
                     alias: table_alias,
                     projection: None,
+                    only,
                 }))
             }
             ast::TableFactor::Derived {
