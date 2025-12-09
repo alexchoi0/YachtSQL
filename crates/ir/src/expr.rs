@@ -280,6 +280,8 @@ pub enum LiteralValue {
     String(String),
     Bytes(Vec<u8>),
     Date(String),
+    Time(String),
+    DateTime(String),
     Timestamp(String),
     Uuid(String),
     Json(String),
@@ -313,6 +315,20 @@ impl LiteralValue {
                     Value::null()
                 }
             }
+            LiteralValue::Time(s) => {
+                if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M:%S") {
+                    Value::time(time)
+                } else if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M:%S%.f") {
+                    Value::time(time)
+                } else if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M") {
+                    Value::time(time)
+                } else {
+                    Value::null()
+                }
+            }
+            LiteralValue::DateTime(s) => yachtsql_core::types::parse_timestamp_to_utc(s)
+                .map(Value::datetime)
+                .unwrap_or(Value::null()),
             LiteralValue::Timestamp(s) => yachtsql_core::types::parse_timestamp_to_utc(s)
                 .map(Value::timestamp)
                 .unwrap_or(Value::null()),

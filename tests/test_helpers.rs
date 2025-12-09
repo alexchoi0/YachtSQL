@@ -285,3 +285,13 @@ pub fn datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) 
         .unwrap();
     Value::datetime(dt)
 }
+
+pub fn time(hour: u32, min: u32, sec: u32) -> Value {
+    use chrono::NaiveTime;
+    let t = NaiveTime::from_hms_opt(hour, min, sec).unwrap();
+    Value::time(t)
+}
+
+pub fn tm(hour: u32, min: u32, sec: u32) -> Value {
+    time(hour, min, sec)
+}

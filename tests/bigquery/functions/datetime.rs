@@ -1,5 +1,5 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, d, ts};
+use crate::common::{create_executor, d, dt, tm, ts};
 
 #[test]
 fn test_current_date() {
@@ -219,7 +219,6 @@ fn test_unix_date() {
 }
 
 #[test]
-#[ignore = "PARSE_DATE not yet fully implemented"]
 fn test_parse_date() {
     let mut executor = create_executor();
     let result = executor
@@ -229,7 +228,6 @@ fn test_parse_date() {
 }
 
 #[test]
-#[ignore = "FORMAT_DATE not yet fully implemented"]
 fn test_format_date() {
     let mut executor = create_executor();
     let result = executor
@@ -275,7 +273,6 @@ fn test_timestamp_diff() {
 }
 
 #[test]
-#[ignore = "TIMESTAMP_TRUNC argument order issue"]
 fn test_timestamp_trunc() {
     let mut executor = create_executor();
     let result = executor
@@ -285,7 +282,6 @@ fn test_timestamp_trunc() {
 }
 
 #[test]
-#[ignore = "PARSE_TIMESTAMP not yet fully implemented"]
 fn test_parse_timestamp() {
     let mut executor = create_executor();
     let result = executor
@@ -295,7 +291,6 @@ fn test_parse_timestamp() {
 }
 
 #[test]
-#[ignore = "FORMAT_TIMESTAMP not yet fully implemented"]
 fn test_format_timestamp() {
     let mut executor = create_executor();
     let result = executor
@@ -359,35 +354,31 @@ fn test_timestamp_micros() {
 }
 
 #[test]
-#[ignore = "TIME literal not yet supported"]
 fn test_time_literal() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT TIME '14:30:00'").unwrap();
-    assert_table_eq!(result, [["14:30:00"]]);
+    assert_table_eq!(result, [[tm(14, 30, 0)]]);
 }
 
 #[test]
-#[ignore = "TIME literal not yet supported"]
 fn test_time_add() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT TIME_ADD(TIME '10:00:00', INTERVAL 30 MINUTE)")
         .unwrap();
-    assert_table_eq!(result, [["10:30:00"]]);
+    assert_table_eq!(result, [[tm(10, 30, 0)]]);
 }
 
 #[test]
-#[ignore = "TIME literal not yet supported"]
 fn test_time_sub() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT TIME_SUB(TIME '10:00:00', INTERVAL 30 MINUTE)")
         .unwrap();
-    assert_table_eq!(result, [["09:30:00"]]);
+    assert_table_eq!(result, [[tm(9, 30, 0)]]);
 }
 
 #[test]
-#[ignore = "TIME literal not yet supported"]
 fn test_time_diff() {
     let mut executor = create_executor();
     let result = executor
@@ -397,47 +388,42 @@ fn test_time_diff() {
 }
 
 #[test]
-#[ignore = "TIME literal not yet supported"]
 fn test_time_trunc() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT TIME_TRUNC(TIME '14:30:45', HOUR)")
         .unwrap();
-    assert_table_eq!(result, [["14:00:00"]]);
+    assert_table_eq!(result, [[tm(14, 0, 0)]]);
 }
 
 #[test]
-#[ignore = "DATETIME literal not yet supported"]
 fn test_datetime_literal() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT DATETIME '2024-06-15 14:30:00'")
         .unwrap();
-    assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 0)]]);
+    assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
 }
 
 #[test]
-#[ignore = "DATETIME literal not yet supported"]
 fn test_datetime_add() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT DATETIME_ADD(DATETIME '2024-01-15 10:00:00', INTERVAL 1 DAY)")
         .unwrap();
-    assert_table_eq!(result, [[ts(2024, 1, 16, 10, 0, 0)]]);
+    assert_table_eq!(result, [[dt(2024, 1, 16, 10, 0, 0)]]);
 }
 
 #[test]
-#[ignore = "DATETIME literal not yet supported"]
 fn test_datetime_sub() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT DATETIME_SUB(DATETIME '2024-01-15 10:00:00', INTERVAL 1 DAY)")
         .unwrap();
-    assert_table_eq!(result, [[ts(2024, 1, 14, 10, 0, 0)]]);
+    assert_table_eq!(result, [[dt(2024, 1, 14, 10, 0, 0)]]);
 }
 
 #[test]
-#[ignore = "DATETIME literal not yet supported"]
 fn test_datetime_diff() {
     let mut executor = create_executor();
     let result = executor
@@ -447,17 +433,15 @@ fn test_datetime_diff() {
 }
 
 #[test]
-#[ignore = "DATETIME literal not yet supported"]
 fn test_datetime_trunc() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT DATETIME_TRUNC(DATETIME '2024-06-15 14:30:45', MONTH)")
         .unwrap();
-    assert_table_eq!(result, [[ts(2024, 6, 1, 0, 0, 0)]]);
+    assert_table_eq!(result, [[dt(2024, 6, 1, 0, 0, 0)]]);
 }
 
 #[test]
-#[ignore = "WEEK extraction not yet implemented"]
 fn test_extract_week() {
     let mut executor = create_executor();
     let result = executor

@@ -1,5 +1,5 @@
 use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_core::types::{Range, RangeType, Value};
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::ProjectionWithExprExec;
@@ -13,6 +13,38 @@ impl ProjectionWithExprExec {
         row_idx: usize,
     ) -> Result<Value> {
         match name {
+            "RANGE" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("RANGE requires exactly 2 arguments"));
+                }
+                let lower = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let upper = Self::evaluate_expr(&args[1], batch, row_idx)?;
+
+                let range_type = if lower.as_date().is_some() || upper.as_date().is_some() {
+                    RangeType::DateRange
+                } else if lower.as_timestamp().is_some()
+                    || lower.as_datetime().is_some()
+                    || upper.as_timestamp().is_some()
+                    || upper.as_datetime().is_some()
+                {
+                    RangeType::TsRange
+                } else if lower.as_i64().is_some() || upper.as_i64().is_some() {
+                    RangeType::Int8Range
+                } else {
+                    RangeType::DateRange
+                };
+
+                let lower_val = if lower.is_null() { None } else { Some(lower) };
+                let upper_val = if upper.is_null() { None } else { Some(upper) };
+
+                Ok(Value::range(Range {
+                    range_type,
+                    lower: lower_val,
+                    upper: upper_val,
+                    lower_inclusive: true,
+                    upper_inclusive: false,
+                }))
+            }
             "LOWER" => {
                 if args.len() != 1 {
                     return Err(Error::invalid_query("LOWER requires 1 argument"));
@@ -93,8 +125,12 @@ impl ProjectionWithExprExec {
                     return Err(Error::invalid_query("RANGE_CONTAINS requires 2 arguments"));
                 }
                 let range1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                let range2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                yachtsql_functions::range::range_contains_range(&range1, &range2)
+                let arg2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if arg2.as_range().is_some() {
+                    yachtsql_functions::range::range_contains_range(&range1, &arg2)
+                } else {
+                    yachtsql_functions::range::range_contains(&range1, &arg2)
+                }
             }
             "RANGE_CONTAINS_ELEM" => {
                 if args.len() != 2 {
@@ -169,6 +205,28 @@ impl ProjectionWithExprExec {
                 let range1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
                 let range2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
                 yachtsql_functions::range::range_difference(&range1, &range2)
+            }
+            "RANGE_START" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("RANGE_START requires 1 argument"));
+                }
+                let range = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                yachtsql_functions::range::range_lower(&range)
+            }
+            "RANGE_END" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("RANGE_END requires 1 argument"));
+                }
+                let range = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                yachtsql_functions::range::range_upper(&range)
+            }
+            "RANGE_INTERSECT" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("RANGE_INTERSECT requires 2 arguments"));
+                }
+                let range1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let range2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                yachtsql_functions::range::range_intersection(&range1, &range2)
             }
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown range function: {}",

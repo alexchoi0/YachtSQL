@@ -385,6 +385,8 @@ impl ProjectionWithExprExec {
             LiteralValue::String(_) => Some(DataType::String),
             LiteralValue::Bytes(_) => Some(DataType::Bytes),
             LiteralValue::Date(_) => Some(DataType::Date),
+            LiteralValue::Time(_) => Some(DataType::Time),
+            LiteralValue::DateTime(_) => Some(DataType::DateTime),
             LiteralValue::Timestamp(_) => Some(DataType::Timestamp),
             LiteralValue::Json(_) => Some(DataType::Json),
             LiteralValue::Array(elements) => {
@@ -1149,12 +1151,54 @@ impl ProjectionWithExprExec {
             | FunctionName::RangeStrictlyLeft
             | FunctionName::RangeStrictlyRight => Some(DataType::Bool),
 
+            FunctionName::Range => {
+                if !args.is_empty() {
+                    match Self::infer_expr_type_with_schema(&args[0], schema) {
+                        Some(DataType::Date) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::DateRange))
+                        }
+                        Some(DataType::Timestamp) | Some(DataType::DateTime) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::TsRange))
+                        }
+                        Some(DataType::Int64) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::Int8Range))
+                        }
+                        Some(DataType::Float64) => {
+                            Some(DataType::Range(yachtsql_core::types::RangeType::NumRange))
+                        }
+                        _ => Some(DataType::Range(yachtsql_core::types::RangeType::DateRange)),
+                    }
+                } else {
+                    Some(DataType::Range(yachtsql_core::types::RangeType::DateRange))
+                }
+            }
+
             FunctionName::RangeMerge
             | FunctionName::RangeUnion
             | FunctionName::RangeIntersection
             | FunctionName::RangeDifference => {
                 if !args.is_empty() {
                     Self::infer_expr_type_with_schema(&args[0], schema)
+                } else {
+                    None
+                }
+            }
+
+            FunctionName::RangeStart | FunctionName::RangeEnd => {
+                if !args.is_empty() {
+                    match Self::infer_expr_type_with_schema(&args[0], schema) {
+                        Some(DataType::Range(range_type)) => match range_type {
+                            yachtsql_core::types::RangeType::Int4Range
+                            | yachtsql_core::types::RangeType::Int8Range => Some(DataType::Int64),
+                            yachtsql_core::types::RangeType::NumRange => Some(DataType::Float64),
+                            yachtsql_core::types::RangeType::DateRange => Some(DataType::Date),
+                            yachtsql_core::types::RangeType::TsRange
+                            | yachtsql_core::types::RangeType::TsTzRange => {
+                                Some(DataType::Timestamp)
+                            }
+                        },
+                        _ => None,
+                    }
                 } else {
                     None
                 }
@@ -1256,10 +1300,11 @@ impl ProjectionWithExprExec {
             | FunctionName::TimestampMillis
             | FunctionName::TimestampMicros
             | FunctionName::TimestampAdd
-            | FunctionName::TimestampSub
-            | FunctionName::DatetimeAdd
-            | FunctionName::DatetimeSub
-            | FunctionName::DatetimeTrunc => Some(DataType::Timestamp),
+            | FunctionName::TimestampSub => Some(DataType::Timestamp),
+
+            FunctionName::DatetimeAdd | FunctionName::DatetimeSub | FunctionName::DatetimeTrunc => {
+                Some(DataType::DateTime)
+            }
 
             FunctionName::TimeAdd | FunctionName::TimeSub | FunctionName::TimeTrunc => {
                 Some(DataType::Time)

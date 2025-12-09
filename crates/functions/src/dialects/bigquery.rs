@@ -149,6 +149,13 @@ pub fn bigquery_scalar_functions() -> Vec<&'static str> {
         "NET.HOST",
         "NET.PUBLIC_SUFFIX",
         "NET.REG_DOMAIN",
+        "RANGE",
+        "RANGE_START",
+        "RANGE_END",
+        "RANGE_CONTAINS",
+        "RANGE_OVERLAPS",
+        "RANGE_INTERSECT",
+        "GENERATE_RANGE_ARRAY",
     ]
 }
 

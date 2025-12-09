@@ -604,6 +604,15 @@ fn value_less_than(v1: &Value, v2: &Value) -> Result<bool> {
     if let (Some(f1), Some(f2)) = (v1.as_f64(), v2.as_f64()) {
         return Ok(f1 < f2);
     }
+    if let (Some(d1), Some(d2)) = (v1.as_date(), v2.as_date()) {
+        return Ok(d1 < d2);
+    }
+    if let (Some(t1), Some(t2)) = (
+        v1.as_timestamp().or_else(|| v1.as_datetime()),
+        v2.as_timestamp().or_else(|| v2.as_datetime()),
+    ) {
+        return Ok(t1 < t2);
+    }
     Err(Error::invalid_query("Cannot compare values".to_string()))
 }
 
@@ -613,6 +622,15 @@ fn value_less_than_or_equal(v1: &Value, v2: &Value) -> Result<bool> {
     }
     if let (Some(f1), Some(f2)) = (v1.as_f64(), v2.as_f64()) {
         return Ok(f1 <= f2);
+    }
+    if let (Some(d1), Some(d2)) = (v1.as_date(), v2.as_date()) {
+        return Ok(d1 <= d2);
+    }
+    if let (Some(t1), Some(t2)) = (
+        v1.as_timestamp().or_else(|| v1.as_datetime()),
+        v2.as_timestamp().or_else(|| v2.as_datetime()),
+    ) {
+        return Ok(t1 <= t2);
     }
     Err(Error::invalid_query("Cannot compare values".to_string()))
 }
@@ -624,6 +642,15 @@ fn value_greater_than(v1: &Value, v2: &Value) -> Result<bool> {
     if let (Some(f1), Some(f2)) = (v1.as_f64(), v2.as_f64()) {
         return Ok(f1 > f2);
     }
+    if let (Some(d1), Some(d2)) = (v1.as_date(), v2.as_date()) {
+        return Ok(d1 > d2);
+    }
+    if let (Some(t1), Some(t2)) = (
+        v1.as_timestamp().or_else(|| v1.as_datetime()),
+        v2.as_timestamp().or_else(|| v2.as_datetime()),
+    ) {
+        return Ok(t1 > t2);
+    }
     Err(Error::invalid_query("Cannot compare values".to_string()))
 }
 
@@ -633,6 +660,15 @@ fn value_greater_than_or_equal(v1: &Value, v2: &Value) -> Result<bool> {
     }
     if let (Some(f1), Some(f2)) = (v1.as_f64(), v2.as_f64()) {
         return Ok(f1 >= f2);
+    }
+    if let (Some(d1), Some(d2)) = (v1.as_date(), v2.as_date()) {
+        return Ok(d1 >= d2);
+    }
+    if let (Some(t1), Some(t2)) = (
+        v1.as_timestamp().or_else(|| v1.as_datetime()),
+        v2.as_timestamp().or_else(|| v2.as_datetime()),
+    ) {
+        return Ok(t1 >= t2);
     }
     Err(Error::invalid_query("Cannot compare values".to_string()))
 }

@@ -55,6 +55,18 @@ impl ValuesExec {
                     Err(_) => Value::null(),
                 }
             }
+            LiteralValue::Time(t) => {
+                use chrono::NaiveTime;
+                NaiveTime::parse_from_str(t, "%H:%M:%S")
+                    .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M:%S%.f"))
+                    .or_else(|_| NaiveTime::parse_from_str(t, "%H:%M"))
+                    .map(Value::time)
+                    .unwrap_or(Value::null())
+            }
+            LiteralValue::DateTime(dt) => match crate::types::parse_timestamp_to_utc(dt) {
+                Some(ts) => Value::datetime(ts),
+                None => Value::null(),
+            },
             LiteralValue::Timestamp(t) => match crate::types::parse_timestamp_to_utc(t) {
                 Some(ts) => Value::timestamp(ts),
                 None => Value::null(),
@@ -291,6 +303,8 @@ fn infer_expr_type(expr: &Expr) -> Option<DataType> {
             LiteralValue::String(_) => Some(DataType::String),
             LiteralValue::Bytes(_) => Some(DataType::Bytes),
             LiteralValue::Date(_) => Some(DataType::Date),
+            LiteralValue::Time(_) => Some(DataType::Time),
+            LiteralValue::DateTime(_) => Some(DataType::DateTime),
             LiteralValue::Timestamp(_) => Some(DataType::Timestamp),
             LiteralValue::Json(_) => Some(DataType::Json),
             LiteralValue::Uuid(_) => Some(DataType::Uuid),
