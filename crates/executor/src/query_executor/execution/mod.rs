@@ -398,7 +398,6 @@ impl QueryExecutor {
                     )?;
                     Self::empty_result()
                 }
-                CustomStatement::ClickHouseCreateIndex { .. } => Self::empty_result(),
                 CustomStatement::AlterTableRestartIdentity { .. }
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
@@ -490,18 +489,6 @@ impl QueryExecutor {
                         self.execute_create_database(&name, if_not_exists)?;
                         Self::empty_result()
                     }
-
-                    DdlOperation::CreateUser => Self::empty_result(),
-                    DdlOperation::DropUser => Self::empty_result(),
-                    DdlOperation::AlterUser => Self::empty_result(),
-                    DdlOperation::CreateRole => Self::empty_result(),
-                    DdlOperation::DropRole => Self::empty_result(),
-                    DdlOperation::AlterRole => Self::empty_result(),
-                    DdlOperation::Grant => Self::empty_result(),
-                    DdlOperation::Revoke => Self::empty_result(),
-                    DdlOperation::SetRole => Self::empty_result(),
-                    DdlOperation::SetDefaultRole => Self::empty_result(),
-
                     DdlOperation::CreateSequence
                     | DdlOperation::AlterSequence
                     | DdlOperation::DropSequence => {
@@ -576,11 +563,6 @@ impl QueryExecutor {
                 }
                 UtilityOperation::ExistsDatabase { db_name } => {
                     self.execute_exists_database(&db_name)
-                }
-                UtilityOperation::ShowUsers => self.execute_show_users(),
-                UtilityOperation::ShowRoles => self.execute_show_roles(),
-                UtilityOperation::ShowGrants { user_name } => {
-                    self.execute_show_grants(user_name.as_deref())
                 }
             },
 
@@ -934,30 +916,6 @@ impl QueryExecutor {
         )]);
         let rows = vec![vec![Value::int64(if exists { 1 } else { 0 })]];
         Table::from_values(schema, rows)
-    }
-
-    fn execute_show_users(&mut self) -> Result<Table> {
-        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
-            "name".to_string(),
-            DataType::String,
-        )]);
-        Table::from_values(schema, vec![])
-    }
-
-    fn execute_show_roles(&mut self) -> Result<Table> {
-        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
-            "name".to_string(),
-            DataType::String,
-        )]);
-        Table::from_values(schema, vec![])
-    }
-
-    fn execute_show_grants(&mut self, _user_name: Option<&str>) -> Result<Table> {
-        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
-            "grants".to_string(),
-            DataType::String,
-        )]);
-        Table::from_values(schema, vec![])
     }
 
     fn execute_create_database(
