@@ -135,6 +135,9 @@ impl NullPropagation {
                         | BinaryOp::GeometricContains
                         | BinaryOp::GeometricContainedBy
                         | BinaryOp::GeometricOverlap
+                        | BinaryOp::GeometricParallel
+                        | BinaryOp::GeometricPerpendicular
+                        | BinaryOp::GeometricIntersects
                         | BinaryOp::RangeAdjacent
                         | BinaryOp::RangeStrictlyLeft
                         | BinaryOp::RangeStrictlyRight

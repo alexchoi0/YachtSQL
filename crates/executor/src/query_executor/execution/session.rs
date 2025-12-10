@@ -186,6 +186,10 @@ impl SessionState {
         &self.variables
     }
 
+    pub fn push_variable_scope(&mut self) {}
+
+    pub fn pop_variable_scope(&mut self) {}
+
     pub fn register_udf(&mut self, name: String, definition: UdfDefinition) {
         debug_print::debug_eprintln!("[session] Registering UDF: {}", name.to_uppercase());
         self.udfs.insert(name.to_uppercase(), definition);

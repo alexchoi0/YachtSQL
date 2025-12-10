@@ -417,6 +417,10 @@ impl ProjectionWithExprExec {
             LiteralValue::Point(_) => Some(DataType::Point),
             LiteralValue::PgBox(_) => Some(DataType::PgBox),
             LiteralValue::Circle(_) => Some(DataType::Circle),
+            LiteralValue::Line(_) => Some(DataType::Line),
+            LiteralValue::Lseg(_) => Some(DataType::Lseg),
+            LiteralValue::Path(_) => Some(DataType::Path),
+            LiteralValue::Polygon(_) => Some(DataType::Polygon),
             LiteralValue::MacAddr(_) => Some(DataType::MacAddr),
             LiteralValue::MacAddr8(_) => Some(DataType::MacAddr8),
         }
@@ -2137,6 +2141,9 @@ impl ProjectionWithExprExec {
             FunctionName::Point => Some(DataType::Point),
             FunctionName::Box => Some(DataType::PgBox),
             FunctionName::Circle => Some(DataType::Circle),
+            FunctionName::Line => Some(DataType::Line),
+            FunctionName::Lseg => Some(DataType::Lseg),
+            FunctionName::Polygon => Some(DataType::Polygon),
 
             FunctionName::Area
             | FunctionName::Width
@@ -2144,6 +2151,12 @@ impl ProjectionWithExprExec {
             | FunctionName::Radius
             | FunctionName::Diameter
             | FunctionName::Distance => Some(DataType::Float64),
+
+            FunctionName::Npoints => Some(DataType::Int64),
+
+            FunctionName::Isclosed | FunctionName::Isopen => Some(DataType::Bool),
+
+            FunctionName::Popen | FunctionName::Pclose => Some(DataType::Path),
 
             FunctionName::Center => Some(DataType::Point),
 

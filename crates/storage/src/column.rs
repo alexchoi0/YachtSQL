@@ -129,6 +129,26 @@ pub enum Column {
         nulls: NullBitmap,
     },
 
+    Line {
+        data: Vec<yachtsql_core::types::PgLine>,
+        nulls: NullBitmap,
+    },
+
+    Lseg {
+        data: Vec<yachtsql_core::types::PgLseg>,
+        nulls: NullBitmap,
+    },
+
+    Path {
+        data: Vec<yachtsql_core::types::PgPath>,
+        nulls: NullBitmap,
+    },
+
+    Polygon {
+        data: Vec<yachtsql_core::types::PgPolygon>,
+        nulls: NullBitmap,
+    },
+
     Map {
         data: Vec<Vec<(Value, Value)>>,
         nulls: NullBitmap,
@@ -309,6 +329,22 @@ impl Column {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
             },
+            DataType::Line => Column::Line {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
+            DataType::Lseg => Column::Lseg {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
+            DataType::Path => Column::Path {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
+            DataType::Polygon => Column::Polygon {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
             DataType::Map(key_type, value_type) => Column::Map {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
@@ -406,6 +442,10 @@ impl Column {
             Column::Point { .. } => DataType::Point,
             Column::PgBox { .. } => DataType::PgBox,
             Column::Circle { .. } => DataType::Circle,
+            Column::Line { .. } => DataType::Line,
+            Column::Lseg { .. } => DataType::Lseg,
+            Column::Path { .. } => DataType::Path,
+            Column::Polygon { .. } => DataType::Polygon,
             Column::Map {
                 key_type,
                 value_type,
@@ -452,6 +492,10 @@ impl Column {
             Column::Point { nulls, .. } => nulls.len(),
             Column::PgBox { nulls, .. } => nulls.len(),
             Column::Circle { nulls, .. } => nulls.len(),
+            Column::Line { nulls, .. } => nulls.len(),
+            Column::Lseg { nulls, .. } => nulls.len(),
+            Column::Path { nulls, .. } => nulls.len(),
+            Column::Polygon { nulls, .. } => nulls.len(),
             Column::Map { nulls, .. } => nulls.len(),
             Column::Range { nulls, .. } => nulls.len(),
             Column::IPv4 { nulls, .. } => nulls.len(),
@@ -498,6 +542,10 @@ impl Column {
             Column::Point { nulls, .. } => nulls,
             Column::PgBox { nulls, .. } => nulls,
             Column::Circle { nulls, .. } => nulls,
+            Column::Line { nulls, .. } => nulls,
+            Column::Lseg { nulls, .. } => nulls,
+            Column::Path { nulls, .. } => nulls,
+            Column::Polygon { nulls, .. } => nulls,
             Column::Map { nulls, .. } => nulls,
             Column::Range { nulls, .. } => nulls,
             Column::IPv4 { nulls, .. } => nulls,
@@ -981,6 +1029,58 @@ impl Column {
                     )))
                 }
             }
+            Column::Line { data, nulls } => {
+                if let Some(v) = value.as_line() {
+                    data.push(v.clone());
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Lseg { data, nulls } => {
+                if let Some(v) = value.as_lseg() {
+                    data.push(v.clone());
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Path { data, nulls } => {
+                if let Some(v) = value.as_path() {
+                    data.push(v.clone());
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Polygon { data, nulls } => {
+                if let Some(v) = value.as_polygon() {
+                    data.push(v.clone());
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
             Column::Map { data, nulls, .. } => {
                 if let Some(v) = value.as_map() {
                     data.push(v.clone());
@@ -1251,6 +1351,25 @@ impl Column {
                     yachtsql_core::types::PgPoint::new(0.0, 0.0),
                     0.0,
                 ));
+                nulls.push(false);
+            }
+            Column::Line { data, nulls } => {
+                data.push(yachtsql_core::types::PgLine::new(0.0, 0.0, 0.0));
+                nulls.push(false);
+            }
+            Column::Lseg { data, nulls } => {
+                data.push(yachtsql_core::types::PgLseg::new(
+                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                ));
+                nulls.push(false);
+            }
+            Column::Path { data, nulls } => {
+                data.push(yachtsql_core::types::PgPath::new(Vec::new(), false));
+                nulls.push(false);
+            }
+            Column::Polygon { data, nulls } => {
+                data.push(yachtsql_core::types::PgPolygon::new(Vec::new()));
                 nulls.push(false);
             }
             Column::Map { data, nulls, .. } => {
@@ -1717,6 +1836,58 @@ impl Column {
                     )))
                 }
             }
+            Column::Line { data, nulls } => {
+                if let Some(v) = value.as_line() {
+                    data[index] = v.clone();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Lseg { data, nulls } => {
+                if let Some(v) = value.as_lseg() {
+                    data[index] = v.clone();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Path { data, nulls } => {
+                if let Some(v) = value.as_path() {
+                    data[index] = v.clone();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::Polygon { data, nulls } => {
+                if let Some(v) = value.as_polygon() {
+                    data[index] = v.clone();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
             Column::Map { data, nulls, .. } => {
                 if let Some(v) = value.as_map() {
                     data[index] = v.clone();
@@ -1984,6 +2155,25 @@ impl Column {
                 );
                 nulls.set(index, false);
             }
+            Column::Line { data, nulls } => {
+                data[index] = yachtsql_core::types::PgLine::new(0.0, 0.0, 0.0);
+                nulls.set(index, false);
+            }
+            Column::Lseg { data, nulls } => {
+                data[index] = yachtsql_core::types::PgLseg::new(
+                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                );
+                nulls.set(index, false);
+            }
+            Column::Path { data, nulls } => {
+                data[index] = yachtsql_core::types::PgPath::new(Vec::new(), false);
+                nulls.set(index, false);
+            }
+            Column::Polygon { data, nulls } => {
+                data[index] = yachtsql_core::types::PgPolygon::new(Vec::new());
+                nulls.set(index, false);
+            }
             Column::Map { data, nulls, .. } => {
                 data[index] = Vec::new();
                 nulls.set(index, false);
@@ -2151,6 +2341,22 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
+            Column::Line { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
+            Column::Lseg { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
+            Column::Path { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
+            Column::Polygon { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
             Column::Map { data, nulls, .. } => {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
@@ -2236,6 +2442,10 @@ impl Column {
             Column::Point { data, .. } => Ok(Value::point(data[index].clone())),
             Column::PgBox { data, .. } => Ok(Value::pgbox(data[index].clone())),
             Column::Circle { data, .. } => Ok(Value::circle(data[index].clone())),
+            Column::Line { data, .. } => Ok(Value::line(data[index].clone())),
+            Column::Lseg { data, .. } => Ok(Value::lseg(data[index].clone())),
+            Column::Path { data, .. } => Ok(Value::path(data[index].clone())),
+            Column::Polygon { data, .. } => Ok(Value::polygon(data[index].clone())),
             Column::Map { data, .. } => Ok(Value::map(data[index].clone())),
             Column::Range { data, .. } => Ok(Value::range(data[index].clone())),
             Column::IPv4 { data, .. } => Ok(Value::ipv4(data[index])),
@@ -2391,6 +2601,22 @@ impl Column {
                 nulls,
             }),
             Column::Circle { data, .. } => Ok(Column::Circle {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Line { data, .. } => Ok(Column::Line {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Lseg { data, .. } => Ok(Column::Lseg {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Path { data, .. } => Ok(Column::Path {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Polygon { data, .. } => Ok(Column::Polygon {
                 data: data[start..start + len].to_vec(),
                 nulls,
             }),
@@ -2560,6 +2786,10 @@ impl Column {
             Column::Point { data, .. } => gather_clone!(data, Point),
             Column::PgBox { data, .. } => gather_clone!(data, PgBox),
             Column::Circle { data, .. } => gather_clone!(data, Circle),
+            Column::Line { data, .. } => gather_clone!(data, Line),
+            Column::Lseg { data, .. } => gather_clone!(data, Lseg),
+            Column::Path { data, .. } => gather_clone!(data, Path),
+            Column::Polygon { data, .. } => gather_clone!(data, Polygon),
             Column::Map {
                 data,
                 key_type,

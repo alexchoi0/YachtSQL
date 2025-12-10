@@ -40,6 +40,10 @@ fn data_type_to_postgres_name(data_type: &DataType) -> String {
         }
         DataType::Point => "POINT".to_string(),
         DataType::Circle => "CIRCLE".to_string(),
+        DataType::Line => "LINE".to_string(),
+        DataType::Lseg => "LSEG".to_string(),
+        DataType::Path => "PATH".to_string(),
+        DataType::Polygon => "POLYGON".to_string(),
         DataType::PgBox => "BOX".to_string(),
         DataType::Inet => "INET".to_string(),
         DataType::Cidr => "CIDR".to_string(),

@@ -1175,15 +1175,31 @@ impl ProjectionWithExprExec {
 
         let is_geometric_left = left.as_point().is_some()
             || left.as_circle().is_some()
+            || left.as_lseg().is_some()
+            || left.as_line().is_some()
+            || left.as_path().is_some()
+            || left.as_polygon().is_some()
             || matches!(left.data_type(), yachtsql_core::types::DataType::PgBox)
             || matches!(left.data_type(), yachtsql_core::types::DataType::Point)
-            || matches!(left.data_type(), yachtsql_core::types::DataType::Circle);
+            || matches!(left.data_type(), yachtsql_core::types::DataType::Circle)
+            || matches!(left.data_type(), yachtsql_core::types::DataType::Lseg)
+            || matches!(left.data_type(), yachtsql_core::types::DataType::Line)
+            || matches!(left.data_type(), yachtsql_core::types::DataType::Path)
+            || matches!(left.data_type(), yachtsql_core::types::DataType::Polygon);
 
         let is_geometric_right = right.as_point().is_some()
             || right.as_circle().is_some()
+            || right.as_lseg().is_some()
+            || right.as_line().is_some()
+            || right.as_path().is_some()
+            || right.as_polygon().is_some()
             || matches!(right.data_type(), yachtsql_core::types::DataType::PgBox)
             || matches!(right.data_type(), yachtsql_core::types::DataType::Point)
-            || matches!(right.data_type(), yachtsql_core::types::DataType::Circle);
+            || matches!(right.data_type(), yachtsql_core::types::DataType::Circle)
+            || matches!(right.data_type(), yachtsql_core::types::DataType::Lseg)
+            || matches!(right.data_type(), yachtsql_core::types::DataType::Line)
+            || matches!(right.data_type(), yachtsql_core::types::DataType::Path)
+            || matches!(right.data_type(), yachtsql_core::types::DataType::Polygon);
 
         if is_geometric_left || is_geometric_right {
             return match op {
@@ -1209,6 +1225,15 @@ impl ProjectionWithExprExec {
                 }
                 BinaryOp::Multiply => yachtsql_functions::geometric::point_multiply(left, right),
                 BinaryOp::Divide => yachtsql_functions::geometric::point_divide(left, right),
+                BinaryOp::GeometricParallel => {
+                    yachtsql_functions::geometric::is_parallel(left, right)
+                }
+                BinaryOp::GeometricPerpendicular => {
+                    yachtsql_functions::geometric::is_perpendicular(left, right)
+                }
+                BinaryOp::GeometricIntersects => {
+                    yachtsql_functions::geometric::intersects(left, right)
+                }
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for geometric types",
                     op
@@ -1239,6 +1264,11 @@ impl ProjectionWithExprExec {
                 yachtsql_functions::geometric::contained_by(left, right)
             }
             BinaryOp::GeometricOverlap => yachtsql_functions::geometric::overlaps(left, right),
+            BinaryOp::GeometricParallel => yachtsql_functions::geometric::is_parallel(left, right),
+            BinaryOp::GeometricPerpendicular => {
+                yachtsql_functions::geometric::is_perpendicular(left, right)
+            }
+            BinaryOp::GeometricIntersects => yachtsql_functions::geometric::intersects(left, right),
             _ => Err(crate::error::Error::TypeMismatch {
                 expected: left.data_type().to_string(),
                 actual: right.data_type().to_string(),

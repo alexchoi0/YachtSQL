@@ -165,6 +165,27 @@ impl AggregateExec {
                             Ok(Value::null())
                         }
                     }
+                    FunctionName::ArrayAgg | FunctionName::StringAgg => {
+                        let value = if args.is_empty() {
+                            Value::null()
+                        } else {
+                            self.evaluate_expr(&args[0], batch, row_idx)?
+                        };
+                        if let Some(order_exprs) = order_by {
+                            if !order_exprs.is_empty() {
+                                let mut sort_keys = Vec::with_capacity(order_exprs.len() * 2);
+                                for order_expr in order_exprs {
+                                    let sort_val =
+                                        self.evaluate_expr(&order_expr.expr, batch, row_idx)?;
+                                    let asc = order_expr.asc.unwrap_or(true);
+                                    sort_keys.push(sort_val);
+                                    sort_keys.push(Value::bool_val(asc));
+                                }
+                                return Ok(Value::array(vec![value, Value::array(sort_keys)]));
+                            }
+                        }
+                        Ok(value)
+                    }
                     _ => {
                         if args.is_empty() {
                             Ok(Value::int64(1))
@@ -253,6 +274,10 @@ impl AggregateExec {
                     LiteralValue::Point(_) => DataType::Point,
                     LiteralValue::PgBox(_) => DataType::PgBox,
                     LiteralValue::Circle(_) => DataType::Circle,
+                    LiteralValue::Line(_) => DataType::Line,
+                    LiteralValue::Lseg(_) => DataType::Lseg,
+                    LiteralValue::Path(_) => DataType::Path,
+                    LiteralValue::Polygon(_) => DataType::Polygon,
                     LiteralValue::MacAddr(_) => DataType::MacAddr,
                     LiteralValue::MacAddr8(_) => DataType::MacAddr8,
                 })
@@ -606,10 +631,16 @@ impl AggregateExec {
                 let first_is_wildcard = args.first().is_some_and(|e| matches!(e, Expr::Wildcard));
                 let arg_str = if args.is_empty() || first_is_wildcard {
                     "*".to_string()
-                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
-                    col_name.clone()
                 } else {
-                    "...".to_string()
+                    let arg_strs: Vec<String> = args
+                        .iter()
+                        .map(|arg| match arg {
+                            Expr::Column { name: col_name, .. } => col_name.clone(),
+                            Expr::Wildcard => "*".to_string(),
+                            _ => "...".to_string(),
+                        })
+                        .collect();
+                    arg_strs.join(", ")
                 };
                 if *distinct {
                     Some(format!("{}(DISTINCT {})", name.as_str(), arg_str))
@@ -1237,20 +1268,82 @@ impl AggregateExec {
                         }
                     }
                     FunctionName::ArrayAgg => {
-                        let array_values: Vec<Value> =
-                            values.iter().map(|v| (*v).clone()).collect();
-                        if *distinct {
-                            let mut unique_strs = std::collections::HashSet::new();
-                            let mut unique_values = Vec::new();
-                            for val in array_values {
-                                let str_repr = format!("{:?}", val);
-                                if unique_strs.insert(str_repr) {
-                                    unique_values.push(val);
-                                }
+                        let has_sort_keys = values.first().is_some_and(|v| {
+                            if let Some(arr) = v.as_array() {
+                                arr.len() == 2 && arr[1].as_array().is_some()
+                            } else {
+                                false
                             }
-                            Value::array(unique_values)
+                        });
+
+                        if has_sort_keys {
+                            let mut sorted_entries: Vec<(Value, Vec<Value>)> = values
+                                .iter()
+                                .filter_map(|v| {
+                                    if let Some(arr) = v.as_array() {
+                                        if arr.len() == 2 {
+                                            let value = arr[0].clone();
+                                            let sort_keys = arr[1]
+                                                .as_array()
+                                                .map(|a| a.to_vec())
+                                                .unwrap_or_default();
+                                            return Some((value, sort_keys));
+                                        }
+                                    }
+                                    None
+                                })
+                                .collect();
+
+                            sorted_entries.sort_by(|a, b| {
+                                let keys_a = &a.1;
+                                let keys_b = &b.1;
+                                let mut i = 0;
+                                while i < keys_a.len() && i + 1 < keys_a.len() {
+                                    let val_a = &keys_a[i];
+                                    let val_b = &keys_b[i];
+                                    let asc = keys_a[i + 1].as_bool().unwrap_or(true);
+                                    let cmp = compare_values(val_a, val_b)
+                                        .unwrap_or(std::cmp::Ordering::Equal);
+                                    if cmp != std::cmp::Ordering::Equal {
+                                        return if asc { cmp } else { cmp.reverse() };
+                                    }
+                                    i += 2;
+                                }
+                                std::cmp::Ordering::Equal
+                            });
+
+                            let array_values: Vec<Value> =
+                                sorted_entries.into_iter().map(|(v, _)| v).collect();
+
+                            if *distinct {
+                                let mut unique_strs = std::collections::HashSet::new();
+                                let mut unique_values = Vec::new();
+                                for val in array_values {
+                                    let str_repr = format!("{:?}", val);
+                                    if unique_strs.insert(str_repr) {
+                                        unique_values.push(val);
+                                    }
+                                }
+                                Value::array(unique_values)
+                            } else {
+                                Value::array(array_values)
+                            }
                         } else {
-                            Value::array(array_values)
+                            let array_values: Vec<Value> =
+                                values.iter().map(|v| (*v).clone()).collect();
+                            if *distinct {
+                                let mut unique_strs = std::collections::HashSet::new();
+                                let mut unique_values = Vec::new();
+                                for val in array_values {
+                                    let str_repr = format!("{:?}", val);
+                                    if unique_strs.insert(str_repr) {
+                                        unique_values.push(val);
+                                    }
+                                }
+                                Value::array(unique_values)
+                            } else {
+                                Value::array(array_values)
+                            }
                         }
                     }
                     FunctionName::StringAgg => {
@@ -1265,7 +1358,81 @@ impl AggregateExec {
                             String::new()
                         };
 
-                        let string_values: Vec<String> = if *distinct {
+                        let has_sort_keys = values.first().is_some_and(|v| {
+                            if let Some(arr) = v.as_array() {
+                                arr.len() == 2 && arr[1].as_array().is_some()
+                            } else {
+                                false
+                            }
+                        });
+
+                        let string_values: Vec<String> = if has_sort_keys {
+                            let mut sorted_entries: Vec<(Value, Vec<Value>)> = values
+                                .iter()
+                                .filter_map(|v| {
+                                    if let Some(arr) = v.as_array() {
+                                        if arr.len() == 2 {
+                                            let value = arr[0].clone();
+                                            let sort_keys = arr[1]
+                                                .as_array()
+                                                .map(|a| a.to_vec())
+                                                .unwrap_or_default();
+                                            return Some((value, sort_keys));
+                                        }
+                                    }
+                                    None
+                                })
+                                .collect();
+
+                            sorted_entries.sort_by(|a, b| {
+                                let keys_a = &a.1;
+                                let keys_b = &b.1;
+                                let mut i = 0;
+                                while i < keys_a.len() && i + 1 < keys_a.len() {
+                                    let val_a = &keys_a[i];
+                                    let val_b = &keys_b[i];
+                                    let asc = keys_a[i + 1].as_bool().unwrap_or(true);
+                                    let cmp = compare_values(val_a, val_b)
+                                        .unwrap_or(std::cmp::Ordering::Equal);
+                                    if cmp != std::cmp::Ordering::Equal {
+                                        return if asc { cmp } else { cmp.reverse() };
+                                    }
+                                    i += 2;
+                                }
+                                std::cmp::Ordering::Equal
+                            });
+
+                            if *distinct {
+                                let mut unique_strs = std::collections::HashSet::new();
+                                sorted_entries
+                                    .into_iter()
+                                    .filter_map(|(v, _)| {
+                                        if v.is_null() {
+                                            None
+                                        } else {
+                                            v.as_str().and_then(|s| {
+                                                if unique_strs.insert(s.to_string()) {
+                                                    Some(s.to_string())
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                        }
+                                    })
+                                    .collect()
+                            } else {
+                                sorted_entries
+                                    .into_iter()
+                                    .filter_map(|(v, _)| {
+                                        if v.is_null() {
+                                            None
+                                        } else {
+                                            v.as_str().map(|s| s.to_string())
+                                        }
+                                    })
+                                    .collect()
+                            }
+                        } else if *distinct {
                             let mut unique_strs = std::collections::HashSet::new();
                             values
                                 .iter()
@@ -2403,6 +2570,27 @@ impl SortAggregateExec {
                             Ok(Value::null())
                         }
                     }
+                    FunctionName::ArrayAgg | FunctionName::StringAgg => {
+                        let value = if args.is_empty() {
+                            Value::null()
+                        } else {
+                            self.evaluate_expr(&args[0], batch, row_idx)?
+                        };
+                        if let Some(order_exprs) = order_by {
+                            if !order_exprs.is_empty() {
+                                let mut sort_keys = Vec::with_capacity(order_exprs.len() * 2);
+                                for order_expr in order_exprs {
+                                    let sort_val =
+                                        self.evaluate_expr(&order_expr.expr, batch, row_idx)?;
+                                    let asc = order_expr.asc.unwrap_or(true);
+                                    sort_keys.push(sort_val);
+                                    sort_keys.push(Value::bool_val(asc));
+                                }
+                                return Ok(Value::array(vec![value, Value::array(sort_keys)]));
+                            }
+                        }
+                        Ok(value)
+                    }
                     _ => {
                         if args.is_empty() {
                             Ok(Value::int64(1))
@@ -2661,20 +2849,82 @@ impl SortAggregateExec {
                         max.unwrap_or(Value::null())
                     }
                     FunctionName::ArrayAgg => {
-                        let array_values: Vec<Value> =
-                            values.iter().map(|v| (*v).clone()).collect();
-                        if *distinct {
-                            let mut unique_strs = std::collections::HashSet::new();
-                            let mut unique_values = Vec::new();
-                            for val in array_values {
-                                let str_repr = format!("{:?}", val);
-                                if unique_strs.insert(str_repr) {
-                                    unique_values.push(val);
-                                }
+                        let has_sort_keys = values.first().is_some_and(|v| {
+                            if let Some(arr) = v.as_array() {
+                                arr.len() == 2 && arr[1].as_array().is_some()
+                            } else {
+                                false
                             }
-                            Value::array(unique_values)
+                        });
+
+                        if has_sort_keys {
+                            let mut sorted_entries: Vec<(Value, Vec<Value>)> = values
+                                .iter()
+                                .filter_map(|v| {
+                                    if let Some(arr) = v.as_array() {
+                                        if arr.len() == 2 {
+                                            let value = arr[0].clone();
+                                            let sort_keys = arr[1]
+                                                .as_array()
+                                                .map(|a| a.to_vec())
+                                                .unwrap_or_default();
+                                            return Some((value, sort_keys));
+                                        }
+                                    }
+                                    None
+                                })
+                                .collect();
+
+                            sorted_entries.sort_by(|a, b| {
+                                let keys_a = &a.1;
+                                let keys_b = &b.1;
+                                let mut i = 0;
+                                while i < keys_a.len() && i + 1 < keys_a.len() {
+                                    let val_a = &keys_a[i];
+                                    let val_b = &keys_b[i];
+                                    let asc = keys_a[i + 1].as_bool().unwrap_or(true);
+                                    let cmp = compare_values(val_a, val_b)
+                                        .unwrap_or(std::cmp::Ordering::Equal);
+                                    if cmp != std::cmp::Ordering::Equal {
+                                        return if asc { cmp } else { cmp.reverse() };
+                                    }
+                                    i += 2;
+                                }
+                                std::cmp::Ordering::Equal
+                            });
+
+                            let array_values: Vec<Value> =
+                                sorted_entries.into_iter().map(|(v, _)| v).collect();
+
+                            if *distinct {
+                                let mut unique_strs = std::collections::HashSet::new();
+                                let mut unique_values = Vec::new();
+                                for val in array_values {
+                                    let str_repr = format!("{:?}", val);
+                                    if unique_strs.insert(str_repr) {
+                                        unique_values.push(val);
+                                    }
+                                }
+                                Value::array(unique_values)
+                            } else {
+                                Value::array(array_values)
+                            }
                         } else {
-                            Value::array(array_values)
+                            let array_values: Vec<Value> =
+                                values.iter().map(|v| (*v).clone()).collect();
+                            if *distinct {
+                                let mut unique_strs = std::collections::HashSet::new();
+                                let mut unique_values = Vec::new();
+                                for val in array_values {
+                                    let str_repr = format!("{:?}", val);
+                                    if unique_strs.insert(str_repr) {
+                                        unique_values.push(val);
+                                    }
+                                }
+                                Value::array(unique_values)
+                            } else {
+                                Value::array(array_values)
+                            }
                         }
                     }
                     FunctionName::StringAgg => {
@@ -2688,16 +2938,74 @@ impl SortAggregateExec {
                         } else {
                             String::new()
                         };
-                        let string_values: Vec<String> = values
-                            .iter()
-                            .filter_map(|v| {
-                                if v.is_null() {
+
+                        let has_sort_keys = values.first().is_some_and(|v| {
+                            if let Some(arr) = v.as_array() {
+                                arr.len() == 2 && arr[1].as_array().is_some()
+                            } else {
+                                false
+                            }
+                        });
+
+                        let string_values: Vec<String> = if has_sort_keys {
+                            let mut sorted_entries: Vec<(Value, Vec<Value>)> = values
+                                .iter()
+                                .filter_map(|v| {
+                                    if let Some(arr) = v.as_array() {
+                                        if arr.len() == 2 {
+                                            let value = arr[0].clone();
+                                            let sort_keys = arr[1]
+                                                .as_array()
+                                                .map(|a| a.to_vec())
+                                                .unwrap_or_default();
+                                            return Some((value, sort_keys));
+                                        }
+                                    }
                                     None
-                                } else {
-                                    v.as_str().map(|s| s.to_string())
+                                })
+                                .collect();
+
+                            sorted_entries.sort_by(|a, b| {
+                                let keys_a = &a.1;
+                                let keys_b = &b.1;
+                                let mut i = 0;
+                                while i < keys_a.len() && i + 1 < keys_a.len() {
+                                    let val_a = &keys_a[i];
+                                    let val_b = &keys_b[i];
+                                    let asc = keys_a[i + 1].as_bool().unwrap_or(true);
+                                    let cmp = compare_values(val_a, val_b)
+                                        .unwrap_or(std::cmp::Ordering::Equal);
+                                    if cmp != std::cmp::Ordering::Equal {
+                                        return if asc { cmp } else { cmp.reverse() };
+                                    }
+                                    i += 2;
                                 }
-                            })
-                            .collect();
+                                std::cmp::Ordering::Equal
+                            });
+
+                            sorted_entries
+                                .into_iter()
+                                .filter_map(|(v, _)| {
+                                    if v.is_null() {
+                                        None
+                                    } else {
+                                        v.as_str().map(|s| s.to_string())
+                                    }
+                                })
+                                .collect()
+                        } else {
+                            values
+                                .iter()
+                                .filter_map(|v| {
+                                    if v.is_null() {
+                                        None
+                                    } else {
+                                        v.as_str().map(|s| s.to_string())
+                                    }
+                                })
+                                .collect()
+                        };
+
                         if string_values.is_empty() {
                             Value::null()
                         } else {

@@ -17,6 +17,7 @@ impl ProjectionWithExprExec {
             "POINT" => Self::eval_point_constructor(args, batch, row_idx),
             "BOX" => Self::eval_box_constructor(args, batch, row_idx),
             "CIRCLE" => Self::eval_circle_constructor(args, batch, row_idx),
+            "LSEG" => Self::eval_lseg_constructor(args, batch, row_idx),
             "AREA" => Self::eval_area(args, batch, row_idx),
             "CENTER" => Self::eval_center(args, batch, row_idx),
             "DIAMETER" => Self::eval_diameter(args, batch, row_idx),
@@ -27,6 +28,15 @@ impl ProjectionWithExprExec {
             "CONTAINS" => Self::eval_contains(args, batch, row_idx),
             "CONTAINED_BY" => Self::eval_contained_by(args, batch, row_idx),
             "OVERLAPS" => Self::eval_overlaps(args, batch, row_idx),
+            "LENGTH" => Self::eval_length(args, batch, row_idx),
+            "NPOINTS" => Self::eval_npoints(args, batch, row_idx),
+            "ISCLOSED" => Self::eval_isclosed(args, batch, row_idx),
+            "ISOPEN" => Self::eval_isopen(args, batch, row_idx),
+            "POPEN" => Self::eval_popen(args, batch, row_idx),
+            "PCLOSE" => Self::eval_pclose(args, batch, row_idx),
+            "IS_PARALLEL" => Self::eval_is_parallel(args, batch, row_idx),
+            "IS_PERPENDICULAR" => Self::eval_is_perpendicular(args, batch, row_idx),
+            "INTERSECTS" => Self::eval_intersects(args, batch, row_idx),
             _ => Err(crate::error::Error::invalid_query(format!(
                 "Unknown geometric function: {}",
                 name
@@ -169,5 +179,109 @@ impl ProjectionWithExprExec {
         let a = Self::evaluate_expr(&args[0], batch, row_idx)?;
         let b = Self::evaluate_expr(&args[1], batch, row_idx)?;
         geometric::overlaps(&a, &b)
+    }
+
+    fn eval_lseg_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(crate::error::Error::invalid_query(
+                "LSEG requires exactly 2 arguments (point1, point2)",
+            ));
+        }
+        let p1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let p2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        geometric::lseg_constructor(&p1, &p2)
+    }
+
+    fn eval_length(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(crate::error::Error::invalid_query(
+                "LENGTH requires exactly 1 argument",
+            ));
+        }
+        let geom = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        geometric::length(&geom)
+    }
+
+    fn eval_npoints(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(crate::error::Error::invalid_query(
+                "NPOINTS requires exactly 1 argument",
+            ));
+        }
+        let geom = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        geometric::npoints(&geom)
+    }
+
+    fn eval_isclosed(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(crate::error::Error::invalid_query(
+                "ISCLOSED requires exactly 1 argument",
+            ));
+        }
+        let geom = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        geometric::isclosed(&geom)
+    }
+
+    fn eval_isopen(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(crate::error::Error::invalid_query(
+                "ISOPEN requires exactly 1 argument",
+            ));
+        }
+        let geom = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        geometric::isopen(&geom)
+    }
+
+    fn eval_popen(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(crate::error::Error::invalid_query(
+                "POPEN requires exactly 1 argument",
+            ));
+        }
+        let geom = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        geometric::popen(&geom)
+    }
+
+    fn eval_pclose(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(crate::error::Error::invalid_query(
+                "PCLOSE requires exactly 1 argument",
+            ));
+        }
+        let geom = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        geometric::pclose(&geom)
+    }
+
+    fn eval_is_parallel(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(crate::error::Error::invalid_query(
+                "IS_PARALLEL requires exactly 2 arguments",
+            ));
+        }
+        let lseg1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let lseg2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        geometric::is_parallel(&lseg1, &lseg2)
+    }
+
+    fn eval_is_perpendicular(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(crate::error::Error::invalid_query(
+                "IS_PERPENDICULAR requires exactly 2 arguments",
+            ));
+        }
+        let lseg1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let lseg2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        geometric::is_perpendicular(&lseg1, &lseg2)
+    }
+
+    fn eval_intersects(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(crate::error::Error::invalid_query(
+                "INTERSECTS requires exactly 2 arguments",
+            ));
+        }
+        let lseg1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let lseg2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        geometric::intersects(&lseg1, &lseg2)
     }
 }

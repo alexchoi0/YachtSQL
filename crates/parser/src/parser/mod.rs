@@ -152,17 +152,20 @@ impl Parser {
             }
         };
 
-        if sql_statements.len() != merge_returnings.len() {
-            return Err(Error::parse_error(
-                "Parsed statement count does not match RETURNING metadata".to_string(),
-            ));
+        if sql_statements.len() == merge_returnings.len() {
+            Ok(sql_statements
+                .into_iter()
+                .zip(merge_returnings)
+                .map(|(stmt, returning)| {
+                    Statement::Standard(StandardStatement::new(stmt, returning))
+                })
+                .collect())
+        } else {
+            Ok(sql_statements
+                .into_iter()
+                .map(|stmt| Statement::Standard(StandardStatement::new(stmt, None)))
+                .collect())
         }
-
-        Ok(sql_statements
-            .into_iter()
-            .zip(merge_returnings)
-            .map(|(stmt, returning)| Statement::Standard(StandardStatement::new(stmt, returning)))
-            .collect())
     }
 
     fn validate_statements(&self, statements: &[Statement]) -> Result<()> {

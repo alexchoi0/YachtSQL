@@ -3744,7 +3744,11 @@ impl<'a> ExpressionEvaluator<'a> {
                     )));
                 }
                 let arg = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::scalar::eval_length(&arg)
+                if arg.as_lseg().is_some() || arg.as_path().is_some() {
+                    yachtsql_functions::geometric::length(&arg)
+                } else {
+                    yachtsql_functions::scalar::eval_length(&arg)
+                }
             }
             "OCTET_LENGTH" => {
                 if args.len() != 1 {
@@ -7200,6 +7204,51 @@ impl<'a> ExpressionEvaluator<'a> {
                 let box_val = self.evaluate_function_arg(&args[0], row)?;
                 yachtsql_functions::geometric::height(&box_val)
             }
+            "NPOINTS" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "NPOINTS() requires exactly 1 argument (path or polygon)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::npoints(&geom)
+            }
+            "ISCLOSED" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "ISCLOSED() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::isclosed(&geom)
+            }
+            "ISOPEN" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "ISOPEN() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::isopen(&geom)
+            }
+            "POPEN" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "POPEN() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::popen(&geom)
+            }
+            "PCLOSE" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "PCLOSE() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::pclose(&geom)
+            }
 
             "HSTORE" => {
                 if args.len() != 2 {
@@ -10032,7 +10081,13 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Range(_) => Some("range"),
             DataType::Struct(_) => Some("struct"),
             DataType::Geography => Some("geography"),
-            DataType::Point | DataType::PgBox | DataType::Circle => Some("geometric"),
+            DataType::Point
+            | DataType::PgBox
+            | DataType::Circle
+            | DataType::Line
+            | DataType::Lseg
+            | DataType::Path
+            | DataType::Polygon => Some("geometric"),
             DataType::Enum { .. } => Some("enum"),
             DataType::Serial | DataType::BigSerial => Some("integer"),
             DataType::Inet => Some("inet"),

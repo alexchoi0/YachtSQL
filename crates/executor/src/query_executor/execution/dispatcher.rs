@@ -166,6 +166,36 @@ pub enum ScriptingOperation {
         name: String,
         value: Box<Expr>,
     },
+    If {
+        stmt: Box<SqlStatement>,
+    },
+    While {
+        stmt: Box<SqlStatement>,
+    },
+    Loop {
+        stmt: Box<SqlStatement>,
+    },
+    Repeat {
+        stmt: Box<SqlStatement>,
+    },
+    BeginEnd {
+        stmt: Box<SqlStatement>,
+    },
+    Case {
+        stmt: Box<SqlStatement>,
+    },
+    Leave {
+        label: Option<String>,
+    },
+    Continue {
+        label: Option<String>,
+    },
+    Return {
+        value: Option<Box<Expr>>,
+    },
+    ExecuteImmediate {
+        stmt: Box<SqlStatement>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -652,6 +682,36 @@ impl Dispatcher {
                     SqlStatement::OptimizeTable { name, .. } => Ok(StatementJob::Utility {
                         operation: UtilityOperation::OptimizeTable {
                             table_name: name.clone(),
+                        },
+                    }),
+
+                    SqlStatement::If(_) => Ok(StatementJob::Scripting {
+                        operation: ScriptingOperation::If {
+                            stmt: Box::new(ast.clone()),
+                        },
+                    }),
+
+                    SqlStatement::While(_) => Ok(StatementJob::Scripting {
+                        operation: ScriptingOperation::While {
+                            stmt: Box::new(ast.clone()),
+                        },
+                    }),
+
+                    SqlStatement::Case(_) => Ok(StatementJob::Scripting {
+                        operation: ScriptingOperation::Case {
+                            stmt: Box::new(ast.clone()),
+                        },
+                    }),
+
+                    SqlStatement::Return(_) => Ok(StatementJob::Scripting {
+                        operation: ScriptingOperation::Return { value: None },
+                    }),
+
+                    SqlStatement::Execute {
+                        immediate: true, ..
+                    } => Ok(StatementJob::Scripting {
+                        operation: ScriptingOperation::ExecuteImmediate {
+                            stmt: Box::new(ast.clone()),
                         },
                     }),
 

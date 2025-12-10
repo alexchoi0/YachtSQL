@@ -49,6 +49,10 @@ pub enum DataType {
     Point,
     PgBox,
     Circle,
+    Line,
+    Lseg,
+    Path,
+    Polygon,
     MacAddr,
     MacAddr8,
     IPv4,
@@ -138,6 +142,10 @@ impl fmt::Display for DataType {
             DataType::Point => write!(f, "POINT"),
             DataType::PgBox => write!(f, "BOX"),
             DataType::Circle => write!(f, "CIRCLE"),
+            DataType::Line => write!(f, "LINE"),
+            DataType::Lseg => write!(f, "LSEG"),
+            DataType::Path => write!(f, "PATH"),
+            DataType::Polygon => write!(f, "POLYGON"),
             DataType::MacAddr => write!(f, "MACADDR"),
             DataType::MacAddr8 => write!(f, "MACADDR8"),
             DataType::IPv4 => write!(f, "IPv4"),
@@ -172,6 +180,10 @@ const TAG_POINT: u8 = 142;
 const TAG_PGBOX: u8 = 143;
 const TAG_CIRCLE: u8 = 144;
 const TAG_HSTORE: u8 = 145;
+const TAG_LINE: u8 = 161;
+const TAG_LSEG: u8 = 162;
+const TAG_PATH: u8 = 163;
+const TAG_POLYGON: u8 = 164;
 const TAG_IPV4: u8 = 153;
 const TAG_IPV6: u8 = 154;
 const TAG_DATE32: u8 = 155;
@@ -437,6 +449,389 @@ impl fmt::Display for PgCircle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<{},{}>", self.center, self.radius)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PgLine {
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+}
+
+impl PgLine {
+    pub fn new(a: f64, b: f64, c: f64) -> Self {
+        Self { a, b, c }
+    }
+
+    pub fn from_points(p1: &PgPoint, p2: &PgPoint) -> Self {
+        let a = p1.y - p2.y;
+        let b = p2.x - p1.x;
+        let c = p1.x * p2.y - p2.x * p1.y;
+        Self { a, b, c }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+
+        if s.starts_with('{') && s.ends_with('}') {
+            let content = &s[1..s.len() - 1];
+            let parts: Vec<&str> = content.split(',').collect();
+            if parts.len() != 3 {
+                return None;
+            }
+            let a = parts[0].trim().parse::<f64>().ok()?;
+            let b = parts[1].trim().parse::<f64>().ok()?;
+            let c = parts[2].trim().parse::<f64>().ok()?;
+            return Some(Self::new(a, b, c));
+        }
+
+        if s.starts_with('[') && s.ends_with(']') {
+            let content = &s[1..s.len() - 1];
+            let points = parse_two_points(content)?;
+            return Some(Self::from_points(&points.0, &points.1));
+        }
+
+        None
+    }
+
+    pub fn is_parallel(&self, other: &PgLine) -> bool {
+        (self.a * other.b - self.b * other.a).abs() < f64::EPSILON
+    }
+
+    pub fn is_perpendicular(&self, other: &PgLine) -> bool {
+        (self.a * other.a + self.b * other.b).abs() < f64::EPSILON
+    }
+}
+
+impl Eq for PgLine {}
+
+impl std::hash::Hash for PgLine {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.a.to_bits().hash(state);
+        self.b.to_bits().hash(state);
+        self.c.to_bits().hash(state);
+    }
+}
+
+impl fmt::Display for PgLine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{{},{},{}}}", self.a, self.b, self.c)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PgLseg {
+    pub start: PgPoint,
+    pub end: PgPoint,
+}
+
+impl PgLseg {
+    pub fn new(start: PgPoint, end: PgPoint) -> Self {
+        Self { start, end }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+
+        if !s.starts_with('[') || !s.ends_with(']') {
+            return None;
+        }
+
+        let content = &s[1..s.len() - 1];
+        let points = parse_two_points(content)?;
+        Some(Self::new(points.0, points.1))
+    }
+
+    pub fn length(&self) -> f64 {
+        self.start.distance(&self.end)
+    }
+
+    pub fn to_line(&self) -> PgLine {
+        PgLine::from_points(&self.start, &self.end)
+    }
+
+    pub fn is_parallel(&self, other: &PgLseg) -> bool {
+        self.to_line().is_parallel(&other.to_line())
+    }
+
+    pub fn is_perpendicular(&self, other: &PgLseg) -> bool {
+        self.to_line().is_perpendicular(&other.to_line())
+    }
+
+    pub fn intersects(&self, other: &PgLseg) -> bool {
+        fn ccw(a: &PgPoint, b: &PgPoint, c: &PgPoint) -> f64 {
+            (c.y - a.y) * (b.x - a.x) - (b.y - a.y) * (c.x - a.x)
+        }
+
+        let d1 = ccw(&self.start, &self.end, &other.start);
+        let d2 = ccw(&self.start, &self.end, &other.end);
+        let d3 = ccw(&other.start, &other.end, &self.start);
+        let d4 = ccw(&other.start, &other.end, &self.end);
+
+        if ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+            && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
+        {
+            return true;
+        }
+
+        if d1.abs() < f64::EPSILON && on_segment(&self.start, &other.start, &self.end) {
+            return true;
+        }
+        if d2.abs() < f64::EPSILON && on_segment(&self.start, &other.end, &self.end) {
+            return true;
+        }
+        if d3.abs() < f64::EPSILON && on_segment(&other.start, &self.start, &other.end) {
+            return true;
+        }
+        if d4.abs() < f64::EPSILON && on_segment(&other.start, &self.end, &other.end) {
+            return true;
+        }
+
+        false
+    }
+}
+
+fn on_segment(p: &PgPoint, q: &PgPoint, r: &PgPoint) -> bool {
+    q.x <= p.x.max(r.x) && q.x >= p.x.min(r.x) && q.y <= p.y.max(r.y) && q.y >= p.y.min(r.y)
+}
+
+fn parse_two_points(content: &str) -> Option<(PgPoint, PgPoint)> {
+    let mut depth = 0;
+    let mut split_pos = None;
+    for (i, c) in content.chars().enumerate() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 && split_pos.is_none() {
+                    let remaining = &content[i + 1..].trim_start();
+                    if remaining.starts_with(',') {
+                        split_pos = Some(i + 1);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let split_pos = split_pos?;
+
+    let p1_str = content[..split_pos].trim();
+    let p2_str = content[split_pos..].trim_start_matches(',').trim();
+
+    let p1 = PgPoint::parse(p1_str)?;
+    let p2 = PgPoint::parse(p2_str)?;
+
+    Some((p1, p2))
+}
+
+impl Eq for PgLseg {}
+
+impl std::hash::Hash for PgLseg {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.start.hash(state);
+        self.end.hash(state);
+    }
+}
+
+impl fmt::Display for PgLseg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{},{}]", self.start, self.end)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PgPath {
+    pub points: Vec<PgPoint>,
+    pub closed: bool,
+}
+
+impl PgPath {
+    pub fn new(points: Vec<PgPoint>, closed: bool) -> Self {
+        Self { points, closed }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+
+        let (closed, content) = if s.starts_with('(') && s.ends_with(')') {
+            (true, &s[1..s.len() - 1])
+        } else if s.starts_with('[') && s.ends_with(']') {
+            (false, &s[1..s.len() - 1])
+        } else {
+            return None;
+        };
+
+        let points = parse_point_list(content)?;
+        if points.is_empty() {
+            return None;
+        }
+
+        Some(Self::new(points, closed))
+    }
+
+    pub fn length(&self) -> f64 {
+        if self.points.len() < 2 {
+            return 0.0;
+        }
+
+        let mut total = 0.0;
+        for i in 0..self.points.len() - 1 {
+            total += self.points[i].distance(&self.points[i + 1]);
+        }
+
+        if self.closed && self.points.len() > 2 {
+            total += self.points.last().unwrap().distance(&self.points[0]);
+        }
+
+        total
+    }
+
+    pub fn npoints(&self) -> i64 {
+        self.points.len() as i64
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    pub fn is_open(&self) -> bool {
+        !self.closed
+    }
+
+    pub fn popen(&self) -> Self {
+        Self::new(self.points.clone(), false)
+    }
+
+    pub fn pclose(&self) -> Self {
+        Self::new(self.points.clone(), true)
+    }
+}
+
+impl Eq for PgPath {}
+
+impl std::hash::Hash for PgPath {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.points.hash(state);
+        self.closed.hash(state);
+    }
+}
+
+impl fmt::Display for PgPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let points_str: Vec<String> = self.points.iter().map(|p| format!("{}", p)).collect();
+        let joined = points_str.join(",");
+        if self.closed {
+            write!(f, "({})", joined)
+        } else {
+            write!(f, "[{}]", joined)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PgPolygon {
+    pub points: Vec<PgPoint>,
+}
+
+impl PgPolygon {
+    pub fn new(points: Vec<PgPoint>) -> Self {
+        Self { points }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+
+        if !s.starts_with('(') || !s.ends_with(')') {
+            return None;
+        }
+
+        let content = &s[1..s.len() - 1];
+        let points = parse_point_list(content)?;
+        if points.len() < 3 {
+            return None;
+        }
+
+        Some(Self::new(points))
+    }
+
+    pub fn npoints(&self) -> i64 {
+        self.points.len() as i64
+    }
+
+    pub fn area(&self) -> f64 {
+        if self.points.len() < 3 {
+            return 0.0;
+        }
+
+        let mut area = 0.0;
+        let n = self.points.len();
+        for i in 0..n {
+            let j = (i + 1) % n;
+            area += self.points[i].x * self.points[j].y;
+            area -= self.points[j].x * self.points[i].y;
+        }
+        (area / 2.0).abs()
+    }
+
+    pub fn contains_point(&self, p: &PgPoint) -> bool {
+        let n = self.points.len();
+        let mut inside = false;
+
+        let mut j = n - 1;
+        for i in 0..n {
+            let pi = &self.points[i];
+            let pj = &self.points[j];
+
+            if ((pi.y > p.y) != (pj.y > p.y))
+                && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x)
+            {
+                inside = !inside;
+            }
+            j = i;
+        }
+
+        inside
+    }
+}
+
+impl Eq for PgPolygon {}
+
+impl std::hash::Hash for PgPolygon {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.points.hash(state);
+    }
+}
+
+impl fmt::Display for PgPolygon {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let points_str: Vec<String> = self.points.iter().map(|p| format!("{}", p)).collect();
+        write!(f, "({})", points_str.join(","))
+    }
+}
+
+fn parse_point_list(content: &str) -> Option<Vec<PgPoint>> {
+    let mut points = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+
+    for (i, c) in content.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    let point_str = &content[start..=i];
+                    points.push(PgPoint::parse(point_str)?);
+                }
+            }
+            ',' if depth == 0 => {
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+
+    Some(points)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1736,6 +2131,66 @@ impl Value {
     }
 
     #[inline]
+    pub fn line(l: PgLine) -> Self {
+        let rc = Rc::new(l);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_LINE,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn lseg(l: PgLseg) -> Self {
+        let rc = Rc::new(l);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_LSEG,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn path(p: PgPath) -> Self {
+        let rc = Rc::new(p);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_PATH,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn polygon(p: PgPolygon) -> Self {
+        let rc = Rc::new(p);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_POLYGON,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
     pub fn ipv4(addr: IPv4Addr) -> Self {
         let rc = Rc::new(addr);
         let ptr = Rc::into_raw(rc) as *mut u8;
@@ -1999,6 +2454,10 @@ impl Value {
                     TAG_POINT => DataType::Point,
                     TAG_PGBOX => DataType::PgBox,
                     TAG_CIRCLE => DataType::Circle,
+                    TAG_LINE => DataType::Line,
+                    TAG_LSEG => DataType::Lseg,
+                    TAG_PATH => DataType::Path,
+                    TAG_POLYGON => DataType::Polygon,
                     TAG_IPV4 => DataType::IPv4,
                     TAG_IPV6 => DataType::IPv6,
                     TAG_DATE32 => DataType::Date32,
@@ -2449,6 +2908,54 @@ impl Value {
         }
     }
 
+    pub fn as_line(&self) -> Option<&PgLine> {
+        unsafe {
+            if self.tag() == TAG_LINE {
+                let heap = self.as_heap();
+                let line_ptr = heap.ptr as *const PgLine;
+                Some(&*line_ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_lseg(&self) -> Option<&PgLseg> {
+        unsafe {
+            if self.tag() == TAG_LSEG {
+                let heap = self.as_heap();
+                let lseg_ptr = heap.ptr as *const PgLseg;
+                Some(&*lseg_ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_path(&self) -> Option<&PgPath> {
+        unsafe {
+            if self.tag() == TAG_PATH {
+                let heap = self.as_heap();
+                let path_ptr = heap.ptr as *const PgPath;
+                Some(&*path_ptr)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_polygon(&self) -> Option<&PgPolygon> {
+        unsafe {
+            if self.tag() == TAG_POLYGON {
+                let heap = self.as_heap();
+                let polygon_ptr = heap.ptr as *const PgPolygon;
+                Some(&*polygon_ptr)
+            } else {
+                None
+            }
+        }
+    }
+
     pub fn as_macaddr8(&self) -> Option<&MacAddress> {
         unsafe {
             if self.tag() == TAG_MACADDR8 {
@@ -2598,6 +3105,18 @@ impl Drop for Value {
                     }
                     TAG_CIRCLE => {
                         let _ = Rc::from_raw(heap.ptr as *const PgCircle);
+                    }
+                    TAG_LINE => {
+                        let _ = Rc::from_raw(heap.ptr as *const PgLine);
+                    }
+                    TAG_LSEG => {
+                        let _ = Rc::from_raw(heap.ptr as *const PgLseg);
+                    }
+                    TAG_PATH => {
+                        let _ = Rc::from_raw(heap.ptr as *const PgPath);
+                    }
+                    TAG_POLYGON => {
+                        let _ = Rc::from_raw(heap.ptr as *const PgPolygon);
                     }
                     TAG_HSTORE => {
                         let _ = Rc::from_raw(heap.ptr as *const IndexMap<String, Option<String>>);
@@ -2911,6 +3430,70 @@ impl Clone for Value {
                             },
                         }
                     }
+                    TAG_LINE => {
+                        let arc_ptr = heap.ptr as *const PgLine;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_LINE,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_LSEG => {
+                        let arc_ptr = heap.ptr as *const PgLseg;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_LSEG,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_PATH => {
+                        let arc_ptr = heap.ptr as *const PgPath;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_PATH,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
+                    TAG_POLYGON => {
+                        let arc_ptr = heap.ptr as *const PgPolygon;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_POLYGON,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
                     TAG_HSTORE => {
                         let arc_ptr = heap.ptr as *const IndexMap<String, Option<String>>;
                         let rc = Rc::from_raw(arc_ptr);
@@ -3178,6 +3761,26 @@ impl PartialEq for Value {
                         let other_circle = &*(other_heap.ptr as *const PgCircle);
                         self_circle == other_circle
                     }
+                    TAG_LINE => {
+                        let self_line = &*(self_heap.ptr as *const PgLine);
+                        let other_line = &*(other_heap.ptr as *const PgLine);
+                        self_line == other_line
+                    }
+                    TAG_LSEG => {
+                        let self_lseg = &*(self_heap.ptr as *const PgLseg);
+                        let other_lseg = &*(other_heap.ptr as *const PgLseg);
+                        self_lseg == other_lseg
+                    }
+                    TAG_PATH => {
+                        let self_path = &*(self_heap.ptr as *const PgPath);
+                        let other_path = &*(other_heap.ptr as *const PgPath);
+                        self_path == other_path
+                    }
+                    TAG_POLYGON => {
+                        let self_polygon = &*(self_heap.ptr as *const PgPolygon);
+                        let other_polygon = &*(other_heap.ptr as *const PgPolygon);
+                        self_polygon == other_polygon
+                    }
                     TAG_MAP => {
                         let self_map = &*(self_heap.ptr as *const Vec<(Value, Value)>);
                         let other_map = &*(other_heap.ptr as *const Vec<(Value, Value)>);
@@ -3380,6 +3983,26 @@ impl std::hash::Hash for Value {
                             c.hash(state);
                         }
                     }
+                    TAG_LINE => {
+                        if let Some(l) = self.as_line() {
+                            l.hash(state);
+                        }
+                    }
+                    TAG_LSEG => {
+                        if let Some(l) = self.as_lseg() {
+                            l.hash(state);
+                        }
+                    }
+                    TAG_PATH => {
+                        if let Some(p) = self.as_path() {
+                            p.hash(state);
+                        }
+                    }
+                    TAG_POLYGON => {
+                        if let Some(p) = self.as_polygon() {
+                            p.hash(state);
+                        }
+                    }
                     TAG_MAP => {
                         if let Some(entries) = self.as_map() {
                             entries.len().hash(state);
@@ -3536,6 +4159,22 @@ impl std::fmt::Debug for Value {
                     TAG_CIRCLE => {
                         let c = &*(heap.ptr as *const PgCircle);
                         write!(f, "Value::circle({:?})", c)
+                    }
+                    TAG_LINE => {
+                        let l = &*(heap.ptr as *const PgLine);
+                        write!(f, "Value::line({:?})", l)
+                    }
+                    TAG_LSEG => {
+                        let l = &*(heap.ptr as *const PgLseg);
+                        write!(f, "Value::lseg({:?})", l)
+                    }
+                    TAG_PATH => {
+                        let p = &*(heap.ptr as *const PgPath);
+                        write!(f, "Value::path({:?})", p)
+                    }
+                    TAG_POLYGON => {
+                        let p = &*(heap.ptr as *const PgPolygon);
+                        write!(f, "Value::polygon({:?})", p)
                     }
                     TAG_DEFAULT => write!(f, "Value::Default"),
 
@@ -3849,6 +4488,38 @@ pub fn parse_circle_literal(s: &str) -> Value {
 }
 
 #[inline]
+pub fn parse_line_literal(s: &str) -> Value {
+    match PgLine::parse(s) {
+        Some(line) => Value::line(line),
+        None => Value::null(),
+    }
+}
+
+#[inline]
+pub fn parse_lseg_literal(s: &str) -> Value {
+    match PgLseg::parse(s) {
+        Some(lseg) => Value::lseg(lseg),
+        None => Value::null(),
+    }
+}
+
+#[inline]
+pub fn parse_path_literal(s: &str) -> Value {
+    match PgPath::parse(s) {
+        Some(path) => Value::path(path),
+        None => Value::null(),
+    }
+}
+
+#[inline]
+pub fn parse_polygon_literal(s: &str) -> Value {
+    match PgPolygon::parse(s) {
+        Some(polygon) => Value::polygon(polygon),
+        None => Value::null(),
+    }
+}
+
+#[inline]
 pub fn parse_uuid_strict(s: &str) -> crate::error::Result<Value> {
     Uuid::parse_str(s).map(Value::uuid).map_err(|e| {
         crate::error::Error::invalid_query(format!("Invalid UUID format '{}': {}", s, e))
@@ -3996,6 +4667,22 @@ impl fmt::Display for Value {
                     TAG_CIRCLE => {
                         let c = &*(heap.ptr as *const PgCircle);
                         write!(f, "{}", c)
+                    }
+                    TAG_LINE => {
+                        let l = &*(heap.ptr as *const PgLine);
+                        write!(f, "{}", l)
+                    }
+                    TAG_LSEG => {
+                        let l = &*(heap.ptr as *const PgLseg);
+                        write!(f, "{}", l)
+                    }
+                    TAG_PATH => {
+                        let p = &*(heap.ptr as *const PgPath);
+                        write!(f, "{}", p)
+                    }
+                    TAG_POLYGON => {
+                        let p = &*(heap.ptr as *const PgPolygon);
+                        write!(f, "{}", p)
                     }
                     TAG_HSTORE => {
                         let h = &*(heap.ptr as *const IndexMap<String, Option<String>>);

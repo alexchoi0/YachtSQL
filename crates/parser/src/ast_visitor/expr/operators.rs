@@ -107,6 +107,9 @@ impl LogicalPlanBuilder {
                 "-|-" => Ok(BinaryOp::RangeAdjacent),
                 "<<=" => Ok(BinaryOp::InetContainedByOrEqual),
                 ">>=" => Ok(BinaryOp::InetContainsOrEqual),
+                "?||" => Ok(BinaryOp::GeometricParallel),
+                "?-|" => Ok(BinaryOp::GeometricPerpendicular),
+                "?#" => Ok(BinaryOp::GeometricIntersects),
                 _ => Err(Error::unsupported_feature(format!(
                     "Custom binary operator not supported: {:?}",
                     op_str
