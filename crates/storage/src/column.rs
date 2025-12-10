@@ -2440,6 +2440,11 @@ impl Column {
                 data: data[start..start + len].to_vec(),
                 nulls,
             }),
+            Column::FixedString { data, length, .. } => Ok(Column::FixedString {
+                data: data[start..start + len].to_vec(),
+                nulls,
+                length: *length,
+            }),
         }
     }
 
@@ -3103,6 +3108,26 @@ impl Column {
                     nulls: other_nulls,
                 },
             ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::FixedString {
+                    data: self_data,
+                    nulls: self_nulls,
+                    length: self_length,
+                },
+                Column::FixedString {
+                    data: other_data,
+                    nulls: other_nulls,
+                    length: other_length,
+                },
+            ) => {
+                if self_length != other_length {
+                    return Err(Error::InvalidOperation(
+                        "Cannot append FixedString columns with different lengths".to_string(),
+                    ));
+                }
                 self_data.extend_from_slice(other_data);
                 self_nulls.append(other_nulls);
             }
