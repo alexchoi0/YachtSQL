@@ -48,6 +48,8 @@ impl ProjectionWithExprExec {
                 | CastDataType::Point
                 | CastDataType::PgBox
                 | CastDataType::Circle
+                | CastDataType::Xid
+                | CastDataType::Xid8
                 | CastDataType::Vector(_) => {
                     return crate::query_executor::execution::perform_cast(&value, target_type);
                 }
@@ -198,6 +200,8 @@ impl ProjectionWithExprExec {
                     "POINT" => CastDataType::Point,
                     "BOX" => CastDataType::PgBox,
                     "CIRCLE" => CastDataType::Circle,
+                    "XID" => CastDataType::Xid,
+                    "XID8" => CastDataType::Xid8,
                     _ => {
                         if let Some(s) = value.as_str() {
                             return Ok(Value::string(s.to_string()));

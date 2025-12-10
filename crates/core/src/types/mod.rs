@@ -66,6 +66,11 @@ pub enum DataType {
         type_name: String,
         labels: Vec<String>,
     },
+    Xid,
+    Xid8,
+    Tid,
+    Cid,
+    Oid,
     Custom(String),
 }
 
@@ -156,6 +161,11 @@ impl fmt::Display for DataType {
             DataType::GeoPolygon => write!(f, "Polygon"),
             DataType::GeoMultiPolygon => write!(f, "MultiPolygon"),
             DataType::Enum { type_name, .. } => write!(f, "{}", type_name),
+            DataType::Xid => write!(f, "XID"),
+            DataType::Xid8 => write!(f, "XID8"),
+            DataType::Tid => write!(f, "TID"),
+            DataType::Cid => write!(f, "CID"),
+            DataType::Oid => write!(f, "OID"),
             DataType::Custom(name) => write!(f, "{}", name),
         }
     }

@@ -328,6 +328,11 @@ impl AggregateExec {
                     CastDataType::Point => DataType::Point,
                     CastDataType::PgBox => DataType::PgBox,
                     CastDataType::Circle => DataType::Circle,
+                    CastDataType::Xid => DataType::Xid,
+                    CastDataType::Xid8 => DataType::Xid8,
+                    CastDataType::Tid => DataType::Tid,
+                    CastDataType::Cid => DataType::Cid,
+                    CastDataType::Oid => DataType::Oid,
                     CastDataType::Array(inner) => {
                         let inner_expr = Expr::Cast {
                             expr: Box::new(Expr::Literal(yachtsql_ir::expr::LiteralValue::Null)),

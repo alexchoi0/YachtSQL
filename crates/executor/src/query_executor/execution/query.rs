@@ -11,6 +11,13 @@ use sqlparser::ast::{
 };
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
+
+fn is_system_column_type(dt: &DataType) -> bool {
+    matches!(
+        dt,
+        DataType::Tid | DataType::Xid | DataType::Cid | DataType::Oid
+    )
+}
 use yachtsql_functions::FunctionRegistry;
 use yachtsql_storage::{Column, Field, Row, Schema, TableIndexOps};
 
@@ -100,6 +107,9 @@ impl QueryExecutorTrait for QueryExecutor {
             match item {
                 SelectItem::Wildcard(_) => {
                     for field in schema.fields() {
+                        if is_system_column_type(&field.data_type) {
+                            continue;
+                        }
                         projected_fields.push(field.clone());
                         projection_exprs.push((
                             Some(field.name.clone()),
@@ -132,6 +142,9 @@ impl QueryExecutorTrait for QueryExecutor {
                         schema.fields().iter().any(|f| f.source_table.is_some());
 
                     for field in schema.fields() {
+                        if is_system_column_type(&field.data_type) {
+                            continue;
+                        }
                         let should_include = if has_source_tables {
                             field.source_table.as_ref() == Some(&table_qualifier)
                         } else {
@@ -2323,8 +2336,10 @@ impl QueryExecutor {
         for item in select_items {
             match item {
                 SelectItem::Wildcard(_) => {
-                    for i in 0..schema.fields().len() {
-                        indices.push(i);
+                    for (i, field) in schema.fields().iter().enumerate() {
+                        if !is_system_column_type(&field.data_type) {
+                            indices.push(i);
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
@@ -2346,8 +2361,10 @@ impl QueryExecutor {
                     indices.push(idx);
                 }
                 SelectItem::QualifiedWildcard(_object_name, _) => {
-                    for i in 0..schema.fields().len() {
-                        indices.push(i);
+                    for (i, field) in schema.fields().iter().enumerate() {
+                        if !is_system_column_type(&field.data_type) {
+                            indices.push(i);
+                        }
                     }
                 }
             }
@@ -4852,6 +4869,9 @@ impl QueryExecutor {
                 }
                 SelectItem::Wildcard(_) => {
                     for (idx, field) in schema.fields().iter().enumerate() {
+                        if is_system_column_type(&field.data_type) {
+                            continue;
+                        }
                         output_fields.push(field.clone());
                         column_indices.push(idx);
                     }

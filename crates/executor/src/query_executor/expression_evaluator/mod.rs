@@ -10153,6 +10153,10 @@ impl<'a> ExpressionEvaluator<'a> {
             | DataType::GeoPolygon
             | DataType::GeoMultiPolygon => Some("geometric"),
             DataType::FixedString(_) => Some("string"),
+            DataType::Xid | DataType::Xid8 => Some("xid"),
+            DataType::Tid => Some("tid"),
+            DataType::Cid => Some("cid"),
+            DataType::Oid => Some("oid"),
         }
     }
 

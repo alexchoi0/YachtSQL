@@ -211,6 +211,11 @@ pub enum CastDataType {
     Point,
     PgBox,
     Circle,
+    Xid,
+    Xid8,
+    Tid,
+    Cid,
+    Oid,
     Custom(String, Vec<yachtsql_core::types::StructField>),
 }
 

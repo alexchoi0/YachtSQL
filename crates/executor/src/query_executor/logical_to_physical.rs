@@ -28,6 +28,126 @@ pub struct LogicalToPhysicalPlanner {
     cte_plans: RefCell<HashMap<String, (Rc<dyn ExecutionPlan>, Option<Vec<String>>)>>,
 }
 
+fn is_system_column(name: &str) -> bool {
+    matches!(
+        name.to_lowercase().as_str(),
+        "ctid" | "xmin" | "xmax" | "cmin" | "cmax" | "tableoid"
+    )
+}
+
+fn system_column_type(name: &str) -> Option<yachtsql_core::types::DataType> {
+    match name.to_lowercase().as_str() {
+        "ctid" => Some(yachtsql_core::types::DataType::Tid),
+        "xmin" | "xmax" => Some(yachtsql_core::types::DataType::Xid),
+        "cmin" | "cmax" => Some(yachtsql_core::types::DataType::Cid),
+        "tableoid" => Some(yachtsql_core::types::DataType::Oid),
+        _ => None,
+    }
+}
+
+fn create_system_columns(source_table: &str) -> Vec<yachtsql_storage::schema::Field> {
+    use yachtsql_core::types::DataType;
+    use yachtsql_storage::schema::{Field, FieldMode};
+    vec![
+        Field {
+            name: "ctid".to_string(),
+            data_type: DataType::Tid,
+            mode: FieldMode::Nullable,
+            description: None,
+            default_value: None,
+            is_unique: false,
+            identity_generation: None,
+            identity_sequence_name: None,
+            identity_sequence_config: None,
+            is_auto_increment: false,
+            generated_expression: None,
+            collation: None,
+            source_table: Some(source_table.to_string()),
+            domain_name: None,
+        },
+        Field {
+            name: "xmin".to_string(),
+            data_type: DataType::Xid,
+            mode: FieldMode::Nullable,
+            description: None,
+            default_value: None,
+            is_unique: false,
+            identity_generation: None,
+            identity_sequence_name: None,
+            identity_sequence_config: None,
+            is_auto_increment: false,
+            generated_expression: None,
+            collation: None,
+            source_table: Some(source_table.to_string()),
+            domain_name: None,
+        },
+        Field {
+            name: "xmax".to_string(),
+            data_type: DataType::Xid,
+            mode: FieldMode::Nullable,
+            description: None,
+            default_value: None,
+            is_unique: false,
+            identity_generation: None,
+            identity_sequence_name: None,
+            identity_sequence_config: None,
+            is_auto_increment: false,
+            generated_expression: None,
+            collation: None,
+            source_table: Some(source_table.to_string()),
+            domain_name: None,
+        },
+        Field {
+            name: "cmin".to_string(),
+            data_type: DataType::Cid,
+            mode: FieldMode::Nullable,
+            description: None,
+            default_value: None,
+            is_unique: false,
+            identity_generation: None,
+            identity_sequence_name: None,
+            identity_sequence_config: None,
+            is_auto_increment: false,
+            generated_expression: None,
+            collation: None,
+            source_table: Some(source_table.to_string()),
+            domain_name: None,
+        },
+        Field {
+            name: "cmax".to_string(),
+            data_type: DataType::Cid,
+            mode: FieldMode::Nullable,
+            description: None,
+            default_value: None,
+            is_unique: false,
+            identity_generation: None,
+            identity_sequence_name: None,
+            identity_sequence_config: None,
+            is_auto_increment: false,
+            generated_expression: None,
+            collation: None,
+            source_table: Some(source_table.to_string()),
+            domain_name: None,
+        },
+        Field {
+            name: "tableoid".to_string(),
+            data_type: DataType::Oid,
+            mode: FieldMode::Nullable,
+            description: None,
+            default_value: None,
+            is_unique: false,
+            identity_generation: None,
+            identity_sequence_name: None,
+            identity_sequence_config: None,
+            is_auto_increment: false,
+            generated_expression: None,
+            collation: None,
+            source_table: Some(source_table.to_string()),
+            domain_name: None,
+        },
+    ]
+}
+
 impl LogicalToPhysicalPlanner {
     fn validate_expr(expr: &yachtsql_ir::expr::Expr) -> Result<()> {
         use yachtsql_ir::expr::Expr;
@@ -167,9 +287,15 @@ impl LogicalToPhysicalPlanner {
                 if schema.field(name).is_some() {
                     return Ok(());
                 }
+                if is_system_column(name) {
+                    return Ok(());
+                }
                 if let Some(table_name) = table {
                     let qualified_name = format!("{}.{}", table_name, name);
                     if schema.field(&qualified_name).is_some() {
+                        return Ok(());
+                    }
+                    if is_system_column(name) {
                         return Ok(());
                     }
                     if let Some(field) = schema.field(table_name) {
@@ -521,6 +647,8 @@ impl LogicalToPhysicalPlanner {
                             "POINT" => CastDataType::Point,
                             "BOX" => CastDataType::PgBox,
                             "CIRCLE" => CastDataType::Circle,
+                            "XID" => CastDataType::Xid,
+                            "XID8" => CastDataType::Xid8,
                             _ => {
                                 let composite_fields_cloned = {
                                     let storage = self.storage.borrow();
@@ -1769,6 +1897,11 @@ impl LogicalToPhysicalPlanner {
             CastDataType::Point => DataType::Point,
             CastDataType::PgBox => DataType::PgBox,
             CastDataType::Circle => DataType::Circle,
+            CastDataType::Xid => DataType::Xid,
+            CastDataType::Xid8 => DataType::Xid8,
+            CastDataType::Tid => DataType::Tid,
+            CastDataType::Cid => DataType::Cid,
+            CastDataType::Oid => DataType::Oid,
             CastDataType::Custom(_, fields) => DataType::Struct(fields.clone()),
         }
     }

@@ -1739,6 +1739,36 @@ impl TableValuedFunctionExec {
                         ))]),
                         vec![],
                     ),
+                    CastDataType::Xid => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "xid",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Xid8 => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "xid8",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Tid => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "tid",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Cid => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "cid",
+                        ))]),
+                        vec![],
+                    ),
+                    CastDataType::Oid => ast::DataType::Custom(
+                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                            "oid",
+                        ))]),
+                        vec![],
+                    ),
                 };
                 ast::Expr::Cast {
                     expr: Box::new(inner),

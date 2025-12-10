@@ -389,6 +389,12 @@ impl Column {
                 nulls: NullBitmap::new_valid(0),
                 length: *length,
             },
+            DataType::Xid | DataType::Xid8 | DataType::Tid | DataType::Cid | DataType::Oid => {
+                Column::Int64 {
+                    data: AVec::with_capacity(64, capacity),
+                    nulls: NullBitmap::new_valid(0),
+                }
+            }
             _ => unimplemented!("Complex types not yet supported: {:?}", data_type),
         }
     }

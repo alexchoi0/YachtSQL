@@ -159,6 +159,11 @@ impl ProjectionWithExprExec {
             CastDataType::Point => DataType::Point,
             CastDataType::PgBox => DataType::PgBox,
             CastDataType::Circle => DataType::Circle,
+            CastDataType::Xid => DataType::Xid,
+            CastDataType::Xid8 => DataType::Xid8,
+            CastDataType::Tid => DataType::Tid,
+            CastDataType::Cid => DataType::Cid,
+            CastDataType::Oid => DataType::Oid,
             CastDataType::Custom(name, struct_fields) => {
                 if struct_fields.is_empty() {
                     DataType::Custom(name.clone())
