@@ -185,7 +185,6 @@ pub fn postgres_scalar_functions() -> Vec<&'static str> {
         "CIRCLE",
         "LINE",
         "LSEG",
-        "PATH",
         "POLYGON",
         "AREA",
         "CENTER",
