@@ -28,7 +28,13 @@ fn are_types_compatible(col_type: &DataType, schema_type: &DataType) -> bool {
 
     matches!(
         (col_type, schema_type),
-        (DataType::Float64, DataType::Int64) | (DataType::Float64, DataType::BigNumeric)
+        (DataType::Float64, DataType::Int64)
+            | (DataType::Float64, DataType::BigNumeric)
+            | (DataType::Int64, DataType::Xid)
+            | (DataType::Int64, DataType::Xid8)
+            | (DataType::Int64, DataType::Tid)
+            | (DataType::Int64, DataType::Cid)
+            | (DataType::Int64, DataType::Oid)
     )
 }
 

@@ -1385,6 +1385,8 @@ impl Parsing {
     }
 
     fn parse_create_dictionary(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        use crate::validator::{DictionaryLayoutDef, DictionaryLifetimeDef, DictionarySourceDef};
+
         let mut idx = 0;
 
         if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
@@ -1397,7 +1399,333 @@ impl Parsing {
 
         let name = Self::parse_qualified_name(tokens, &mut idx)?;
 
-        Ok(Some(CustomStatement::ClickHouseCreateDictionary { name }))
+        let columns = Self::parse_dictionary_columns(tokens, &mut idx)?;
+
+        let mut primary_key = Vec::new();
+        let mut source = DictionarySourceDef::default();
+        let mut layout = DictionaryLayoutDef::default();
+        let mut lifetime = DictionaryLifetimeDef::default();
+
+        while idx < tokens.len() {
+            if ParserHelpers::consume_keyword(tokens, &mut idx, "PRIMARY") {
+                if ParserHelpers::expect_keyword(tokens, &mut idx, "KEY") {
+                    primary_key = Self::parse_primary_key_columns(tokens, &mut idx)?;
+                }
+            } else if ParserHelpers::consume_keyword(tokens, &mut idx, "SOURCE") {
+                source = Self::parse_dictionary_source(tokens, &mut idx)?;
+            } else if ParserHelpers::consume_keyword(tokens, &mut idx, "LAYOUT") {
+                layout = Self::parse_dictionary_layout(tokens, &mut idx)?;
+            } else if ParserHelpers::consume_keyword(tokens, &mut idx, "LIFETIME") {
+                lifetime = Self::parse_dictionary_lifetime(tokens, &mut idx)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(Some(CustomStatement::ClickHouseCreateDictionary {
+            name,
+            columns,
+            primary_key,
+            source,
+            layout,
+            lifetime,
+        }))
+    }
+
+    fn parse_dictionary_columns(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<Vec<crate::validator::DictionaryColumnDef>> {
+        use crate::validator::DictionaryColumnDef;
+
+        let mut columns = Vec::new();
+
+        if !matches!(tokens.get(*idx), Some(Token::LParen)) {
+            return Ok(columns);
+        }
+        *idx += 1;
+
+        while *idx < tokens.len() {
+            if matches!(tokens.get(*idx), Some(Token::RParen)) {
+                *idx += 1;
+                break;
+            }
+
+            if matches!(tokens.get(*idx), Some(Token::Comma)) {
+                *idx += 1;
+                continue;
+            }
+
+            let col_name = Self::parse_identifier(tokens, idx)?;
+
+            let mut data_type = String::new();
+            while *idx < tokens.len() {
+                match tokens.get(*idx) {
+                    Some(Token::Word(w)) => {
+                        let upper = w.value.to_uppercase();
+                        if upper == "HIERARCHICAL" || upper == "DEFAULT" {
+                            break;
+                        }
+                        if !data_type.is_empty() {
+                            data_type.push(' ');
+                        }
+                        data_type.push_str(&w.value);
+                        *idx += 1;
+                    }
+                    Some(Token::LParen) => {
+                        data_type.push('(');
+                        *idx += 1;
+                        let mut paren_depth = 1;
+                        while *idx < tokens.len() && paren_depth > 0 {
+                            match tokens.get(*idx) {
+                                Some(Token::LParen) => {
+                                    data_type.push('(');
+                                    paren_depth += 1;
+                                }
+                                Some(Token::RParen) => {
+                                    paren_depth -= 1;
+                                    if paren_depth > 0 {
+                                        data_type.push(')');
+                                    }
+                                }
+                                Some(Token::Comma) if paren_depth == 1 => {
+                                    data_type.push(',');
+                                }
+                                Some(Token::Number(n, _)) => {
+                                    data_type.push_str(n);
+                                }
+                                Some(Token::Word(w)) => {
+                                    data_type.push_str(&w.value);
+                                }
+                                _ => {}
+                            }
+                            *idx += 1;
+                        }
+                        data_type.push(')');
+                    }
+                    _ => break,
+                }
+            }
+
+            let is_hierarchical = ParserHelpers::consume_keyword(tokens, idx, "HIERARCHICAL");
+
+            let default_value = if ParserHelpers::consume_keyword(tokens, idx, "DEFAULT") {
+                Some(Self::parse_default_value(tokens, idx)?)
+            } else {
+                None
+            };
+
+            columns.push(DictionaryColumnDef {
+                name: col_name,
+                data_type,
+                is_hierarchical,
+                default_value,
+            });
+        }
+
+        Ok(columns)
+    }
+
+    fn parse_default_value(tokens: &[&Token], idx: &mut usize) -> Result<String> {
+        let mut value = String::new();
+        match tokens.get(*idx) {
+            Some(Token::Number(n, _)) => {
+                value.push_str(n);
+                *idx += 1;
+            }
+            Some(Token::SingleQuotedString(s)) => {
+                value.push('\'');
+                value.push_str(s);
+                value.push('\'');
+                *idx += 1;
+            }
+            Some(Token::Word(w)) => {
+                value.push_str(&w.value);
+                *idx += 1;
+            }
+            _ => {}
+        }
+        Ok(value)
+    }
+
+    fn parse_primary_key_columns(tokens: &[&Token], idx: &mut usize) -> Result<Vec<String>> {
+        let mut columns = Vec::new();
+
+        if matches!(tokens.get(*idx), Some(Token::LParen)) {
+            *idx += 1;
+            while *idx < tokens.len() {
+                if matches!(tokens.get(*idx), Some(Token::RParen)) {
+                    *idx += 1;
+                    break;
+                }
+                if matches!(tokens.get(*idx), Some(Token::Comma)) {
+                    *idx += 1;
+                    continue;
+                }
+                if let Some(Token::Word(w)) = tokens.get(*idx) {
+                    columns.push(w.value.clone());
+                    *idx += 1;
+                } else {
+                    break;
+                }
+            }
+        } else if let Some(Token::Word(w)) = tokens.get(*idx) {
+            columns.push(w.value.clone());
+            *idx += 1;
+        }
+
+        Ok(columns)
+    }
+
+    fn parse_dictionary_source(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<crate::validator::DictionarySourceDef> {
+        use crate::validator::DictionarySourceDef;
+
+        let mut source = DictionarySourceDef::default();
+
+        if !matches!(tokens.get(*idx), Some(Token::LParen)) {
+            return Ok(source);
+        }
+        *idx += 1;
+
+        if let Some(Token::Word(w)) = tokens.get(*idx) {
+            source.source_type = w.value.to_uppercase();
+            *idx += 1;
+        }
+
+        if matches!(tokens.get(*idx), Some(Token::LParen)) {
+            *idx += 1;
+            while *idx < tokens.len() {
+                if matches!(tokens.get(*idx), Some(Token::RParen)) {
+                    *idx += 1;
+                    break;
+                }
+                if let Some(Token::Word(w)) = tokens.get(*idx) {
+                    if w.value.eq_ignore_ascii_case("TABLE") {
+                        *idx += 1;
+                        if let Some(Token::SingleQuotedString(s)) = tokens.get(*idx) {
+                            source.table = Some(s.clone());
+                            *idx += 1;
+                        } else if let Some(Token::Word(w)) = tokens.get(*idx) {
+                            source.table = Some(w.value.clone());
+                            *idx += 1;
+                        }
+                    } else {
+                        *idx += 1;
+                    }
+                } else {
+                    *idx += 1;
+                }
+            }
+        }
+
+        if matches!(tokens.get(*idx), Some(Token::RParen)) {
+            *idx += 1;
+        }
+
+        Ok(source)
+    }
+
+    fn parse_dictionary_layout(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<crate::validator::DictionaryLayoutDef> {
+        use crate::validator::DictionaryLayoutDef;
+
+        if !matches!(tokens.get(*idx), Some(Token::LParen)) {
+            return Ok(DictionaryLayoutDef::default());
+        }
+        *idx += 1;
+
+        let layout = if let Some(Token::Word(w)) = tokens.get(*idx) {
+            let upper = w.value.to_uppercase();
+            *idx += 1;
+
+            if matches!(tokens.get(*idx), Some(Token::LParen)) {
+                *idx += 1;
+                while *idx < tokens.len() && !matches!(tokens.get(*idx), Some(Token::RParen)) {
+                    *idx += 1;
+                }
+                if matches!(tokens.get(*idx), Some(Token::RParen)) {
+                    *idx += 1;
+                }
+            }
+
+            match upper.as_str() {
+                "FLAT" => DictionaryLayoutDef::Flat,
+                "HASHED" => DictionaryLayoutDef::Hashed,
+                "RANGE_HASHED" => DictionaryLayoutDef::RangeHashed,
+                "CACHE" => DictionaryLayoutDef::Cache,
+                "COMPLEX_KEY_HASHED" => DictionaryLayoutDef::ComplexKeyHashed,
+                "COMPLEX_KEY_CACHE" => DictionaryLayoutDef::ComplexKeyCache,
+                "DIRECT" => DictionaryLayoutDef::Direct,
+                _ => DictionaryLayoutDef::Flat,
+            }
+        } else {
+            DictionaryLayoutDef::default()
+        };
+
+        if matches!(tokens.get(*idx), Some(Token::RParen)) {
+            *idx += 1;
+        }
+
+        Ok(layout)
+    }
+
+    fn parse_dictionary_lifetime(
+        tokens: &[&Token],
+        idx: &mut usize,
+    ) -> Result<crate::validator::DictionaryLifetimeDef> {
+        use crate::validator::DictionaryLifetimeDef;
+
+        let mut lifetime = DictionaryLifetimeDef::default();
+
+        if !matches!(tokens.get(*idx), Some(Token::LParen)) {
+            if let Some(Token::Number(n, _)) = tokens.get(*idx) {
+                if let Ok(val) = n.parse::<u64>() {
+                    lifetime.min_seconds = val;
+                    lifetime.max_seconds = val;
+                }
+                *idx += 1;
+            }
+            return Ok(lifetime);
+        }
+        *idx += 1;
+
+        while *idx < tokens.len() {
+            if matches!(tokens.get(*idx), Some(Token::RParen)) {
+                *idx += 1;
+                break;
+            }
+
+            if let Some(Token::Word(w)) = tokens.get(*idx) {
+                let upper = w.value.to_uppercase();
+                *idx += 1;
+
+                if let Some(Token::Number(n, _)) = tokens.get(*idx) {
+                    if let Ok(val) = n.parse::<u64>() {
+                        match upper.as_str() {
+                            "MIN" => lifetime.min_seconds = val,
+                            "MAX" => lifetime.max_seconds = val,
+                            _ => {}
+                        }
+                    }
+                    *idx += 1;
+                }
+            } else if let Some(Token::Number(n, _)) = tokens.get(*idx) {
+                if let Ok(val) = n.parse::<u64>() {
+                    lifetime.min_seconds = val;
+                    lifetime.max_seconds = val;
+                }
+                *idx += 1;
+            } else {
+                *idx += 1;
+            }
+        }
+
+        Ok(lifetime)
     }
 
     fn parse_system_command(tokens: &[&Token]) -> Result<Option<CustomStatement>> {

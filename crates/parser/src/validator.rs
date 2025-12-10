@@ -212,6 +212,11 @@ pub enum CustomStatement {
 
     ClickHouseCreateDictionary {
         name: sqlparser::ast::ObjectName,
+        columns: Vec<DictionaryColumnDef>,
+        primary_key: Vec<String>,
+        source: DictionarySourceDef,
+        layout: DictionaryLayoutDef,
+        lifetime: DictionaryLifetimeDef,
     },
 
     ClickHouseDatabase {
@@ -244,6 +249,19 @@ pub enum CustomStatement {
 
     ClickHouseAlterTable {
         statement: String,
+    },
+
+    CreateSnapshotTable {
+        name: sqlparser::ast::ObjectName,
+        source_table: sqlparser::ast::ObjectName,
+        if_not_exists: bool,
+        for_system_time: Option<String>,
+        options: Vec<(String, String)>,
+    },
+
+    DropSnapshotTable {
+        name: sqlparser::ast::ObjectName,
+        if_exists: bool,
     },
 }
 
@@ -314,6 +332,38 @@ pub enum ClickHouseSystemCommand {
 }
 
 use crate::parser::ClickHouseIndexType;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DictionaryColumnDef {
+    pub name: String,
+    pub data_type: String,
+    pub is_hierarchical: bool,
+    pub default_value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DictionarySourceDef {
+    pub source_type: String,
+    pub table: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DictionaryLayoutDef {
+    #[default]
+    Flat,
+    Hashed,
+    RangeHashed,
+    Cache,
+    ComplexKeyHashed,
+    ComplexKeyCache,
+    Direct,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DictionaryLifetimeDef {
+    pub min_seconds: u64,
+    pub max_seconds: u64,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetConstraintsMode {
@@ -535,6 +585,16 @@ impl StatementValidator {
             | CustomStatement::Continue { .. }
             | CustomStatement::Break { .. }
             | CustomStatement::While { .. } => Ok(()),
+            CustomStatement::CreateSnapshotTable { name, .. } => {
+                self.require_bigquery("CREATE SNAPSHOT TABLE")?;
+                self.validate_object_name(name, "snapshot table")?;
+                Ok(())
+            }
+            CustomStatement::DropSnapshotTable { name, .. } => {
+                self.require_bigquery("DROP SNAPSHOT TABLE")?;
+                self.validate_object_name(name, "snapshot table")?;
+                Ok(())
+            }
         }
     }
 
@@ -592,6 +652,16 @@ impl StatementValidator {
         if self.dialect != DialectType::PostgreSQL {
             return Err(Error::invalid_query(format!(
                 "{} is only supported in PostgreSQL dialect",
+                feature
+            )));
+        }
+        Ok(())
+    }
+
+    fn require_bigquery(&self, feature: &str) -> Result<()> {
+        if self.dialect != DialectType::BigQuery {
+            return Err(Error::invalid_query(format!(
+                "{} is only supported in BigQuery dialect",
                 feature
             )));
         }

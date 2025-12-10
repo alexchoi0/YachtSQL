@@ -85,6 +85,7 @@ pub struct ExpressionEvaluator<'a> {
     table_map: HashMap<String, TableSide>,
     type_registry: Option<&'a TypeRegistry>,
     owned_type_registry: Option<TypeRegistry>,
+    dictionary_registry: Option<yachtsql_storage::DictionaryRegistry>,
     dialect: crate::DialectType,
     system_variables: HashMap<String, Value>,
 }
@@ -105,6 +106,7 @@ impl<'a> ExpressionEvaluator<'a> {
             table_map: HashMap::new(),
             type_registry: None,
             owned_type_registry: None,
+            dictionary_registry: None,
             dialect: crate::DialectType::BigQuery,
             system_variables: HashMap::new(),
         }
@@ -130,6 +132,14 @@ impl<'a> ExpressionEvaluator<'a> {
         self
     }
 
+    pub fn with_dictionary_registry(
+        mut self,
+        registry: yachtsql_storage::DictionaryRegistry,
+    ) -> Self {
+        self.dictionary_registry = Some(registry);
+        self
+    }
+
     pub fn new_for_join(
         combined_schema: &'a Schema,
         left_schema: &'a Schema,
@@ -150,6 +160,7 @@ impl<'a> ExpressionEvaluator<'a> {
             table_map,
             type_registry: None,
             owned_type_registry: None,
+            dictionary_registry: None,
             dialect: crate::DialectType::BigQuery,
             system_variables: HashMap::new(),
         }
@@ -180,6 +191,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 table_map,
                 type_registry: None,
                 owned_type_registry: None,
+                dictionary_registry: None,
                 dialect: crate::DialectType::BigQuery,
                 system_variables: HashMap::new(),
             }
@@ -192,6 +204,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 table_map,
                 type_registry: None,
                 owned_type_registry: None,
+                dictionary_registry: None,
                 dialect: crate::DialectType::BigQuery,
                 system_variables: HashMap::new(),
             }
@@ -9737,8 +9750,317 @@ impl<'a> ExpressionEvaluator<'a> {
                 Ok(Value::datetime(result))
             }
 
+            "DICTGET" | "DICTGETORDEFAULT" | "DICTGETORNULL" | "DICTHAS" | "DICTGETUINT64"
+            | "DICTGETINT64" | "DICTGETFLOAT64" | "DICTGETSTRING" | "DICTGETDATE"
+            | "DICTGETDATETIME" | "DICTGETUUID" | "DICTGETHIERARCHY" | "DICTISIN"
+            | "DICTGETCHILDREN" | "DICTGETDESCENDANTS" | "DICTGETALL" => {
+                self.evaluate_dictionary_function(&func_name, args, row)
+            }
+
             _ => Err(Error::UnsupportedFeature(format!(
                 "Function {} not supported in SELECT expressions",
+                func_name
+            ))),
+        }
+    }
+
+    fn evaluate_dictionary_function(
+        &self,
+        func_name: &str,
+        args: &[sqlparser::ast::FunctionArg],
+        row: &Row,
+    ) -> Result<Value> {
+        let dict_registry = self.dictionary_registry.as_ref().ok_or_else(|| {
+            Error::InvalidQuery(format!("{}: no dictionary registry available", func_name))
+        })?;
+
+        let dict_name = if args.is_empty() {
+            return Err(Error::InvalidQuery(format!(
+                "{} requires dictionary name as first argument",
+                func_name
+            )));
+        } else {
+            let name_val = self.evaluate_function_arg(&args[0], row)?;
+            name_val.as_str().map(|s| s.to_string()).ok_or_else(|| {
+                Error::InvalidQuery(format!("{}: dictionary name must be a string", func_name))
+            })?
+        };
+
+        let dict = dict_registry
+            .get(&dict_name)
+            .ok_or_else(|| Error::InvalidQuery(format!("Dictionary '{}' not found", dict_name)))?;
+
+        match func_name {
+            "DICTGET" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGet requires 3 arguments: dict_name, attr_name, key".to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery("dictGet: attribute name must be a string".to_string())
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                Ok(dict.get_or_null(&[key], attr))
+            }
+
+            "DICTGETORDEFAULT" => {
+                if args.len() < 4 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetOrDefault requires 4 arguments: dict_name, attr_name, key, default"
+                            .to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery(
+                        "dictGetOrDefault: attribute name must be a string".to_string(),
+                    )
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                let default = self.evaluate_function_arg(&args[3], row)?;
+                Ok(dict.get_or_default(&[key], attr, default))
+            }
+
+            "DICTGETORNULL" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetOrNull requires 3 arguments: dict_name, attr_name, key".to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery(
+                        "dictGetOrNull: attribute name must be a string".to_string(),
+                    )
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                Ok(dict.get_or_null(&[key], attr))
+            }
+
+            "DICTHAS" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "dictHas requires 2 arguments: dict_name, key".to_string(),
+                    ));
+                }
+                let key = self.evaluate_function_arg(&args[1], row)?;
+                Ok(Value::bool_val(dict.has(&[key])))
+            }
+
+            "DICTGETUINT64" | "DICTGETINT64" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(format!(
+                        "{} requires 3 arguments: dict_name, attr_name, key",
+                        func_name
+                    )));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery(format!("{}: attribute name must be a string", func_name))
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                let value = dict.get_or_null(&[key], attr);
+                if value.is_null() {
+                    Ok(Value::int64(0))
+                } else if let Some(i) = value.as_i64() {
+                    Ok(Value::int64(i))
+                } else {
+                    Ok(Value::int64(0))
+                }
+            }
+
+            "DICTGETFLOAT64" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetFloat64 requires 3 arguments: dict_name, attr_name, key"
+                            .to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery(
+                        "dictGetFloat64: attribute name must be a string".to_string(),
+                    )
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                let value = dict.get_or_null(&[key], attr);
+                if value.is_null() {
+                    Ok(Value::float64(0.0))
+                } else if let Some(f) = value.as_f64() {
+                    Ok(Value::float64(f))
+                } else {
+                    Ok(Value::float64(0.0))
+                }
+            }
+
+            "DICTGETSTRING" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetString requires 3 arguments: dict_name, attr_name, key".to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery(
+                        "dictGetString: attribute name must be a string".to_string(),
+                    )
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                let value = dict.get_or_null(&[key], attr);
+                if value.is_null() {
+                    Ok(Value::string("".to_string()))
+                } else if let Some(s) = value.as_str() {
+                    Ok(Value::string(s.to_string()))
+                } else {
+                    Ok(Value::string("".to_string()))
+                }
+            }
+
+            "DICTGETDATE" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetDate requires 3 arguments: dict_name, attr_name, key".to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery("dictGetDate: attribute name must be a string".to_string())
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                let value = dict.get_or_null(&[key], attr);
+                if value.is_null() {
+                    Ok(Value::date(
+                        chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
+                    ))
+                } else if let Some(d) = value.as_date() {
+                    Ok(Value::date(d))
+                } else {
+                    Ok(Value::date(
+                        chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
+                    ))
+                }
+            }
+
+            "DICTGETDATETIME" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetDateTime requires 3 arguments: dict_name, attr_name, key"
+                            .to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery(
+                        "dictGetDateTime: attribute name must be a string".to_string(),
+                    )
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                let value = dict.get_or_null(&[key], attr);
+                if value.is_null() {
+                    Ok(Value::datetime(
+                        chrono::DateTime::from_timestamp(0, 0).unwrap(),
+                    ))
+                } else if let Some(dt) = value.as_datetime() {
+                    Ok(Value::datetime(dt))
+                } else if let Some(ts) = value.as_timestamp() {
+                    Ok(Value::datetime(ts))
+                } else {
+                    Ok(Value::datetime(
+                        chrono::DateTime::from_timestamp(0, 0).unwrap(),
+                    ))
+                }
+            }
+
+            "DICTGETUUID" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetUUID requires 3 arguments: dict_name, attr_name, key".to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery("dictGetUUID: attribute name must be a string".to_string())
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                let value = dict.get_or_null(&[key], attr);
+                if value.is_null() {
+                    Ok(Value::uuid(uuid::Uuid::nil()))
+                } else if let Some(u) = value.as_uuid() {
+                    Ok(Value::uuid(*u))
+                } else {
+                    Ok(Value::uuid(uuid::Uuid::nil()))
+                }
+            }
+
+            "DICTGETHIERARCHY" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetHierarchy requires 2 arguments: dict_name, key".to_string(),
+                    ));
+                }
+                let key = self.evaluate_function_arg(&args[1], row)?;
+                let hierarchy = dict.get_hierarchy(&key);
+                Ok(Value::array(hierarchy))
+            }
+
+            "DICTISIN" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictIsIn requires 3 arguments: dict_name, child_key, ancestor_key"
+                            .to_string(),
+                    ));
+                }
+                let child_key = self.evaluate_function_arg(&args[1], row)?;
+                let ancestor_key = self.evaluate_function_arg(&args[2], row)?;
+                Ok(Value::bool_val(dict.is_in(&child_key, &ancestor_key)))
+            }
+
+            "DICTGETCHILDREN" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetChildren requires 2 arguments: dict_name, parent_key".to_string(),
+                    ));
+                }
+                let parent_key = self.evaluate_function_arg(&args[1], row)?;
+                let children = dict.get_children(&parent_key);
+                Ok(Value::array(children))
+            }
+
+            "DICTGETDESCENDANTS" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetDescendants requires at least 2 arguments: dict_name, parent_key [, max_level]".to_string(),
+                    ));
+                }
+                let parent_key = self.evaluate_function_arg(&args[1], row)?;
+                let max_level = if args.len() > 2 {
+                    let level_val = self.evaluate_function_arg(&args[2], row)?;
+                    level_val.as_i64().map(|l| l as u32)
+                } else {
+                    None
+                };
+                let descendants = dict.get_descendants(&parent_key, max_level);
+                Ok(Value::array(descendants))
+            }
+
+            "DICTGETALL" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "dictGetAll requires 3 arguments: dict_name, attr_name, key".to_string(),
+                    ));
+                }
+                let attr_name = self.evaluate_function_arg(&args[1], row)?;
+                let attr = attr_name.as_str().ok_or_else(|| {
+                    Error::InvalidQuery("dictGetAll: attribute name must be a string".to_string())
+                })?;
+                let key = self.evaluate_function_arg(&args[2], row)?;
+                Ok(dict.get_all(&[key], attr))
+            }
+
+            _ => Err(Error::UnsupportedFeature(format!(
+                "Dictionary function {} not implemented",
                 func_name
             ))),
         }
@@ -10153,6 +10475,10 @@ impl<'a> ExpressionEvaluator<'a> {
             | DataType::GeoPolygon
             | DataType::GeoMultiPolygon => Some("geometric"),
             DataType::FixedString(_) => Some("string"),
+            DataType::Xid | DataType::Xid8 => Some("xid"),
+            DataType::Tid => Some("tid"),
+            DataType::Cid => Some("cid"),
+            DataType::Oid => Some("oid"),
         }
     }
 

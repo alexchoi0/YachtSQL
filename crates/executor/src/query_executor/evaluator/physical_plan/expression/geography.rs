@@ -5265,6 +5265,13 @@ impl ProjectionWithExprExec {
                 Ok(Value::bool_val(false))
             }
 
+            "DICTGET" | "DICTGETORDEFAULT" | "DICTGETORNULL" | "DICTHAS" | "DICTGETUINT64"
+            | "DICTGETINT64" | "DICTGETFLOAT64" | "DICTGETSTRING" | "DICTGETDATE"
+            | "DICTGETDATETIME" | "DICTGETUUID" | "DICTGETHIERARCHY" | "DICTISIN"
+            | "DICTGETCHILDREN" | "DICTGETDESCENDANTS" | "DICTGETALL" => {
+                Self::evaluate_dictionary_function(name, args, batch, row_idx)
+            }
+
             "HLL_COUNT.INIT" | "HLL_COUNT_INIT" => {
                 if args.len() != 1 {
                     return Err(Error::invalid_query("HLL_COUNT.INIT requires 1 argument"));
@@ -5308,6 +5315,312 @@ impl ProjectionWithExprExec {
                 "Unknown custom function: {}",
                 name
             ))),
+        }
+    }
+
+    fn evaluate_dictionary_function(
+        name: &str,
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        use super::super::STORAGE_CONTEXT;
+
+        let storage = STORAGE_CONTEXT
+            .with(|ctx| ctx.borrow().clone())
+            .ok_or_else(|| {
+                Error::internal("Storage context not available for dictionary function")
+            })?;
+
+        let storage = storage.borrow();
+        let dataset = storage
+            .get_dataset("default")
+            .ok_or_else(|| Error::DatasetNotFound("default".to_string()))?;
+        let dict_registry = dataset.dictionaries();
+
+        match name {
+            "DICTGET" => {
+                if args.len() < 3 {
+                    return Err(Error::invalid_query(
+                        "dictGet requires at least 3 arguments (dict_name, attr_name, key)"
+                            .to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let attr_name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[2], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                Ok(dict
+                    .get(&[key], &attr_name)
+                    .cloned()
+                    .unwrap_or(Value::null()))
+            }
+            "DICTGETORDEFAULT" => {
+                if args.len() < 4 {
+                    return Err(Error::invalid_query(
+                        "dictGetOrDefault requires 4 arguments (dict_name, attr_name, key, default)".to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let attr_name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[2], batch, row_idx)?;
+                let default = Self::evaluate_expr(&args[3], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                Ok(dict.get_or_default(&[key], &attr_name, default))
+            }
+            "DICTGETORNULL" => {
+                if args.len() < 3 {
+                    return Err(Error::invalid_query(
+                        "dictGetOrNull requires 3 arguments (dict_name, attr_name, key)"
+                            .to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let attr_name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[2], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                Ok(dict.get_or_null(&[key], &attr_name))
+            }
+            "DICTHAS" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "dictHas requires 2 arguments (dict_name, key)".to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[1], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                Ok(Value::bool_val(dict.has(&[key])))
+            }
+            "DICTGETUINT64" => {
+                Self::evaluate_dict_get_typed(args, batch, row_idx, dict_registry, |v| {
+                    v.as_i64()
+                        .map(|i| Value::int64(i as u64 as i64))
+                        .unwrap_or(Value::int64(0))
+                })
+            }
+            "DICTGETINT64" => {
+                Self::evaluate_dict_get_typed(args, batch, row_idx, dict_registry, |v| {
+                    v.as_i64().map(Value::int64).unwrap_or(Value::int64(0))
+                })
+            }
+            "DICTGETFLOAT64" => {
+                Self::evaluate_dict_get_typed(args, batch, row_idx, dict_registry, |v| {
+                    v.as_f64()
+                        .map(Value::float64)
+                        .unwrap_or(Value::float64(0.0))
+                })
+            }
+            "DICTGETSTRING" => {
+                Self::evaluate_dict_get_typed(args, batch, row_idx, dict_registry, |v| {
+                    v.as_str()
+                        .map(|s| Value::string(s.to_string()))
+                        .unwrap_or(Value::string(String::new()))
+                })
+            }
+            "DICTGETDATE" => {
+                Self::evaluate_dict_get_typed(args, batch, row_idx, dict_registry, |v| {
+                    v.as_date().map(|d| Value::date(d)).unwrap_or(Value::null())
+                })
+            }
+            "DICTGETDATETIME" => {
+                Self::evaluate_dict_get_typed(args, batch, row_idx, dict_registry, |v| {
+                    v.as_datetime()
+                        .map(|dt| Value::datetime(dt))
+                        .unwrap_or(Value::null())
+                })
+            }
+            "DICTGETUUID" => {
+                Self::evaluate_dict_get_typed(args, batch, row_idx, dict_registry, |v| {
+                    v.as_uuid()
+                        .map(|u| Value::uuid(*u))
+                        .unwrap_or(Value::null())
+                })
+            }
+            "DICTGETHIERARCHY" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "dictGetHierarchy requires 2 arguments (dict_name, key)".to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[1], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                let hierarchy = dict.get_hierarchy(&key);
+                Ok(Value::array(hierarchy))
+            }
+            "DICTISIN" => {
+                if args.len() < 3 {
+                    return Err(Error::invalid_query(
+                        "dictIsIn requires 3 arguments (dict_name, child_key, parent_key)"
+                            .to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let child_key = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let parent_key = Self::evaluate_expr(&args[2], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                Ok(Value::bool_val(dict.is_in(&child_key, &parent_key)))
+            }
+            "DICTGETCHILDREN" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "dictGetChildren requires 2 arguments (dict_name, key)".to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[1], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                let children = dict.get_children(&key);
+                Ok(Value::array(children))
+            }
+            "DICTGETDESCENDANTS" => {
+                if args.len() < 2 {
+                    return Err(Error::invalid_query(
+                        "dictGetDescendants requires at least 2 arguments (dict_name, key)"
+                            .to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                let max_level = if args.len() > 2 {
+                    Self::evaluate_expr(&args[2], batch, row_idx)?
+                        .as_i64()
+                        .map(|i| i as u32)
+                } else {
+                    None
+                };
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                let descendants = dict.get_descendants(&key, max_level);
+                Ok(Value::array(descendants))
+            }
+            "DICTGETALL" => {
+                if args.len() < 3 {
+                    return Err(Error::invalid_query(
+                        "dictGetAll requires 3 arguments (dict_name, attr_name, key)".to_string(),
+                    ));
+                }
+                let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let attr_name = Self::evaluate_expr(&args[1], batch, row_idx)?
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+                let key = Self::evaluate_expr(&args[2], batch, row_idx)?;
+
+                let dict = dict_registry.get(&dict_name).ok_or_else(|| {
+                    Error::invalid_query(format!("Dictionary '{}' not found", dict_name))
+                })?;
+
+                let values = dict.get_all(&[key], &attr_name);
+                Ok(values)
+            }
+            _ => Err(Error::unsupported_feature(format!(
+                "Unknown dictionary function: {}",
+                name
+            ))),
+        }
+    }
+
+    fn evaluate_dict_get_typed<F>(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+        dict_registry: &yachtsql_storage::DictionaryRegistry,
+        convert: F,
+    ) -> Result<Value>
+    where
+        F: FnOnce(&Value) -> Value,
+    {
+        if args.len() < 3 {
+            return Err(Error::invalid_query(
+                "dictGet* requires 3 arguments (dict_name, attr_name, key)".to_string(),
+            ));
+        }
+        let dict_name = Self::evaluate_expr(&args[0], batch, row_idx)?
+            .as_str()
+            .map(|s| s.to_string())
+            .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+        let attr_name = Self::evaluate_expr(&args[1], batch, row_idx)?
+            .as_str()
+            .map(|s| s.to_string())
+            .ok_or_else(|| Error::type_mismatch("String", "other"))?;
+        let key = Self::evaluate_expr(&args[2], batch, row_idx)?;
+
+        let dict = dict_registry
+            .get(&dict_name)
+            .ok_or_else(|| Error::invalid_query(format!("Dictionary '{}' not found", dict_name)))?;
+
+        match dict.get(&[key], &attr_name) {
+            Some(v) => Ok(convert(&v)),
+            None => Ok(convert(&Value::null())),
         }
     }
 

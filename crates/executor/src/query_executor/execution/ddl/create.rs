@@ -1510,6 +1510,133 @@ impl QueryExecutor {
 }
 
 impl QueryExecutor {
+    pub fn execute_create_dictionary(
+        &mut self,
+        name: &sqlparser::ast::ObjectName,
+        columns: &[yachtsql_parser::validator::DictionaryColumnDef],
+        primary_key: &[String],
+        source: &yachtsql_parser::validator::DictionarySourceDef,
+        layout: yachtsql_parser::validator::DictionaryLayoutDef,
+        lifetime: &yachtsql_parser::validator::DictionaryLifetimeDef,
+    ) -> Result<crate::Table> {
+        use yachtsql_storage::{
+            Dictionary, DictionaryColumn, DictionaryLayout, DictionaryLifetime, DictionarySource,
+        };
+
+        let dict_name = name.to_string();
+        let (dataset_id, dictionary_name) = self.parse_ddl_table_name(&dict_name)?;
+
+        let dict_columns: Vec<DictionaryColumn> = columns
+            .iter()
+            .map(|col| {
+                let data_type = self.clickhouse_type_to_data_type(&col.data_type);
+                let is_pk = primary_key
+                    .iter()
+                    .any(|pk| pk.eq_ignore_ascii_case(&col.name));
+                DictionaryColumn {
+                    name: col.name.clone(),
+                    data_type,
+                    is_primary_key: is_pk,
+                    is_hierarchical: col.is_hierarchical,
+                    default_value: col
+                        .default_value
+                        .as_ref()
+                        .map(|v| self.parse_default_value(v)),
+                }
+            })
+            .collect();
+
+        let dict_layout = match layout {
+            yachtsql_parser::validator::DictionaryLayoutDef::Flat => DictionaryLayout::Flat,
+            yachtsql_parser::validator::DictionaryLayoutDef::Hashed => DictionaryLayout::Hashed,
+            yachtsql_parser::validator::DictionaryLayoutDef::RangeHashed => {
+                DictionaryLayout::RangeHashed
+            }
+            yachtsql_parser::validator::DictionaryLayoutDef::Cache => DictionaryLayout::Cache,
+            yachtsql_parser::validator::DictionaryLayoutDef::ComplexKeyHashed => {
+                DictionaryLayout::ComplexKeyHashed
+            }
+            yachtsql_parser::validator::DictionaryLayoutDef::ComplexKeyCache => {
+                DictionaryLayout::ComplexKeyCache
+            }
+            yachtsql_parser::validator::DictionaryLayoutDef::Direct => DictionaryLayout::Direct,
+        };
+
+        let dict_source = DictionarySource {
+            source_type: source.source_type.clone(),
+            table: source.table.clone(),
+        };
+
+        let dict_lifetime = DictionaryLifetime {
+            min_seconds: lifetime.min_seconds,
+            max_seconds: lifetime.max_seconds,
+        };
+
+        let dictionary = Dictionary::new(dictionary_name.clone(), dict_columns)
+            .with_layout(dict_layout)
+            .with_source(dict_source)
+            .with_lifetime(dict_lifetime);
+
+        {
+            let mut storage = self.storage.borrow_mut();
+            if storage.get_dataset(&dataset_id).is_none() {
+                storage.create_dataset(dataset_id.clone())?;
+            }
+            let dataset = storage.get_dataset_mut(&dataset_id).ok_or_else(|| {
+                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
+            })?;
+            dataset.dictionaries_mut().create(dictionary)?;
+        }
+
+        Ok(crate::Table::empty(yachtsql_storage::Schema::from_fields(
+            vec![],
+        )))
+    }
+
+    fn clickhouse_type_to_data_type(&self, type_str: &str) -> DataType {
+        let upper = type_str.to_uppercase();
+        let trimmed = upper.trim();
+
+        match trimmed {
+            "UINT8" | "UINT16" | "UINT32" | "UINT64" | "INT8" | "INT16" | "INT32" | "INT64" => {
+                DataType::Int64
+            }
+            "FLOAT32" | "FLOAT64" => DataType::Float64,
+            "STRING" | "FIXEDSTRING" => DataType::String,
+            "UUID" => DataType::Uuid,
+            "DATE" => DataType::Date,
+            "DATETIME" | "DATETIME64" => DataType::Timestamp,
+            _ => {
+                if trimmed.starts_with("DECIMAL") || trimmed.starts_with("NUMERIC") {
+                    DataType::Numeric(None)
+                } else if trimmed.starts_with("FIXEDSTRING") {
+                    DataType::String
+                } else if trimmed.starts_with("DATETIME") {
+                    DataType::Timestamp
+                } else if trimmed.starts_with("ARRAY") {
+                    DataType::Array(Box::new(DataType::String))
+                } else {
+                    DataType::String
+                }
+            }
+        }
+    }
+
+    fn parse_default_value(&self, value_str: &str) -> Value {
+        let trimmed = value_str.trim();
+        if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
+            let inner = &trimmed[1..trimmed.len() - 1];
+            return Value::string(inner.to_string());
+        }
+        if let Ok(i) = trimmed.parse::<i64>() {
+            return Value::int64(i);
+        }
+        if let Ok(f) = trimmed.parse::<f64>() {
+            return Value::float64(f);
+        }
+        Value::string(trimmed.to_string())
+    }
+
     pub fn execute_create_table_as(
         &mut self,
         new_table: &str,

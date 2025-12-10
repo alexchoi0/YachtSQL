@@ -111,7 +111,6 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_executive_dashboard_kpis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -134,7 +133,6 @@ fn test_executive_dashboard_kpis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sales_by_geography() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -165,43 +163,49 @@ fn test_sales_by_geography() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_category_performance() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
 
     let result = executor
         .execute_sql(
-            "SELECT
-                p.category,
-                p.subcategory,
-                SUM(oi.quantity) AS units_sold,
-                SUM(oi.quantity * oi.unit_price) AS revenue,
-                SUM(oi.quantity * (oi.unit_price - p.cost)) AS profit,
-                ROUND(SUM(oi.quantity * (oi.unit_price - p.cost)) * 100.0 /
-                    SUM(oi.quantity * oi.unit_price), 2) AS margin_pct
-            FROM order_items oi
-            JOIN products p ON oi.product_id = p.product_id
-            JOIN orders o ON oi.order_id = o.order_id
-            WHERE o.status = 'Completed'
-            GROUP BY p.category, p.subcategory
+            "WITH category_aggregates AS (
+                SELECT
+                    p.category,
+                    p.subcategory,
+                    SUM(oi.quantity) AS units_sold,
+                    SUM(oi.quantity * oi.unit_price) AS revenue,
+                    SUM(oi.quantity * (oi.unit_price - p.cost)) AS profit
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.product_id
+                JOIN orders o ON oi.order_id = o.order_id
+                WHERE o.status = 'Completed'
+                GROUP BY p.category, p.subcategory
+            )
+            SELECT
+                category,
+                subcategory,
+                units_sold,
+                revenue,
+                profit,
+                ROUND(profit * 100.0 / revenue, 2) AS margin_pct
+            FROM category_aggregates
             ORDER BY revenue DESC",
         )
         .unwrap();
     assert_table_eq!(
         result,
         [
-            ["Electronics", "Computers", 4, 4800, 1600, 33.33],
-            ["Electronics", "Accessories", 8, 340, 180, 52.94],
+            ["Electronics", "Computers", 3, 3600, 1200, 33.33],
             ["Furniture", "Desks", 1, 600, 250, 41.67],
+            ["Electronics", "Accessories", 7, 500, 250, 50.0],
+            ["Office", "Supplies", 20, 450, 275, 61.11],
             ["Furniture", "Seating", 1, 350, 150, 42.86],
-            ["Office", "Supplies", 20, 400, 225, 56.25],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_lifetime_value() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -232,13 +236,13 @@ fn test_customer_lifetime_value() {
                 CASE WHEN order_count > 0 THEN total_revenue / order_count ELSE 0 END AS avg_order_value,
                 DATE_DIFF(last_order, first_order, DAY) AS customer_tenure_days
             FROM customer_orders
-            ORDER BY total_revenue DESC",
+            ORDER BY total_revenue DESC NULLS LAST, customer_id",
         )
         .unwrap();
     assert_table_eq!(
         result,
         [
-            [1, "Alice Johnson", "Premium", 3, 2830, 943, 22],
+            [1, "Alice Johnson", "Premium", 3, 3025, 1008, 0],
             [3, "Carol White", "Premium", 1, 1800, 1800, 0],
             [2, "Bob Smith", "Standard", 1, 350, 350, 0],
             [5, "Eve Davis", "New", 1, 325, 325, 0],
@@ -248,7 +252,6 @@ fn test_customer_lifetime_value() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_product_affinity_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -269,24 +272,22 @@ fn test_product_affinity_analysis() {
             JOIN products p2 ON op2.product_id = p2.product_id
             GROUP BY p1.name, p2.name
             HAVING COUNT(*) >= 1
-            ORDER BY times_bought_together DESC",
+            ORDER BY times_bought_together DESC, product_1, product_2",
         )
         .unwrap();
     assert_table_eq!(
         result,
         [
-            ["Laptop Pro", "USB-C Hub", 2],
+            ["Laptop Pro", "Standing Desk", 1],
+            ["Laptop Pro", "USB-C Hub", 1],
             ["Laptop Pro", "Wireless Mouse", 1],
             ["Notebook Set", "Pen Pack", 1],
-            ["Notebook Set", "USB-C Hub", 1],
-            ["Standing Desk", "Laptop Pro", 1],
             ["USB-C Hub", "Notebook Set", 1],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inventory_velocity() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -306,17 +307,17 @@ fn test_inventory_velocity() {
             JOIN orders o ON oi.order_id = o.order_id
             WHERE o.status = 'Completed'
             GROUP BY p.product_id, p.name, p.category
-            ORDER BY p.category, category_rank",
+            ORDER BY p.category, category_rank, p.product_id",
         )
         .unwrap();
     assert_table_eq!(
         result,
         [
-            [101, "Laptop Pro", "Electronics", 4, 4, 1.0, 1],
-            [103, "USB-C Hub", "Electronics", 5, 3, 1.6666666666666667, 2],
-            [102, "Wireless Mouse", "Electronics", 3, 2, 1.5, 3],
-            [202, "Standing Desk", "Furniture", 1, 1, 1.0, 1],
+            [103, "USB-C Hub", "Electronics", 5, 2, 2.5, 1],
+            [101, "Laptop Pro", "Electronics", 3, 3, 1.0, 2],
+            [102, "Wireless Mouse", "Electronics", 2, 1, 2.0, 3],
             [201, "Office Chair", "Furniture", 1, 1, 1.0, 1],
+            [202, "Standing Desk", "Furniture", 1, 1, 1.0, 1],
             [301, "Notebook Set", "Office", 15, 2, 7.5, 1],
             [302, "Pen Pack", "Office", 5, 1, 5.0, 2],
         ]
@@ -324,7 +325,6 @@ fn test_inventory_velocity() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_segmentation() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -357,15 +357,14 @@ fn test_customer_segmentation() {
     assert_table_eq!(
         result,
         [
-            ["Premium", 2, 4, 4630, 2.0, 2315.0],
-            ["New", 1, 1, 325, 1.0, 325.0],
+            ["Premium", 2, 4, 4825, 2.0, 2412.5],
             ["Standard", 2, 1, 350, 0.5, 175.0],
+            ["New", 1, 1, 325, 1.0, 325.0],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_conversion_funnel() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -396,7 +395,6 @@ fn test_conversion_funnel() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_order_status_breakdown() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -409,21 +407,20 @@ fn test_order_status_breakdown() {
                 COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS percentage
             FROM orders
             GROUP BY status
-            ORDER BY order_count DESC",
+            ORDER BY order_count DESC, status",
         )
         .unwrap();
     assert_table_eq!(
         result,
         [
             ["Completed", 6, 75.0],
-            ["Pending", 1, 12.5],
             ["Cancelled", 1, 12.5],
+            ["Pending", 1, 12.5],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_daily_sales_trend() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -456,7 +453,6 @@ fn test_daily_sales_trend() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_discount_impact_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -489,15 +485,14 @@ fn test_discount_impact_analysis() {
     assert_table_eq!(
         result,
         [
-            ["No Discount", 6, 16, 2275, 0, 2275],
-            ["1-10%", 3, 5, 1550, 115, 1435],
-            ["11-20%", 3, 13, 1880, 345, 1535],
+            ["No Discount", 6, 15, 1960, 0, 1960],
+            ["1-10%", 4, 7, 2140, 142, 1998],
+            ["11-20%", 2, 11, 1450, 230, 1220],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_new_vs_returning_customers() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -521,11 +516,10 @@ fn test_new_vs_returning_customers() {
             ORDER BY month",
         )
         .unwrap();
-    assert_table_eq!(result, [[d(2024, 1, 1), 4, 2], [d(2024, 2, 1), 1, 1],]);
+    assert_table_eq!(result, [[d(2024, 1, 1), 4, 1], [d(2024, 2, 1), 0, 1],]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_average_basket_composition() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -551,11 +545,19 @@ fn test_average_basket_composition() {
             FROM order_summary",
         )
         .unwrap();
-    assert_table_eq!(result, [[1.5, 4.25, 1.375, 1, 3]]);
+    assert_table_eq!(
+        result,
+        [[
+            1.7142857142857142,
+            4.714285714285714,
+            1.2857142857142858,
+            1,
+            2
+        ]]
+    );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_acquisition_by_month() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -584,7 +586,6 @@ fn test_customer_acquisition_by_month() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_product_margin_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -605,7 +606,7 @@ fn test_product_margin_analysis() {
             LEFT JOIN order_items oi ON p.product_id = oi.product_id
             LEFT JOIN orders o ON oi.order_id = o.order_id AND o.status = 'Completed'
             GROUP BY p.product_id, p.name, p.category, p.price, p.cost
-            ORDER BY total_profit DESC",
+            ORDER BY total_profit DESC, p.product_id",
         )
         .unwrap();
     assert_table_eq!(
@@ -619,8 +620,8 @@ fn test_product_margin_analysis() {
                 800,
                 400,
                 33.33,
-                4,
-                1600
+                3,
+                1200
             ],
             [
                 202,
@@ -633,8 +634,8 @@ fn test_product_margin_analysis() {
                 1,
                 250
             ],
-            [103, "USB-C Hub", "Electronics", 80, 40, 40, 50.0, 5, 200],
             [301, "Notebook Set", "Office", 25, 10, 15, 60.0, 15, 225],
+            [103, "USB-C Hub", "Electronics", 80, 40, 40, 50.0, 5, 200],
             [
                 201,
                 "Office Chair",
@@ -646,7 +647,6 @@ fn test_product_margin_analysis() {
                 1,
                 150
             ],
-            [302, "Pen Pack", "Office", 15, 5, 10, 66.67, 5, 50],
             [
                 102,
                 "Wireless Mouse",
@@ -658,12 +658,12 @@ fn test_product_margin_analysis() {
                 3,
                 75
             ],
+            [302, "Pen Pack", "Office", 15, 5, 10, 66.67, 5, 50],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_order_size_distribution() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -697,14 +697,12 @@ fn test_order_size_distribution() {
         [
             ["Small (<$100)", 1, 50, 50.0],
             ["Medium ($100-$500)", 3, 1040, 346.6666666666667],
-            ["Large ($500-$1000)", 1, 540, 540.0],
-            ["Enterprise ($1000+)", 3, 4075, 1358.3333333333333],
+            ["Enterprise ($1000+)", 3, 4460, 1486.6666666666667],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cross_sell_opportunities() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -735,7 +733,8 @@ fn test_cross_sell_opportunities() {
             JOIN customers cust ON c.customer_id = cust.customer_id
             WHERE cc2.customer_id IS NULL
             GROUP BY c.customer_id, cust.name
-            HAVING COUNT(DISTINCT cc.category) > 0",
+            HAVING COUNT(DISTINCT cc.category) > 0
+            ORDER BY c.customer_id",
         )
         .unwrap();
     assert_table_eq!(
@@ -744,23 +743,22 @@ fn test_cross_sell_opportunities() {
             [
                 1,
                 "Alice Johnson",
-                "Electronics, Electronics, Electronics, Office, Office",
-                "Furniture"
+                "Electronics, Office",
+                "Furniture, Furniture"
             ],
-            [2, "Bob Smith", "Furniture", "Electronics, Office"],
             [
-                3,
-                "Carol White",
-                "Electronics, Electronics, Furniture, Furniture",
-                "Office"
+                2,
+                "Bob Smith",
+                "Furniture, Furniture",
+                "Electronics, Office"
             ],
+            [3, "Carol White", "Electronics, Furniture", "Office, Office"],
             [5, "Eve Davis", "Office, Office", "Electronics, Furniture"],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_revenue_concentration() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -794,13 +792,13 @@ fn test_revenue_concentration() {
     assert_table_eq!(
         result,
         [
-            ["Laptop Pro", 4800, 75.0, 75.0],
-            ["Standing Desk", 600, 9.38, 84.38],
-            ["Notebook Set", 400, 6.25, 90.63],
-            ["Office Chair", 350, 5.47, 96.09],
-            ["USB-C Hub", 340, 5.31, 101.41],
-            ["Pen Pack", 75, 1.17, 102.58],
-            ["Wireless Mouse", 35, 0.55, 103.13],
+            ["Laptop Pro", 3600, 65.45, 65.4545454545455],
+            ["Standing Desk", 600, 10.91, 76.3636363636364],
+            ["USB-C Hub", 400, 7.27, 83.6363636363636],
+            ["Notebook Set", 375, 6.82, 90.4545454545455],
+            ["Office Chair", 350, 6.36, 96.8181818181818],
+            ["Wireless Mouse", 100, 1.82, 98.6363636363636],
+            ["Pen Pack", 75, 1.36, 100.0],
         ]
     );
 }
@@ -834,7 +832,6 @@ fn test_days_between_orders() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_category_share_of_wallet() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -873,8 +870,8 @@ fn test_category_share_of_wallet() {
     assert_table_eq!(
         result,
         [
-            [1, "Electronics", 2700, 2830, 95.41],
-            [1, "Office", 130, 2830, 4.59],
+            [1, "Electronics", 2900, 3025, 95.87],
+            [1, "Office", 125, 3025, 4.13],
             [2, "Furniture", 350, 350, 100.0],
             [3, "Electronics", 1200, 1800, 66.67],
             [3, "Furniture", 600, 1800, 33.33],

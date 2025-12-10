@@ -469,17 +469,19 @@ impl LogicalPlanBuilder {
 
                 for (expr, alias) in &projection_exprs {
                     if self.is_window_function(expr) {
-                        let rewritten_window = self.rewrite_window_order_by_aggregates(expr);
+                        let rewritten_window =
+                            self.rewrite_post_aggregate_expr(expr, &group_by_exprs);
                         let col_name = alias.clone().unwrap_or_else(|| match expr {
                             Expr::WindowFunction { name, .. } => format!("{}(...)", name.as_str()),
                             _ => "window_result".to_string(),
                         });
                         all_windows.push((rewritten_window, col_name));
                     } else if self.has_window_function(expr) {
-                        self.extract_window_functions_with_aggregate_rewrite(
+                        self.extract_window_functions_with_post_aggregate_rewrite(
                             expr,
                             &mut all_windows,
                             &mut counter,
+                            &group_by_exprs,
                         );
                     }
                 }
@@ -487,10 +489,11 @@ impl LogicalPlanBuilder {
                 if let Some(ref q_expr) = qualify_expr
                     && self.has_window_function(q_expr)
                 {
-                    self.extract_window_functions_with_aggregate_rewrite(
+                    self.extract_window_functions_with_post_aggregate_rewrite(
                         q_expr,
                         &mut all_windows,
                         &mut counter,
+                        &group_by_exprs,
                     );
                 }
 
@@ -1306,7 +1309,8 @@ impl LogicalPlanBuilder {
     fn replace_window_functions(&self, expr: &Expr, windows: &[(Expr, String)]) -> Expr {
         match expr {
             Expr::WindowFunction { .. } => {
-                if let Some((_, col_name)) = windows.iter().find(|(w, _)| w == expr) {
+                let rewritten_expr = self.rewrite_window_order_by_aggregates(expr);
+                if let Some((_, col_name)) = windows.iter().find(|(w, _)| *w == rewritten_expr) {
                     Expr::Column {
                         name: col_name.clone(),
                         table: None,
@@ -1402,6 +1406,16 @@ impl LogicalPlanBuilder {
             return expr.clone();
         };
 
+        let rewritten_args: Vec<Expr> = args
+            .iter()
+            .map(|arg| self.rewrite_aggregate_to_column(arg))
+            .collect();
+
+        let rewritten_partition_by: Vec<Expr> = partition_by
+            .iter()
+            .map(|pb| self.rewrite_aggregate_to_column(pb))
+            .collect();
+
         let rewritten_order_by: Vec<yachtsql_ir::expr::OrderByExpr> = order_by
             .iter()
             .map(|ob| {
@@ -1418,8 +1432,8 @@ impl LogicalPlanBuilder {
 
         Expr::WindowFunction {
             name: name.clone(),
-            args: args.clone(),
-            partition_by: partition_by.clone(),
+            args: rewritten_args,
+            partition_by: rewritten_partition_by,
             order_by: rewritten_order_by,
             frame_units: *frame_units,
             frame_start_offset: *frame_start_offset,
@@ -1479,29 +1493,50 @@ impl LogicalPlanBuilder {
         }
     }
 
-    fn extract_window_functions_with_aggregate_rewrite(
+    fn extract_window_functions_with_post_aggregate_rewrite(
         &self,
         expr: &Expr,
         windows: &mut Vec<(Expr, String)>,
         counter: &mut usize,
+        group_by_exprs: &[Expr],
     ) {
         match expr {
             Expr::WindowFunction { name, .. } => {
-                let rewritten_window = self.rewrite_window_order_by_aggregates(expr);
+                let rewritten_window = self.rewrite_post_aggregate_expr(expr, group_by_exprs);
                 let col_name = format!("__window_{}_{}", name.as_str().to_lowercase(), *counter);
                 *counter += 1;
                 windows.push((rewritten_window, col_name));
             }
             Expr::BinaryOp { left, right, .. } => {
-                self.extract_window_functions_with_aggregate_rewrite(left, windows, counter);
-                self.extract_window_functions_with_aggregate_rewrite(right, windows, counter);
+                self.extract_window_functions_with_post_aggregate_rewrite(
+                    left,
+                    windows,
+                    counter,
+                    group_by_exprs,
+                );
+                self.extract_window_functions_with_post_aggregate_rewrite(
+                    right,
+                    windows,
+                    counter,
+                    group_by_exprs,
+                );
             }
             Expr::UnaryOp { expr: inner, .. } => {
-                self.extract_window_functions_with_aggregate_rewrite(inner, windows, counter);
+                self.extract_window_functions_with_post_aggregate_rewrite(
+                    inner,
+                    windows,
+                    counter,
+                    group_by_exprs,
+                );
             }
             Expr::Function { args, .. } | Expr::Aggregate { args, .. } => {
                 for arg in args {
-                    self.extract_window_functions_with_aggregate_rewrite(arg, windows, counter);
+                    self.extract_window_functions_with_post_aggregate_rewrite(
+                        arg,
+                        windows,
+                        counter,
+                        group_by_exprs,
+                    );
                 }
             }
             Expr::Case {
@@ -1510,18 +1545,43 @@ impl LogicalPlanBuilder {
                 else_expr,
             } => {
                 if let Some(o) = operand {
-                    self.extract_window_functions_with_aggregate_rewrite(o, windows, counter);
+                    self.extract_window_functions_with_post_aggregate_rewrite(
+                        o,
+                        windows,
+                        counter,
+                        group_by_exprs,
+                    );
                 }
                 for (w, t) in when_then {
-                    self.extract_window_functions_with_aggregate_rewrite(w, windows, counter);
-                    self.extract_window_functions_with_aggregate_rewrite(t, windows, counter);
+                    self.extract_window_functions_with_post_aggregate_rewrite(
+                        w,
+                        windows,
+                        counter,
+                        group_by_exprs,
+                    );
+                    self.extract_window_functions_with_post_aggregate_rewrite(
+                        t,
+                        windows,
+                        counter,
+                        group_by_exprs,
+                    );
                 }
                 if let Some(e) = else_expr {
-                    self.extract_window_functions_with_aggregate_rewrite(e, windows, counter);
+                    self.extract_window_functions_with_post_aggregate_rewrite(
+                        e,
+                        windows,
+                        counter,
+                        group_by_exprs,
+                    );
                 }
             }
             Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
-                self.extract_window_functions_with_aggregate_rewrite(inner, windows, counter);
+                self.extract_window_functions_with_post_aggregate_rewrite(
+                    inner,
+                    windows,
+                    counter,
+                    group_by_exprs,
+                );
             }
             _ => {}
         }
@@ -1675,6 +1735,48 @@ impl LogicalPlanBuilder {
                 }
             }
 
+            Expr::WindowFunction {
+                name,
+                args,
+                partition_by,
+                order_by,
+                frame_units,
+                frame_start_offset,
+                frame_end_offset,
+                exclude,
+                null_treatment,
+            } => {
+                let rewritten_args: Vec<Expr> = args
+                    .iter()
+                    .map(|arg| self.rewrite_post_aggregate_expr(arg, group_by_exprs))
+                    .collect();
+                let rewritten_partition_by: Vec<Expr> = partition_by
+                    .iter()
+                    .map(|pb| self.rewrite_post_aggregate_expr(pb, group_by_exprs))
+                    .collect();
+                let rewritten_order_by: Vec<yachtsql_ir::expr::OrderByExpr> = order_by
+                    .iter()
+                    .map(|ob| yachtsql_ir::expr::OrderByExpr {
+                        expr: self.rewrite_post_aggregate_expr(&ob.expr, group_by_exprs),
+                        asc: ob.asc,
+                        nulls_first: ob.nulls_first,
+                        collation: ob.collation.clone(),
+                        with_fill: ob.with_fill.clone(),
+                    })
+                    .collect();
+                Expr::WindowFunction {
+                    name: name.clone(),
+                    args: rewritten_args,
+                    partition_by: rewritten_partition_by,
+                    order_by: rewritten_order_by,
+                    frame_units: *frame_units,
+                    frame_start_offset: *frame_start_offset,
+                    frame_end_offset: *frame_end_offset,
+                    exclude: *exclude,
+                    null_treatment: *null_treatment,
+                }
+            }
+
             _ => expr.clone(),
         }
     }
@@ -1745,6 +1847,22 @@ impl LogicalPlanBuilder {
                 self.collect_aggregates_from_expr(inner, aggregates);
                 self.collect_aggregates_from_expr(low, aggregates);
                 self.collect_aggregates_from_expr(high, aggregates);
+            }
+            Expr::WindowFunction {
+                args,
+                partition_by,
+                order_by,
+                ..
+            } => {
+                for arg in args {
+                    self.collect_aggregates_from_expr(arg, aggregates);
+                }
+                for pb in partition_by {
+                    self.collect_aggregates_from_expr(pb, aggregates);
+                }
+                for ob in order_by {
+                    self.collect_aggregates_from_expr(&ob.expr, aggregates);
+                }
             }
             _ => {}
         }

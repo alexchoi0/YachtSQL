@@ -11,6 +11,7 @@ pub mod column_ops;
 pub mod constraints;
 pub mod custom_types;
 pub mod dependency_graph;
+pub mod dictionary;
 pub mod domain;
 pub mod extension;
 pub mod features;
@@ -22,6 +23,7 @@ pub mod row;
 pub mod schema;
 pub mod sequence;
 pub mod simd;
+pub mod snapshot;
 pub mod storage_backend;
 pub mod table;
 pub mod temp_storage;
@@ -35,6 +37,10 @@ pub use column::Column;
 pub use constraints::{apply_default_values, validate_row_constraints};
 pub use custom_types::EnumType;
 pub use dependency_graph::DependencyGraph;
+pub use dictionary::{
+    Dictionary, DictionaryColumn, DictionaryLayout, DictionaryLifetime, DictionaryRegistry,
+    DictionarySource,
+};
 pub use domain::{DomainConstraint, DomainDefinition, DomainRegistry};
 pub use extension::{ExtensionError, ExtensionMetadata, ExtensionRegistry};
 pub use foreign_keys::{Deferrable, ForeignKey, ReferentialAction};
@@ -49,6 +55,7 @@ pub use schema::{
     GenerationMode, IdentityGeneration, Schema,
 };
 pub use sequence::{Sequence, SequenceConfig, SequenceRegistry};
+pub use snapshot::{SnapshotRegistry, SnapshotTable};
 pub use storage_backend::{StorageBackend, StorageLayout};
 pub use table::{
     ColumnStatistics, PartitionSpec, PartitionType, Table, TableConstraintOps, TableEngine,
@@ -229,6 +236,8 @@ pub struct Dataset {
     views: ViewRegistry,
     domains: DomainRegistry,
     types: TypeRegistry,
+    dictionaries: DictionaryRegistry,
+    snapshots: SnapshotRegistry,
     table_layout: StorageLayout,
 }
 
@@ -252,6 +261,8 @@ impl Dataset {
             views: ViewRegistry::new(),
             domains: DomainRegistry::new(),
             types: TypeRegistry::new(),
+            dictionaries: DictionaryRegistry::new(),
+            snapshots: SnapshotRegistry::new(),
             table_layout: layout,
         }
     }
@@ -263,11 +274,23 @@ impl Dataset {
     }
 
     pub fn get_table(&self, table_id: &str) -> Option<&Table> {
-        self.tables.get(table_id)
+        self.tables
+            .get(table_id)
+            .or_else(|| self.snapshots.get_snapshot(table_id).map(|s| s.get_table()))
     }
 
     pub fn get_table_mut(&mut self, table_id: &str) -> Option<&mut Table> {
-        self.tables.get_mut(table_id)
+        if self.tables.contains_key(table_id) {
+            self.tables.get_mut(table_id)
+        } else {
+            self.snapshots
+                .get_snapshot_mut(table_id)
+                .map(|s| &mut s.data)
+        }
+    }
+
+    pub fn is_snapshot(&self, table_id: &str) -> bool {
+        !self.tables.contains_key(table_id) && self.snapshots.exists(table_id)
     }
 
     pub fn delete_table(&mut self, table_id: &str) -> Result<()> {
@@ -358,6 +381,26 @@ impl Dataset {
 
     pub fn get_index(&self, index_name: &str) -> Option<&index::IndexMetadata> {
         self.indexes.get(index_name)
+    }
+
+    pub fn dictionaries(&self) -> &DictionaryRegistry {
+        &self.dictionaries
+    }
+
+    pub fn dictionaries_mut(&mut self) -> &mut DictionaryRegistry {
+        &mut self.dictionaries
+    }
+
+    pub fn snapshots(&self) -> &SnapshotRegistry {
+        &self.snapshots
+    }
+
+    pub fn snapshots_mut(&mut self) -> &mut SnapshotRegistry {
+        &mut self.snapshots
+    }
+
+    pub fn table_layout(&self) -> StorageLayout {
+        self.table_layout
     }
 }
 

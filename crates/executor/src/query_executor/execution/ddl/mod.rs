@@ -7,6 +7,7 @@ mod function;
 mod materialized_view;
 mod schema;
 mod sequence;
+mod snapshot;
 mod trigger;
 mod r#type;
 
@@ -19,5 +20,6 @@ pub use function::{FunctionExecutor, ProcedureExecutor};
 pub use materialized_view::MaterializedViewExecutor;
 pub use schema::SchemaExecutor;
 pub use sequence::SequenceExecutor;
+pub use snapshot::SnapshotExecutor;
 pub use trigger::TriggerExecutor;
 pub use r#type::TypeExecutor;

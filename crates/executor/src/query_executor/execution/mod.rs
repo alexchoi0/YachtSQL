@@ -15,7 +15,7 @@ use chrono::Datelike;
 pub use ddl::{
     AlterTableExecutor, DdlDropExecutor, DdlExecutor, DomainExecutor, ExtensionExecutor,
     FunctionExecutor, MaterializedViewExecutor, ProcedureExecutor, SchemaExecutor,
-    SequenceExecutor, TriggerExecutor, TypeExecutor,
+    SequenceExecutor, SnapshotExecutor, TriggerExecutor, TypeExecutor,
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
@@ -368,6 +368,11 @@ impl QueryExecutor {
                 Rc::new(subquery_executor),
             );
 
+        let _storage_guard =
+            crate::query_executor::evaluator::physical_plan::StorageContextGuard::set(Rc::clone(
+                &self.storage,
+            ));
+
         let parser = Parser::with_dialect(self.dialect());
         let statements = parser
             .parse_sql(sql)
@@ -453,7 +458,23 @@ impl QueryExecutor {
                 CustomStatement::ClickHouseAlterUser { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseGrant { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseSystem { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseCreateDictionary { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseCreateDictionary {
+                    name,
+                    columns,
+                    primary_key,
+                    source,
+                    layout,
+                    lifetime,
+                } => {
+                    return self.execute_create_dictionary(
+                        name,
+                        columns,
+                        primary_key,
+                        source,
+                        *layout,
+                        lifetime,
+                    );
+                }
                 CustomStatement::ClickHouseDatabase { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseRenameDatabase { .. } => Self::empty_result(),
                 CustomStatement::ClickHouseUse { .. } => Self::empty_result(),
@@ -515,6 +536,12 @@ impl QueryExecutor {
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
                 )),
+                CustomStatement::CreateSnapshotTable { .. } => {
+                    self.execute_create_snapshot_table(custom_stmt)
+                }
+                CustomStatement::DropSnapshotTable { .. } => {
+                    self.execute_drop_snapshot_table(custom_stmt)
+                }
             };
         }
 
@@ -639,6 +666,10 @@ impl QueryExecutor {
                     | DdlOperation::AlterSequence
                     | DdlOperation::DropSequence => {
                         panic!("Sequence operations should be handled via CustomStatement path")
+                    }
+
+                    DdlOperation::CreateSnapshotTable | DdlOperation::DropSnapshotTable => {
+                        panic!("Snapshot operations should be handled via CustomStatement path")
                     }
                 };
 

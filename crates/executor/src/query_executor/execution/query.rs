@@ -11,6 +11,13 @@ use sqlparser::ast::{
 };
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
+
+fn is_system_column_type(dt: &DataType) -> bool {
+    matches!(
+        dt,
+        DataType::Tid | DataType::Xid | DataType::Cid | DataType::Oid
+    )
+}
 use yachtsql_functions::FunctionRegistry;
 use yachtsql_storage::{Column, Field, Row, Schema, TableIndexOps};
 
@@ -100,6 +107,9 @@ impl QueryExecutorTrait for QueryExecutor {
             match item {
                 SelectItem::Wildcard(_) => {
                     for field in schema.fields() {
+                        if is_system_column_type(&field.data_type) {
+                            continue;
+                        }
                         projected_fields.push(field.clone());
                         projection_exprs.push((
                             Some(field.name.clone()),
@@ -132,6 +142,9 @@ impl QueryExecutorTrait for QueryExecutor {
                         schema.fields().iter().any(|f| f.source_table.is_some());
 
                     for field in schema.fields() {
+                        if is_system_column_type(&field.data_type) {
+                            continue;
+                        }
                         let should_include = if has_source_tables {
                             field.source_table.as_ref() == Some(&table_qualifier)
                         } else {
@@ -156,9 +169,16 @@ impl QueryExecutorTrait for QueryExecutor {
             .get_dataset("default")
             .map(|dataset| dataset.types());
 
+        let dict_registry = storage
+            .get_dataset("default")
+            .map(|d| d.dictionaries().clone());
+
         let mut evaluator = ExpressionEvaluator::new(schema).with_dialect(self.dialect());
         if let Some(tr) = type_registry {
             evaluator = evaluator.with_type_registry(tr);
+        }
+        if let Some(dr) = dict_registry {
+            evaluator = evaluator.with_dictionary_registry(dr);
         }
 
         let mut projected_rows: Vec<Row> = Vec::new();
@@ -2354,8 +2374,10 @@ impl QueryExecutor {
         for item in select_items {
             match item {
                 SelectItem::Wildcard(_) => {
-                    for i in 0..schema.fields().len() {
-                        indices.push(i);
+                    for (i, field) in schema.fields().iter().enumerate() {
+                        if !is_system_column_type(&field.data_type) {
+                            indices.push(i);
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
@@ -2377,8 +2399,10 @@ impl QueryExecutor {
                     indices.push(idx);
                 }
                 SelectItem::QualifiedWildcard(_object_name, _) => {
-                    for i in 0..schema.fields().len() {
-                        indices.push(i);
+                    for (i, field) in schema.fields().iter().enumerate() {
+                        if !is_system_column_type(&field.data_type) {
+                            indices.push(i);
+                        }
                     }
                 }
             }
@@ -4884,6 +4908,9 @@ impl QueryExecutor {
                 }
                 SelectItem::Wildcard(_) => {
                     for (idx, field) in schema.fields().iter().enumerate() {
+                        if is_system_column_type(&field.data_type) {
+                            continue;
+                        }
                         output_fields.push(field.clone());
                         column_indices.push(idx);
                     }
@@ -5620,9 +5647,13 @@ impl QueryExecutor {
         let mut projected_fields: Vec<Field> = Vec::new();
         let mut result_values: Vec<Value> = Vec::new();
 
-        let type_registry = {
+        let (type_registry, dict_registry) = {
             let storage = self.storage.borrow();
-            storage.get_dataset("default").map(|d| d.types().clone())
+            let type_reg = storage.get_dataset("default").map(|d| d.types().clone());
+            let dict_reg = storage
+                .get_dataset("default")
+                .map(|d| d.dictionaries().clone());
+            (type_reg, dict_reg)
         };
 
         let system_vars: std::collections::HashMap<String, Value> = self
@@ -5632,13 +5663,14 @@ impl QueryExecutor {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
 
-        let evaluator = if let Some(registry) = type_registry {
-            ExpressionEvaluator::new(&empty_schema)
-                .with_owned_type_registry(registry)
-                .with_system_variables(system_vars)
-        } else {
-            ExpressionEvaluator::new(&empty_schema).with_system_variables(system_vars)
-        };
+        let mut evaluator =
+            ExpressionEvaluator::new(&empty_schema).with_system_variables(system_vars);
+        if let Some(registry) = type_registry {
+            evaluator = evaluator.with_owned_type_registry(registry);
+        }
+        if let Some(registry) = dict_registry {
+            evaluator = evaluator.with_dictionary_registry(registry);
+        }
 
         for item in &select.projection {
             match item {

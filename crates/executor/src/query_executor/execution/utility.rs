@@ -306,6 +306,11 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
         yachtsql_optimizer::expr::CastDataType::Hstore => DataType::Hstore,
         yachtsql_optimizer::expr::CastDataType::MacAddr => DataType::MacAddr,
         yachtsql_optimizer::expr::CastDataType::MacAddr8 => DataType::MacAddr8,
+        yachtsql_optimizer::expr::CastDataType::Xid => DataType::Xid,
+        yachtsql_optimizer::expr::CastDataType::Xid8 => DataType::Xid8,
+        yachtsql_optimizer::expr::CastDataType::Tid => DataType::Tid,
+        yachtsql_optimizer::expr::CastDataType::Cid => DataType::Cid,
+        yachtsql_optimizer::expr::CastDataType::Oid => DataType::Oid,
         yachtsql_optimizer::expr::CastDataType::Inet => DataType::Inet,
         yachtsql_optimizer::expr::CastDataType::Cidr => DataType::Cidr,
         yachtsql_optimizer::expr::CastDataType::Int4Range => {
@@ -1269,6 +1274,105 @@ pub fn perform_cast(
             } else {
                 Err(Error::TypeMismatch {
                     expected: "Circle".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Xid => {
+            if let Some(i) = value.as_i64() {
+                Ok(Value::int64(i))
+            } else if let Some(s) = value.as_str() {
+                let trimmed = s.trim();
+                trimmed
+                    .parse::<u32>()
+                    .map(|v| Value::int64(v as i64))
+                    .map_err(|_| Error::InvalidOperation(format!("Invalid XID value: '{}'", s)))
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Xid".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Xid8 => {
+            if let Some(i) = value.as_i64() {
+                Ok(Value::int64(i))
+            } else if let Some(s) = value.as_str() {
+                let trimmed = s.trim();
+                trimmed
+                    .parse::<u64>()
+                    .map(|v| Value::int64(v as i64))
+                    .map_err(|_| Error::InvalidOperation(format!("Invalid XID8 value: '{}'", s)))
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Xid8".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Tid => {
+            if let Some(i) = value.as_i64() {
+                Ok(Value::int64(i))
+            } else if let Some(s) = value.as_str() {
+                let trimmed = s.trim();
+                if trimmed.starts_with('(') && trimmed.ends_with(')') {
+                    let inner = &trimmed[1..trimmed.len() - 1];
+                    let parts: Vec<&str> = inner.split(',').collect();
+                    if parts.len() == 2 {
+                        let block: i64 = parts[0].trim().parse().map_err(|_| {
+                            Error::InvalidOperation(format!("Invalid TID value: '{}'", s))
+                        })?;
+                        let offset: i64 = parts[1].trim().parse().map_err(|_| {
+                            Error::InvalidOperation(format!("Invalid TID value: '{}'", s))
+                        })?;
+                        Ok(Value::int64((block << 16) | offset))
+                    } else {
+                        Err(Error::InvalidOperation(format!(
+                            "Invalid TID value: '{}'",
+                            s
+                        )))
+                    }
+                } else {
+                    Err(Error::InvalidOperation(format!(
+                        "Invalid TID value: '{}'",
+                        s
+                    )))
+                }
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Tid".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Cid => {
+            if let Some(i) = value.as_i64() {
+                Ok(Value::int64(i))
+            } else if let Some(s) = value.as_str() {
+                let trimmed = s.trim();
+                trimmed
+                    .parse::<u32>()
+                    .map(|v| Value::int64(v as i64))
+                    .map_err(|_| Error::InvalidOperation(format!("Invalid CID value: '{}'", s)))
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Cid".to_string(),
+                    actual: format!("{:?}", value.data_type()),
+                })
+            }
+        }
+        CastDataType::Oid => {
+            if let Some(i) = value.as_i64() {
+                Ok(Value::int64(i))
+            } else if let Some(s) = value.as_str() {
+                let trimmed = s.trim();
+                trimmed
+                    .parse::<u32>()
+                    .map(|v| Value::int64(v as i64))
+                    .map_err(|_| Error::InvalidOperation(format!("Invalid OID value: '{}'", s)))
+            } else {
+                Err(Error::TypeMismatch {
+                    expected: "Oid".to_string(),
                     actual: format!("{:?}", value.data_type()),
                 })
             }

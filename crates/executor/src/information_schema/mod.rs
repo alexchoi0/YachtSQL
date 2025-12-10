@@ -71,6 +71,11 @@ fn data_type_to_postgres_name(data_type: &DataType) -> String {
         DataType::GeoPolygon => "Polygon".to_string(),
         DataType::GeoMultiPolygon => "MultiPolygon".to_string(),
         DataType::FixedString(n) => format!("FixedString({})", n),
+        DataType::Xid => "XID".to_string(),
+        DataType::Xid8 => "XID8".to_string(),
+        DataType::Tid => "TID".to_string(),
+        DataType::Cid => "CID".to_string(),
+        DataType::Oid => "OID".to_string(),
     }
 }
 

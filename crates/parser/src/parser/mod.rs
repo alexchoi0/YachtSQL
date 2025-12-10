@@ -120,7 +120,13 @@ impl Parser {
             sql_without_settings
         };
 
-        let rewritten_sql = self.rewrite_json_item_methods(&sql_without_global)?;
+        let sql_with_rewritten_locks = if matches!(self.dialect_type, DialectType::PostgreSQL) {
+            Self::rewrite_pg_lock_clauses(&sql_without_global)
+        } else {
+            sql_without_global
+        };
+
+        let rewritten_sql = self.rewrite_json_item_methods(&sql_with_rewritten_locks)?;
         let parse_result = SqlParser::parse_sql(&*self.dialect, &rewritten_sql);
 
         let sql_statements = match parse_result {
@@ -349,6 +355,20 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.is_create_snapshot_table(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                CustomStatementParser::parse_create_snapshot_table(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.is_drop_snapshot_table(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                CustomStatementParser::parse_drop_snapshot_table(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         Ok(None)
     }
 
@@ -495,6 +515,17 @@ impl Parser {
     fn strip_global_keyword(sql: &str) -> String {
         let re = regex::Regex::new(r"(?i)\bGLOBAL\s+IN\b").unwrap();
         re.replace_all(sql, "IN").to_string()
+    }
+
+    fn rewrite_pg_lock_clauses(sql: &str) -> String {
+        let re_no_key_update = regex::Regex::new(r"(?i)\bFOR\s+NO\s+KEY\s+UPDATE\b").unwrap();
+        let result = re_no_key_update.replace_all(sql, "FOR UPDATE");
+
+        let re_key_share = regex::Regex::new(r"(?i)\bFOR\s+KEY\s+SHARE\b").unwrap();
+        let result = re_key_share.replace_all(&result, "FOR SHARE");
+
+        let re_skip_locked = regex::Regex::new(r"(?i)\bSKIP\s+LOCKED\b").unwrap();
+        re_skip_locked.replace_all(&result, "").to_string()
     }
 
     fn rewrite_asof_join(sql: &str) -> String {
@@ -1052,6 +1083,14 @@ impl Parser {
 
     fn is_begin(&self, tokens: &[&Token]) -> bool {
         self.matches_keyword_sequence(tokens, &["BEGIN"])
+    }
+
+    fn is_create_snapshot_table(&self, tokens: &[&Token]) -> bool {
+        self.matches_keyword_sequence(tokens, &["CREATE", "SNAPSHOT", "TABLE"])
+    }
+
+    fn is_drop_snapshot_table(&self, tokens: &[&Token]) -> bool {
+        self.matches_keyword_sequence(tokens, &["DROP", "SNAPSHOT", "TABLE"])
     }
 
     fn rewrite_json_item_methods(&self, sql: &str) -> Result<String> {
