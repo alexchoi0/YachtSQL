@@ -2,7 +2,481 @@ use chrono::TimeZone;
 use rust_decimal::Decimal;
 
 use crate::error::{Error, Result};
-use crate::types::{DataType, FixedStringData, Range, RangeType, Value};
+use crate::types::{DataType, FixedStringData, Interval, Range, RangeType, Value};
+
+fn parse_interval_string(s: &str) -> Result<Interval> {
+    let s = s.trim();
+
+    if s.starts_with('P') || s.starts_with('p') {
+        return parse_iso_interval(s);
+    }
+
+    parse_pg_interval(s)
+}
+
+fn parse_time_component(s: &str) -> Result<i64> {
+    let parts: Vec<&str> = s.split(':').collect();
+    match parts.len() {
+        2 => {
+            let hours: i64 = parts[0].parse().map_err(|_| {
+                Error::invalid_query(format!("Invalid hour in time component: '{}'", s))
+            })?;
+            let minutes: i64 = parts[1].parse().map_err(|_| {
+                Error::invalid_query(format!("Invalid minute in time component: '{}'", s))
+            })?;
+            Ok(hours * Interval::MICROS_PER_HOUR + minutes * Interval::MICROS_PER_MINUTE)
+        }
+        3 => {
+            let hours: i64 = parts[0].parse().map_err(|_| {
+                Error::invalid_query(format!("Invalid hour in time component: '{}'", s))
+            })?;
+            let minutes: i64 = parts[1].parse().map_err(|_| {
+                Error::invalid_query(format!("Invalid minute in time component: '{}'", s))
+            })?;
+            let seconds_str = parts[2];
+            let (secs, micros) = if let Some(dot_pos) = seconds_str.find('.') {
+                let secs: i64 = seconds_str[..dot_pos].parse().map_err(|_| {
+                    Error::invalid_query(format!("Invalid second in time component: '{}'", s))
+                })?;
+                let frac_str = &seconds_str[dot_pos + 1..];
+                let frac_str_padded = format!("{:0<6}", frac_str);
+                let micros: i64 = frac_str_padded[..6].parse().map_err(|_| {
+                    Error::invalid_query(format!("Invalid fractional seconds: '{}'", s))
+                })?;
+                (secs, micros)
+            } else {
+                let secs: i64 = seconds_str.parse().map_err(|_| {
+                    Error::invalid_query(format!("Invalid second in time component: '{}'", s))
+                })?;
+                (secs, 0)
+            };
+            Ok(hours * Interval::MICROS_PER_HOUR
+                + minutes * Interval::MICROS_PER_MINUTE
+                + secs * Interval::MICROS_PER_SECOND
+                + micros)
+        }
+        _ => Err(Error::invalid_query(format!(
+            "Invalid time component format: '{}'",
+            s
+        ))),
+    }
+}
+
+fn parse_pg_interval(s: &str) -> Result<Interval> {
+    let mut months = 0i32;
+    let mut days = 0i32;
+    let mut micros = 0i64;
+
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    let mut i = 0;
+
+    while i < parts.len() {
+        if parts[i].contains(':') {
+            micros += parse_time_component(parts[i])?;
+            i += 1;
+            continue;
+        }
+
+        let is_negative = parts[i].starts_with('-');
+        let num_str = parts[i].trim_start_matches('-');
+        if let Ok(num) = num_str.parse::<i64>() {
+            let num = if is_negative { -num } else { num };
+            if i + 1 < parts.len() {
+                let unit = parts[i + 1].to_lowercase();
+                let unit = unit.trim_end_matches(',');
+                match unit {
+                    "year" | "years" | "yr" | "yrs" | "y" => {
+                        months += (num * 12) as i32;
+                        i += 2;
+                    }
+                    "month" | "months" | "mon" | "mons" => {
+                        months += num as i32;
+                        i += 2;
+                    }
+                    "week" | "weeks" | "w" => {
+                        days += (num * 7) as i32;
+                        i += 2;
+                    }
+                    "day" | "days" | "d" => {
+                        days += num as i32;
+                        i += 2;
+                    }
+                    "hour" | "hours" | "hr" | "hrs" | "h" => {
+                        micros += num * Interval::MICROS_PER_HOUR;
+                        i += 2;
+                    }
+                    "minute" | "minutes" | "min" | "mins" | "m" => {
+                        micros += num * Interval::MICROS_PER_MINUTE;
+                        i += 2;
+                    }
+                    "second" | "seconds" | "sec" | "secs" | "s" => {
+                        micros += num * Interval::MICROS_PER_SECOND;
+                        i += 2;
+                    }
+                    "millisecond" | "milliseconds" | "ms" => {
+                        micros += num * 1000;
+                        i += 2;
+                    }
+                    "microsecond" | "microseconds" | "us" => {
+                        micros += num;
+                        i += 2;
+                    }
+                    _ => {
+                        i += 1;
+                    }
+                }
+            } else {
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    Ok(Interval::new(months, days, micros))
+}
+
+fn parse_iso_interval(s: &str) -> Result<Interval> {
+    let s = s
+        .strip_prefix('P')
+        .or_else(|| s.strip_prefix('p'))
+        .unwrap_or(s);
+
+    let mut months = 0i32;
+    let mut days = 0i32;
+    let mut micros = 0i64;
+
+    let (date_part, time_part) = if let Some(t_pos) = s.find('T').or_else(|| s.find('t')) {
+        (&s[..t_pos], Some(&s[t_pos + 1..]))
+    } else {
+        (s, None)
+    };
+
+    let mut num_buf = String::new();
+    for c in date_part.chars() {
+        match c {
+            '0'..='9' | '.' | '-' => num_buf.push(c),
+            'Y' | 'y' => {
+                if !num_buf.is_empty() {
+                    let num: i64 = num_buf.parse().map_err(|_| {
+                        Error::invalid_query(format!("Invalid year in ISO interval: '{}'", s))
+                    })?;
+                    months += (num * 12) as i32;
+                    num_buf.clear();
+                }
+            }
+            'M' | 'm' => {
+                if !num_buf.is_empty() {
+                    let num: i64 = num_buf.parse().map_err(|_| {
+                        Error::invalid_query(format!("Invalid month in ISO interval: '{}'", s))
+                    })?;
+                    months += num as i32;
+                    num_buf.clear();
+                }
+            }
+            'W' | 'w' => {
+                if !num_buf.is_empty() {
+                    let num: i64 = num_buf.parse().map_err(|_| {
+                        Error::invalid_query(format!("Invalid week in ISO interval: '{}'", s))
+                    })?;
+                    days += (num * 7) as i32;
+                    num_buf.clear();
+                }
+            }
+            'D' | 'd' => {
+                if !num_buf.is_empty() {
+                    let num: i64 = num_buf.parse().map_err(|_| {
+                        Error::invalid_query(format!("Invalid day in ISO interval: '{}'", s))
+                    })?;
+                    days += num as i32;
+                    num_buf.clear();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(time_str) = time_part {
+        num_buf.clear();
+        for c in time_str.chars() {
+            match c {
+                '0'..='9' | '.' | '-' => num_buf.push(c),
+                'H' | 'h' => {
+                    if !num_buf.is_empty() {
+                        let num: i64 = num_buf.parse().map_err(|_| {
+                            Error::invalid_query(format!("Invalid hour in ISO interval: '{}'", s))
+                        })?;
+                        micros += num * Interval::MICROS_PER_HOUR;
+                        num_buf.clear();
+                    }
+                }
+                'M' | 'm' => {
+                    if !num_buf.is_empty() {
+                        let num: i64 = num_buf.parse().map_err(|_| {
+                            Error::invalid_query(format!("Invalid minute in ISO interval: '{}'", s))
+                        })?;
+                        micros += num * Interval::MICROS_PER_MINUTE;
+                        num_buf.clear();
+                    }
+                }
+                'S' | 's' => {
+                    if !num_buf.is_empty() {
+                        if num_buf.contains('.') {
+                            let parts: Vec<&str> = num_buf.split('.').collect();
+                            let secs: i64 = parts[0].parse().map_err(|_| {
+                                Error::invalid_query(format!(
+                                    "Invalid second in ISO interval: '{}'",
+                                    s
+                                ))
+                            })?;
+                            let frac_str = format!("{:0<6}", parts.get(1).unwrap_or(&"0"));
+                            let frac_micros: i64 = frac_str[..6].parse().map_err(|_| {
+                                Error::invalid_query(format!(
+                                    "Invalid fractional second in ISO interval: '{}'",
+                                    s
+                                ))
+                            })?;
+                            micros += secs * Interval::MICROS_PER_SECOND + frac_micros;
+                        } else {
+                            let num: i64 = num_buf.parse().map_err(|_| {
+                                Error::invalid_query(format!(
+                                    "Invalid second in ISO interval: '{}'",
+                                    s
+                                ))
+                            })?;
+                            micros += num * Interval::MICROS_PER_SECOND;
+                        }
+                        num_buf.clear();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(Interval::new(months, days, micros))
+}
+
+use crate::types::{GeoMultiPolygonValue, GeoPointValue, GeoPolygonValue, GeoRingValue};
+
+fn parse_wkt_coordinate(s: &str) -> Option<GeoPointValue> {
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let x = parts[0].parse::<f64>().ok()?;
+    let y = parts[1].parse::<f64>().ok()?;
+    Some(GeoPointValue { x, y })
+}
+
+fn parse_wkt_ring(s: &str) -> Option<GeoRingValue> {
+    let s = s.trim();
+    let s = s.strip_prefix('(')?.strip_suffix(')')?;
+    s.split(',')
+        .map(|coord| parse_wkt_coordinate(coord.trim()))
+        .collect()
+}
+
+fn parse_wkt_polygon(s: &str) -> Option<GeoPolygonValue> {
+    let s = s.trim();
+    let s = s
+        .strip_prefix("POLYGON")
+        .or_else(|| s.strip_prefix("polygon"))?
+        .trim();
+    let s = s.strip_prefix('(')?.strip_suffix(')')?;
+
+    let mut rings = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => {
+                if depth == 0 {
+                    start = i;
+                }
+                depth += 1;
+            }
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    let ring_str = &s[start..=i];
+                    rings.push(parse_wkt_ring(ring_str)?);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if rings.is_empty() {
+        return None;
+    }
+    Some(rings)
+}
+
+fn parse_wkt_multipolygon(s: &str) -> Option<GeoMultiPolygonValue> {
+    let s = s.trim();
+    let s = s
+        .strip_prefix("MULTIPOLYGON")
+        .or_else(|| s.strip_prefix("multipolygon"))?
+        .trim();
+    let s = s.strip_prefix('(')?.strip_suffix(')')?;
+
+    let mut polygons = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => {
+                if depth == 0 {
+                    start = i;
+                }
+                depth += 1;
+            }
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    let poly_str = &s[start..=i];
+                    let poly_str = poly_str.trim();
+                    let poly_str = poly_str.strip_prefix('(')?.strip_suffix(')')?;
+
+                    let mut rings = Vec::new();
+                    let mut ring_depth = 0;
+                    let mut ring_start = 0;
+                    for (j, ch) in poly_str.char_indices() {
+                        match ch {
+                            '(' => {
+                                if ring_depth == 0 {
+                                    ring_start = j;
+                                }
+                                ring_depth += 1;
+                            }
+                            ')' => {
+                                ring_depth -= 1;
+                                if ring_depth == 0 {
+                                    let ring_str = &poly_str[ring_start..=j];
+                                    rings.push(parse_wkt_ring(ring_str)?);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if !rings.is_empty() {
+                        polygons.push(rings);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if polygons.is_empty() {
+        return None;
+    }
+    Some(polygons)
+}
+
+fn parse_geo_polygon_string(s: &str) -> Result<GeoPolygonValue> {
+    let s = s.trim();
+
+    if s.starts_with("POLYGON") || s.starts_with("polygon") {
+        parse_wkt_polygon(s)
+            .ok_or_else(|| Error::invalid_query(format!("Invalid WKT Polygon string: '{}'", s)))
+    } else if s.starts_with('[') {
+        parse_bracket_polygon(s)
+            .ok_or_else(|| Error::invalid_query(format!("Invalid Polygon string: '{}'", s)))
+    } else {
+        Err(Error::invalid_query(format!(
+            "Invalid Polygon format: '{}'. Expected WKT POLYGON(...) or bracket format [...]",
+            s
+        )))
+    }
+}
+
+fn parse_bracket_polygon(s: &str) -> Option<GeoPolygonValue> {
+    let s = s.trim();
+    let s = s.strip_prefix('[')?.strip_suffix(']')?;
+
+    let mut rings = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+
+    for (i, c) in s.char_indices() {
+        match c {
+            '[' => {
+                if depth == 0 {
+                    start = i;
+                }
+                depth += 1;
+            }
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    let ring_str = &s[start..=i];
+                    rings.push(crate::types::parse_geo_ring(ring_str)?);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if rings.is_empty() {
+        return None;
+    }
+    Some(rings)
+}
+
+fn parse_geo_multipolygon_string(s: &str) -> Result<GeoMultiPolygonValue> {
+    let s = s.trim();
+
+    if s.starts_with("MULTIPOLYGON") || s.starts_with("multipolygon") {
+        parse_wkt_multipolygon(s).ok_or_else(|| {
+            Error::invalid_query(format!("Invalid WKT MultiPolygon string: '{}'", s))
+        })
+    } else if s.starts_with('[') {
+        parse_bracket_multipolygon(s)
+            .ok_or_else(|| Error::invalid_query(format!("Invalid MultiPolygon string: '{}'", s)))
+    } else {
+        Err(Error::invalid_query(format!(
+            "Invalid MultiPolygon format: '{}'. Expected WKT MULTIPOLYGON(...) or bracket format [...]",
+            s
+        )))
+    }
+}
+
+fn parse_bracket_multipolygon(s: &str) -> Option<GeoMultiPolygonValue> {
+    let s = s.trim();
+    let s = s.strip_prefix('[')?.strip_suffix(']')?;
+
+    let mut polygons = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+
+    for (i, c) in s.char_indices() {
+        match c {
+            '[' => {
+                if depth == 0 {
+                    start = i;
+                }
+                depth += 1;
+            }
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    let poly_str = &s[start..=i];
+                    polygons.push(parse_bracket_polygon(poly_str)?);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if polygons.is_empty() {
+        return None;
+    }
+    Some(polygons)
+}
 
 fn parse_range_string(s: &str, range_type: RangeType) -> Result<Value> {
     let s = s.trim();
@@ -573,9 +1047,17 @@ impl CoercionRules {
                 }
             }
 
-            (DataType::String, DataType::Interval) => Err(Error::unsupported_feature(
-                "STRING to INTERVAL coercion not yet implemented",
-            )),
+            (DataType::String, DataType::Interval) => {
+                if let Some(s) = value.as_str() {
+                    parse_interval_string(s).map(Value::interval)
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
 
             (DataType::String, DataType::Uuid) => {
                 if let Some(s) = value.as_str() {
@@ -896,13 +1378,29 @@ impl CoercionRules {
                 }
             }
 
-            (DataType::String, DataType::GeoPolygon) => Err(Error::unsupported_feature(
-                "STRING to Polygon coercion not yet implemented",
-            )),
+            (DataType::String, DataType::GeoPolygon) => {
+                if let Some(s) = value.as_str() {
+                    parse_geo_polygon_string(s).map(Value::geo_polygon)
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
 
-            (DataType::String, DataType::GeoMultiPolygon) => Err(Error::unsupported_feature(
-                "STRING to MultiPolygon coercion not yet implemented",
-            )),
+            (DataType::String, DataType::GeoMultiPolygon) => {
+                if let Some(s) = value.as_str() {
+                    parse_geo_multipolygon_string(s).map(Value::geo_multipolygon)
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
 
             (DataType::Struct(_), DataType::Point) => {
                 if let Some(st) = value.as_struct() {
