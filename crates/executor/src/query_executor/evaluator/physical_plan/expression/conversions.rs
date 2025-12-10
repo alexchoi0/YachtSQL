@@ -268,6 +268,18 @@ impl ProjectionWithExprExec {
             return a_val == b_val;
         }
 
+        if let (Some(fs_a), Some(fs_b)) = (a.as_fixed_string(), b.as_fixed_string()) {
+            return fs_a.data == fs_b.data;
+        }
+
+        if let (Some(fs), Some(s)) = (a.as_fixed_string(), b.as_str()) {
+            return fs.to_string_lossy() == s;
+        }
+
+        if let (Some(s), Some(fs)) = (a.as_str(), b.as_fixed_string()) {
+            return s == fs.to_string_lossy();
+        }
+
         if let (Some(a_struct), Some(b_struct)) = (a.as_struct(), b.as_struct()) {
             if a_struct.len() != b_struct.len() {
                 return false;

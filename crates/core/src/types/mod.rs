@@ -25,6 +25,7 @@ pub enum DataType {
     Numeric(Option<(u8, u8)>),
     BigNumeric,
     String,
+    FixedString(usize),
     Bytes,
     Date,
     DateTime,
@@ -95,6 +96,7 @@ impl fmt::Display for DataType {
             }
             DataType::BigNumeric => write!(f, "BIGNUMERIC"),
             DataType::String => write!(f, "STRING"),
+            DataType::FixedString(n) => write!(f, "FixedString({})", n),
             DataType::Bytes => write!(f, "BYTES"),
             DataType::Date => write!(f, "DATE"),
             DataType::DateTime => write!(f, "DATETIME"),
@@ -177,6 +179,61 @@ const TAG_GEO_POINT: u8 = 156;
 const TAG_GEO_RING: u8 = 157;
 const TAG_GEO_POLYGON: u8 = 158;
 const TAG_GEO_MULTIPOLYGON: u8 = 159;
+const TAG_FIXED_STRING: u8 = 160;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FixedStringData {
+    pub data: Vec<u8>,
+    pub length: usize,
+}
+
+impl FixedStringData {
+    pub fn new(data: Vec<u8>, length: usize) -> Self {
+        let mut padded = data;
+        if padded.len() >= length {
+            padded.truncate(length);
+        } else {
+            padded.resize(length, 0);
+        }
+        Self {
+            data: padded,
+            length,
+        }
+    }
+
+    pub fn from_str(s: &str, length: usize) -> Self {
+        Self::new(s.as_bytes().to_vec(), length)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
+    }
+
+    pub fn to_string_lossy(&self) -> String {
+        let end = self
+            .data
+            .iter()
+            .rposition(|&b| b != 0)
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        String::from_utf8_lossy(&self.data[..end]).to_string()
+    }
+}
+
+impl std::fmt::Display for FixedStringData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string_lossy())
+    }
+}
+
+impl Eq for FixedStringData {}
+
+impl std::hash::Hash for FixedStringData {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.data.hash(state);
+        self.length.hash(state);
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PgPoint {
@@ -1327,6 +1384,31 @@ impl Value {
     }
 
     #[inline]
+    pub fn fixed_string(data: FixedStringData) -> Self {
+        let rc = Rc::new(data);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_FIXED_STRING,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn fixed_string_from_str(s: &str, length: usize) -> Self {
+        Self::fixed_string(FixedStringData::from_str(s, length))
+    }
+
+    #[inline]
+    pub fn fixed_string_from_bytes(data: Vec<u8>, length: usize) -> Self {
+        Self::fixed_string(FixedStringData::new(data, length))
+    }
+
+    #[inline]
     pub fn date(value: NaiveDate) -> Self {
         let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).expect("1970-01-01 is a valid date");
         let days = value.signed_duration_since(epoch).num_days() as i32;
@@ -1924,6 +2006,11 @@ impl Value {
                     TAG_GEO_RING => DataType::GeoRing,
                     TAG_GEO_POLYGON => DataType::GeoPolygon,
                     TAG_GEO_MULTIPOLYGON => DataType::GeoMultiPolygon,
+                    TAG_FIXED_STRING => {
+                        let heap = self.as_heap();
+                        let fixed_str_ptr = heap.ptr as *const FixedStringData;
+                        DataType::FixedString((*fixed_str_ptr).length)
+                    }
                     _ => DataType::Unknown,
                 }
             }
@@ -2158,6 +2245,18 @@ impl Value {
                 let heap = self.as_heap();
                 let bytes_ptr = heap.ptr as *const Vec<u8>;
                 Some((*bytes_ptr).as_slice())
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_fixed_string(&self) -> Option<&FixedStringData> {
+        unsafe {
+            if self.tag() == TAG_FIXED_STRING {
+                let heap = self.as_heap();
+                let fixed_str_ptr = heap.ptr as *const FixedStringData;
+                Some(&*fixed_str_ptr)
             } else {
                 None
             }
@@ -2529,6 +2628,9 @@ impl Drop for Value {
                     }
                     TAG_GEO_MULTIPOLYGON => {
                         let _ = Rc::from_raw(heap.ptr as *const GeoMultiPolygonValue);
+                    }
+                    TAG_FIXED_STRING => {
+                        let _ = Rc::from_raw(heap.ptr as *const FixedStringData);
                     }
                     TAG_DEFAULT => {}
                     _ => {}
@@ -2953,6 +3055,22 @@ impl Clone for Value {
                             },
                         }
                     }
+                    TAG_FIXED_STRING => {
+                        let arc_ptr = heap.ptr as *const FixedStringData;
+                        let rc = Rc::from_raw(arc_ptr);
+                        let cloned_arc = Rc::clone(&rc);
+                        let _ = Rc::into_raw(rc);
+                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
+                        Self {
+                            inner: ValueInner {
+                                heap: std::mem::ManuallyDrop::new(HeapValue {
+                                    tag: TAG_FIXED_STRING,
+                                    _pad: [0; 7],
+                                    ptr,
+                                }),
+                            },
+                        }
+                    }
                     TAG_DEFAULT => Self::default_value(),
                     _ => Self::null(),
                 }
@@ -3099,6 +3217,11 @@ impl PartialEq for Value {
                         let self_mp = &*(self_heap.ptr as *const GeoMultiPolygonValue);
                         let other_mp = &*(other_heap.ptr as *const GeoMultiPolygonValue);
                         self_mp == other_mp
+                    }
+                    TAG_FIXED_STRING => {
+                        let self_fs = &*(self_heap.ptr as *const FixedStringData);
+                        let other_fs = &*(other_heap.ptr as *const FixedStringData);
+                        self_fs == other_fs
                     }
                     TAG_DEFAULT => true,
 
@@ -3325,6 +3448,11 @@ impl std::hash::Hash for Value {
                             }
                         }
                     }
+                    TAG_FIXED_STRING => {
+                        if let Some(fs) = self.as_fixed_string() {
+                            fs.hash(state);
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -3446,6 +3574,10 @@ impl std::fmt::Debug for Value {
                     TAG_GEO_MULTIPOLYGON => {
                         let mp = &*(heap.ptr as *const GeoMultiPolygonValue);
                         write!(f, "Value::geo_multipolygon({:?})", mp)
+                    }
+                    TAG_FIXED_STRING => {
+                        let fs = &*(heap.ptr as *const FixedStringData);
+                        write!(f, "Value::fixed_string({:?})", fs)
                     }
                     _ => write!(f, "Value::Unknown(tag={})", tag),
                 }
@@ -3894,6 +4026,10 @@ impl fmt::Display for Value {
                     TAG_MACADDR | TAG_MACADDR8 => {
                         let mac = &*(heap.ptr as *const MacAddress);
                         write!(f, "{}", mac)
+                    }
+                    TAG_FIXED_STRING => {
+                        let fs = &*(heap.ptr as *const FixedStringData);
+                        write!(f, "'{}'", fs.to_string_lossy())
                     }
                     0..=127 => unreachable!("inline tags handled above"),
                     _ => write!(f, "<UNKNOWN_HEAP_TYPE:{}>", tag),

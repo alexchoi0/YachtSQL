@@ -11,7 +11,9 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
-        let mut result = String::new();
+        let mut result_bytes: Vec<u8> = Vec::new();
+        let mut has_fixed_string = false;
+
         for arg in args {
             let val = Self::evaluate_expr(arg, batch, row_idx)?;
 
@@ -19,17 +21,29 @@ impl ProjectionWithExprExec {
                 continue;
             }
 
-            if let Some(s) = val.as_str() {
-                result.push_str(s);
+            if let Some(fs) = val.as_fixed_string() {
+                has_fixed_string = true;
+                result_bytes.extend_from_slice(&fs.data);
+            } else if let Some(s) = val.as_str() {
+                result_bytes.extend_from_slice(s.as_bytes());
             } else if let Some(i) = val.as_i64() {
-                result.push_str(&i.to_string());
+                result_bytes.extend_from_slice(i.to_string().as_bytes());
             } else if let Some(f) = val.as_f64() {
-                result.push_str(&f.to_string());
+                result_bytes.extend_from_slice(f.to_string().as_bytes());
             } else if let Some(b) = val.as_bool() {
-                result.push_str(&b.to_string());
+                result_bytes.extend_from_slice(b.to_string().as_bytes());
             }
         }
-        Ok(Value::string(result))
+
+        if has_fixed_string {
+            Ok(Value::string(
+                String::from_utf8_lossy(&result_bytes).to_string(),
+            ))
+        } else {
+            Ok(Value::string(
+                String::from_utf8_lossy(&result_bytes).to_string(),
+            ))
+        }
     }
 }
 

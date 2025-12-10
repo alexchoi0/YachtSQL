@@ -663,6 +663,15 @@ fn compare_values(a: &Value, b: &Value) -> Result<std::cmp::Ordering> {
     if let (Some(x), Some(y)) = (a.as_str(), b.as_str()) {
         return Ok(x.cmp(y));
     }
+    if let (Some(fs_a), Some(fs_b)) = (a.as_fixed_string(), b.as_fixed_string()) {
+        return Ok(fs_a.data.cmp(&fs_b.data));
+    }
+    if let (Some(fs), Some(s)) = (a.as_fixed_string(), b.as_str()) {
+        return Ok(fs.to_string_lossy().cmp(&s.to_string()));
+    }
+    if let (Some(s), Some(fs)) = (a.as_str(), b.as_fixed_string()) {
+        return Ok(s.to_string().cmp(&fs.to_string_lossy()));
+    }
     if let (Some(x), Some(y)) = (a.as_bool(), b.as_bool()) {
         return Ok(x.cmp(&y));
     }

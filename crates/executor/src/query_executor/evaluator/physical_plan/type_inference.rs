@@ -916,7 +916,6 @@ impl ProjectionWithExprExec {
                 if matches!(
                     s.as_str(),
                     "TOSTRING"
-                        | "TOFIXEDSTRING"
                         | "REINTERPRETASSTRING"
                         | "TOTYPENAME"
                         | "GENERATEUUIDV4"
@@ -925,6 +924,18 @@ impl ProjectionWithExprExec {
                         | "FAKEDATA"
                 ) =>
             {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if s == "TOFIXEDSTRING" => {
+                if args.len() >= 2 {
+                    if let crate::optimizer::expr::Expr::Literal(
+                        crate::optimizer::expr::LiteralValue::Int64(length),
+                    ) = &args[1]
+                    {
+                        return Some(DataType::FixedString(*length as usize));
+                    }
+                }
                 Some(DataType::String)
             }
 
@@ -2023,9 +2034,20 @@ impl ProjectionWithExprExec {
             | FunctionName::ToFloat64OrZero => Some(DataType::Float64),
 
             FunctionName::ChToString
-            | FunctionName::ToFixedString
             | FunctionName::ReinterpretAsString
             | FunctionName::ToTypeName => Some(DataType::String),
+
+            FunctionName::ToFixedString => {
+                if args.len() >= 2 {
+                    if let crate::optimizer::expr::Expr::Literal(
+                        crate::optimizer::expr::LiteralValue::Int64(length),
+                    ) = &args[1]
+                    {
+                        return Some(DataType::FixedString(*length as usize));
+                    }
+                }
+                Some(DataType::String)
+            }
 
             FunctionName::ToDateOrNull => Some(DataType::Date),
 

@@ -2,7 +2,7 @@ use chrono::TimeZone;
 use rust_decimal::Decimal;
 
 use crate::error::{Error, Result};
-use crate::types::{DataType, Range, RangeType, Value};
+use crate::types::{DataType, FixedStringData, Range, RangeType, Value};
 
 fn parse_range_string(s: &str, range_type: RangeType) -> Result<Value> {
     let s = s.trim();
@@ -188,6 +188,10 @@ impl CoercionRules {
             (DataType::String, DataType::Hstore) => true,
 
             (DataType::String, DataType::Enum { .. }) => true,
+
+            (DataType::String, DataType::FixedString(_)) => true,
+            (DataType::FixedString(_), DataType::String) => true,
+            (DataType::FixedString(_), DataType::FixedString(_)) => true,
 
             (DataType::Array(inner), DataType::Vector(_)) if **inner == DataType::Float64 => true,
 
@@ -682,6 +686,45 @@ impl CoercionRules {
                         &source_type,
                         target_type,
                         "expected string value for enum",
+                    ))
+                }
+            }
+
+            (DataType::String, DataType::FixedString(n)) => {
+                if let Some(s) = value.as_str() {
+                    Ok(Value::fixed_string(FixedStringData::from_str(s, *n)))
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::FixedString(_), DataType::String) => {
+                if let Some(fs) = value.as_fixed_string() {
+                    Ok(Value::string(fs.to_string_lossy()))
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
+                    ))
+                }
+            }
+
+            (DataType::FixedString(_), DataType::FixedString(n)) => {
+                if let Some(fs) = value.as_fixed_string() {
+                    Ok(Value::fixed_string(FixedStringData::new(
+                        fs.data.clone(),
+                        *n,
+                    )))
+                } else {
+                    Err(Error::type_coercion_error(
+                        &source_type,
+                        target_type,
+                        "value extraction failed",
                     ))
                 }
             }

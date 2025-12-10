@@ -230,6 +230,53 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(fs_l), Some(fs_r)) = (left.as_fixed_string(), right.as_fixed_string()) {
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(fs_l.data == fs_r.data)),
+                BinaryOp::NotEqual => Ok(Value::bool_val(fs_l.data != fs_r.data)),
+                BinaryOp::LessThan => Ok(Value::bool_val(fs_l.data < fs_r.data)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(fs_l.data <= fs_r.data)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(fs_l.data > fs_r.data)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(fs_l.data >= fs_r.data)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for FixedString",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(fs), Some(s)) = (left.as_fixed_string(), right.as_str()) {
+            let l = fs.to_string_lossy();
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(l.eq_ignore_ascii_case(s))),
+                BinaryOp::NotEqual => Ok(Value::bool_val(!l.eq_ignore_ascii_case(s))),
+                BinaryOp::LessThan => Ok(Value::bool_val(l.as_str() < s)),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(l.as_str() <= s)),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(l.as_str() > s)),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(l.as_str() >= s)),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for FixedString - STRING",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(s), Some(fs)) = (left.as_str(), right.as_fixed_string()) {
+            let r = fs.to_string_lossy();
+            return match op {
+                BinaryOp::Equal => Ok(Value::bool_val(s.eq_ignore_ascii_case(&r))),
+                BinaryOp::NotEqual => Ok(Value::bool_val(!s.eq_ignore_ascii_case(&r))),
+                BinaryOp::LessThan => Ok(Value::bool_val(s < r.as_str())),
+                BinaryOp::LessThanOrEqual => Ok(Value::bool_val(s <= r.as_str())),
+                BinaryOp::GreaterThan => Ok(Value::bool_val(s > r.as_str())),
+                BinaryOp::GreaterThanOrEqual => Ok(Value::bool_val(s >= r.as_str())),
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for STRING - FixedString",
+                    op
+                ))),
+            };
+        }
+
         if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
             return match op {
                 BinaryOp::Equal => Ok(Value::bool_val(l.eq_ignore_ascii_case(r))),

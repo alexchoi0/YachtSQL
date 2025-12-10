@@ -2496,7 +2496,9 @@ impl ProjectionWithExprExec {
                     return Err(Error::invalid_query("hex requires 1 argument".to_string()));
                 }
                 let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                if let Some(s) = value.as_str() {
+                if let Some(fs) = value.as_fixed_string() {
+                    yachtsql_functions::encoding::hex_encode_bytes(&fs.data)
+                } else if let Some(s) = value.as_str() {
                     yachtsql_functions::encoding::hex_encode(s)
                 } else if let Some(b) = value.as_bytes() {
                     yachtsql_functions::encoding::hex_encode_bytes(b)
@@ -2510,10 +2512,14 @@ impl ProjectionWithExprExec {
                         "unhex requires 1 argument".to_string(),
                     ));
                 }
-                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
-                    .as_str()
-                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
-                    .to_string();
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let s = if let Some(fs) = value.as_fixed_string() {
+                    fs.to_string_lossy()
+                } else if let Some(str_val) = value.as_str() {
+                    str_val.to_string()
+                } else {
+                    return Err(Error::type_mismatch("STRING", "other"));
+                };
                 yachtsql_functions::encoding::unhex(&s)
             }
             "BASE64ENCODE" => {

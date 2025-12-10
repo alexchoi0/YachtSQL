@@ -165,6 +165,14 @@ impl Value {
                         let mp = &*(heap.ptr as *const crate::types::GeoMultiPolygonValue);
                         serde_json::Value::String(format!("multipolygon:{:?}", mp))
                     }
+                    crate::types::TAG_FIXED_STRING => {
+                        let fs = &*(heap.ptr as *const crate::types::FixedStringData);
+                        serde_json::Value::String(format!(
+                            "fixedstring:{}:{}",
+                            fs.length,
+                            BASE64_STANDARD.encode(&fs.data)
+                        ))
+                    }
                     _ => serde_json::Value::Null,
                 }
             }

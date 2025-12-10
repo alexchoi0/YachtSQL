@@ -5,7 +5,7 @@ use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Interval, Value};
+use yachtsql_core::types::{DataType, FixedStringData, Interval, Value};
 
 use crate::NullBitmap;
 
@@ -176,6 +176,12 @@ pub enum Column {
         data: Vec<yachtsql_core::types::GeoMultiPolygonValue>,
         nulls: NullBitmap,
     },
+
+    FixedString {
+        data: Vec<FixedStringData>,
+        nulls: NullBitmap,
+        length: usize,
+    },
 }
 
 impl Column {
@@ -342,6 +348,11 @@ impl Column {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
             },
+            DataType::FixedString(length) => Column::FixedString {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+                length: *length,
+            },
             _ => unimplemented!("Complex types not yet supported: {:?}", data_type),
         }
     }
@@ -408,6 +419,7 @@ impl Column {
             Column::GeoRing { .. } => DataType::GeoRing,
             Column::GeoPolygon { .. } => DataType::GeoPolygon,
             Column::GeoMultiPolygon { .. } => DataType::GeoMultiPolygon,
+            Column::FixedString { length, .. } => DataType::FixedString(*length),
         }
     }
 
@@ -449,6 +461,7 @@ impl Column {
             Column::GeoRing { nulls, .. } => nulls.len(),
             Column::GeoPolygon { nulls, .. } => nulls.len(),
             Column::GeoMultiPolygon { nulls, .. } => nulls.len(),
+            Column::FixedString { nulls, .. } => nulls.len(),
         }
     }
 
@@ -494,6 +507,7 @@ impl Column {
             Column::GeoRing { nulls, .. } => nulls,
             Column::GeoPolygon { nulls, .. } => nulls,
             Column::GeoMultiPolygon { nulls, .. } => nulls,
+            Column::FixedString { nulls, .. } => nulls,
         }
     }
 
@@ -1084,6 +1098,27 @@ impl Column {
                     )))
                 }
             }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                if let Some(fs) = value.as_fixed_string() {
+                    data.push(FixedStringData::new(fs.data.clone(), *length));
+                    nulls.push(true);
+                    Ok(())
+                } else if let Some(s) = value.as_str() {
+                    data.push(FixedStringData::from_str(s, *length));
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -1262,6 +1297,14 @@ impl Column {
             }
             Column::GeoMultiPolygon { data, nulls } => {
                 data.push(Vec::new());
+                nulls.push(false);
+            }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                data.push(FixedStringData::new(vec![], *length));
                 nulls.push(false);
             }
         }
@@ -1791,6 +1834,27 @@ impl Column {
                     )))
                 }
             }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                if let Some(fs) = value.as_fixed_string() {
+                    data[index] = FixedStringData::new(fs.data.clone(), *length);
+                    nulls.set(index, true);
+                    Ok(())
+                } else if let Some(s) = value.as_str() {
+                    data[index] = FixedStringData::from_str(s, *length);
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -1966,6 +2030,14 @@ impl Column {
                 data[index] = Vec::new();
                 nulls.set(index, false);
             }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                data[index] = FixedStringData::new(vec![], *length);
+                nulls.set(index, false);
+            }
         }
         Ok(())
     }
@@ -2115,6 +2187,10 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
+            Column::FixedString { data, nulls, .. } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
         }
     }
 
@@ -2171,6 +2247,7 @@ impl Column {
             Column::GeoMultiPolygon { data, .. } => {
                 Ok(Value::geo_multipolygon(data[index].clone()))
             }
+            Column::FixedString { data, .. } => Ok(Value::fixed_string(data[index].clone())),
         }
     }
 
@@ -2382,6 +2459,14 @@ impl Column {
             Column::GeoRing { data, .. } => gather_clone!(data, GeoRing),
             Column::GeoPolygon { data, .. } => gather_clone!(data, GeoPolygon),
             Column::GeoMultiPolygon { data, .. } => gather_clone!(data, GeoMultiPolygon),
+            Column::FixedString { data, length, .. } => {
+                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
+                Ok(Column::FixedString {
+                    data: gathered_data,
+                    nulls,
+                    length: *length,
+                })
+            }
         }
     }
 
