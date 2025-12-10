@@ -19,6 +19,7 @@ use super::returning::{
     ReturningColumn, ReturningColumnOrigin, ReturningExpressionItem, ReturningSpec,
 };
 use crate::information_schema::{InformationSchemaProvider, InformationSchemaTable};
+use crate::pg_catalog::{PgCatalogProvider, PgCatalogTable};
 use crate::system_schema::{SystemSchemaProvider, SystemTable};
 
 #[allow(dead_code)]
@@ -1123,6 +1124,24 @@ impl LogicalToPhysicalPlanner {
                     let info_table = InformationSchemaTable::from_str(table_id)?;
                     let provider = InformationSchemaProvider::new(Rc::clone(&self.storage));
                     let (schema, rows) = provider.query(info_table)?;
+
+                    let source_table = alias.as_ref().unwrap_or(table_name);
+                    let schema_with_source = schema.with_source_table(source_table);
+                    let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
+                    return Ok(Rc::new(MaterializedViewScanExec::new(
+                        schema_with_source,
+                        batch,
+                    )));
+                }
+
+                if dataset_name.eq_ignore_ascii_case("pg_catalog") {
+                    debug_print::debug_eprintln!(
+                        "[executor::logical_to_physical] Handling pg_catalog query for table '{}'",
+                        table_id
+                    );
+                    let pg_table = PgCatalogTable::from_str(table_id)?;
+                    let provider = PgCatalogProvider::new(Rc::clone(&self.storage));
+                    let (schema, rows) = provider.query(pg_table)?;
 
                     let source_table = alias.as_ref().unwrap_or(table_name);
                     let schema_with_source = schema.with_source_table(source_table);
