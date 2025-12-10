@@ -33,6 +33,9 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.year() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.year() as i64));
+                }
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.year() as i64));
                 }
@@ -42,7 +45,7 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                     }
                 }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP, DATE, or DATE32".to_string(),
+                    expected: "TIMESTAMP, DATETIME, DATE, or DATE32".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -63,6 +66,9 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.month() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.month() as i64));
+                }
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.month() as i64));
                 }
@@ -72,7 +78,7 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                     }
                 }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP, DATE, or DATE32".to_string(),
+                    expected: "TIMESTAMP, DATETIME, DATE, or DATE32".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -93,6 +99,9 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.day() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.day() as i64));
+                }
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.day() as i64));
                 }
@@ -102,7 +111,7 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                     }
                 }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP, DATE, or DATE32".to_string(),
+                    expected: "TIMESTAMP, DATETIME, DATE, or DATE32".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -123,11 +132,14 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.weekday().number_from_monday() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.weekday().number_from_monday() as i64));
+                }
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.weekday().number_from_monday() as i64));
                 }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP or DATE".to_string(),
+                    expected: "TIMESTAMP, DATETIME, or DATE".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -148,11 +160,14 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.ordinal() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.ordinal() as i64));
+                }
                 if let Some(d) = args[0].as_date() {
                     return Ok(Value::int64(d.ordinal() as i64));
                 }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP or DATE".to_string(),
+                    expected: "TIMESTAMP, DATETIME, or DATE".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -173,8 +188,11 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.hour() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.hour() as i64));
+                }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP".to_string(),
+                    expected: "TIMESTAMP or DATETIME".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -195,8 +213,11 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.minute() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.minute() as i64));
+                }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP".to_string(),
+                    expected: "TIMESTAMP or DATETIME".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },
@@ -217,8 +238,11 @@ fn register_extraction_functions(registry: &mut FunctionRegistry) {
                 if let Some(ts) = args[0].as_timestamp() {
                     return Ok(Value::int64(ts.second() as i64));
                 }
+                if let Some(dt) = args[0].as_datetime() {
+                    return Ok(Value::int64(dt.second() as i64));
+                }
                 Err(Error::TypeMismatch {
-                    expected: "TIMESTAMP".to_string(),
+                    expected: "TIMESTAMP or DATETIME".to_string(),
                     actual: args[0].data_type().to_string(),
                 })
             },

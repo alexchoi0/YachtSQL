@@ -4090,6 +4090,9 @@ impl ProjectionWithExprExec {
                 if let Some(ts) = value.as_timestamp() {
                     return Ok(Value::int64(ts.year() as i64));
                 }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.year() as i64));
+                }
                 if let Some(d) = value.as_date() {
                     return Ok(Value::int64(d.year() as i64));
                 }
@@ -4099,7 +4102,7 @@ impl ProjectionWithExprExec {
                     }
                 }
                 Err(Error::type_mismatch(
-                    "TIMESTAMP, DATE, or DATE32",
+                    "TIMESTAMP, DATETIME, DATE, or DATE32",
                     &value.data_type().to_string(),
                 ))
             }
@@ -4113,6 +4116,9 @@ impl ProjectionWithExprExec {
                 if let Some(ts) = value.as_timestamp() {
                     return Ok(Value::int64(ts.month() as i64));
                 }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.month() as i64));
+                }
                 if let Some(d) = value.as_date() {
                     return Ok(Value::int64(d.month() as i64));
                 }
@@ -4122,7 +4128,7 @@ impl ProjectionWithExprExec {
                     }
                 }
                 Err(Error::type_mismatch(
-                    "TIMESTAMP, DATE, or DATE32",
+                    "TIMESTAMP, DATETIME, DATE, or DATE32",
                     &value.data_type().to_string(),
                 ))
             }
@@ -4136,6 +4142,9 @@ impl ProjectionWithExprExec {
                 if let Some(ts) = value.as_timestamp() {
                     return Ok(Value::int64(ts.day() as i64));
                 }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.day() as i64));
+                }
                 if let Some(d) = value.as_date() {
                     return Ok(Value::int64(d.day() as i64));
                 }
@@ -4145,7 +4154,61 @@ impl ProjectionWithExprExec {
                     }
                 }
                 Err(Error::type_mismatch(
-                    "TIMESTAMP, DATE, or DATE32",
+                    "TIMESTAMP, DATETIME, DATE, or DATE32",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TOHOUR" => {
+                use chrono::Timelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.hour() as i64));
+                }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.hour() as i64));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TOMINUTE" => {
+                use chrono::Timelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.minute() as i64));
+                }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.minute() as i64));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TOSECOND" => {
+                use chrono::Timelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.second() as i64));
+                }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.second() as i64));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
                     &value.data_type().to_string(),
                 ))
             }
@@ -5022,6 +5085,73 @@ impl ProjectionWithExprExec {
                     .copied()
                     .unwrap_or(0);
                 Ok(Value::int64(result))
+            }
+
+            "ADDSECONDS" => {
+                use chrono::Duration;
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("addSeconds requires 2 arguments"));
+                }
+                let dt_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let seconds_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if dt_val.is_null() || seconds_val.is_null() {
+                    return Ok(Value::null());
+                }
+                let seconds = seconds_val.as_i64().ok_or_else(|| {
+                    Error::type_mismatch("INT64", &seconds_val.data_type().to_string())
+                })?;
+                if let Some(ts) = dt_val.as_timestamp() {
+                    return ts
+                        .checked_add_signed(Duration::seconds(seconds))
+                        .map(Value::timestamp)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in addSeconds"));
+                }
+                if let Some(dt) = dt_val.as_datetime() {
+                    return dt
+                        .checked_add_signed(Duration::seconds(seconds))
+                        .map(Value::datetime)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in addSeconds"));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &dt_val.data_type().to_string(),
+                ))
+            }
+
+            "SUBTRACTSECONDS" => {
+                use chrono::Duration;
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("subtractSeconds requires 2 arguments"));
+                }
+                let dt_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let seconds_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if dt_val.is_null() || seconds_val.is_null() {
+                    return Ok(Value::null());
+                }
+                let seconds = seconds_val.as_i64().ok_or_else(|| {
+                    Error::type_mismatch("INT64", &seconds_val.data_type().to_string())
+                })?;
+                if let Some(ts) = dt_val.as_timestamp() {
+                    return ts
+                        .checked_sub_signed(Duration::seconds(seconds))
+                        .map(Value::timestamp)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in subtractSeconds"));
+                }
+                if let Some(dt) = dt_val.as_datetime() {
+                    return dt
+                        .checked_sub_signed(Duration::seconds(seconds))
+                        .map(Value::datetime)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in subtractSeconds"));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &dt_val.data_type().to_string(),
+                ))
+            }
+
+            "NOW64" => {
+                use chrono::Utc;
+                Ok(Value::datetime(Utc::now()))
             }
 
             _ => Err(Error::unsupported_feature(format!(
