@@ -832,6 +832,9 @@ impl ProjectionWithExprExec {
                 | FunctionName::NetHost
                 | FunctionName::NetPublicSuffix
                 | FunctionName::NetRegDomain
+                | FunctionName::NetIpInNet
+                | FunctionName::NetMakeNet
+                | FunctionName::NetIpIsPrivate
                 | FunctionName::Encrypt
                 | FunctionName::Decrypt
                 | FunctionName::AesEncryptMysql

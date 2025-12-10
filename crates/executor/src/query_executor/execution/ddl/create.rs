@@ -791,8 +791,8 @@ impl DdlExecutor for QueryExecutor {
             SqlDataType::String(_)
             | SqlDataType::Varchar(_)
             | SqlDataType::Char(_)
-            | SqlDataType::Text
-            | SqlDataType::FixedString(_) => Ok(DataType::String),
+            | SqlDataType::Text => Ok(DataType::String),
+            SqlDataType::FixedString(n) => Ok(DataType::FixedString(*n as usize)),
             SqlDataType::Bytea | SqlDataType::Bytes(_) => Ok(DataType::Bytes),
             SqlDataType::Bit(_) | SqlDataType::BitVarying(_) => Ok(DataType::Bytes),
             SqlDataType::Date => Ok(DataType::Date),
@@ -948,7 +948,11 @@ impl DdlExecutor for QueryExecutor {
                 }
 
                 if type_upper == "FIXEDSTRING" {
-                    return Ok(DataType::String);
+                    let n = modifiers
+                        .first()
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(1);
+                    return Ok(DataType::FixedString(n));
                 }
 
                 {

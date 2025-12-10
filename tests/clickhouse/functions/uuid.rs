@@ -8,7 +8,6 @@ fn test_generate_uuid_v4() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_empty_uuid() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_empty_uuid() {
     assert_table_eq!(result, [[1]]); // Zero UUID is empty
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_not_empty_uuid() {
     let mut executor = create_executor();
@@ -46,7 +44,6 @@ fn test_to_uuid_or_null() {
     assert_table_eq!(result, [[null]]); // Invalid UUID returns NULL
 }
 
-#[ignore = "Type inference issue with return type"]
 #[test]
 fn test_to_uuid_or_zero() {
     let mut executor = create_executor();
@@ -56,7 +53,6 @@ fn test_to_uuid_or_zero() {
     assert_table_eq!(result, [["00000000-0000-0000-0000-000000000000"]]); // Invalid returns zero UUID
 }
 
-#[ignore = "Type inference issue with BYTES return type"]
 #[test]
 fn test_uuid_string_to_num() {
     let mut executor = create_executor();
@@ -66,7 +62,6 @@ fn test_uuid_string_to_num() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Type inference issue with BYTES return type from nested UUIDStringToNum"]
 #[test]
 fn test_uuid_num_to_string() {
     let mut executor = create_executor();
@@ -78,7 +73,6 @@ fn test_uuid_num_to_string() {
     assert_table_eq!(result, [["61f0c404-5cb3-11e7-907b-a6006ad3dba0"]]); // Round-trip
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_uuid_in_table() {
     let mut executor = create_executor();
@@ -97,7 +91,7 @@ fn test_uuid_in_table() {
     assert_table_eq!(result, [["alice"], ["bob"]]);
 }
 
-#[ignore = "Implement me!"]
+#[ignore = "TypeMismatch: UUID column compared with STRING literal"]
 #[test]
 fn test_uuid_comparison() {
     let mut executor = create_executor();

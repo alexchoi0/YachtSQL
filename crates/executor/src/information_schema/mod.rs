@@ -66,6 +66,7 @@ fn data_type_to_postgres_name(data_type: &DataType) -> String {
         DataType::GeoRing => "Ring".to_string(),
         DataType::GeoPolygon => "Polygon".to_string(),
         DataType::GeoMultiPolygon => "MultiPolygon".to_string(),
+        DataType::FixedString(n) => format!("FixedString({})", n),
     }
 }
 

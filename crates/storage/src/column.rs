@@ -5,7 +5,7 @@ use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Interval, Value};
+use yachtsql_core::types::{DataType, FixedStringData, Interval, Value};
 
 use crate::NullBitmap;
 
@@ -176,6 +176,12 @@ pub enum Column {
         data: Vec<yachtsql_core::types::GeoMultiPolygonValue>,
         nulls: NullBitmap,
     },
+
+    FixedString {
+        data: Vec<FixedStringData>,
+        nulls: NullBitmap,
+        length: usize,
+    },
 }
 
 impl Column {
@@ -342,6 +348,11 @@ impl Column {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
             },
+            DataType::FixedString(length) => Column::FixedString {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+                length: *length,
+            },
             _ => unimplemented!("Complex types not yet supported: {:?}", data_type),
         }
     }
@@ -408,6 +419,7 @@ impl Column {
             Column::GeoRing { .. } => DataType::GeoRing,
             Column::GeoPolygon { .. } => DataType::GeoPolygon,
             Column::GeoMultiPolygon { .. } => DataType::GeoMultiPolygon,
+            Column::FixedString { length, .. } => DataType::FixedString(*length),
         }
     }
 
@@ -449,6 +461,7 @@ impl Column {
             Column::GeoRing { nulls, .. } => nulls.len(),
             Column::GeoPolygon { nulls, .. } => nulls.len(),
             Column::GeoMultiPolygon { nulls, .. } => nulls.len(),
+            Column::FixedString { nulls, .. } => nulls.len(),
         }
     }
 
@@ -494,6 +507,7 @@ impl Column {
             Column::GeoRing { nulls, .. } => nulls,
             Column::GeoPolygon { nulls, .. } => nulls,
             Column::GeoMultiPolygon { nulls, .. } => nulls,
+            Column::FixedString { nulls, .. } => nulls,
         }
     }
 
@@ -1084,6 +1098,27 @@ impl Column {
                     )))
                 }
             }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                if let Some(fs) = value.as_fixed_string() {
+                    data.push(FixedStringData::new(fs.data.clone(), *length));
+                    nulls.push(true);
+                    Ok(())
+                } else if let Some(s) = value.as_str() {
+                    data.push(FixedStringData::from_str(s, *length));
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -1262,6 +1297,14 @@ impl Column {
             }
             Column::GeoMultiPolygon { data, nulls } => {
                 data.push(Vec::new());
+                nulls.push(false);
+            }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                data.push(FixedStringData::new(vec![], *length));
                 nulls.push(false);
             }
         }
@@ -1791,6 +1834,27 @@ impl Column {
                     )))
                 }
             }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                if let Some(fs) = value.as_fixed_string() {
+                    data[index] = FixedStringData::new(fs.data.clone(), *length);
+                    nulls.set(index, true);
+                    Ok(())
+                } else if let Some(s) = value.as_str() {
+                    data[index] = FixedStringData::from_str(s, *length);
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -1966,6 +2030,14 @@ impl Column {
                 data[index] = Vec::new();
                 nulls.set(index, false);
             }
+            Column::FixedString {
+                data,
+                nulls,
+                length,
+            } => {
+                data[index] = FixedStringData::new(vec![], *length);
+                nulls.set(index, false);
+            }
         }
         Ok(())
     }
@@ -2115,6 +2187,10 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
+            Column::FixedString { data, nulls, .. } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
         }
     }
 
@@ -2171,6 +2247,7 @@ impl Column {
             Column::GeoMultiPolygon { data, .. } => {
                 Ok(Value::geo_multipolygon(data[index].clone()))
             }
+            Column::FixedString { data, .. } => Ok(Value::fixed_string(data[index].clone())),
         }
     }
 
@@ -2235,7 +2312,139 @@ impl Column {
                 data: data[start..start + len].to_vec(),
                 nulls,
             }),
-            _ => unimplemented!("Slice not yet implemented for this type"),
+            Column::Unknown { .. } => Ok(Column::Unknown { nulls }),
+            Column::Date { data, .. } => Ok(Column::Date {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::DateTime { data, .. } => Ok(Column::DateTime {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Time { data, .. } => Ok(Column::Time {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Timestamp { data, .. } => Ok(Column::Timestamp {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Array {
+                data, element_type, ..
+            } => Ok(Column::Array {
+                data: data[start..start + len].to_vec(),
+                nulls,
+                element_type: element_type.clone(),
+            }),
+            Column::Vector {
+                data, dimensions, ..
+            } => Ok(Column::Vector {
+                data: data[start..start + len].to_vec(),
+                nulls,
+                dimensions: *dimensions,
+            }),
+            Column::Struct { data, .. } => Ok(Column::Struct {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Interval { data, .. } => Ok(Column::Interval {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Hstore { data, .. } => Ok(Column::Hstore {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::MacAddr { data, .. } => Ok(Column::MacAddr {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::MacAddr8 { data, .. } => Ok(Column::MacAddr8 {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Inet { data, .. } => Ok(Column::Inet {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Cidr { data, .. } => Ok(Column::Cidr {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Enum {
+                data,
+                type_name,
+                labels,
+                ..
+            } => Ok(Column::Enum {
+                data: data[start..start + len].to_vec(),
+                nulls,
+                type_name: type_name.clone(),
+                labels: labels.clone(),
+            }),
+            Column::Point { data, .. } => Ok(Column::Point {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::PgBox { data, .. } => Ok(Column::PgBox {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Circle { data, .. } => Ok(Column::Circle {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Map {
+                data,
+                key_type,
+                value_type,
+                ..
+            } => Ok(Column::Map {
+                data: data[start..start + len].to_vec(),
+                nulls,
+                key_type: key_type.clone(),
+                value_type: value_type.clone(),
+            }),
+            Column::Range {
+                data, range_type, ..
+            } => Ok(Column::Range {
+                data: data[start..start + len].to_vec(),
+                nulls,
+                range_type: range_type.clone(),
+            }),
+            Column::IPv4 { data, .. } => Ok(Column::IPv4 {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::IPv6 { data, .. } => Ok(Column::IPv6 {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::Date32 { data, .. } => Ok(Column::Date32 {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::GeoPoint { data, .. } => Ok(Column::GeoPoint {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::GeoRing { data, .. } => Ok(Column::GeoRing {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::GeoPolygon { data, .. } => Ok(Column::GeoPolygon {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::GeoMultiPolygon { data, .. } => Ok(Column::GeoMultiPolygon {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::FixedString { data, length, .. } => Ok(Column::FixedString {
+                data: data[start..start + len].to_vec(),
+                nulls,
+                length: *length,
+            }),
         }
     }
 
@@ -2382,6 +2591,14 @@ impl Column {
             Column::GeoRing { data, .. } => gather_clone!(data, GeoRing),
             Column::GeoPolygon { data, .. } => gather_clone!(data, GeoPolygon),
             Column::GeoMultiPolygon { data, .. } => gather_clone!(data, GeoMultiPolygon),
+            Column::FixedString { data, length, .. } => {
+                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
+                Ok(Column::FixedString {
+                    data: gathered_data,
+                    nulls,
+                    length: *length,
+                })
+            }
         }
     }
 
@@ -2632,7 +2849,295 @@ impl Column {
                 self_data.extend_from_slice(other_data);
                 self_nulls.append(other_nulls);
             }
-            _ => unimplemented!("Append not yet implemented for this type combination"),
+            (
+                Column::Unknown {
+                    nulls: self_nulls, ..
+                },
+                Column::Unknown {
+                    nulls: other_nulls, ..
+                },
+            ) => {
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Interval {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::Interval {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Hstore {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::Hstore {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::MacAddr {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::MacAddr {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::MacAddr8 {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::MacAddr8 {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Inet {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::Inet {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Cidr {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::Cidr {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Enum {
+                    data: self_data,
+                    nulls: self_nulls,
+                    labels: self_labels,
+                    type_name: self_type_name,
+                },
+                Column::Enum {
+                    data: other_data,
+                    nulls: other_nulls,
+                    labels: other_labels,
+                    type_name: other_type_name,
+                },
+            ) => {
+                if self_labels != other_labels || self_type_name != other_type_name {
+                    return Err(Error::InvalidOperation(
+                        "Cannot append Enum columns with different labels or type names"
+                            .to_string(),
+                    ));
+                }
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Point {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::Point {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::PgBox {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::PgBox {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Circle {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::Circle {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Range {
+                    data: self_data,
+                    nulls: self_nulls,
+                    range_type: self_range_type,
+                },
+                Column::Range {
+                    data: other_data,
+                    nulls: other_nulls,
+                    range_type: other_range_type,
+                },
+            ) => {
+                if self_range_type != other_range_type {
+                    return Err(Error::InvalidOperation(format!(
+                        "Cannot append Range columns with different range types: {:?} vs {:?}",
+                        self_range_type, other_range_type
+                    )));
+                }
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::IPv4 {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::IPv4 {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::IPv6 {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::IPv6 {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::Date32 {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::Date32 {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::GeoPoint {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::GeoPoint {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::GeoRing {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::GeoRing {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::GeoPolygon {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::GeoPolygon {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::GeoMultiPolygon {
+                    data: self_data,
+                    nulls: self_nulls,
+                },
+                Column::GeoMultiPolygon {
+                    data: other_data,
+                    nulls: other_nulls,
+                },
+            ) => {
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (
+                Column::FixedString {
+                    data: self_data,
+                    nulls: self_nulls,
+                    length: self_length,
+                },
+                Column::FixedString {
+                    data: other_data,
+                    nulls: other_nulls,
+                    length: other_length,
+                },
+            ) => {
+                if self_length != other_length {
+                    return Err(Error::InvalidOperation(
+                        "Cannot append FixedString columns with different lengths".to_string(),
+                    ));
+                }
+                self_data.extend_from_slice(other_data);
+                self_nulls.append(other_nulls);
+            }
+            (left, right) => {
+                panic!(
+                    "Append not implemented for type combination: {:?} and {:?}",
+                    std::mem::discriminant(left),
+                    std::mem::discriminant(right)
+                )
+            }
         }
 
         Ok(())

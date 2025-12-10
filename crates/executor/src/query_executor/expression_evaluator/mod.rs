@@ -2289,6 +2289,20 @@ impl<'a> ExpressionEvaluator<'a> {
             return Ok(a.to_lowercase().cmp(&b.to_lowercase()));
         }
 
+        if let (Some(fs), Some(s)) = (left.as_fixed_string(), right.as_str()) {
+            let a = fs.to_string_lossy().to_lowercase();
+            return Ok(a.cmp(&s.to_lowercase()));
+        }
+
+        if let (Some(s), Some(fs)) = (left.as_str(), right.as_fixed_string()) {
+            let b = fs.to_string_lossy().to_lowercase();
+            return Ok(s.to_lowercase().cmp(&b));
+        }
+
+        if let (Some(fs_a), Some(fs_b)) = (left.as_fixed_string(), right.as_fixed_string()) {
+            return Ok(fs_a.data.cmp(&fs_b.data));
+        }
+
         if let (Some(a), Some(b)) = (left.as_bool(), right.as_bool()) {
             return Ok(a.cmp(&b));
         }
@@ -2988,7 +3002,9 @@ impl<'a> ExpressionEvaluator<'a> {
     }
 
     fn value_to_string(&self, value: &Value) -> Result<String> {
-        if let Some(s) = value.as_str() {
+        if let Some(fs) = value.as_fixed_string() {
+            Ok(fs.to_string_lossy())
+        } else if let Some(s) = value.as_str() {
             Ok(s.to_string())
         } else if let Some(i) = value.as_i64() {
             Ok(i.to_string())
@@ -8603,7 +8619,9 @@ impl<'a> ExpressionEvaluator<'a> {
                     return Err(Error::InvalidQuery("hex() requires 1 argument".to_string()));
                 }
                 let value = self.evaluate_function_arg(&args[0], row)?;
-                if let Some(s) = value.as_str() {
+                if let Some(fs) = value.as_fixed_string() {
+                    yachtsql_functions::encoding::hex_encode_bytes(&fs.data)
+                } else if let Some(s) = value.as_str() {
                     yachtsql_functions::encoding::hex_encode(s)
                 } else if let Some(b) = value.as_bytes() {
                     yachtsql_functions::encoding::hex_encode_bytes(b)
@@ -8620,14 +8638,17 @@ impl<'a> ExpressionEvaluator<'a> {
                         "unhex() requires 1 argument".to_string(),
                     ));
                 }
-                let s = self
-                    .evaluate_function_arg(&args[0], row)?
-                    .as_str()
-                    .ok_or_else(|| Error::TypeMismatch {
+                let value = self.evaluate_function_arg(&args[0], row)?;
+                let s = if let Some(fs) = value.as_fixed_string() {
+                    fs.to_string_lossy()
+                } else if let Some(str_val) = value.as_str() {
+                    str_val.to_string()
+                } else {
+                    return Err(Error::TypeMismatch {
                         expected: "STRING".to_string(),
-                        actual: "other".to_string(),
-                    })?
-                    .to_string();
+                        actual: value.data_type().to_string(),
+                    });
+                };
                 yachtsql_functions::encoding::unhex(&s)
             }
             "BASE64ENCODE" => {
@@ -9990,6 +10011,7 @@ impl<'a> ExpressionEvaluator<'a> {
             | DataType::GeoRing
             | DataType::GeoPolygon
             | DataType::GeoMultiPolygon => Some("geometric"),
+            DataType::FixedString(_) => Some("string"),
         }
     }
 

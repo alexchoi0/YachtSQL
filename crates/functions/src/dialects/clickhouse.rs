@@ -671,6 +671,9 @@ pub fn clickhouse_scalar_functions() -> Vec<&'static str> {
         "ROUNDTOEXP2",
         "ROUNDDURATION",
         "ROUNDAGE",
+        "NULLIN",
+        "NOTNULLIN",
+        "NULLINIGNORENULL",
     ]
 }
 

@@ -106,7 +106,6 @@ fn test_datetime64_ordering() {
 }
 
 #[test]
-#[ignore = "toHour/toMinute/toSecond not yet implemented for DateTime64"]
 fn test_datetime64_functions() {
     let mut executor = create_executor();
     executor
@@ -139,7 +138,6 @@ fn test_datetime64_null() {
 }
 
 #[test]
-#[ignore = "addSeconds/subtractSeconds not yet implemented"]
 fn test_datetime64_arithmetic() {
     let mut executor = create_executor();
     executor
@@ -175,7 +173,6 @@ fn test_datetime64_group_by() {
 }
 
 #[test]
-#[ignore = "now64 function not yet implemented"]
 fn test_datetime64_now() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT now64(3)").unwrap();

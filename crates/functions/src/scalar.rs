@@ -145,6 +145,10 @@ pub fn eval_length(value: &Value) -> Result<Value> {
         return Ok(Value::null());
     }
 
+    if let Some(fs) = value.as_fixed_string() {
+        return Ok(Value::int64(fs.length as i64));
+    }
+
     if let Some(s) = value.as_str() {
         let char_count = s.chars().count() as i64;
         return Ok(Value::int64(char_count));

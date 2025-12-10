@@ -50,6 +50,18 @@ impl WindowExec {
             return a_val.cmp(b_val);
         }
 
+        if let (Some(fs_a), Some(fs_b)) = (a.as_fixed_string(), b.as_fixed_string()) {
+            return fs_a.data.cmp(&fs_b.data);
+        }
+
+        if let (Some(fs), Some(s)) = (a.as_fixed_string(), b.as_str()) {
+            return fs.to_string_lossy().cmp(&s.to_string());
+        }
+
+        if let (Some(s), Some(fs)) = (a.as_str(), b.as_fixed_string()) {
+            return s.to_string().cmp(&fs.to_string_lossy());
+        }
+
         if let (Some(a_val), Some(b_val)) = (a.as_bool(), b.as_bool()) {
             return a_val.cmp(&b_val);
         }

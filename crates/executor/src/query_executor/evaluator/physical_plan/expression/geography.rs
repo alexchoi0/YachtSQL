@@ -2496,7 +2496,9 @@ impl ProjectionWithExprExec {
                     return Err(Error::invalid_query("hex requires 1 argument".to_string()));
                 }
                 let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                if let Some(s) = value.as_str() {
+                if let Some(fs) = value.as_fixed_string() {
+                    yachtsql_functions::encoding::hex_encode_bytes(&fs.data)
+                } else if let Some(s) = value.as_str() {
                     yachtsql_functions::encoding::hex_encode(s)
                 } else if let Some(b) = value.as_bytes() {
                     yachtsql_functions::encoding::hex_encode_bytes(b)
@@ -2510,10 +2512,14 @@ impl ProjectionWithExprExec {
                         "unhex requires 1 argument".to_string(),
                     ));
                 }
-                let s = Self::evaluate_expr(&args[0], batch, row_idx)?
-                    .as_str()
-                    .ok_or_else(|| Error::type_mismatch("STRING", "other"))?
-                    .to_string();
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let s = if let Some(fs) = value.as_fixed_string() {
+                    fs.to_string_lossy()
+                } else if let Some(str_val) = value.as_str() {
+                    str_val.to_string()
+                } else {
+                    return Err(Error::type_mismatch("STRING", "other"));
+                };
                 yachtsql_functions::encoding::unhex(&s)
             }
             "BASE64ENCODE" => {
@@ -4090,6 +4096,9 @@ impl ProjectionWithExprExec {
                 if let Some(ts) = value.as_timestamp() {
                     return Ok(Value::int64(ts.year() as i64));
                 }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.year() as i64));
+                }
                 if let Some(d) = value.as_date() {
                     return Ok(Value::int64(d.year() as i64));
                 }
@@ -4099,7 +4108,7 @@ impl ProjectionWithExprExec {
                     }
                 }
                 Err(Error::type_mismatch(
-                    "TIMESTAMP, DATE, or DATE32",
+                    "TIMESTAMP, DATETIME, DATE, or DATE32",
                     &value.data_type().to_string(),
                 ))
             }
@@ -4113,6 +4122,9 @@ impl ProjectionWithExprExec {
                 if let Some(ts) = value.as_timestamp() {
                     return Ok(Value::int64(ts.month() as i64));
                 }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.month() as i64));
+                }
                 if let Some(d) = value.as_date() {
                     return Ok(Value::int64(d.month() as i64));
                 }
@@ -4122,7 +4134,7 @@ impl ProjectionWithExprExec {
                     }
                 }
                 Err(Error::type_mismatch(
-                    "TIMESTAMP, DATE, or DATE32",
+                    "TIMESTAMP, DATETIME, DATE, or DATE32",
                     &value.data_type().to_string(),
                 ))
             }
@@ -4136,6 +4148,9 @@ impl ProjectionWithExprExec {
                 if let Some(ts) = value.as_timestamp() {
                     return Ok(Value::int64(ts.day() as i64));
                 }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.day() as i64));
+                }
                 if let Some(d) = value.as_date() {
                     return Ok(Value::int64(d.day() as i64));
                 }
@@ -4145,7 +4160,61 @@ impl ProjectionWithExprExec {
                     }
                 }
                 Err(Error::type_mismatch(
-                    "TIMESTAMP, DATE, or DATE32",
+                    "TIMESTAMP, DATETIME, DATE, or DATE32",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TOHOUR" => {
+                use chrono::Timelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.hour() as i64));
+                }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.hour() as i64));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TOMINUTE" => {
+                use chrono::Timelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.minute() as i64));
+                }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.minute() as i64));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &value.data_type().to_string(),
+                ))
+            }
+
+            "TOSECOND" => {
+                use chrono::Timelike;
+                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if value.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(ts) = value.as_timestamp() {
+                    return Ok(Value::int64(ts.second() as i64));
+                }
+                if let Some(dt) = value.as_datetime() {
+                    return Ok(Value::int64(dt.second() as i64));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
                     &value.data_type().to_string(),
                 ))
             }
@@ -5022,6 +5091,178 @@ impl ProjectionWithExprExec {
                     .copied()
                     .unwrap_or(0);
                 Ok(Value::int64(result))
+            }
+
+            "ADDSECONDS" => {
+                use chrono::Duration;
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("addSeconds requires 2 arguments"));
+                }
+                let dt_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let seconds_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if dt_val.is_null() || seconds_val.is_null() {
+                    return Ok(Value::null());
+                }
+                let seconds = seconds_val.as_i64().ok_or_else(|| {
+                    Error::type_mismatch("INT64", &seconds_val.data_type().to_string())
+                })?;
+                if let Some(ts) = dt_val.as_timestamp() {
+                    return ts
+                        .checked_add_signed(Duration::seconds(seconds))
+                        .map(Value::timestamp)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in addSeconds"));
+                }
+                if let Some(dt) = dt_val.as_datetime() {
+                    return dt
+                        .checked_add_signed(Duration::seconds(seconds))
+                        .map(Value::datetime)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in addSeconds"));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &dt_val.data_type().to_string(),
+                ))
+            }
+
+            "SUBTRACTSECONDS" => {
+                use chrono::Duration;
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("subtractSeconds requires 2 arguments"));
+                }
+                let dt_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let seconds_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if dt_val.is_null() || seconds_val.is_null() {
+                    return Ok(Value::null());
+                }
+                let seconds = seconds_val.as_i64().ok_or_else(|| {
+                    Error::type_mismatch("INT64", &seconds_val.data_type().to_string())
+                })?;
+                if let Some(ts) = dt_val.as_timestamp() {
+                    return ts
+                        .checked_sub_signed(Duration::seconds(seconds))
+                        .map(Value::timestamp)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in subtractSeconds"));
+                }
+                if let Some(dt) = dt_val.as_datetime() {
+                    return dt
+                        .checked_sub_signed(Duration::seconds(seconds))
+                        .map(Value::datetime)
+                        .ok_or_else(|| Error::invalid_query("Date overflow in subtractSeconds"));
+                }
+                Err(Error::type_mismatch(
+                    "TIMESTAMP or DATETIME",
+                    &dt_val.data_type().to_string(),
+                ))
+            }
+
+            "NOW64" => {
+                use chrono::Utc;
+                Ok(Value::datetime(Utc::now()))
+            }
+
+            "EMPTY" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("empty requires 1 argument"));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if val.is_null() {
+                    return Ok(Value::int64(1));
+                }
+                if let Some(uuid) = val.as_uuid() {
+                    return Ok(Value::int64(if uuid.is_nil() { 1 } else { 0 }));
+                }
+                if let Some(s) = val.as_str() {
+                    if s == "00000000-0000-0000-0000-000000000000" {
+                        return Ok(Value::int64(1));
+                    }
+                    return Ok(Value::int64(if s.is_empty() { 1 } else { 0 }));
+                }
+                if let Some(arr) = val.as_array() {
+                    return Ok(Value::int64(if arr.is_empty() { 1 } else { 0 }));
+                }
+                Ok(Value::int64(0))
+            }
+
+            "NOTEMPTY" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("notEmpty requires 1 argument"));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if val.is_null() {
+                    return Ok(Value::int64(0));
+                }
+                if let Some(uuid) = val.as_uuid() {
+                    return Ok(Value::int64(if uuid.is_nil() { 0 } else { 1 }));
+                }
+                if let Some(s) = val.as_str() {
+                    if s == "00000000-0000-0000-0000-000000000000" {
+                        return Ok(Value::int64(0));
+                    }
+                    return Ok(Value::int64(if s.is_empty() { 0 } else { 1 }));
+                }
+                if let Some(arr) = val.as_array() {
+                    return Ok(Value::int64(if arr.is_empty() { 0 } else { 1 }));
+                }
+                Ok(Value::int64(1))
+            }
+
+            "NULLIN" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("nullIn requires 2 arguments"));
+                }
+                let needle = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let haystack = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if let Some(arr) = haystack.as_array() {
+                    for val in arr {
+                        if needle.is_null() && val.is_null() {
+                            return Ok(Value::bool_val(true));
+                        }
+                        if !needle.is_null() && !val.is_null() && needle == *val {
+                            return Ok(Value::bool_val(true));
+                        }
+                    }
+                }
+                Ok(Value::bool_val(false))
+            }
+
+            "NOTNULLIN" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("notNullIn requires 2 arguments"));
+                }
+                let needle = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let haystack = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if let Some(arr) = haystack.as_array() {
+                    for val in arr {
+                        if needle.is_null() && val.is_null() {
+                            return Ok(Value::bool_val(false));
+                        }
+                        if !needle.is_null() && !val.is_null() && needle == *val {
+                            return Ok(Value::bool_val(false));
+                        }
+                    }
+                }
+                Ok(Value::bool_val(true))
+            }
+
+            "NULLINIGNORENULL" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "nullInIgnoreNull requires 2 arguments",
+                    ));
+                }
+                let needle = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let haystack = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if needle.is_null() {
+                    return Ok(Value::bool_val(false));
+                }
+                if let Some(arr) = haystack.as_array() {
+                    for val in arr {
+                        if !val.is_null() && needle == *val {
+                            return Ok(Value::bool_val(true));
+                        }
+                    }
+                }
+                Ok(Value::bool_val(false))
             }
 
             _ => Err(Error::unsupported_feature(format!(

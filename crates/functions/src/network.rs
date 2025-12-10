@@ -805,6 +805,140 @@ pub fn mac_string_to_oui(addr_str: &str) -> Result<Value> {
     Ok(Value::int64(num))
 }
 
+pub fn ip_in_net(addr_bin: &[u8], cidr: &str) -> Result<Value> {
+    let parts: Vec<&str> = cidr.split('/').collect();
+    if parts.len() != 2 {
+        return Err(Error::invalid_query(format!(
+            "Invalid CIDR notation: {}",
+            cidr
+        )));
+    }
+
+    let network_str = parts[0];
+    let prefix_len: u8 = parts[1]
+        .parse()
+        .map_err(|_| Error::invalid_query(format!("Invalid prefix length in CIDR: {}", cidr)))?;
+
+    let network_ip: IpAddr = network_str
+        .parse()
+        .map_err(|_| Error::invalid_query(format!("Invalid network address: {}", network_str)))?;
+
+    match addr_bin.len() {
+        IPV4_BYTES => {
+            let ip_val = ((addr_bin[0] as u32) << 24)
+                | ((addr_bin[1] as u32) << 16)
+                | ((addr_bin[2] as u32) << 8)
+                | (addr_bin[3] as u32);
+
+            match network_ip {
+                IpAddr::V4(net_ipv4) => {
+                    if prefix_len > 32 {
+                        return Err(Error::invalid_query(format!(
+                            "Invalid IPv4 prefix length: {}",
+                            prefix_len
+                        )));
+                    }
+                    let net_val = u32::from(net_ipv4);
+                    let mask = if prefix_len == 0 {
+                        0u32
+                    } else {
+                        !0u32 << (32 - prefix_len)
+                    };
+                    let in_range = (ip_val & mask) == (net_val & mask);
+                    Ok(Value::bool_val(in_range))
+                }
+                IpAddr::V6(_) => Ok(Value::bool_val(false)),
+            }
+        }
+        IPV6_BYTES => {
+            let mut octets = [0u8; IPV6_BYTES];
+            octets.copy_from_slice(addr_bin);
+            let ip_val = u128::from_be_bytes(octets);
+
+            match network_ip {
+                IpAddr::V6(net_ipv6) => {
+                    if prefix_len > 128 {
+                        return Err(Error::invalid_query(format!(
+                            "Invalid IPv6 prefix length: {}",
+                            prefix_len
+                        )));
+                    }
+                    let net_val = u128::from(net_ipv6);
+                    let mask = if prefix_len == 0 {
+                        0u128
+                    } else {
+                        !0u128 << (128 - prefix_len)
+                    };
+                    let in_range = (ip_val & mask) == (net_val & mask);
+                    Ok(Value::bool_val(in_range))
+                }
+                IpAddr::V4(_) => Ok(Value::bool_val(false)),
+            }
+        }
+        n => Err(Error::invalid_query(format!(
+            "Expected {} or {} bytes for IP address, got {}",
+            IPV4_BYTES, IPV6_BYTES, n
+        ))),
+    }
+}
+
+pub fn make_net(addr_bin: &[u8], prefix_len: i64) -> Result<Value> {
+    match addr_bin.len() {
+        IPV4_BYTES => {
+            if !(0..=IPV4_MAX_PREFIX).contains(&prefix_len) {
+                return Err(Error::invalid_query(format!(
+                    "IPv4 prefix length must be 0-{}, got {}",
+                    IPV4_MAX_PREFIX, prefix_len
+                )));
+            }
+            let ipv4 = Ipv4Addr::new(addr_bin[0], addr_bin[1], addr_bin[2], addr_bin[3]);
+            Ok(Value::string(format!("{}/{}", ipv4, prefix_len)))
+        }
+        IPV6_BYTES => {
+            if !(0..=IPV6_MAX_PREFIX).contains(&prefix_len) {
+                return Err(Error::invalid_query(format!(
+                    "IPv6 prefix length must be 0-{}, got {}",
+                    IPV6_MAX_PREFIX, prefix_len
+                )));
+            }
+            let mut octets = [0u8; IPV6_BYTES];
+            octets.copy_from_slice(addr_bin);
+            let ipv6 = Ipv6Addr::from(octets);
+            Ok(Value::string(format!("{}/{}", ipv6, prefix_len)))
+        }
+        n => Err(Error::invalid_query(format!(
+            "Expected {} or {} bytes for IP address, got {}",
+            IPV4_BYTES, IPV6_BYTES, n
+        ))),
+    }
+}
+
+pub fn ip_is_private(addr_bin: &[u8]) -> Result<Value> {
+    match addr_bin.len() {
+        IPV4_BYTES => {
+            let ipv4 = Ipv4Addr::new(addr_bin[0], addr_bin[1], addr_bin[2], addr_bin[3]);
+            let is_private = ipv4.is_private() || ipv4.is_loopback() || ipv4.is_link_local();
+            Ok(Value::bool_val(is_private))
+        }
+        IPV6_BYTES => {
+            let mut octets = [0u8; IPV6_BYTES];
+            octets.copy_from_slice(addr_bin);
+            let ipv6 = Ipv6Addr::from(octets);
+            let is_private = ipv6.is_loopback() || is_ipv6_unique_local(&ipv6);
+            Ok(Value::bool_val(is_private))
+        }
+        n => Err(Error::invalid_query(format!(
+            "Expected {} or {} bytes for IP address, got {}",
+            IPV4_BYTES, IPV6_BYTES, n
+        ))),
+    }
+}
+
+fn is_ipv6_unique_local(ipv6: &Ipv6Addr) -> bool {
+    let segments = ipv6.segments();
+    (segments[0] & 0xfe00) == 0xfc00
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

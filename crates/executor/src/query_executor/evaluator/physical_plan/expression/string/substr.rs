@@ -18,7 +18,12 @@ impl ProjectionWithExprExec {
         }
         let values = Self::evaluate_args(args, batch, row_idx)?;
 
-        if let (Some(s), Some(start)) = (values[0].as_str(), values[1].as_i64()) {
+        let str_val = values[0]
+            .as_fixed_string()
+            .map(|fs| fs.to_string_lossy())
+            .or_else(|| values[0].as_str().map(|s| s.to_string()));
+
+        if let (Some(s), Some(start)) = (str_val, values[1].as_i64()) {
             let chars: Vec<char> = s.chars().collect();
             let str_len = chars.len() as i64;
 

@@ -140,14 +140,28 @@ impl ProjectionWithExprExec {
             return Err(Error::invalid_query("toFixedString requires 2 arguments"));
         }
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let length_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
         if val.is_null() {
             return Ok(Value::null());
         }
-        let s = val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
+        let length = length_val.as_i64().ok_or_else(|| Error::TypeMismatch {
+            expected: "INT64".to_string(),
+            actual: length_val.data_type().to_string(),
+        })? as usize;
+
+        if let Some(s) = val.as_str() {
+            return Ok(Value::fixed_string_from_str(s, length));
+        }
+        if let Some(bytes) = val.as_bytes() {
+            return Ok(Value::fixed_string_from_bytes(bytes.to_vec(), length));
+        }
+        if let Some(fs) = val.as_fixed_string() {
+            return Ok(Value::fixed_string_from_bytes(fs.data.clone(), length));
+        }
+        Err(Error::TypeMismatch {
+            expected: "STRING or BYTES".to_string(),
             actual: val.data_type().to_string(),
-        })?;
-        Ok(Value::string(s.to_string()))
+        })
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn eval_ch_to_datetime(

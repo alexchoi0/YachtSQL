@@ -916,7 +916,6 @@ impl ProjectionWithExprExec {
                 if matches!(
                     s.as_str(),
                     "TOSTRING"
-                        | "TOFIXEDSTRING"
                         | "REINTERPRETASSTRING"
                         | "TOTYPENAME"
                         | "GENERATEUUIDV4"
@@ -925,6 +924,18 @@ impl ProjectionWithExprExec {
                         | "FAKEDATA"
                 ) =>
             {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if s == "TOFIXEDSTRING" => {
+                if args.len() >= 2 {
+                    if let crate::optimizer::expr::Expr::Literal(
+                        crate::optimizer::expr::LiteralValue::Int64(length),
+                    ) = &args[1]
+                    {
+                        return Some(DataType::FixedString(*length as usize));
+                    }
+                }
                 Some(DataType::String)
             }
 
@@ -1046,7 +1057,45 @@ impl ProjectionWithExprExec {
                     Self::infer_expr_type_with_schema(&args[0], schema)
                 }
             }
-            FunctionName::Custom(s) if matches!(s.as_str(), "TOUUID") => Some(DataType::Uuid),
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "TOUUID" | "TOUUIDORZERO" | "TOUUIDORNULL") =>
+            {
+                Some(DataType::Uuid)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "GENERATEULID") => {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "ULIDSTRINGTODATETIME") => {
+                Some(DataType::Timestamp)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "UUIDSTRINGTONUM") => {
+                Some(DataType::Bytes)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "UUIDNUMTOSTRING") => {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "EMPTY" | "NOTEMPTY") => {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "NULLIN" | "NOTNULLIN" | "NULLINIGNORENULL") =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "TONULLABLE" | "ASSUMENOTNULL") => {
+                if args.is_empty() {
+                    None
+                } else {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                }
+            }
 
             FunctionName::BitmapBuild
             | FunctionName::BitmapToArray
@@ -1985,9 +2034,20 @@ impl ProjectionWithExprExec {
             | FunctionName::ToFloat64OrZero => Some(DataType::Float64),
 
             FunctionName::ChToString
-            | FunctionName::ToFixedString
             | FunctionName::ReinterpretAsString
             | FunctionName::ToTypeName => Some(DataType::String),
+
+            FunctionName::ToFixedString => {
+                if args.len() >= 2 {
+                    if let crate::optimizer::expr::Expr::Literal(
+                        crate::optimizer::expr::LiteralValue::Int64(length),
+                    ) = &args[1]
+                    {
+                        return Some(DataType::FixedString(*length as usize));
+                    }
+                }
+                Some(DataType::String)
+            }
 
             FunctionName::ToDateOrNull => Some(DataType::Date),
 
@@ -2025,7 +2085,10 @@ impl ProjectionWithExprExec {
             FunctionName::NetIpToString
             | FunctionName::NetHost
             | FunctionName::NetPublicSuffix
-            | FunctionName::NetRegDomain => Some(DataType::String),
+            | FunctionName::NetRegDomain
+            | FunctionName::NetMakeNet => Some(DataType::String),
+
+            FunctionName::NetIpInNet | FunctionName::NetIpIsPrivate => Some(DataType::Bool),
 
             FunctionName::KeysKeysetChain
             | FunctionName::AeadEncrypt

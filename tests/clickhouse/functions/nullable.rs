@@ -66,7 +66,6 @@ fn test_null_if_not_equal() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[ignore = "Type inference issue with standalone literal"]
 #[test]
 fn test_assume_not_null() {
     let mut executor = create_executor();
@@ -74,7 +73,6 @@ fn test_assume_not_null() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[ignore = "Type inference issue with standalone literal"]
 #[test]
 fn test_to_nullable() {
     let mut executor = create_executor();
@@ -82,32 +80,29 @@ fn test_to_nullable() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[ignore = "Requires nullIn function implementation"]
 #[test]
 fn test_null_in() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT nullIn(1, [1, 2, NULL]")
+        .execute_sql("SELECT nullIn(1, [1, 2, NULL])")
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Requires notNullIn function implementation"]
 #[test]
 fn test_not_null_in() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT notNullIn(5, [1, 2, NULL]")
+        .execute_sql("SELECT notNullIn(1, [1, 2, NULL])")
         .unwrap();
     assert_table_eq!(result, [[false]]);
 }
 
-#[ignore = "Requires nullInIgnoreNull function implementation"]
 #[test]
 fn test_null_in_ignore_null() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT nullInIgnoreNull(NULL, [1, 2, NULL]")
+        .execute_sql("SELECT nullInIgnoreNull(NULL, [1, 2, NULL])")
         .unwrap();
     assert_table_eq!(result, [[false]]);
 }
@@ -119,7 +114,6 @@ fn test_is_zero_or_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[ignore = "Type inference issue with standalone NULL literal"]
 #[test]
 fn test_is_zero_or_null_with_null() {
     let mut executor = create_executor();

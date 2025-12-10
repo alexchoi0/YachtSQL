@@ -887,6 +887,9 @@ pub enum FunctionName {
     NetHost,
     NetPublicSuffix,
     NetRegDomain,
+    NetIpInNet,
+    NetMakeNet,
+    NetIpIsPrivate,
 
     // Encryption functions
     KeysKeysetChain,
@@ -1984,6 +1987,9 @@ impl FunctionName {
             "NET.HOST" => Self::NetHost,
             "NET.PUBLIC_SUFFIX" => Self::NetPublicSuffix,
             "NET.REG_DOMAIN" => Self::NetRegDomain,
+            "NET.IP_IN_NET" => Self::NetIpInNet,
+            "NET.MAKE_NET" => Self::NetMakeNet,
+            "NET.IP_IS_PRIVATE" => Self::NetIpIsPrivate,
 
             // Encryption functions
             "KEYS.KEYSET_CHAIN" => Self::KeysKeysetChain,
@@ -3055,6 +3061,9 @@ impl FunctionName {
             Self::NetHost => "NET.HOST",
             Self::NetPublicSuffix => "NET.PUBLIC_SUFFIX",
             Self::NetRegDomain => "NET.REG_DOMAIN",
+            Self::NetIpInNet => "NET.IP_IN_NET",
+            Self::NetMakeNet => "NET.MAKE_NET",
+            Self::NetIpIsPrivate => "NET.IP_IS_PRIVATE",
 
             // Encryption functions
             Self::KeysKeysetChain => "KEYS.KEYSET_CHAIN",
