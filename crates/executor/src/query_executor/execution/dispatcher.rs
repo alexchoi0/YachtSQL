@@ -112,6 +112,9 @@ pub enum DdlOperation {
 
     SetRole,
     SetDefaultRole,
+
+    CreateSnapshotTable,
+    DropSnapshotTable,
 }
 
 #[derive(Debug, Clone)]

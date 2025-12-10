@@ -15,7 +15,7 @@ use chrono::Datelike;
 pub use ddl::{
     AlterTableExecutor, DdlDropExecutor, DdlExecutor, DomainExecutor, ExtensionExecutor,
     FunctionExecutor, MaterializedViewExecutor, ProcedureExecutor, SchemaExecutor,
-    SequenceExecutor, TriggerExecutor, TypeExecutor,
+    SequenceExecutor, SnapshotExecutor, TriggerExecutor, TypeExecutor,
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
@@ -518,6 +518,12 @@ impl QueryExecutor {
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
                 )),
+                CustomStatement::CreateSnapshotTable { .. } => {
+                    self.execute_create_snapshot_table(custom_stmt)
+                }
+                CustomStatement::DropSnapshotTable { .. } => {
+                    self.execute_drop_snapshot_table(custom_stmt)
+                }
             };
         }
 
@@ -642,6 +648,10 @@ impl QueryExecutor {
                     | DdlOperation::AlterSequence
                     | DdlOperation::DropSequence => {
                         panic!("Sequence operations should be handled via CustomStatement path")
+                    }
+
+                    DdlOperation::CreateSnapshotTable | DdlOperation::DropSnapshotTable => {
+                        panic!("Snapshot operations should be handled via CustomStatement path")
                     }
                 };
 
