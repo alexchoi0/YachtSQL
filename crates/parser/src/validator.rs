@@ -263,6 +263,34 @@ pub enum CustomStatement {
         name: sqlparser::ast::ObjectName,
         if_exists: bool,
     },
+
+    ExportData {
+        uri: String,
+        format: ExportFormat,
+        overwrite: bool,
+        header: bool,
+        field_delimiter: Option<char>,
+        compression: Option<String>,
+        query: String,
+    },
+
+    LoadData {
+        table_name: sqlparser::ast::ObjectName,
+        overwrite: bool,
+        is_temp: bool,
+        temp_table_schema: Option<Vec<(String, String)>>,
+        format: ExportFormat,
+        uris: Vec<String>,
+        allow_schema_update: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportFormat {
+    Csv,
+    Json,
+    Parquet,
+    Avro,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -595,7 +623,25 @@ impl StatementValidator {
                 self.validate_object_name(name, "snapshot table")?;
                 Ok(())
             }
+            CustomStatement::ExportData { .. } => {
+                self.require_bigquery("EXPORT DATA")?;
+                Ok(())
+            }
+            CustomStatement::LoadData { .. } => {
+                self.require_bigquery("LOAD DATA")?;
+                Ok(())
+            }
         }
+    }
+
+    fn require_bigquery(&self, feature: &str) -> Result<()> {
+        if self.dialect != DialectType::BigQuery {
+            return Err(Error::invalid_query(format!(
+                "{} is only supported in BigQuery dialect",
+                feature
+            )));
+        }
+        Ok(())
     }
 
     fn validate_set_constraints(&self) -> Result<()> {
@@ -652,16 +698,6 @@ impl StatementValidator {
         if self.dialect != DialectType::PostgreSQL {
             return Err(Error::invalid_query(format!(
                 "{} is only supported in PostgreSQL dialect",
-                feature
-            )));
-        }
-        Ok(())
-    }
-
-    fn require_bigquery(&self, feature: &str) -> Result<()> {
-        if self.dialect != DialectType::BigQuery {
-            return Err(Error::invalid_query(format!(
-                "{} is only supported in BigQuery dialect",
                 feature
             )));
         }

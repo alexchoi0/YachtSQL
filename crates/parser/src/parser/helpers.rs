@@ -289,4 +289,18 @@ impl ParserHelpers {
 
         Ok(final_type)
     }
+
+    pub fn object_name_from_string(s: &str) -> ObjectName {
+        let parts: Vec<ObjectNamePart> = s
+            .split('.')
+            .map(|part| {
+                ObjectNamePart::Identifier(Ident {
+                    value: part.to_string(),
+                    quote_style: None,
+                    span: Span::empty(),
+                })
+            })
+            .collect();
+        ObjectName(parts)
+    }
 }

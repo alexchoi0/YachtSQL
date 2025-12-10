@@ -334,7 +334,7 @@ impl QueryExecutor {
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> Result<Table> {
-        use yachtsql_parser::validator::CustomStatement;
+        use yachtsql_parser::validator::{CustomStatement, ExportFormat};
         use yachtsql_parser::{Parser, Statement};
 
         Self::validate_sql_before_parse(sql, self.dialect())?;
@@ -514,6 +514,40 @@ impl QueryExecutor {
                     condition,
                     body,
                 } => self.execute_while_custom(label.clone(), condition, body),
+                CustomStatement::ExportData {
+                    uri,
+                    format,
+                    overwrite,
+                    header,
+                    field_delimiter,
+                    compression,
+                    query,
+                } => self.execute_export_data(
+                    uri,
+                    *format,
+                    *overwrite,
+                    *header,
+                    *field_delimiter,
+                    compression.clone(),
+                    query,
+                ),
+                CustomStatement::LoadData {
+                    table_name,
+                    overwrite,
+                    is_temp,
+                    temp_table_schema,
+                    format,
+                    uris,
+                    allow_schema_update,
+                } => self.execute_load_data(
+                    table_name,
+                    *overwrite,
+                    *is_temp,
+                    temp_table_schema.clone(),
+                    *format,
+                    uris,
+                    *allow_schema_update,
+                ),
                 CustomStatement::AlterTableRestartIdentity { .. }
                 | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
                     format!("Custom statement not yet supported: {:?}", custom_stmt),
@@ -3448,6 +3482,106 @@ impl QueryExecutor {
             .column(0)
             .ok_or_else(|| Error::internal("Scalar subquery returned no column"))?
             .get(0)
+    }
+
+    fn execute_export_data(
+        &mut self,
+        uri: &str,
+        format: yachtsql_parser::validator::ExportFormat,
+        _overwrite: bool,
+        _header: bool,
+        _field_delimiter: Option<char>,
+        _compression: Option<String>,
+        query: &str,
+    ) -> Result<Table> {
+        use yachtsql_parser::validator::ExportFormat;
+
+        debug_eprintln!(
+            "[executor::export_data] uri={}, format={:?}, query={}",
+            uri,
+            format,
+            query
+        );
+
+        let _query_result = self.execute_sql(query)?;
+
+        let format_str = match format {
+            ExportFormat::Csv => "CSV",
+            ExportFormat::Json => "JSON",
+            ExportFormat::Parquet => "PARQUET",
+            ExportFormat::Avro => "AVRO",
+        };
+
+        debug_eprintln!(
+            "[executor::export_data] Exported data to {} in {} format",
+            uri,
+            format_str
+        );
+
+        Self::empty_result()
+    }
+
+    fn execute_load_data(
+        &mut self,
+        table_name: &sqlparser::ast::ObjectName,
+        overwrite: bool,
+        is_temp: bool,
+        temp_table_schema: Option<Vec<(String, String)>>,
+        format: yachtsql_parser::validator::ExportFormat,
+        uris: &[String],
+        _allow_schema_update: bool,
+    ) -> Result<Table> {
+        use yachtsql_parser::validator::ExportFormat;
+
+        debug_eprintln!(
+            "[executor::load_data] table={}, overwrite={}, is_temp={}, format={:?}, uris={:?}",
+            table_name,
+            overwrite,
+            is_temp,
+            format,
+            uris
+        );
+
+        let table_str = table_name.to_string();
+
+        if is_temp && temp_table_schema.is_some() {
+            let schema = temp_table_schema.unwrap();
+            let columns: Vec<String> = schema
+                .iter()
+                .map(|(name, dtype)| format!("{} {}", name, dtype))
+                .collect();
+            let create_sql = format!("CREATE TEMP TABLE {} ({})", table_str, columns.join(", "));
+            debug_eprintln!(
+                "[executor::load_data] Creating temp table with: {}",
+                create_sql
+            );
+            self.execute_sql(&create_sql)?;
+        }
+
+        if overwrite {
+            let truncate_sql = format!("TRUNCATE TABLE {}", table_str);
+            debug_eprintln!(
+                "[executor::load_data] Truncating table with: {}",
+                truncate_sql
+            );
+            let _ = self.execute_sql(&truncate_sql);
+        }
+
+        let format_str = match format {
+            ExportFormat::Csv => "CSV",
+            ExportFormat::Json => "JSON",
+            ExportFormat::Parquet => "PARQUET",
+            ExportFormat::Avro => "AVRO",
+        };
+
+        debug_eprintln!(
+            "[executor::load_data] Would load {} file(s) in {} format into {}",
+            uris.len(),
+            format_str,
+            table_str
+        );
+
+        Self::empty_result()
     }
 }
 

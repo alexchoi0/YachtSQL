@@ -5,7 +5,7 @@ use super::helpers::ParserHelpers;
 use crate::pattern_matcher::{PatternMatcher, TokenPattern};
 use crate::validator::{
     AlterDomainAction, CompositeTypeField, CustomStatement, DiagnosticsAssignment, DiagnosticsItem,
-    DiagnosticsScope, DomainConstraint, SetConstraintsMode, SetConstraintsTarget,
+    DiagnosticsScope, DomainConstraint, ExportFormat, SetConstraintsMode, SetConstraintsTarget,
 };
 
 pub struct CustomStatementParser;
@@ -1631,6 +1631,269 @@ impl CustomStatementParser {
             label,
             condition,
             body,
+        }))
+    }
+
+    pub fn parse_export_data(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("EXPORT DATA") && !upper.starts_with("EXPORT  DATA") {
+            return Ok(None);
+        }
+
+        let options_start = upper
+            .find("OPTIONS")
+            .ok_or_else(|| Error::parse_error("EXPORT DATA requires OPTIONS clause".to_string()))?;
+
+        let options_paren_start = trimmed[options_start..].find('(').ok_or_else(|| {
+            Error::parse_error("EXPORT DATA OPTIONS requires parentheses".to_string())
+        })? + options_start;
+
+        let mut depth = 1;
+        let mut options_paren_end = options_paren_start + 1;
+        for (i, ch) in trimmed[options_paren_start + 1..].char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        options_paren_end = options_paren_start + 1 + i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let options_str = &trimmed[options_paren_start + 1..options_paren_end];
+
+        let mut uri = String::new();
+        let mut format = ExportFormat::Csv;
+        let mut overwrite = false;
+        let mut header = false;
+        let mut field_delimiter = None;
+        let mut compression = None;
+
+        for part in options_str.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            let eq_idx = match part.find('=') {
+                Some(idx) => idx,
+                None => continue,
+            };
+
+            let key = part[..eq_idx].trim().to_uppercase();
+            let value = part[eq_idx + 1..].trim();
+            let value_unquoted = value.trim_matches(|c| c == '\'' || c == '"');
+
+            match key.as_str() {
+                "URI" => uri = value_unquoted.to_string(),
+                "FORMAT" => {
+                    format = match value_unquoted.to_uppercase().as_str() {
+                        "CSV" => ExportFormat::Csv,
+                        "JSON" => ExportFormat::Json,
+                        "PARQUET" => ExportFormat::Parquet,
+                        "AVRO" => ExportFormat::Avro,
+                        _ => {
+                            return Err(Error::parse_error(format!(
+                                "Unknown EXPORT DATA format: {}",
+                                value_unquoted
+                            )));
+                        }
+                    };
+                }
+                "OVERWRITE" => overwrite = value_unquoted.to_uppercase() == "TRUE",
+                "HEADER" => header = value_unquoted.to_uppercase() == "TRUE",
+                "FIELD_DELIMITER" => {
+                    if !value_unquoted.is_empty() {
+                        field_delimiter = Some(value_unquoted.chars().next().unwrap());
+                    }
+                }
+                "COMPRESSION" => compression = Some(value_unquoted.to_string()),
+                _ => {}
+            }
+        }
+
+        let as_idx = upper[options_paren_end..].find(" AS ").ok_or_else(|| {
+            Error::parse_error("EXPORT DATA requires AS clause with query".to_string())
+        })? + options_paren_end;
+
+        let query = trimmed[as_idx + 4..]
+            .trim()
+            .trim_end_matches(';')
+            .to_string();
+
+        Ok(Some(CustomStatement::ExportData {
+            uri,
+            format,
+            overwrite,
+            header,
+            field_delimiter,
+            compression,
+            query,
+        }))
+    }
+
+    pub fn parse_load_data(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("LOAD DATA") && !upper.starts_with("LOAD  DATA") {
+            return Ok(None);
+        }
+
+        let after_load_data = &trimmed[9..].trim_start();
+        let after_load_data_upper = after_load_data.to_uppercase();
+
+        let overwrite = after_load_data_upper.starts_with("OVERWRITE");
+        let table_start = if overwrite {
+            after_load_data[9..].trim_start()
+        } else if after_load_data_upper.starts_with("INTO") {
+            after_load_data[4..].trim_start()
+        } else {
+            return Err(Error::parse_error(
+                "LOAD DATA requires INTO or OVERWRITE keyword".to_string(),
+            ));
+        };
+
+        let table_start_upper = table_start.to_uppercase();
+        let is_temp = table_start_upper.starts_with("TEMP TABLE")
+            || table_start_upper.starts_with("TEMP  TABLE")
+            || table_start_upper.starts_with("TEMPORARY TABLE");
+
+        let table_name_start = if is_temp {
+            if table_start_upper.starts_with("TEMP TABLE") {
+                table_start[10..].trim_start()
+            } else if table_start_upper.starts_with("TEMP  TABLE") {
+                table_start[11..].trim_start()
+            } else {
+                table_start[15..].trim_start()
+            }
+        } else {
+            table_start
+        };
+
+        let table_name_end = table_name_start
+            .find(|c: char| c.is_whitespace() || c == '(')
+            .unwrap_or(table_name_start.len());
+
+        let table_name_str = &table_name_start[..table_name_end];
+        let table_name = ParserHelpers::object_name_from_string(table_name_str);
+
+        let after_table_name = table_name_start[table_name_end..].trim_start();
+
+        let temp_table_schema = if is_temp && after_table_name.starts_with('(') {
+            let close_paren = after_table_name.find(')').ok_or_else(|| {
+                Error::parse_error("LOAD DATA INTO TEMP TABLE schema requires closing ')'")
+            })?;
+            let schema_str = &after_table_name[1..close_paren];
+            let schema: Vec<(String, String)> = schema_str
+                .split(',')
+                .map(|s| {
+                    let parts: Vec<&str> = s.trim().splitn(2, char::is_whitespace).collect();
+                    if parts.len() == 2 {
+                        (parts[0].to_string(), parts[1].trim().to_string())
+                    } else {
+                        (parts[0].to_string(), "STRING".to_string())
+                    }
+                })
+                .collect();
+            Some(schema)
+        } else {
+            None
+        };
+
+        let from_idx = upper.find("FROM FILES").ok_or_else(|| {
+            Error::parse_error("LOAD DATA requires FROM FILES clause".to_string())
+        })?;
+
+        let files_start = trimmed[from_idx + 10..].trim_start();
+        let files_paren_start = files_start.find('(').ok_or_else(|| {
+            Error::parse_error("LOAD DATA FROM FILES requires parentheses".to_string())
+        })?;
+
+        let mut depth = 1;
+        let mut files_paren_end = files_paren_start + 1;
+        for (i, ch) in files_start[files_paren_start + 1..].char_indices() {
+            match ch {
+                '(' | '[' => depth += 1,
+                ')' | ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        files_paren_end = files_paren_start + 1 + i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let files_str = &files_start[files_paren_start + 1..files_paren_end];
+
+        let mut format = ExportFormat::Csv;
+        let mut uris: Vec<String> = Vec::new();
+        let mut allow_schema_update = false;
+
+        for part in files_str.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            if let Some(eq_idx) = part.find('=') {
+                let key = part[..eq_idx].trim().to_uppercase();
+                let value = part[eq_idx + 1..].trim();
+                let value_unquoted = value.trim_matches(|c| c == '\'' || c == '"');
+
+                match key.as_str() {
+                    "FORMAT" => {
+                        format = match value_unquoted.to_uppercase().as_str() {
+                            "CSV" => ExportFormat::Csv,
+                            "JSON" => ExportFormat::Json,
+                            "PARQUET" => ExportFormat::Parquet,
+                            "AVRO" => ExportFormat::Avro,
+                            _ => {
+                                return Err(Error::parse_error(format!(
+                                    "Unknown LOAD DATA format: {}",
+                                    value_unquoted
+                                )));
+                            }
+                        };
+                    }
+                    "URIS" => {
+                        let uris_str = value.trim_start_matches('[').trim_end_matches(']');
+                        for uri in uris_str.split(',') {
+                            let uri_trimmed = uri.trim().trim_matches(|c| c == '\'' || c == '"');
+                            if !uri_trimmed.is_empty() {
+                                uris.push(uri_trimmed.to_string());
+                            }
+                        }
+                    }
+                    "ALLOW_SCHEMA_UPDATE" => {
+                        allow_schema_update = value_unquoted.to_uppercase() == "TRUE";
+                    }
+                    _ => {}
+                }
+            } else if part.starts_with('\'') || part.starts_with('"') {
+                let uri = part.trim_matches(|c| c == '\'' || c == '"');
+                if !uri.is_empty() {
+                    uris.push(uri.to_string());
+                }
+            }
+        }
+
+        Ok(Some(CustomStatement::LoadData {
+            table_name,
+            overwrite,
+            is_temp,
+            temp_table_schema,
+            format,
+            uris,
+            allow_schema_update,
         }))
     }
 }

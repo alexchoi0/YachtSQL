@@ -223,6 +223,18 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.dialect_type == DialectType::BigQuery
+            && let Some(custom_stmt) = CustomStatementParser::parse_export_data(sql)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::BigQuery
+            && let Some(custom_stmt) = CustomStatementParser::parse_load_data(sql)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         let tokens = Tokenizer::new(&*self.dialect, sql)
             .tokenize()
             .map_err(|e| Error::parse_error(format!("Tokenization error: {}", e)))?;
