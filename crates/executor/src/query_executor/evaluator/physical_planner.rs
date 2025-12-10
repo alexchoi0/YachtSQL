@@ -500,12 +500,12 @@ impl PhysicalPlanner {
                             let left_is_left_side = left_tables.contains(lt);
                             let right_is_left_side = left_tables.contains(rt);
 
-                            if left_is_left_side != right_is_left_side {
-                                if left_is_left_side {
-                                    equi_conditions.push((*left.clone(), *right.clone()));
-                                } else {
-                                    equi_conditions.push((*right.clone(), *left.clone()));
-                                }
+                            if left_is_left_side && !right_is_left_side {
+                                equi_conditions.push((*left.clone(), *right.clone()));
+                            } else if right_is_left_side && !left_is_left_side {
+                                equi_conditions.push((*right.clone(), *left.clone()));
+                            } else {
+                                equi_conditions.push((*left.clone(), *right.clone()));
                             }
                         }
                         _ => {}
