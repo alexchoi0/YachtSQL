@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use sqlparser::ast::{self, CteAsMaterialized};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_ir::expr::{Expr, LiteralValue};
-use yachtsql_ir::plan::{JoinType, LogicalPlan, PlanNode};
+use yachtsql_ir::plan::{JoinType, LogicalPlan, PlanNode, SampleSize, SamplingMethod};
 
 use super::{AliasScopeGuard, GroupingExtension, LogicalPlanBuilder};
 
@@ -2557,7 +2557,12 @@ impl LogicalPlanBuilder {
                     alias: table_alias,
                 }))
             }
-            ast::TableFactor::Table { name, alias, .. } => {
+            ast::TableFactor::Table {
+                name,
+                alias,
+                sample,
+                ..
+            } => {
                 let original_name = name.to_string();
 
                 let (table_name, only) = if original_name.eq_ignore_ascii_case("ONLY") {
@@ -2576,13 +2581,16 @@ impl LogicalPlanBuilder {
                     alias.as_ref().map(|a| a.name.value.clone())
                 };
                 let final_modifier = self.has_final_modifier(&table_name);
-                Ok(LogicalPlan::new(PlanNode::Scan {
+                let base_plan = PlanNode::Scan {
                     table_name,
                     alias: table_alias,
                     projection: None,
                     only,
                     final_modifier,
-                }))
+                };
+
+                let plan = self.maybe_wrap_with_tablesample(base_plan, sample)?;
+                Ok(LogicalPlan::new(plan))
             }
             ast::TableFactor::Derived {
                 lateral: _lateral,
@@ -2672,5 +2680,74 @@ impl LogicalPlanBuilder {
                 "Table factor type not supported".to_string(),
             )),
         }
+    }
+
+    fn maybe_wrap_with_tablesample(
+        &self,
+        base_plan: PlanNode,
+        sample: &Option<ast::TableSampleKind>,
+    ) -> Result<PlanNode> {
+        let sample_info = match sample {
+            Some(ast::TableSampleKind::BeforeTableAlias(s))
+            | Some(ast::TableSampleKind::AfterTableAlias(s)) => s,
+            None => return Ok(base_plan),
+        };
+
+        let method = match &sample_info.name {
+            Some(ast::TableSampleMethod::Bernoulli) => SamplingMethod::Bernoulli,
+            Some(ast::TableSampleMethod::System) | None => SamplingMethod::System,
+            Some(ast::TableSampleMethod::Row) => SamplingMethod::Bernoulli,
+            Some(ast::TableSampleMethod::Block) => SamplingMethod::System,
+        };
+
+        let size = match &sample_info.quantity {
+            Some(quantity) => {
+                let value = self.sql_expr_to_expr(&quantity.value)?;
+                let num = match value {
+                    Expr::Literal(LiteralValue::Int64(n)) => n as f64,
+                    Expr::Literal(LiteralValue::Float64(f)) => f,
+                    Expr::Literal(LiteralValue::Numeric(ref d)) => {
+                        use rust_decimal::prelude::ToPrimitive;
+                        d.to_f64().ok_or_else(|| {
+                            Error::invalid_query(format!("Invalid TABLESAMPLE size: {}", d))
+                        })?
+                    }
+                    _ => {
+                        return Err(Error::invalid_query(
+                            "TABLESAMPLE size must be a numeric literal".to_string(),
+                        ));
+                    }
+                };
+                match quantity.unit {
+                    Some(ast::TableSampleUnit::Rows) => SampleSize::Rows(num as usize),
+                    Some(ast::TableSampleUnit::Percent) | None => SampleSize::Percent(num),
+                }
+            }
+            None => SampleSize::Percent(100.0),
+        };
+
+        let seed = match &sample_info.seed {
+            Some(seed_info) => {
+                let seed_val = match &seed_info.value {
+                    ast::Value::Number(n, _) => n.parse::<u64>().map_err(|_| {
+                        Error::invalid_query(format!("Invalid TABLESAMPLE seed: {}", n))
+                    })?,
+                    _ => {
+                        return Err(Error::invalid_query(
+                            "TABLESAMPLE seed must be a numeric literal".to_string(),
+                        ));
+                    }
+                };
+                Some(seed_val)
+            }
+            None => None,
+        };
+
+        Ok(PlanNode::TableSample {
+            input: Box::new(base_plan),
+            method,
+            size,
+            seed,
+        })
     }
 }
