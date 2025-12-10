@@ -459,6 +459,19 @@ impl SortExec {
             let step_val = step.as_i64().unwrap_or(1);
             return Ok(Value::timestamp(ts + Duration::seconds(step_val)));
         }
+        if let Some(dt) = value.as_datetime() {
+            if let Some(interval) = step.as_interval() {
+                let days = interval.days as i64;
+                let months = interval.months as i64;
+                let micros = interval.micros;
+                let step_duration = Duration::days(days)
+                    + Duration::days(months * 30)
+                    + Duration::microseconds(micros);
+                return Ok(Value::datetime(dt + step_duration));
+            }
+            let step_val = step.as_i64().unwrap_or(1);
+            return Ok(Value::datetime(dt + Duration::seconds(step_val)));
+        }
         if let Some(d32) = value.as_date32() {
             let step_days = step.as_i64().unwrap_or(1) as i32;
             return Ok(Value::date32(Date32Value(d32.0 + step_days)));
