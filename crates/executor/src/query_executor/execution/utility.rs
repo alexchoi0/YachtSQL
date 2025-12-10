@@ -142,6 +142,10 @@ fn literal_type(lit: &yachtsql_optimizer::expr::LiteralValue) -> DataType {
         yachtsql_optimizer::expr::LiteralValue::Point(_) => DataType::Point,
         yachtsql_optimizer::expr::LiteralValue::PgBox(_) => DataType::PgBox,
         yachtsql_optimizer::expr::LiteralValue::Circle(_) => DataType::Circle,
+        yachtsql_optimizer::expr::LiteralValue::Line(_) => DataType::Line,
+        yachtsql_optimizer::expr::LiteralValue::Lseg(_) => DataType::Lseg,
+        yachtsql_optimizer::expr::LiteralValue::Path(_) => DataType::Path,
+        yachtsql_optimizer::expr::LiteralValue::Polygon(_) => DataType::Polygon,
         yachtsql_optimizer::expr::LiteralValue::MacAddr(_) => DataType::MacAddr,
         yachtsql_optimizer::expr::LiteralValue::MacAddr8(_) => DataType::MacAddr8,
     }

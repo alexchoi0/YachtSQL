@@ -304,10 +304,27 @@ pub enum FunctionName {
     UniqArray,
     Quantile,
     QuantileExact,
+    QuantileExactLow,
+    QuantileExactHigh,
+    QuantileExactWeighted,
     QuantileTDigest,
+    QuantileTDigestWeighted,
     QuantileTiming,
+    QuantileTimingWeighted,
+    QuantileDeterministic,
+    QuantileBFloat16,
+    QuantileBFloat16Weighted,
+    QuantileDD,
+    QuantileGK,
+    QuantileInterpolatedWeighted,
+    Quantiles,
+    QuantilesExact,
     QuantilesTDigest,
     QuantilesTiming,
+    QuantileIf,
+    QuantilesIf,
+    TopKWeighted,
+    Histogram,
     ArgMin,
     ArgMax,
     GroupArray,
@@ -642,6 +659,14 @@ pub enum FunctionName {
     Contains,
     ContainedBy,
     Overlaps,
+    Line,
+    Lseg,
+    Polygon,
+    Npoints,
+    Isclosed,
+    Isopen,
+    Popen,
+    Pclose,
 
     // Geography (ST_*) functions
     StGeogpoint,
@@ -715,6 +740,12 @@ pub enum FunctionName {
     TsqueryAnd,
     TsqueryOr,
     TsqueryNot,
+    TsRewrite,
+    TsDelete,
+    TsFilter,
+    ArrayToTsvector,
+    TsvectorToArray,
+    GetCurrentTsConfig,
 
     // Hstore functions
     Hstore,
@@ -1358,12 +1389,44 @@ impl FunctionName {
             "QUANTILEEXACT" => Self::QuantileExact,
             "QUANTILE_TDIGEST" => Self::QuantileTDigest,
             "QUANTILETDIGEST" => Self::QuantileTDigest,
+            "QUANTILE_TDIGEST_WEIGHTED" => Self::QuantileTDigestWeighted,
+            "QUANTILETDIGESTWEIGHTED" => Self::QuantileTDigestWeighted,
             "QUANTILE_TIMING" => Self::QuantileTiming,
             "QUANTILETIMING" => Self::QuantileTiming,
+            "QUANTILE_TIMING_WEIGHTED" => Self::QuantileTimingWeighted,
+            "QUANTILETIMINGWEIGHTED" => Self::QuantileTimingWeighted,
+            "QUANTILE_EXACT_LOW" => Self::QuantileExactLow,
+            "QUANTILEEXACTLOW" => Self::QuantileExactLow,
+            "QUANTILE_EXACT_HIGH" => Self::QuantileExactHigh,
+            "QUANTILEEXACTHIGH" => Self::QuantileExactHigh,
+            "QUANTILE_EXACT_WEIGHTED" => Self::QuantileExactWeighted,
+            "QUANTILEEXACTWEIGHTED" => Self::QuantileExactWeighted,
+            "QUANTILE_DETERMINISTIC" => Self::QuantileDeterministic,
+            "QUANTILEDETERMINISTIC" => Self::QuantileDeterministic,
+            "QUANTILE_BFLOAT16" => Self::QuantileBFloat16,
+            "QUANTILEBFLOAT16" => Self::QuantileBFloat16,
+            "QUANTILE_BFLOAT16_WEIGHTED" => Self::QuantileBFloat16Weighted,
+            "QUANTILEBFLOAT16WEIGHTED" => Self::QuantileBFloat16Weighted,
+            "QUANTILE_DD" => Self::QuantileDD,
+            "QUANTILEDD" => Self::QuantileDD,
+            "QUANTILE_GK" => Self::QuantileGK,
+            "QUANTILEGK" => Self::QuantileGK,
+            "QUANTILE_INTERPOLATED_WEIGHTED" => Self::QuantileInterpolatedWeighted,
+            "QUANTILEINTERPOLATEDWEIGHTED" => Self::QuantileInterpolatedWeighted,
+            "QUANTILES" => Self::Quantiles,
+            "QUANTILES_EXACT" => Self::QuantilesExact,
+            "QUANTILESEXACT" => Self::QuantilesExact,
             "QUANTILES_TDIGEST" => Self::QuantilesTDigest,
             "QUANTILESTDIGEST" => Self::QuantilesTDigest,
             "QUANTILES_TIMING" => Self::QuantilesTiming,
             "QUANTILESTIMING" => Self::QuantilesTiming,
+            "QUANTILE_IF" => Self::QuantileIf,
+            "QUANTILEIF" => Self::QuantileIf,
+            "QUANTILES_IF" => Self::QuantilesIf,
+            "QUANTILESIF" => Self::QuantilesIf,
+            "TOP_K_WEIGHTED" => Self::TopKWeighted,
+            "TOPKWEIGHTED" => Self::TopKWeighted,
+            "HISTOGRAM" => Self::Histogram,
             "ARG_MIN" => Self::ArgMin,
             "ARGMIN" => Self::ArgMin,
             "ARG_MAX" => Self::ArgMax,
@@ -1743,6 +1806,14 @@ impl FunctionName {
             "CONTAINS" => Self::Contains,
             "CONTAINED_BY" => Self::ContainedBy,
             "OVERLAPS" => Self::Overlaps,
+            "LINE" => Self::Line,
+            "LSEG" => Self::Lseg,
+            "POLYGON" => Self::Polygon,
+            "NPOINTS" => Self::Npoints,
+            "ISCLOSED" => Self::Isclosed,
+            "ISOPEN" => Self::Isopen,
+            "POPEN" => Self::Popen,
+            "PCLOSE" => Self::Pclose,
 
             // Geography (ST_*) functions
             "ST_GEOGPOINT" => Self::StGeogpoint,
@@ -1816,6 +1887,12 @@ impl FunctionName {
             "TSQUERY_AND" => Self::TsqueryAnd,
             "TSQUERY_OR" => Self::TsqueryOr,
             "TSQUERY_NOT" => Self::TsqueryNot,
+            "TS_REWRITE" => Self::TsRewrite,
+            "TS_DELETE" => Self::TsDelete,
+            "TS_FILTER" => Self::TsFilter,
+            "ARRAY_TO_TSVECTOR" => Self::ArrayToTsvector,
+            "TSVECTOR_TO_ARRAY" => Self::TsvectorToArray,
+            "GET_CURRENT_TS_CONFIG" => Self::GetCurrentTsConfig,
 
             // Hstore functions
             "HSTORE" => Self::Hstore,
@@ -2478,10 +2555,27 @@ impl FunctionName {
             Self::UniqArray => "UNIQ_ARRAY",
             Self::Quantile => "QUANTILE",
             Self::QuantileExact => "QUANTILE_EXACT",
+            Self::QuantileExactLow => "QUANTILE_EXACT_LOW",
+            Self::QuantileExactHigh => "QUANTILE_EXACT_HIGH",
+            Self::QuantileExactWeighted => "QUANTILE_EXACT_WEIGHTED",
             Self::QuantileTDigest => "QUANTILE_TDIGEST",
+            Self::QuantileTDigestWeighted => "QUANTILE_TDIGEST_WEIGHTED",
             Self::QuantileTiming => "QUANTILE_TIMING",
+            Self::QuantileTimingWeighted => "QUANTILE_TIMING_WEIGHTED",
+            Self::QuantileDeterministic => "QUANTILE_DETERMINISTIC",
+            Self::QuantileBFloat16 => "QUANTILE_BFLOAT16",
+            Self::QuantileBFloat16Weighted => "QUANTILE_BFLOAT16_WEIGHTED",
+            Self::QuantileDD => "QUANTILE_DD",
+            Self::QuantileGK => "QUANTILE_GK",
+            Self::QuantileInterpolatedWeighted => "QUANTILE_INTERPOLATED_WEIGHTED",
+            Self::Quantiles => "QUANTILES",
+            Self::QuantilesExact => "QUANTILES_EXACT",
             Self::QuantilesTDigest => "QUANTILES_TDIGEST",
             Self::QuantilesTiming => "QUANTILES_TIMING",
+            Self::QuantileIf => "QUANTILE_IF",
+            Self::QuantilesIf => "QUANTILES_IF",
+            Self::TopKWeighted => "TOP_K_WEIGHTED",
+            Self::Histogram => "HISTOGRAM",
             Self::ArgMin => "ARG_MIN",
             Self::ArgMax => "ARG_MAX",
             Self::GroupArray => "GROUP_ARRAY",
@@ -2816,6 +2910,14 @@ impl FunctionName {
             Self::Contains => "CONTAINS",
             Self::ContainedBy => "CONTAINED_BY",
             Self::Overlaps => "OVERLAPS",
+            Self::Line => "LINE",
+            Self::Lseg => "LSEG",
+            Self::Polygon => "POLYGON",
+            Self::Npoints => "NPOINTS",
+            Self::Isclosed => "ISCLOSED",
+            Self::Isopen => "ISOPEN",
+            Self::Popen => "POPEN",
+            Self::Pclose => "PCLOSE",
 
             // Geography (ST_*) functions
             Self::StGeogpoint => "ST_GEOGPOINT",
@@ -2889,6 +2991,12 @@ impl FunctionName {
             Self::TsqueryAnd => "TSQUERY_AND",
             Self::TsqueryOr => "TSQUERY_OR",
             Self::TsqueryNot => "TSQUERY_NOT",
+            Self::TsRewrite => "TS_REWRITE",
+            Self::TsDelete => "TS_DELETE",
+            Self::TsFilter => "TS_FILTER",
+            Self::ArrayToTsvector => "ARRAY_TO_TSVECTOR",
+            Self::TsvectorToArray => "TSVECTOR_TO_ARRAY",
+            Self::GetCurrentTsConfig => "GET_CURRENT_TS_CONFIG",
 
             // Hstore functions
             Self::Hstore => "HSTORE",
@@ -3296,10 +3404,27 @@ impl FunctionName {
                 | Self::UniqArray
                 | Self::Quantile
                 | Self::QuantileExact
+                | Self::QuantileExactLow
+                | Self::QuantileExactHigh
+                | Self::QuantileExactWeighted
                 | Self::QuantileTDigest
+                | Self::QuantileTDigestWeighted
                 | Self::QuantileTiming
+                | Self::QuantileTimingWeighted
+                | Self::QuantileDeterministic
+                | Self::QuantileBFloat16
+                | Self::QuantileBFloat16Weighted
+                | Self::QuantileDD
+                | Self::QuantileGK
+                | Self::QuantileInterpolatedWeighted
+                | Self::Quantiles
+                | Self::QuantilesExact
                 | Self::QuantilesTDigest
                 | Self::QuantilesTiming
+                | Self::QuantileIf
+                | Self::QuantilesIf
+                | Self::TopKWeighted
+                | Self::Histogram
                 | Self::ArgMin
                 | Self::ArgMax
                 | Self::GroupArray

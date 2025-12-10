@@ -135,6 +135,9 @@ impl NullPropagation {
                         | BinaryOp::GeometricContains
                         | BinaryOp::GeometricContainedBy
                         | BinaryOp::GeometricOverlap
+                        | BinaryOp::GeometricParallel
+                        | BinaryOp::GeometricPerpendicular
+                        | BinaryOp::GeometricIntersects
                         | BinaryOp::RangeAdjacent
                         | BinaryOp::RangeStrictlyLeft
                         | BinaryOp::RangeStrictlyRight
@@ -142,7 +145,9 @@ impl NullPropagation {
                         | BinaryOp::InetContainedBy
                         | BinaryOp::InetContainsOrEqual
                         | BinaryOp::InetContainedByOrEqual
-                        | BinaryOp::InetOverlap => return Expr::Literal(LiteralValue::Null),
+                        | BinaryOp::InetOverlap
+                        | BinaryOp::TSVectorMatch
+                        | BinaryOp::TSQueryAnd => return Expr::Literal(LiteralValue::Null),
 
                         BinaryOp::In | BinaryOp::NotIn => return Expr::Literal(LiteralValue::Null),
 
@@ -174,6 +179,7 @@ impl NullPropagation {
                         UnaryOp::Negate => return Expr::Literal(LiteralValue::Null),
                         UnaryOp::Plus => return Expr::Literal(LiteralValue::Null),
                         UnaryOp::BitwiseNot => return Expr::Literal(LiteralValue::Null),
+                        UnaryOp::TSQueryNot => return Expr::Literal(LiteralValue::Null),
                         UnaryOp::IsNull => {
                             return Expr::Literal(LiteralValue::Boolean(true));
                         }

@@ -197,6 +197,15 @@ pub enum Error {
     #[error("Invalid join type '{join_type}' for LATERAL join")]
     LateralInvalidJoinType { join_type: String },
 
+    #[error("Invalid cursor state: {0}")]
+    InvalidCursorState(String),
+
+    #[error("Invalid cursor name: {0}")]
+    InvalidCursorName(String),
+
+    #[error("Duplicate cursor: {0}")]
+    DuplicateCursor(String),
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
@@ -363,6 +372,18 @@ impl Error {
         }
     }
 
+    pub fn invalid_cursor_state(msg: impl fmt::Display) -> Self {
+        Error::InvalidCursorState(msg.to_string())
+    }
+
+    pub fn invalid_cursor_name(msg: impl fmt::Display) -> Self {
+        Error::InvalidCursorName(msg.to_string())
+    }
+
+    pub fn duplicate_cursor(msg: impl fmt::Display) -> Self {
+        Error::DuplicateCursor(msg.to_string())
+    }
+
     pub fn sqlstate(&self) -> &'static str {
         match self {
             Error::CardinalityViolation { .. }
@@ -405,6 +426,10 @@ impl Error {
                 diagnostics::INVALID_SAVEPOINT_SPECIFICATION.as_str()
             }
             Error::TransactionAborted { .. } => diagnostics::IN_FAILED_SQL_TRANSACTION.as_str(),
+
+            Error::InvalidCursorState(_) => diagnostics::INVALID_CURSOR_STATE.as_str(),
+            Error::InvalidCursorName(_) => diagnostics::INVALID_CURSOR_NAME.as_str(),
+            Error::DuplicateCursor(_) => diagnostics::DUPLICATE_CURSOR.as_str(),
 
             Error::RecursiveCteInvalidStructure(_)
             | Error::RecursiveCteSchemaMismatch(_)

@@ -1,3 +1,4 @@
+mod cursor;
 mod ddl;
 mod dispatcher;
 mod dml;
@@ -18,15 +19,17 @@ pub use ddl::{
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
-    CopyOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation, ScriptingOperation,
-    StatementJob, TxOperation, UtilityOperation,
+    CopyOperation, CursorOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation,
+    ScriptingOperation, StatementJob, TxOperation, UtilityOperation,
 };
 pub use dml::{
     DmlDeleteExecutor, DmlInsertExecutor, DmlMergeExecutor, DmlTruncateExecutor, DmlUpdateExecutor,
 };
 pub use query::QueryExecutorTrait;
 use rust_decimal::prelude::ToPrimitive;
-pub use session::{DiagnosticsSnapshot, SessionDiagnostics, SessionVariable, UdfDefinition};
+pub use session::{
+    CursorState, DiagnosticsSnapshot, SessionDiagnostics, SessionVariable, UdfDefinition,
+};
 pub use utility::{
     add_interval_to_date, apply_interval_to_date, apply_numeric_precision_scale,
     calculate_date_diff, decode_values_match, evaluate_condition_as_bool, evaluate_numeric_op,
@@ -45,8 +48,11 @@ use yachtsql_core::types::{DataType, Value};
 use yachtsql_optimizer::rules::{
     IndexSelectionRule, SubqueryFlattening, UnionOptimization, WindowOptimization,
 };
-use yachtsql_parser::DialectType;
+use yachtsql_parser::parser::StandardStatement;
+use yachtsql_parser::{DialectType, Parser, Statement};
 use yachtsql_storage::Schema;
+
+type SqlStatement = sqlparser::ast::Statement;
 
 use self::session::SessionState;
 use self::transaction::SessionTransactionController;
@@ -667,6 +673,8 @@ impl QueryExecutor {
             StatementJob::Copy { operation } => self.execute_copy(&operation.stmt),
 
             StatementJob::Scripting { operation } => self.execute_scripting(operation),
+
+            StatementJob::Cursor { operation } => self.execute_cursor_operation(operation),
         }
     }
 
@@ -2344,7 +2352,247 @@ impl QueryExecutor {
                 self.session.set_variable(&name, evaluated)?;
                 Self::empty_result()
             }
+            ScriptingOperation::If { stmt } => self.execute_if_statement(&stmt),
+            ScriptingOperation::While { stmt } => self.execute_while_statement(&stmt),
+            ScriptingOperation::Loop { stmt } => self.execute_loop_statement(&stmt),
+            ScriptingOperation::Repeat { stmt } => self.execute_repeat_statement(&stmt),
+            ScriptingOperation::BeginEnd { stmt } => self.execute_begin_end_statement(&stmt),
+            ScriptingOperation::Case { stmt } => self.execute_case_statement(&stmt),
+            ScriptingOperation::Leave { label } => Err(Error::invalid_query(
+                "LEAVE without enclosing LOOP".to_string(),
+            )),
+            ScriptingOperation::Continue { label } => Err(Error::invalid_query(
+                "CONTINUE without enclosing LOOP".to_string(),
+            )),
+            ScriptingOperation::Return { value } => Self::empty_result(),
+            ScriptingOperation::ExecuteImmediate { stmt } => self.execute_execute_immediate(&stmt),
         }
+    }
+
+    fn execute_if_statement(&mut self, stmt: &SqlStatement) -> Result<Table> {
+        use sqlparser::ast::Statement as Stmt;
+
+        let Stmt::If(if_stmt) = stmt else {
+            return Err(Error::internal("Expected IF statement".to_string()));
+        };
+
+        let condition =
+            if_stmt.if_block.condition.as_ref().ok_or_else(|| {
+                Error::invalid_query("IF statement requires a condition".to_string())
+            })?;
+
+        let cond_result = self.evaluate_constant_expr(condition)?;
+        let cond_bool = cond_result.as_bool().ok_or_else(|| {
+            Error::invalid_query("IF condition must evaluate to boolean".to_string())
+        })?;
+
+        if cond_bool {
+            for inner_stmt in if_stmt.if_block.statements() {
+                self.execute_inner_statement(inner_stmt)?;
+            }
+            return Self::empty_result();
+        }
+
+        for elseif_block in &if_stmt.elseif_blocks {
+            if let Some(condition) = &elseif_block.condition {
+                let cond_result = self.evaluate_constant_expr(condition)?;
+                let cond_bool = cond_result.as_bool().ok_or_else(|| {
+                    Error::invalid_query("ELSEIF condition must evaluate to boolean".to_string())
+                })?;
+
+                if cond_bool {
+                    for inner_stmt in elseif_block.statements() {
+                        self.execute_inner_statement(inner_stmt)?;
+                    }
+                    return Self::empty_result();
+                }
+            }
+        }
+
+        if let Some(else_block) = &if_stmt.else_block {
+            for inner_stmt in else_block.statements() {
+                self.execute_inner_statement(inner_stmt)?;
+            }
+        }
+
+        Self::empty_result()
+    }
+
+    fn execute_while_statement(&mut self, stmt: &SqlStatement) -> Result<Table> {
+        use sqlparser::ast::Statement as Stmt;
+
+        let Stmt::While(while_stmt) = stmt else {
+            return Err(Error::internal("Expected WHILE statement".to_string()));
+        };
+
+        let condition = while_stmt.while_block.condition.as_ref().ok_or_else(|| {
+            Error::invalid_query("WHILE statement requires a condition".to_string())
+        })?;
+
+        const MAX_ITERATIONS: usize = 100000;
+        let mut iterations = 0;
+
+        loop {
+            iterations += 1;
+            if iterations > MAX_ITERATIONS {
+                return Err(Error::invalid_query(format!(
+                    "WHILE loop exceeded maximum iterations ({})",
+                    MAX_ITERATIONS
+                )));
+            }
+
+            let cond_result = self.evaluate_constant_expr(condition)?;
+            let cond_bool = cond_result.as_bool().ok_or_else(|| {
+                Error::invalid_query("WHILE condition must evaluate to boolean".to_string())
+            })?;
+
+            if !cond_bool {
+                break;
+            }
+
+            match self.execute_statement_block(while_stmt.while_block.statements()) {
+                Ok(_) => continue,
+                Err(e) if Self::is_leave_error(&e) => break,
+                Err(e) if Self::is_continue_error(&e) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+
+        Self::empty_result()
+    }
+
+    fn execute_loop_statement(&mut self, stmt: &SqlStatement) -> Result<Table> {
+        Err(Error::unsupported_feature("LOOP statement".to_string()))
+    }
+
+    fn execute_repeat_statement(&mut self, stmt: &SqlStatement) -> Result<Table> {
+        Err(Error::unsupported_feature("REPEAT statement".to_string()))
+    }
+
+    fn execute_begin_end_statement(&mut self, _stmt: &SqlStatement) -> Result<Table> {
+        Err(Error::unsupported_feature(
+            "BEGIN/END statement".to_string(),
+        ))
+    }
+
+    fn execute_case_statement(&mut self, stmt: &SqlStatement) -> Result<Table> {
+        use sqlparser::ast::Statement as Stmt;
+
+        let Stmt::Case(case_stmt) = stmt else {
+            return Err(Error::internal("Expected CASE statement".to_string()));
+        };
+
+        let match_operand = case_stmt
+            .match_expr
+            .as_ref()
+            .map(|e| self.evaluate_constant_expr(e))
+            .transpose()?;
+
+        for when_block in &case_stmt.when_blocks {
+            if let Some(condition) = &when_block.condition {
+                let cond_result = if let Some(match_val) = &match_operand {
+                    let when_val = self.evaluate_constant_expr(condition)?;
+                    self.evaluate_binary_op(
+                        match_val,
+                        &sqlparser::ast::BinaryOperator::Eq,
+                        &when_val,
+                    )?
+                } else {
+                    self.evaluate_constant_expr(condition)?
+                };
+
+                let cond_bool = cond_result.as_bool().ok_or_else(|| {
+                    Error::invalid_query("CASE WHEN condition must evaluate to boolean".to_string())
+                })?;
+
+                if cond_bool {
+                    for inner_stmt in when_block.statements() {
+                        self.execute_inner_statement(inner_stmt)?;
+                    }
+                    return Self::empty_result();
+                }
+            }
+        }
+
+        if let Some(else_block) = &case_stmt.else_block {
+            for inner_stmt in else_block.statements() {
+                self.execute_inner_statement(inner_stmt)?;
+            }
+        }
+
+        Self::empty_result()
+    }
+
+    fn execute_execute_immediate(&mut self, stmt: &SqlStatement) -> Result<Table> {
+        use sqlparser::ast::{ObjectNamePart, Statement as Stmt};
+
+        let Stmt::Execute { name, .. } = stmt else {
+            return Err(Error::internal(
+                "Expected EXECUTE IMMEDIATE statement".to_string(),
+            ));
+        };
+
+        let sql_string = match name {
+            Some(name) => {
+                if name.0.is_empty() {
+                    return Err(Error::invalid_query(
+                        "EXECUTE IMMEDIATE requires a string expression".to_string(),
+                    ));
+                }
+                let part = &name.0[0];
+                match part {
+                    ObjectNamePart::Identifier(ident) => {
+                        let sql_expr = sqlparser::ast::Expr::Identifier(ident.clone());
+                        let sql_value = self.evaluate_constant_expr(&sql_expr)?;
+                        sql_value
+                            .as_str()
+                            .ok_or_else(|| {
+                                Error::invalid_query(
+                                    "EXECUTE IMMEDIATE argument must be a string".to_string(),
+                                )
+                            })?
+                            .to_string()
+                    }
+                    ObjectNamePart::Function(_) => {
+                        return Err(Error::invalid_query(
+                            "EXECUTE IMMEDIATE does not support function expressions".to_string(),
+                        ));
+                    }
+                }
+            }
+            None => {
+                return Err(Error::invalid_query(
+                    "EXECUTE IMMEDIATE requires a string expression".to_string(),
+                ));
+            }
+        };
+
+        self.execute_sql(&sql_string)
+    }
+
+    fn execute_inner_statement(&mut self, stmt: &SqlStatement) -> Result<Table> {
+        let sql = stmt.to_string();
+        self.execute_sql(&sql)
+    }
+
+    fn execute_statement_block(&mut self, stmts: &[SqlStatement]) -> Result<Table> {
+        let mut last_result = Self::empty_result()?;
+        for stmt in stmts {
+            last_result = self.execute_inner_statement(stmt)?;
+        }
+        Ok(last_result)
+    }
+
+    fn is_leave_error(e: &Error) -> bool {
+        matches!(e, Error::InvalidQuery(msg) if msg.contains("LEAVE"))
+    }
+
+    fn is_continue_error(e: &Error) -> bool {
+        matches!(e, Error::InvalidQuery(msg) if msg.contains("CONTINUE"))
+    }
+
+    fn is_return_error(e: &Error) -> bool {
+        matches!(e, Error::InvalidQuery(msg) if msg.contains("RETURN"))
     }
 
     fn convert_sql_data_type(
@@ -2378,7 +2626,9 @@ impl QueryExecutor {
     }
 
     fn evaluate_constant_expr(&self, expr: &sqlparser::ast::Expr) -> Result<Value> {
-        use sqlparser::ast::{Expr as SqlExpr, UnaryOperator, Value as SqlValue, ValueWithSpan};
+        use sqlparser::ast::{
+            BinaryOperator, Expr as SqlExpr, UnaryOperator, Value as SqlValue, ValueWithSpan,
+        };
 
         match expr {
             SqlExpr::Value(ValueWithSpan { value, .. }) => match value {
@@ -2403,6 +2653,24 @@ impl QueryExecutor {
                     value
                 ))),
             },
+            SqlExpr::Identifier(ident) => {
+                let var_name = &ident.value;
+                if let Some(var) = self.session.get_variable(var_name) {
+                    var.value.clone().ok_or_else(|| {
+                        Error::invalid_query(format!("Variable '{}' has no value", var_name))
+                    })
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "Undeclared variable: {}",
+                        var_name
+                    )))
+                }
+            }
+            SqlExpr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_constant_expr(left)?;
+                let right_val = self.evaluate_constant_expr(right)?;
+                self.evaluate_binary_op(&left_val, op, &right_val)
+            }
             SqlExpr::UnaryOp { op, expr } => {
                 let inner = self.evaluate_constant_expr(expr)?;
                 match op {
@@ -2434,11 +2702,220 @@ impl QueryExecutor {
                 }
             }
             SqlExpr::Nested(inner) => self.evaluate_constant_expr(inner),
+            SqlExpr::Subquery(query) => self.evaluate_scalar_subquery(query),
             _ => Err(Error::unsupported_feature(format!(
                 "Unsupported expression type for constant evaluation: {:?}",
                 expr
             ))),
         }
+    }
+
+    fn evaluate_binary_op(
+        &self,
+        left: &Value,
+        op: &sqlparser::ast::BinaryOperator,
+        right: &Value,
+    ) -> Result<Value> {
+        use sqlparser::ast::BinaryOperator;
+
+        match op {
+            BinaryOperator::Plus => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::int64(l + r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::float64(l + r))
+                } else if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                    Ok(Value::string(format!("{}{}", l, r)))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot add incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Minus => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::int64(l - r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::float64(l - r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot subtract incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Multiply => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::int64(l * r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::float64(l * r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot multiply incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Divide => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    if r == 0 {
+                        Err(Error::invalid_query("Division by zero".to_string()))
+                    } else {
+                        Ok(Value::int64(l / r))
+                    }
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    if r == 0.0 {
+                        Err(Error::invalid_query("Division by zero".to_string()))
+                    } else {
+                        Ok(Value::float64(l / r))
+                    }
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot divide incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Modulo => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    if r == 0 {
+                        Err(Error::invalid_query("Modulo by zero".to_string()))
+                    } else {
+                        Ok(Value::int64(l % r))
+                    }
+                } else {
+                    Err(Error::invalid_query(
+                        "Modulo only supported for integers".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Gt => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::bool_val(l > r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::bool_val(l > r))
+                } else if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                    Ok(Value::bool_val(l > r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot compare incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::GtEq => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::bool_val(l >= r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::bool_val(l >= r))
+                } else if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                    Ok(Value::bool_val(l >= r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot compare incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Lt => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::bool_val(l < r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::bool_val(l < r))
+                } else if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                    Ok(Value::bool_val(l < r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot compare incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::LtEq => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::bool_val(l <= r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::bool_val(l <= r))
+                } else if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                    Ok(Value::bool_val(l <= r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot compare incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Eq => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::bool_val(l == r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::bool_val(l == r))
+                } else if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                    Ok(Value::bool_val(l == r))
+                } else if let (Some(l), Some(r)) = (left.as_bool(), right.as_bool()) {
+                    Ok(Value::bool_val(l == r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot compare incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::NotEq => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    Ok(Value::bool_val(l != r))
+                } else if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    Ok(Value::bool_val(l != r))
+                } else if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+                    Ok(Value::bool_val(l != r))
+                } else if let (Some(l), Some(r)) = (left.as_bool(), right.as_bool()) {
+                    Ok(Value::bool_val(l != r))
+                } else {
+                    Err(Error::invalid_query(
+                        "Cannot compare incompatible types".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::And => {
+                if let (Some(l), Some(r)) = (left.as_bool(), right.as_bool()) {
+                    Ok(Value::bool_val(l && r))
+                } else {
+                    Err(Error::invalid_query(
+                        "AND requires boolean operands".to_string(),
+                    ))
+                }
+            }
+            BinaryOperator::Or => {
+                if let (Some(l), Some(r)) = (left.as_bool(), right.as_bool()) {
+                    Ok(Value::bool_val(l || r))
+                } else {
+                    Err(Error::invalid_query(
+                        "OR requires boolean operands".to_string(),
+                    ))
+                }
+            }
+            _ => Err(Error::unsupported_feature(format!(
+                "Unsupported binary operator: {:?}",
+                op
+            ))),
+        }
+    }
+
+    fn evaluate_scalar_subquery(&self, query: &sqlparser::ast::Query) -> Result<Value> {
+        let subquery_executor = self.create_subquery_executor();
+        let sql = query.to_string();
+        let result = subquery_executor.execute_subquery(&sql)?;
+
+        if result.num_rows() != 1 {
+            return Err(Error::invalid_query(format!(
+                "Scalar subquery must return exactly one row, but returned {}",
+                result.num_rows()
+            )));
+        }
+
+        if result.num_columns() != 1 {
+            return Err(Error::invalid_query(format!(
+                "Scalar subquery must return exactly one column, but returned {}",
+                result.num_columns()
+            )));
+        }
+
+        result
+            .column(0)
+            .ok_or_else(|| Error::internal("Scalar subquery returned no column"))?
+            .get(0)
     }
 }
 

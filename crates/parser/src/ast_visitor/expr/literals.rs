@@ -135,18 +135,18 @@ impl LogicalPlanBuilder {
                     GeometricTypeKind::Circle => {
                         Ok(Expr::Literal(LiteralValue::Circle(value.to_string())))
                     }
-                    GeometricTypeKind::Line => Err(Error::unsupported_feature(
-                        "LINE geometric type not yet supported",
-                    )),
-                    GeometricTypeKind::LineSegment => Err(Error::unsupported_feature(
-                        "LSEG geometric type not yet supported",
-                    )),
-                    GeometricTypeKind::GeometricPath => Err(Error::unsupported_feature(
-                        "PATH geometric type not yet supported",
-                    )),
-                    GeometricTypeKind::Polygon => Err(Error::unsupported_feature(
-                        "POLYGON geometric type not yet supported",
-                    )),
+                    GeometricTypeKind::Line => {
+                        Ok(Expr::Literal(LiteralValue::Line(value.to_string())))
+                    }
+                    GeometricTypeKind::LineSegment => {
+                        Ok(Expr::Literal(LiteralValue::Lseg(value.to_string())))
+                    }
+                    GeometricTypeKind::GeometricPath => {
+                        Ok(Expr::Literal(LiteralValue::Path(value.to_string())))
+                    }
+                    GeometricTypeKind::Polygon => {
+                        Ok(Expr::Literal(LiteralValue::Polygon(value.to_string())))
+                    }
                 }
             }
             _ => Err(Error::unsupported_feature(format!(

@@ -930,6 +930,9 @@ impl ProjectionWithExprExec {
             FunctionName::Point
                 | FunctionName::Box
                 | FunctionName::Circle
+                | FunctionName::Line
+                | FunctionName::Lseg
+                | FunctionName::Polygon
                 | FunctionName::Area
                 | FunctionName::Center
                 | FunctionName::Diameter
@@ -937,6 +940,12 @@ impl ProjectionWithExprExec {
                 | FunctionName::Width
                 | FunctionName::Height
                 | FunctionName::Distance
+                | FunctionName::Length
+                | FunctionName::Npoints
+                | FunctionName::Isclosed
+                | FunctionName::Isopen
+                | FunctionName::Popen
+                | FunctionName::Pclose
                 | FunctionName::Contains
                 | FunctionName::ContainedBy
                 | FunctionName::Overlaps
@@ -1021,6 +1030,12 @@ impl ProjectionWithExprExec {
                 | FunctionName::TsqueryAnd
                 | FunctionName::TsqueryOr
                 | FunctionName::TsqueryNot
+                | FunctionName::TsRewrite
+                | FunctionName::TsDelete
+                | FunctionName::TsFilter
+                | FunctionName::ArrayToTsvector
+                | FunctionName::TsvectorToArray
+                | FunctionName::GetCurrentTsConfig
         ) {
             return Self::evaluate_fulltext_function(func_name, args, batch, row_idx);
         }

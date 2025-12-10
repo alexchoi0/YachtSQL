@@ -1111,10 +1111,16 @@ impl QueryExecutor {
                     | "TSVECTOR_CONCAT"
                     | "TSQUERY_AND"
                     | "TSQUERY_OR"
-                    | "TSQUERY_NOT" => Ok(DataType::String),
+                    | "TSQUERY_NOT"
+                    | "QUERYTREE"
+                    | "TS_REWRITE"
+                    | "TS_DELETE"
+                    | "TS_FILTER"
+                    | "ARRAY_TO_TSVECTOR"
+                    | "GET_CURRENT_TS_CONFIG" => Ok(DataType::String),
                     "TS_RANK" | "TS_RANK_CD" => Ok(DataType::Float64),
                     "TS_MATCH" => Ok(DataType::Bool),
-                    "TSVECTOR_LENGTH" => Ok(DataType::Int64),
+                    "TSVECTOR_LENGTH" | "NUMNODE" => Ok(DataType::Int64),
 
                     _ => Ok(DataType::String),
                 }
@@ -4017,6 +4023,28 @@ impl QueryExecutor {
                         | "QUANTILES_TDIGEST"
                         | "QUANTILE_DETERMINISTIC"
                         | "QUANTILE_BFLOAT16"
+                        | "QUANTILE_EXACT_LOW"
+                        | "QUANTILEEXACTLOW"
+                        | "QUANTILE_EXACT_HIGH"
+                        | "QUANTILEEXACTHIGH"
+                        | "QUANTILE_DD"
+                        | "QUANTILEDD"
+                        | "QUANTILE_GK"
+                        | "QUANTILEGK"
+                        | "QUANTILE_INTERPOLATED_WEIGHTED"
+                        | "QUANTILEINTERPOLATEDWEIGHTED"
+                        | "QUANTILE_BFLOAT16_WEIGHTED"
+                        | "QUANTILEBFLOAT16WEIGHTED"
+                        | "QUANTILE_IF"
+                        | "QUANTILEIF"
+                        | "QUANTILES_IF"
+                        | "QUANTILESIF"
+                        | "QUANTILESEXACT"
+                        | "QUANTILETIMINGWEIGHTED"
+                        | "QUANTILETDIGESTWEIGHTED"
+                        | "QUANTILEDETERMINISTIC"
+                        | "QUANTILEBFLOAT16"
+                        | "QUANTILEEXACTWEIGHTED"
                         | "GROUP_ARRAY"
                         | "GROUP_ARRAY_INSERTAT"
                         | "GROUP_ARRAY_MOVING_AVG"

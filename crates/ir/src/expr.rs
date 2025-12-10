@@ -257,6 +257,9 @@ pub enum BinaryOp {
     GeometricContains,
     GeometricContainedBy,
     GeometricOverlap,
+    GeometricParallel,
+    GeometricPerpendicular,
+    GeometricIntersects,
     HashMinus,
     RangeAdjacent,
     RangeStrictlyLeft,
@@ -266,6 +269,8 @@ pub enum BinaryOp {
     InetContainsOrEqual,
     InetContainedByOrEqual,
     InetOverlap,
+    TSVectorMatch,
+    TSQueryAnd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -276,6 +281,7 @@ pub enum UnaryOp {
     IsNull,
     IsNotNull,
     BitwiseNot,
+    TSQueryNot,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -300,6 +306,10 @@ pub enum LiteralValue {
     Point(String),
     PgBox(String),
     Circle(String),
+    Line(String),
+    Lseg(String),
+    Path(String),
+    Polygon(String),
     MacAddr(String),
     MacAddr8(String),
 }
@@ -365,6 +375,10 @@ impl LiteralValue {
             LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
             LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
             LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
+            LiteralValue::Line(s) => yachtsql_core::types::parse_line_literal(s),
+            LiteralValue::Lseg(s) => yachtsql_core::types::parse_lseg_literal(s),
+            LiteralValue::Path(s) => yachtsql_core::types::parse_path_literal(s),
+            LiteralValue::Polygon(s) => yachtsql_core::types::parse_polygon_literal(s),
             LiteralValue::MacAddr(s) => match yachtsql_core::types::MacAddress::parse(s, false) {
                 Some(mac) => Value::macaddr(mac),
                 None => Value::null(),

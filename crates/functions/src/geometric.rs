@@ -1,5 +1,5 @@
 use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{PgBox, PgCircle, PgPoint, Value};
+use yachtsql_core::types::{PgBox, PgCircle, PgLseg, PgPoint, Value};
 
 pub fn point_constructor(x: &Value, y: &Value) -> Result<Value> {
     if x.is_null() || y.is_null() {
@@ -93,8 +93,12 @@ pub fn area(geom: &Value) -> Result<Value> {
         return Ok(Value::float64(c.area()));
     }
 
+    if let Some(p) = geom.as_polygon() {
+        return Ok(Value::float64(p.area()));
+    }
+
     Err(Error::TypeMismatch {
-        expected: "BOX or CIRCLE".to_string(),
+        expected: "BOX, CIRCLE, or POLYGON".to_string(),
         actual: geom.data_type().to_string(),
     })
 }
@@ -211,6 +215,10 @@ pub fn contains(container: &Value, contained: &Value) -> Result<Value> {
         return Ok(Value::bool_val(c.contains_point(p)));
     }
 
+    if let (Some(poly), Some(p)) = (container.as_polygon(), contained.as_point()) {
+        return Ok(Value::bool_val(poly.contains_point(p)));
+    }
+
     Err(Error::invalid_query(format!(
         "Cannot check containment for {} @> {}",
         container.data_type(),
@@ -229,6 +237,10 @@ pub fn contained_by(contained: &Value, container: &Value) -> Result<Value> {
 
     if let (Some(p), Some(c)) = (contained.as_point(), container.as_circle()) {
         return Ok(Value::bool_val(c.contains_point(p)));
+    }
+
+    if let (Some(p), Some(poly)) = (contained.as_point(), container.as_polygon()) {
+        return Ok(Value::bool_val(poly.contains_point(p)));
     }
 
     Err(Error::invalid_query(format!(
@@ -345,6 +357,168 @@ pub fn point_divide(p1: &Value, p2: &Value) -> Result<Value> {
     let y = (point1.y * point2.x - point1.x * point2.y) / denom;
 
     Ok(Value::point(PgPoint::new(x, y)))
+}
+
+pub fn lseg_constructor(p1: &Value, p2: &Value) -> Result<Value> {
+    if p1.is_null() || p2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let point1 = p1.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p1.data_type().to_string(),
+    })?;
+
+    let point2 = p2.as_point().ok_or_else(|| Error::TypeMismatch {
+        expected: "POINT".to_string(),
+        actual: p2.data_type().to_string(),
+    })?;
+
+    Ok(Value::lseg(PgLseg::new(point1.clone(), point2.clone())))
+}
+
+pub fn length(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    if let Some(lseg) = geom.as_lseg() {
+        return Ok(Value::float64(lseg.length()));
+    }
+
+    if let Some(path) = geom.as_path() {
+        return Ok(Value::float64(path.length()));
+    }
+
+    Err(Error::TypeMismatch {
+        expected: "LSEG or PATH".to_string(),
+        actual: geom.data_type().to_string(),
+    })
+}
+
+pub fn npoints(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    if let Some(path) = geom.as_path() {
+        return Ok(Value::int64(path.npoints()));
+    }
+
+    if let Some(polygon) = geom.as_polygon() {
+        return Ok(Value::int64(polygon.npoints()));
+    }
+
+    Err(Error::TypeMismatch {
+        expected: "PATH or POLYGON".to_string(),
+        actual: geom.data_type().to_string(),
+    })
+}
+
+pub fn isclosed(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    let path = geom.as_path().ok_or_else(|| Error::TypeMismatch {
+        expected: "PATH".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    Ok(Value::bool_val(path.is_closed()))
+}
+
+pub fn isopen(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    let path = geom.as_path().ok_or_else(|| Error::TypeMismatch {
+        expected: "PATH".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    Ok(Value::bool_val(path.is_open()))
+}
+
+pub fn popen(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    let path = geom.as_path().ok_or_else(|| Error::TypeMismatch {
+        expected: "PATH".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    Ok(Value::path(path.popen()))
+}
+
+pub fn pclose(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    let path = geom.as_path().ok_or_else(|| Error::TypeMismatch {
+        expected: "PATH".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    Ok(Value::path(path.pclose()))
+}
+
+pub fn is_parallel(lseg1: &Value, lseg2: &Value) -> Result<Value> {
+    if lseg1.is_null() || lseg2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let l1 = lseg1.as_lseg().ok_or_else(|| Error::TypeMismatch {
+        expected: "LSEG".to_string(),
+        actual: lseg1.data_type().to_string(),
+    })?;
+
+    let l2 = lseg2.as_lseg().ok_or_else(|| Error::TypeMismatch {
+        expected: "LSEG".to_string(),
+        actual: lseg2.data_type().to_string(),
+    })?;
+
+    Ok(Value::bool_val(l1.is_parallel(l2)))
+}
+
+pub fn is_perpendicular(lseg1: &Value, lseg2: &Value) -> Result<Value> {
+    if lseg1.is_null() || lseg2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let l1 = lseg1.as_lseg().ok_or_else(|| Error::TypeMismatch {
+        expected: "LSEG".to_string(),
+        actual: lseg1.data_type().to_string(),
+    })?;
+
+    let l2 = lseg2.as_lseg().ok_or_else(|| Error::TypeMismatch {
+        expected: "LSEG".to_string(),
+        actual: lseg2.data_type().to_string(),
+    })?;
+
+    Ok(Value::bool_val(l1.is_perpendicular(l2)))
+}
+
+pub fn intersects(lseg1: &Value, lseg2: &Value) -> Result<Value> {
+    if lseg1.is_null() || lseg2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let l1 = lseg1.as_lseg().ok_or_else(|| Error::TypeMismatch {
+        expected: "LSEG".to_string(),
+        actual: lseg1.data_type().to_string(),
+    })?;
+
+    let l2 = lseg2.as_lseg().ok_or_else(|| Error::TypeMismatch {
+        expected: "LSEG".to_string(),
+        actual: lseg2.data_type().to_string(),
+    })?;
+
+    Ok(Value::bool_val(l1.intersects(l2)))
 }
 
 #[cfg(test)]

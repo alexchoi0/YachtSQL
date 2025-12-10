@@ -565,10 +565,16 @@ impl SubqueryFlattening {
                     || args.first().is_some_and(|e| matches!(e, Expr::Wildcard))
                 {
                     "*".to_string()
-                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
-                    col_name.clone()
                 } else {
-                    "...".to_string()
+                    let arg_strs: Vec<String> = args
+                        .iter()
+                        .map(|arg| match arg {
+                            Expr::Column { name: col_name, .. } => col_name.clone(),
+                            Expr::Wildcard => "*".to_string(),
+                            _ => "...".to_string(),
+                        })
+                        .collect();
+                    arg_strs.join(", ")
                 };
                 format!("{}({})", name.as_str(), arg_str)
             }

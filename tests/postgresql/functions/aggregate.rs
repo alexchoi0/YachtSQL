@@ -629,7 +629,6 @@ fn test_array_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_agg_with_order() {
     let mut executor = create_executor();
     setup_table(&mut executor);
@@ -1162,7 +1161,6 @@ fn test_aggregate_expression_in_order_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_aggregate_with_distinct_in_expression() {
     let mut executor = create_executor();
     setup_table(&mut executor);
@@ -1727,7 +1725,6 @@ fn test_correlation_window_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_covariance_window_function() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
@@ -1738,14 +1735,14 @@ fn test_covariance_window_function() {
     assert_table_eq!(
         result,
         [
-            [1, 1.0, 2.0, 2.0],
-            [2, 2.0, 4.0, 2.0],
-            [3, 3.0, 6.0, 2.0],
-            [4, 4.0, 8.0, 2.0],
-            [5, 5.0, 10.0, 2.0],
-            [6, 6.0, 12.0, 2.0],
-            [7, 7.0, 14.0, 1.0],
-            [8, 8.0, 16.0, 1.0],
+            [1, 1.0, 2.0, 1.3333333333333333],
+            [2, 2.0, 4.0, 1.3333333333333333],
+            [3, 3.0, 6.0, 1.3333333333333333],
+            [4, 4.0, 8.0, 1.3333333333333333],
+            [5, 5.0, 10.0, 1.3333333333333333],
+            [6, 6.0, 12.0, 1.3333333333333333],
+            [7, 7.0, 14.0, 0.5],
+            [8, 8.0, 16.0, 0.5],
         ]
     );
 }
@@ -1843,14 +1840,13 @@ fn test_correlation_quadratic_relationship() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_correlation_with_order_by() {
     let mut executor = create_executor();
     setup_correlation_data(&mut executor);
 
     let result = executor
         .execute_sql(
-            "SELECT category, CORR(x, y) AS corr FROM correlation_data GROUP BY category ORDER BY CORR(x, y) DESC",
+            "SELECT category, CORR(x, y) AS corr FROM correlation_data GROUP BY category ORDER BY CORR(x, y) DESC, category",
         )
         .unwrap();
     assert_table_eq!(result, [["A", 1.0], ["B", 1.0], ["C", 1.0]]);

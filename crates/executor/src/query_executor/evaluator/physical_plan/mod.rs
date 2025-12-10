@@ -1412,6 +1412,10 @@ impl UnnestExec {
                 LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
                 LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
                 LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
+                LiteralValue::Line(_s) => Value::null(),
+                LiteralValue::Lseg(_s) => Value::null(),
+                LiteralValue::Path(_s) => Value::null(),
+                LiteralValue::Polygon(_s) => Value::null(),
                 LiteralValue::MacAddr(s) => {
                     use yachtsql_core::types::MacAddress;
                     match MacAddress::parse(s, false) {

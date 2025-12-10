@@ -39,6 +39,39 @@ impl SubqueryExecutorImpl {
         }
     }
 
+    pub fn execute_subquery(&self, sql: &str) -> Result<crate::Table> {
+        use yachtsql_parser::{LogicalPlanBuilder, Parser, Statement};
+
+        let parser = Parser::with_dialect(self._dialect);
+        let statements = parser
+            .parse_sql(sql)
+            .map_err(|e| Error::parse_error(format!("Failed to parse subquery: {}", e)))?;
+
+        if statements.is_empty() {
+            return Err(Error::parse_error("Empty subquery".to_string()));
+        }
+
+        let statement = &statements[0];
+
+        let plan_builder = LogicalPlanBuilder::new()
+            .with_storage(Rc::clone(&self._storage))
+            .with_dialect(self._dialect);
+
+        let logical_plan = match statement {
+            Statement::Standard(std_stmt) => match std_stmt.ast() {
+                sqlparser::ast::Statement::Query(query) => plan_builder.query_to_plan(query),
+                _ => Err(Error::invalid_query(
+                    "SET subquery must be a SELECT statement".to_string(),
+                )),
+            },
+            Statement::Custom(_) => Err(Error::invalid_query(
+                "SET subquery must be a SELECT statement".to_string(),
+            )),
+        }?;
+
+        self.execute_plan(logical_plan.root())
+    }
+
     fn execute_plan(&self, plan: &PlanNode) -> Result<crate::Table> {
         use yachtsql_storage::Column;
 
@@ -699,6 +732,18 @@ impl SubqueryExecutorImpl {
                             Ok(Value::null())
                         } else if let Some(i) = val.as_i64() {
                             Ok(Value::int64(!i))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    UnaryOp::TSQueryNot => {
+                        if val.is_null() {
+                            Ok(Value::null())
+                        } else if let Some(s) = val.as_str() {
+                            match yachtsql_functions::fulltext::tsquery_negate(s) {
+                                Ok(result) => Ok(Value::string(result)),
+                                Err(_) => Ok(Value::null()),
+                            }
                         } else {
                             Ok(Value::null())
                         }

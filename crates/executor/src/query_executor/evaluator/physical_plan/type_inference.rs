@@ -307,9 +307,12 @@ impl ProjectionWithExprExec {
             | BinaryOp::VectorInnerProduct
             | BinaryOp::VectorCosineDistance => Some(DataType::Float64),
 
-            BinaryOp::ArrayContains | BinaryOp::ArrayContainedBy | BinaryOp::ArrayOverlap => {
-                Some(DataType::Bool)
-            }
+            BinaryOp::ArrayContains | BinaryOp::ArrayContainedBy => Some(DataType::Bool),
+
+            BinaryOp::ArrayOverlap => match (&left_type, &right_type) {
+                (Some(DataType::String), Some(DataType::String)) => Some(DataType::String),
+                _ => Some(DataType::Bool),
+            },
 
             BinaryOp::Like
             | BinaryOp::NotLike
@@ -346,7 +349,10 @@ impl ProjectionWithExprExec {
             | BinaryOp::InetContainedBy
             | BinaryOp::InetContainsOrEqual
             | BinaryOp::InetContainedByOrEqual
-            | BinaryOp::InetOverlap => Some(DataType::Bool),
+            | BinaryOp::InetOverlap
+            | BinaryOp::TSVectorMatch => Some(DataType::Bool),
+
+            BinaryOp::TSQueryAnd => Some(DataType::String),
 
             BinaryOp::ShiftLeft | BinaryOp::ShiftRight => match (&left_type, &right_type) {
                 (Some(DataType::Range(_)), Some(DataType::Range(_))) => Some(DataType::Bool),
@@ -372,6 +378,7 @@ impl ProjectionWithExprExec {
                 Some(DataType::Inet) => Some(DataType::Inet),
                 _ => Some(DataType::Int64),
             },
+            UnaryOp::TSQueryNot => Some(DataType::String),
         }
     }
 
@@ -410,6 +417,10 @@ impl ProjectionWithExprExec {
             LiteralValue::Point(_) => Some(DataType::Point),
             LiteralValue::PgBox(_) => Some(DataType::PgBox),
             LiteralValue::Circle(_) => Some(DataType::Circle),
+            LiteralValue::Line(_) => Some(DataType::Line),
+            LiteralValue::Lseg(_) => Some(DataType::Lseg),
+            LiteralValue::Path(_) => Some(DataType::Path),
+            LiteralValue::Polygon(_) => Some(DataType::Polygon),
             LiteralValue::MacAddr(_) => Some(DataType::MacAddr),
             LiteralValue::MacAddr8(_) => Some(DataType::MacAddr8),
         }
@@ -2115,14 +2126,24 @@ impl ProjectionWithExprExec {
             | FunctionName::TsvectorConcat
             | FunctionName::TsqueryAnd
             | FunctionName::TsqueryOr
-            | FunctionName::TsqueryNot => Some(DataType::String),
+            | FunctionName::TsqueryNot
+            | FunctionName::Querytree
+            | FunctionName::TsRewrite
+            | FunctionName::TsDelete
+            | FunctionName::TsFilter
+            | FunctionName::ArrayToTsvector
+            | FunctionName::GetCurrentTsConfig => Some(DataType::String),
             FunctionName::TsRank | FunctionName::TsRankCd => Some(DataType::Float64),
             FunctionName::TsMatch => Some(DataType::Bool),
-            FunctionName::TsvectorLength => Some(DataType::Int64),
+            FunctionName::TsvectorLength | FunctionName::Numnode => Some(DataType::Int64),
+            FunctionName::TsvectorToArray => Some(DataType::Array(Box::new(DataType::String))),
 
             FunctionName::Point => Some(DataType::Point),
             FunctionName::Box => Some(DataType::PgBox),
             FunctionName::Circle => Some(DataType::Circle),
+            FunctionName::Line => Some(DataType::Line),
+            FunctionName::Lseg => Some(DataType::Lseg),
+            FunctionName::Polygon => Some(DataType::Polygon),
 
             FunctionName::Area
             | FunctionName::Width
@@ -2130,6 +2151,12 @@ impl ProjectionWithExprExec {
             | FunctionName::Radius
             | FunctionName::Diameter
             | FunctionName::Distance => Some(DataType::Float64),
+
+            FunctionName::Npoints => Some(DataType::Int64),
+
+            FunctionName::Isclosed | FunctionName::Isopen => Some(DataType::Bool),
+
+            FunctionName::Popen | FunctionName::Pclose => Some(DataType::Path),
 
             FunctionName::Center => Some(DataType::Point),
 

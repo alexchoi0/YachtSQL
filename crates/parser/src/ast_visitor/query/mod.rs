@@ -129,11 +129,11 @@ impl LogicalPlanBuilder {
                 sort_exprs
             };
 
-            let (modified_plan, original_projection) =
+            let (modified_plan, original_projection, rewritten_sort_exprs) =
                 self.inject_order_by_columns_into_projection(&plan, &sort_exprs);
 
             plan = LogicalPlan::new(PlanNode::Sort {
-                order_by: sort_exprs,
+                order_by: rewritten_sort_exprs,
                 input: modified_plan.root,
             });
 
@@ -173,7 +173,14 @@ impl LogicalPlanBuilder {
             });
         }
 
-        let (limit_val, offset_val) = self.parse_limit_clause(&query.limit_clause)?;
+        let (mut limit_val, offset_val) = self.parse_limit_clause(&query.limit_clause)?;
+
+        if let Some(fetch_limit) = self.parse_fetch_clause(&query.fetch)? {
+            limit_val = match limit_val {
+                Some(existing) => Some(existing.min(fetch_limit)),
+                None => Some(fetch_limit),
+            };
+        }
 
         if limit_val.is_some() || offset_val > 0 {
             plan = LogicalPlan::new(PlanNode::Limit {
@@ -479,18 +486,8 @@ impl LogicalPlanBuilder {
                         }
 
                         match expr {
-                            Expr::Function { name, args } if self.is_aggregate(expr) => {
-                                let first_is_wildcard =
-                                    args.first().is_some_and(|expr| expr.is_wildcard());
-                                let col_name = if args.is_empty() || first_is_wildcard {
-                                    format!("{}(*)", name.as_str())
-                                } else if let Some(Expr::Column { name: col_name, .. }) =
-                                    args.first()
-                                {
-                                    format!("{}({})", name.as_str(), col_name)
-                                } else {
-                                    format!("{}(...)", name.as_str())
-                                };
+                            Expr::Function { .. } if self.is_aggregate(expr) => {
+                                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                                 (
                                     Expr::Column {
                                         name: col_name,
@@ -499,33 +496,8 @@ impl LogicalPlanBuilder {
                                     alias.clone(),
                                 )
                             }
-                            Expr::Aggregate {
-                                name,
-                                args,
-                                distinct,
-                                ..
-                            } => {
-                                let first_is_wildcard =
-                                    args.first().is_some_and(|expr| expr.is_wildcard());
-                                let col_name = if args.is_empty() || first_is_wildcard {
-                                    if *distinct {
-                                        format!("{}(DISTINCT *)", name.as_str())
-                                    } else {
-                                        format!("{}(*)", name.as_str())
-                                    }
-                                } else if let Some(Expr::Column { name: col_name, .. }) =
-                                    args.first()
-                                {
-                                    if *distinct {
-                                        format!("{}(DISTINCT {})", name.as_str(), col_name)
-                                    } else {
-                                        format!("{}({})", name.as_str(), col_name)
-                                    }
-                                } else if *distinct {
-                                    format!("{}(DISTINCT ...)", name.as_str())
-                                } else {
-                                    format!("{}(...)", name.as_str())
-                                };
+                            Expr::Aggregate { .. } => {
+                                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                                 (
                                     Expr::Column {
                                         name: col_name,
@@ -558,18 +530,8 @@ impl LogicalPlanBuilder {
                         }
 
                         match expr {
-                            Expr::Function { name, args } if self.is_aggregate(expr) => {
-                                let first_is_wildcard =
-                                    args.first().is_some_and(|expr| expr.is_wildcard());
-                                let col_name = if args.is_empty() || first_is_wildcard {
-                                    format!("{}(*)", name.as_str())
-                                } else if let Some(Expr::Column { name: col_name, .. }) =
-                                    args.first()
-                                {
-                                    format!("{}({})", name.as_str(), col_name)
-                                } else {
-                                    format!("{}(...)", name.as_str())
-                                };
+                            Expr::Function { .. } if self.is_aggregate(expr) => {
+                                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                                 (
                                     Expr::Column {
                                         name: col_name,
@@ -578,33 +540,8 @@ impl LogicalPlanBuilder {
                                     alias.clone(),
                                 )
                             }
-                            Expr::Aggregate {
-                                name,
-                                args,
-                                distinct,
-                                ..
-                            } => {
-                                let first_is_wildcard =
-                                    args.first().is_some_and(|expr| expr.is_wildcard());
-                                let col_name = if args.is_empty() || first_is_wildcard {
-                                    if *distinct {
-                                        format!("{}(DISTINCT *)", name.as_str())
-                                    } else {
-                                        format!("{}(*)", name.as_str())
-                                    }
-                                } else if let Some(Expr::Column { name: col_name, .. }) =
-                                    args.first()
-                                {
-                                    if *distinct {
-                                        format!("{}(DISTINCT {})", name.as_str(), col_name)
-                                    } else {
-                                        format!("{}({})", name.as_str(), col_name)
-                                    }
-                                } else if *distinct {
-                                    format!("{}(DISTINCT ...)", name.as_str())
-                                } else {
-                                    format!("{}(...)", name.as_str())
-                                };
+                            Expr::Aggregate { .. } => {
+                                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                                 (
                                     Expr::Column {
                                         name: col_name,
@@ -622,7 +559,17 @@ impl LogicalPlanBuilder {
                     })
                     .collect();
 
-                if final_projection.iter().any(|(_, alias)| alias.is_some()) {
+                let needs_projection = final_projection.iter().any(|(expr, alias)| {
+                    alias.is_some()
+                        || matches!(
+                            expr,
+                            Expr::BinaryOp { .. }
+                                | Expr::UnaryOp { .. }
+                                | Expr::Case { .. }
+                                | Expr::Cast { .. }
+                        )
+                });
+                if needs_projection {
                     plan = LogicalPlan::new(PlanNode::Projection {
                         expressions: final_projection,
                         input: plan.root,
@@ -1131,10 +1078,16 @@ impl LogicalPlanBuilder {
         let first_is_wildcard = args.first().is_some_and(|expr| expr.is_wildcard());
         let arg_str = if args.is_empty() || first_is_wildcard {
             "*".to_string()
-        } else if let Some(Expr::Column { name, .. }) = args.first() {
-            name.clone()
         } else {
-            "...".to_string()
+            let arg_strs: Vec<String> = args
+                .iter()
+                .map(|arg| match arg {
+                    Expr::Column { name, .. } => name.clone(),
+                    Expr::Wildcard => "*".to_string(),
+                    _ => "...".to_string(),
+                })
+                .collect();
+            arg_strs.join(", ")
         };
 
         if distinct {
@@ -1399,44 +1352,15 @@ impl LogicalPlanBuilder {
 
     fn rewrite_aggregate_to_column(&self, expr: &Expr) -> Expr {
         match expr {
-            Expr::Aggregate {
-                name,
-                args,
-                distinct,
-                ..
-            } => {
-                let first_is_wildcard = args.first().is_some_and(|e| e.is_wildcard());
-                let col_name = if args.is_empty() || first_is_wildcard {
-                    if *distinct {
-                        format!("{}(DISTINCT *)", name.as_str())
-                    } else {
-                        format!("{}(*)", name.as_str())
-                    }
-                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
-                    if *distinct {
-                        format!("{}(DISTINCT {})", name.as_str(), col_name)
-                    } else {
-                        format!("{}({})", name.as_str(), col_name)
-                    }
-                } else if *distinct {
-                    format!("{}(DISTINCT ...)", name.as_str())
-                } else {
-                    format!("{}(...)", name.as_str())
-                };
+            Expr::Aggregate { .. } => {
+                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                 Expr::Column {
                     name: col_name,
                     table: None,
                 }
             }
-            Expr::Function { name, args } if self.is_aggregate(expr) => {
-                let first_is_wildcard = args.first().is_some_and(|e| e.is_wildcard());
-                let col_name = if args.is_empty() || first_is_wildcard {
-                    format!("{}(*)", name.as_str())
-                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
-                    format!("{}({})", name.as_str(), col_name)
-                } else {
-                    format!("{}(...)", name.as_str())
-                };
+            Expr::Function { .. } if self.is_aggregate(expr) => {
+                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                 Expr::Column {
                     name: col_name,
                     table: None,
@@ -1558,44 +1482,15 @@ impl LogicalPlanBuilder {
         }
 
         match expr {
-            Expr::Function { name, args } if self.is_aggregate(expr) => {
-                let first_is_wildcard = args.first().is_some_and(|expr| expr.is_wildcard());
-                let col_name = if args.is_empty() || first_is_wildcard {
-                    format!("{}(*)", name.as_str())
-                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
-                    format!("{}({})", name.as_str(), col_name)
-                } else {
-                    format!("{}(...)", name.as_str())
-                };
+            Expr::Function { .. } if self.is_aggregate(expr) => {
+                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                 Expr::Column {
                     name: col_name,
                     table: None,
                 }
             }
-            Expr::Aggregate {
-                name,
-                args,
-                distinct,
-                ..
-            } => {
-                let first_is_wildcard = args.first().is_some_and(|expr| expr.is_wildcard());
-                let col_name = if args.is_empty() || first_is_wildcard {
-                    if *distinct {
-                        format!("{}(DISTINCT *)", name.as_str())
-                    } else {
-                        format!("{}(*)", name.as_str())
-                    }
-                } else if let Some(Expr::Column { name: col_name, .. }) = args.first() {
-                    if *distinct {
-                        format!("{}(DISTINCT {})", name.as_str(), col_name)
-                    } else {
-                        format!("{}({})", name.as_str(), col_name)
-                    }
-                } else if *distinct {
-                    format!("{}(DISTINCT ...)", name.as_str())
-                } else {
-                    format!("{}(...)", name.as_str())
-                };
+            Expr::Aggregate { .. } => {
+                let col_name = Self::format_aggregate_column_name_from_expr(expr);
                 Expr::Column {
                     name: col_name,
                     table: None,
@@ -1744,9 +1639,26 @@ impl LogicalPlanBuilder {
         &self,
         plan: &LogicalPlan,
         sort_exprs: &[yachtsql_optimizer::expr::OrderByExpr],
-    ) -> (LogicalPlan, Option<Vec<(Expr, Option<String>)>>) {
-        let PlanNode::Projection { expressions, input } = plan.root.as_ref() else {
-            return (plan.clone(), None);
+    ) -> (
+        LogicalPlan,
+        Option<Vec<(Expr, Option<String>)>>,
+        Vec<yachtsql_optimizer::expr::OrderByExpr>,
+    ) {
+        let (expressions, input_opt) = match plan.root.as_ref() {
+            PlanNode::Projection { expressions, input } => {
+                (expressions.clone(), Some(input.clone()))
+            }
+            PlanNode::Aggregate {
+                group_by,
+                aggregates,
+                ..
+            } => {
+                let mut exprs: Vec<(Expr, Option<String>)> =
+                    group_by.iter().map(|e| (e.clone(), None)).collect();
+                exprs.extend(aggregates.iter().map(|e| (e.clone(), None)));
+                (exprs, None)
+            }
+            _ => return (plan.clone(), None, sort_exprs.to_vec()),
         };
 
         let mut order_by_columns: Vec<(String, Option<String>)> = Vec::new();
@@ -1755,25 +1667,60 @@ impl LogicalPlanBuilder {
         }
 
         let mut projection_output_columns = std::collections::HashSet::new();
-        for (expr, alias) in expressions {
+        let mut agg_expr_to_output_name: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        for (expr, alias) in &expressions {
             if let Some(alias_name) = alias {
                 projection_output_columns.insert((alias_name.clone(), None));
                 projection_output_columns.insert((alias_name.clone(), Some(alias_name.clone())));
             }
-            if let Expr::Column { name, table } = expr {
-                projection_output_columns.insert((name.clone(), table.clone()));
-                projection_output_columns.insert((name.clone(), None));
+            match expr {
+                Expr::Column { name, table } => {
+                    projection_output_columns.insert((name.clone(), table.clone()));
+                    projection_output_columns.insert((name.clone(), None));
+                    if let Some(alias_name) = alias
+                        && Self::looks_like_aggregate_column_name(name)
+                    {
+                        agg_expr_to_output_name.insert(name.clone(), alias_name.clone());
+                    }
+                }
+                Expr::Aggregate { .. } | Expr::Function { .. } if self.is_aggregate(expr) => {
+                    let agg_col_name = Self::format_aggregate_column_name_from_expr(expr);
+                    let output_name = alias.clone().unwrap_or_else(|| agg_col_name.clone());
+                    agg_expr_to_output_name.insert(agg_col_name.clone(), output_name);
+                    projection_output_columns.insert((agg_col_name, None));
+                }
+                _ => {}
             }
         }
 
-        let missing_columns: Vec<(String, Option<String>)> = order_by_columns
+        let rewritten_sort_exprs: Vec<yachtsql_optimizer::expr::OrderByExpr> = sort_exprs
+            .iter()
+            .map(|sort_expr| {
+                let mut new_sort_expr = sort_expr.clone();
+                new_sort_expr.expr =
+                    Self::rewrite_column_with_alias_map(&sort_expr.expr, &agg_expr_to_output_name);
+                new_sort_expr
+            })
+            .collect();
+
+        let mut rewritten_order_by_columns: Vec<(String, Option<String>)> = Vec::new();
+        for sort_expr in &rewritten_sort_exprs {
+            Self::collect_column_refs(&sort_expr.expr, &mut rewritten_order_by_columns);
+        }
+
+        let missing_columns: Vec<(String, Option<String>)> = rewritten_order_by_columns
             .into_iter()
             .filter(|col| !projection_output_columns.contains(col))
             .collect();
 
         if missing_columns.is_empty() {
-            return (plan.clone(), None);
+            return (plan.clone(), None, rewritten_sort_exprs);
         }
+
+        let Some(input) = input_opt else {
+            return (plan.clone(), None, rewritten_sort_exprs);
+        };
 
         let original_exprs = expressions.clone();
 
@@ -1790,10 +1737,42 @@ impl LogicalPlanBuilder {
 
         let modified_plan = LogicalPlan::new(PlanNode::Projection {
             expressions: new_expressions,
-            input: input.clone(),
+            input,
         });
 
-        (modified_plan, Some(original_exprs))
+        (modified_plan, Some(original_exprs), rewritten_sort_exprs)
+    }
+
+    fn rewrite_column_with_alias_map(
+        expr: &Expr,
+        alias_map: &std::collections::HashMap<String, String>,
+    ) -> Expr {
+        match expr {
+            Expr::Column { name, table } => {
+                if let Some(output_name) = alias_map.get(name) {
+                    Expr::Column {
+                        name: output_name.clone(),
+                        table: table.clone(),
+                    }
+                } else {
+                    expr.clone()
+                }
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(Self::rewrite_column_with_alias_map(left, alias_map)),
+                op: *op,
+                right: Box::new(Self::rewrite_column_with_alias_map(right, alias_map)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: *op,
+                expr: Box::new(Self::rewrite_column_with_alias_map(inner, alias_map)),
+            },
+            _ => expr.clone(),
+        }
+    }
+
+    fn looks_like_aggregate_column_name(name: &str) -> bool {
+        name.contains('(') && name.contains(')')
     }
 
     fn collect_column_refs(expr: &Expr, columns: &mut Vec<(String, Option<String>)>) {
@@ -1940,6 +1919,23 @@ impl LogicalPlanBuilder {
         }
 
         Ok((limit_val, offset_val))
+    }
+
+    fn parse_fetch_clause(&self, fetch: &Option<ast::Fetch>) -> Result<Option<usize>> {
+        let Some(fetch_clause) = fetch else {
+            return Ok(None);
+        };
+
+        if fetch_clause.percent {
+            return Err(Error::unsupported_feature(
+                "FETCH FIRST ... PERCENT is not supported yet".to_string(),
+            ));
+        }
+
+        match &fetch_clause.quantity {
+            Some(expr) => Ok(Some(Self::parse_positive_integer(expr, "FETCH")?)),
+            None => Ok(Some(1)),
+        }
     }
 
     fn parse_positive_integer(expr: &ast::Expr, label: &str) -> Result<usize> {

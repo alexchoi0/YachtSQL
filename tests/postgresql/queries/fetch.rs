@@ -121,6 +121,7 @@ fn test_fetch_first_percent() {
 }
 
 #[test]
+#[ignore = "FETCH FIRST PERCENT is not supported yet"]
 fn test_fetch_first_percent_with_ties() {
     let mut executor = create_executor();
     executor

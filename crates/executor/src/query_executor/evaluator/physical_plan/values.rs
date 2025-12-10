@@ -87,6 +87,10 @@ impl ValuesExec {
             LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
             LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
             LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
+            LiteralValue::Line(_s) => Value::null(),
+            LiteralValue::Lseg(_s) => Value::null(),
+            LiteralValue::Path(_s) => Value::null(),
+            LiteralValue::Polygon(_s) => Value::null(),
             LiteralValue::MacAddr(s) => {
                 use yachtsql_core::types::MacAddress;
                 match MacAddress::parse(s, false) {
@@ -315,6 +319,10 @@ fn infer_expr_type(expr: &Expr) -> Option<DataType> {
             LiteralValue::Point(_) => Some(DataType::Point),
             LiteralValue::PgBox(_) => Some(DataType::PgBox),
             LiteralValue::Circle(_) => Some(DataType::Circle),
+            LiteralValue::Line(_) => Some(DataType::Line),
+            LiteralValue::Lseg(_) => Some(DataType::Lseg),
+            LiteralValue::Path(_) => Some(DataType::Path),
+            LiteralValue::Polygon(_) => Some(DataType::Polygon),
             LiteralValue::MacAddr(_) => Some(DataType::MacAddr),
             LiteralValue::MacAddr8(_) => Some(DataType::MacAddr8),
         },

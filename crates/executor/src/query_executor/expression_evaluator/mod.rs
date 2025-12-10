@@ -285,7 +285,6 @@ impl<'a> ExpressionEvaluator<'a> {
                 | UnaryOperator::PGSquareRoot
                 | UnaryOperator::PGCubeRoot
                 | UnaryOperator::PGPostfixFactorial
-                | UnaryOperator::PGPrefixFactorial
                 | UnaryOperator::PGAbs
                 | UnaryOperator::BangNot
                 | UnaryOperator::AtDashAt
@@ -296,6 +295,19 @@ impl<'a> ExpressionEvaluator<'a> {
                     "Unary operator {:?} not supported in WHERE",
                     op
                 ))),
+                UnaryOperator::PGPrefixFactorial => {
+                    let value = self.evaluate_expr(expr, row)?;
+                    if let Some(s) = value.as_str() {
+                        let result = yachtsql_functions::fulltext::tsquery_negate(s)
+                            .map_err(|e| Error::ExecutionError(e.to_string()))?;
+                        self.value_to_bool(&Value::string(result))
+                    } else {
+                        Err(Error::UnsupportedFeature(format!(
+                            "Unary operator {:?} not supported in WHERE",
+                            op
+                        )))
+                    }
+                }
             },
 
             SqlExpr::IsNull(expr) => {
@@ -1232,11 +1244,22 @@ impl<'a> ExpressionEvaluator<'a> {
                     UnaryOperator::Plus => Ok(value),
                     UnaryOperator::Minus => self.negate_value(&value),
                     UnaryOperator::Not => self.apply_not(&value),
+                    UnaryOperator::PGPrefixFactorial => {
+                        if let Some(s) = value.as_str() {
+                            let result = yachtsql_functions::fulltext::tsquery_negate(s)
+                                .map_err(|e| Error::ExecutionError(e.to_string()))?;
+                            Ok(Value::string(result))
+                        } else {
+                            Err(Error::UnsupportedFeature(format!(
+                                "Unary operator not supported: {:?}",
+                                op
+                            )))
+                        }
+                    }
                     UnaryOperator::PGBitwiseNot
                     | UnaryOperator::PGSquareRoot
                     | UnaryOperator::PGCubeRoot
                     | UnaryOperator::PGPostfixFactorial
-                    | UnaryOperator::PGPrefixFactorial
                     | UnaryOperator::PGAbs
                     | UnaryOperator::BangNot
                     | UnaryOperator::AtDashAt
@@ -1244,7 +1267,7 @@ impl<'a> ExpressionEvaluator<'a> {
                     | UnaryOperator::Hash
                     | UnaryOperator::QuestionDash
                     | UnaryOperator::QuestionPipe => Err(Error::UnsupportedFeature(format!(
-                        "Unary operator {:?} not supported",
+                        "Unary operator not supported: {:?}",
                         op
                     ))),
                 }
@@ -2214,6 +2237,22 @@ impl<'a> ExpressionEvaluator<'a> {
                         expected: "HSTORE".to_string(),
                         actual: format!("{:?}", left.data_type()),
                     })
+                }
+            }
+            BinaryOperator::AtAt => {
+                if has_null {
+                    Ok(false)
+                } else {
+                    let left_str = left.as_str().ok_or_else(|| Error::TypeMismatch {
+                        expected: "STRING (tsvector or tsquery)".to_string(),
+                        actual: format!("{:?}", left.data_type()),
+                    })?;
+                    let right_str = right.as_str().ok_or_else(|| Error::TypeMismatch {
+                        expected: "STRING (tsvector or tsquery)".to_string(),
+                        actual: format!("{:?}", right.data_type()),
+                    })?;
+                    yachtsql_functions::fulltext::ts_match(left_str, right_str)
+                        .map_err(|e| Error::ExecutionError(e.to_string()))
                 }
             }
             _ => Err(Error::UnsupportedFeature(format!(
@@ -3705,7 +3744,11 @@ impl<'a> ExpressionEvaluator<'a> {
                     )));
                 }
                 let arg = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::scalar::eval_length(&arg)
+                if arg.as_lseg().is_some() || arg.as_path().is_some() {
+                    yachtsql_functions::geometric::length(&arg)
+                } else {
+                    yachtsql_functions::scalar::eval_length(&arg)
+                }
             }
             "OCTET_LENGTH" => {
                 if args.len() != 1 {
@@ -7161,6 +7204,51 @@ impl<'a> ExpressionEvaluator<'a> {
                 let box_val = self.evaluate_function_arg(&args[0], row)?;
                 yachtsql_functions::geometric::height(&box_val)
             }
+            "NPOINTS" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "NPOINTS() requires exactly 1 argument (path or polygon)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::npoints(&geom)
+            }
+            "ISCLOSED" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "ISCLOSED() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::isclosed(&geom)
+            }
+            "ISOPEN" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "ISOPEN() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::isopen(&geom)
+            }
+            "POPEN" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "POPEN() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::popen(&geom)
+            }
+            "PCLOSE" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "PCLOSE() requires exactly 1 argument (path)".to_string(),
+                    ));
+                }
+                let geom = self.evaluate_function_arg(&args[0], row)?;
+                yachtsql_functions::geometric::pclose(&geom)
+            }
 
             "HSTORE" => {
                 if args.len() != 2 {
@@ -9993,7 +10081,13 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Range(_) => Some("range"),
             DataType::Struct(_) => Some("struct"),
             DataType::Geography => Some("geography"),
-            DataType::Point | DataType::PgBox | DataType::Circle => Some("geometric"),
+            DataType::Point
+            | DataType::PgBox
+            | DataType::Circle
+            | DataType::Line
+            | DataType::Lseg
+            | DataType::Path
+            | DataType::Polygon => Some("geometric"),
             DataType::Enum { .. } => Some("enum"),
             DataType::Serial | DataType::BigSerial => Some("integer"),
             DataType::Inet => Some("inet"),
