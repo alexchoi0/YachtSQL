@@ -5024,6 +5024,111 @@ impl ProjectionWithExprExec {
                 Ok(Value::int64(result))
             }
 
+            "EMPTY" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("empty requires 1 argument"));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if val.is_null() {
+                    return Ok(Value::int64(1));
+                }
+                if let Some(uuid) = val.as_uuid() {
+                    return Ok(Value::int64(if uuid.is_nil() { 1 } else { 0 }));
+                }
+                if let Some(s) = val.as_str() {
+                    if s == "00000000-0000-0000-0000-000000000000" {
+                        return Ok(Value::int64(1));
+                    }
+                    return Ok(Value::int64(if s.is_empty() { 1 } else { 0 }));
+                }
+                if let Some(arr) = val.as_array() {
+                    return Ok(Value::int64(if arr.is_empty() { 1 } else { 0 }));
+                }
+                Ok(Value::int64(0))
+            }
+
+            "NOTEMPTY" => {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query("notEmpty requires 1 argument"));
+                }
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if val.is_null() {
+                    return Ok(Value::int64(0));
+                }
+                if let Some(uuid) = val.as_uuid() {
+                    return Ok(Value::int64(if uuid.is_nil() { 0 } else { 1 }));
+                }
+                if let Some(s) = val.as_str() {
+                    if s == "00000000-0000-0000-0000-000000000000" {
+                        return Ok(Value::int64(0));
+                    }
+                    return Ok(Value::int64(if s.is_empty() { 0 } else { 1 }));
+                }
+                if let Some(arr) = val.as_array() {
+                    return Ok(Value::int64(if arr.is_empty() { 0 } else { 1 }));
+                }
+                Ok(Value::int64(1))
+            }
+
+            "NULLIN" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("nullIn requires 2 arguments"));
+                }
+                let needle = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let haystack = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if let Some(arr) = haystack.as_array() {
+                    for val in arr {
+                        if needle.is_null() && val.is_null() {
+                            return Ok(Value::bool_val(true));
+                        }
+                        if !needle.is_null() && !val.is_null() && needle == *val {
+                            return Ok(Value::bool_val(true));
+                        }
+                    }
+                }
+                Ok(Value::bool_val(false))
+            }
+
+            "NOTNULLIN" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query("notNullIn requires 2 arguments"));
+                }
+                let needle = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let haystack = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if let Some(arr) = haystack.as_array() {
+                    for val in arr {
+                        if needle.is_null() && val.is_null() {
+                            return Ok(Value::bool_val(false));
+                        }
+                        if !needle.is_null() && !val.is_null() && needle == *val {
+                            return Ok(Value::bool_val(false));
+                        }
+                    }
+                }
+                Ok(Value::bool_val(true))
+            }
+
+            "NULLINIGNORENULL" => {
+                if args.len() != 2 {
+                    return Err(Error::invalid_query(
+                        "nullInIgnoreNull requires 2 arguments",
+                    ));
+                }
+                let needle = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let haystack = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if needle.is_null() {
+                    return Ok(Value::bool_val(false));
+                }
+                if let Some(arr) = haystack.as_array() {
+                    for val in arr {
+                        if !val.is_null() && needle == *val {
+                            return Ok(Value::bool_val(true));
+                        }
+                    }
+                }
+                Ok(Value::bool_val(false))
+            }
+
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown custom function: {}",
                 name

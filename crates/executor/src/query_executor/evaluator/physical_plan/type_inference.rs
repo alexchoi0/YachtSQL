@@ -1046,7 +1046,45 @@ impl ProjectionWithExprExec {
                     Self::infer_expr_type_with_schema(&args[0], schema)
                 }
             }
-            FunctionName::Custom(s) if matches!(s.as_str(), "TOUUID") => Some(DataType::Uuid),
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "TOUUID" | "TOUUIDORZERO" | "TOUUIDORNULL") =>
+            {
+                Some(DataType::Uuid)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "GENERATEULID") => {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "ULIDSTRINGTODATETIME") => {
+                Some(DataType::Timestamp)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "UUIDSTRINGTONUM") => {
+                Some(DataType::Bytes)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "UUIDNUMTOSTRING") => {
+                Some(DataType::String)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "EMPTY" | "NOTEMPTY") => {
+                Some(DataType::Int64)
+            }
+
+            FunctionName::Custom(s)
+                if matches!(s.as_str(), "NULLIN" | "NOTNULLIN" | "NULLINIGNORENULL") =>
+            {
+                Some(DataType::Bool)
+            }
+
+            FunctionName::Custom(s) if matches!(s.as_str(), "TONULLABLE" | "ASSUMENOTNULL") => {
+                if args.is_empty() {
+                    None
+                } else {
+                    Self::infer_expr_type_with_schema(&args[0], schema)
+                }
+            }
 
             FunctionName::BitmapBuild
             | FunctionName::BitmapToArray
