@@ -231,6 +231,14 @@ pub struct CheckConstraint {
     pub enforced: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UniqueConstraint {
+    pub name: Option<String>,
+    pub columns: Vec<String>,
+    pub enforced: bool,
+    pub nulls_distinct: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConstraintTypeTag {
     PrimaryKey,
@@ -251,7 +259,7 @@ pub struct ConstraintMetadata {
 pub struct Schema {
     fields: Vec<Field>,
     primary_key: Option<Vec<String>>,
-    unique_constraints: Vec<Vec<String>>,
+    unique_constraints: Vec<UniqueConstraint>,
     check_constraints: Vec<CheckConstraint>,
     foreign_keys: Vec<crate::ForeignKey>,
     constraint_metadata: HashMap<String, ConstraintMetadata>,
@@ -379,7 +387,7 @@ impl Schema {
                 let has_explicit_unique = self
                     .unique_constraints
                     .iter()
-                    .any(|cols| cols.len() == 1 && cols[0] == field.name);
+                    .any(|c| c.columns.len() == 1 && c.columns[0] == field.name);
 
                 if !has_explicit_unique {
                     field.is_unique = false;
@@ -395,11 +403,11 @@ impl Schema {
         self.primary_key.as_deref()
     }
 
-    pub fn add_unique_constraint(&mut self, columns: Vec<String>) {
-        self.unique_constraints.push(columns);
+    pub fn add_unique_constraint(&mut self, constraint: UniqueConstraint) {
+        self.unique_constraints.push(constraint);
     }
 
-    pub fn unique_constraints(&self) -> &[Vec<String>] {
+    pub fn unique_constraints(&self) -> &[UniqueConstraint] {
         &self.unique_constraints
     }
 

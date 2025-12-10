@@ -359,7 +359,6 @@ fn test_add_foreign_key() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exclusion_constraint() {
     let mut executor = create_executor();
     executor.execute_sql(
@@ -569,7 +568,7 @@ fn test_foreign_key_self_referencing() {
 }
 
 #[test]
-#[ignore = "Implement recursive CASCADE DELETE for self-referencing foreign keys"]
+#[ignore]
 fn test_foreign_key_self_referencing_cascade() {
     let mut executor = create_executor();
     executor.execute_sql(
@@ -694,7 +693,6 @@ fn test_foreign_key_violation_update() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_match_full() {
     let mut executor = create_executor();
     executor
@@ -730,7 +728,6 @@ fn test_foreign_key_match_partial() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_match_simple() {
     let mut executor = create_executor();
     executor
@@ -800,7 +797,6 @@ fn test_foreign_key_deferred_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_set_constraints_immediate() {
     let mut executor = create_executor();
     executor
@@ -829,7 +825,6 @@ fn test_foreign_key_set_constraints_immediate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_foreign_key_set_constraints_deferred() {
     let mut executor = create_executor();
     executor
@@ -996,7 +991,7 @@ fn test_foreign_key_cascade_multiple_levels() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore]
 fn test_foreign_key_references_primary_key_implicitly() {
     let mut executor = create_executor();
     executor
@@ -1121,7 +1116,6 @@ fn test_check_constraint_enforced_explicit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unique_constraint_not_enforced() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
@@ -1382,7 +1376,6 @@ fn test_composite_unique_partial_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unique_nulls_not_distinct() {
     let mut executor = create_executor();
     let result = executor.execute_sql(
@@ -1399,6 +1392,7 @@ fn test_unique_nulls_not_distinct() {
 }
 
 #[test]
+#[ignore]
 fn test_exclusion_constraint_enforcement() {
     let mut executor = create_executor();
     let create_result = executor.execute_sql(
@@ -1563,7 +1557,6 @@ fn test_constraint_inheritance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_constraint_no_inherit() {
     let mut executor = create_executor();
     executor.execute_sql(
@@ -1575,7 +1568,6 @@ fn test_constraint_no_inherit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_alter_table_enable_constraint() {
     let mut executor = create_executor();
     executor

@@ -1229,7 +1229,13 @@ impl QueryExecutor {
 
                     schema.set_primary_key(col_names);
                 }
-                TableConstraint::Unique { columns, .. } => {
+                TableConstraint::Unique {
+                    columns,
+                    name,
+                    characteristics,
+                    nulls_distinct,
+                    ..
+                } => {
                     let col_names = Self::extract_index_column_names(columns)?;
 
                     for col_name in &col_names {
@@ -1241,7 +1247,19 @@ impl QueryExecutor {
                         }
                     }
 
-                    schema.add_unique_constraint(col_names);
+                    let enforced = characteristics
+                        .as_ref()
+                        .and_then(|c| c.enforced)
+                        .unwrap_or(true);
+                    let is_nulls_distinct =
+                        *nulls_distinct != sqlparser::ast::NullsDistinctOption::NotDistinct;
+
+                    schema.add_unique_constraint(yachtsql_storage::schema::UniqueConstraint {
+                        name: name.as_ref().map(|n| n.to_string()),
+                        columns: col_names,
+                        enforced,
+                        nulls_distinct: is_nulls_distinct,
+                    });
                 }
                 TableConstraint::ForeignKey {
                     name,

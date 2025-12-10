@@ -89,7 +89,7 @@ fn test_create_table_with_single_column_unique() {
         "Should have 1 UNIQUE constraint"
     );
     assert_eq!(
-        unique_constraints[0],
+        unique_constraints[0].columns,
         vec!["email"],
         "UNIQUE should be on 'email' column"
     );
@@ -123,7 +123,7 @@ fn test_create_table_with_multi_column_unique() {
         "Should have 1 UNIQUE constraint"
     );
     assert_eq!(
-        unique_constraints[0],
+        unique_constraints[0].columns,
         vec!["first_name", "last_name"],
         "UNIQUE should be on both columns"
     );
@@ -158,12 +158,12 @@ fn test_create_table_with_multiple_unique_constraints() {
         "Should have 2 UNIQUE constraints"
     );
     assert_eq!(
-        unique_constraints[0],
+        unique_constraints[0].columns,
         vec!["email"],
         "First UNIQUE should be on 'email'"
     );
     assert_eq!(
-        unique_constraints[1],
+        unique_constraints[1].columns,
         vec!["username"],
         "Second UNIQUE should be on 'username'"
     );
@@ -207,12 +207,12 @@ fn test_create_table_with_primary_key_and_unique() {
         "Should have 2 UNIQUE constraints"
     );
     assert_eq!(
-        unique_constraints[0],
+        unique_constraints[0].columns,
         vec!["email"],
         "First UNIQUE should be on 'email'"
     );
     assert_eq!(
-        unique_constraints[1],
+        unique_constraints[1].columns,
         vec!["username"],
         "Second UNIQUE should be on 'username'"
     );
@@ -356,7 +356,7 @@ fn test_create_table_all_constraint_types() {
 
     let unique_constraints = table.schema().unique_constraints();
     assert_eq!(unique_constraints.len(), 1);
-    assert_eq!(unique_constraints[0], vec!["sku"]);
+    assert_eq!(unique_constraints[0].columns, vec!["sku"]);
 
     let check_constraints = table.schema().check_constraints();
     assert_eq!(check_constraints.len(), 1);
@@ -416,5 +416,5 @@ fn test_create_table_empty_table_name_with_constraints() {
 
     let unique_constraints = table.schema().unique_constraints();
     assert_eq!(unique_constraints.len(), 1);
-    assert_eq!(unique_constraints[0], vec!["email"]);
+    assert_eq!(unique_constraints[0].columns, vec!["email"]);
 }

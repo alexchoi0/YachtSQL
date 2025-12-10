@@ -201,7 +201,8 @@ impl TableSchemaOps for Table {
         }
 
         for unique in self.schema.unique_constraints() {
-            let new_unique: Vec<String> = unique
+            let new_columns: Vec<String> = unique
+                .columns
                 .iter()
                 .map(|col| {
                     if col == old_name {
@@ -211,7 +212,12 @@ impl TableSchemaOps for Table {
                     }
                 })
                 .collect();
-            new_schema.add_unique_constraint(new_unique);
+            new_schema.add_unique_constraint(crate::schema::UniqueConstraint {
+                name: unique.name.clone(),
+                columns: new_columns,
+                enforced: unique.enforced,
+                nulls_distinct: unique.nulls_distinct,
+            });
         }
 
         for check in self.schema.check_constraints() {
@@ -330,13 +336,19 @@ pub(super) fn copy_constraints_excluding_column(
     }
 
     for unique in table.schema.unique_constraints() {
-        let new_unique: Vec<String> = unique
+        let new_columns: Vec<String> = unique
+            .columns
             .iter()
             .filter(|col| *col != excluded_column)
             .cloned()
             .collect();
-        if !new_unique.is_empty() {
-            target_schema.add_unique_constraint(new_unique);
+        if !new_columns.is_empty() {
+            target_schema.add_unique_constraint(crate::schema::UniqueConstraint {
+                name: unique.name.clone(),
+                columns: new_columns,
+                enforced: unique.enforced,
+                nulls_distinct: unique.nulls_distinct,
+            });
         }
     }
 

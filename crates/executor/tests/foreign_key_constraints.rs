@@ -509,7 +509,7 @@ fn test_create_table_all_constraint_types_with_foreign_key() {
 
     let unique_constraints = table.schema().unique_constraints();
     assert_eq!(unique_constraints.len(), 1);
-    assert_eq!(unique_constraints[0], vec!["email"]);
+    assert_eq!(unique_constraints[0].columns, vec!["email"]);
 
     let foreign_keys = table.schema().foreign_keys();
     assert_eq!(foreign_keys.len(), 1);

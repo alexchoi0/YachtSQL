@@ -246,7 +246,13 @@ impl AlterTableExecutor for QueryExecutor {
                     use sqlparser::ast::TableConstraint;
                     let skip_validation = *not_valid;
                     match constraint {
-                        TableConstraint::Unique { columns, .. } => {
+                        TableConstraint::Unique {
+                            columns,
+                            name,
+                            characteristics,
+                            nulls_distinct,
+                            ..
+                        } => {
                             let col_names: Vec<String> =
                                 columns.iter().map(|c| c.column.expr.to_string()).collect();
 
@@ -254,7 +260,21 @@ impl AlterTableExecutor for QueryExecutor {
                                 self.validate_unique_constraint(table, &col_names)?;
                             }
 
-                            table.schema_mut().add_unique_constraint(col_names);
+                            let enforced = characteristics
+                                .as_ref()
+                                .and_then(|c| c.enforced)
+                                .unwrap_or(true);
+                            let is_nulls_distinct =
+                                *nulls_distinct != sqlparser::ast::NullsDistinctOption::NotDistinct;
+
+                            table.schema_mut().add_unique_constraint(
+                                yachtsql_storage::schema::UniqueConstraint {
+                                    name: name.as_ref().map(|n| n.to_string()),
+                                    columns: col_names,
+                                    enforced,
+                                    nulls_distinct: is_nulls_distinct,
+                                },
+                            );
                         }
                         TableConstraint::PrimaryKey { columns, .. } => {
                             let col_names: Vec<String> =
@@ -444,6 +464,15 @@ impl AlterTableExecutor for QueryExecutor {
 
                     table.alter_column(&column_name, Some(new_type), set_not_null, None, false)?;
                 }
+
+                AlterTableOperation::EnableTrigger { .. }
+                | AlterTableOperation::DisableTrigger { .. }
+                | AlterTableOperation::EnableRule { .. }
+                | AlterTableOperation::DisableRule { .. }
+                | AlterTableOperation::EnableReplicaTrigger { .. }
+                | AlterTableOperation::EnableAlwaysTrigger { .. }
+                | AlterTableOperation::DisableRowLevelSecurity
+                | AlterTableOperation::EnableRowLevelSecurity => {}
 
                 _ => {
                     return Err(Error::unsupported_feature(format!(

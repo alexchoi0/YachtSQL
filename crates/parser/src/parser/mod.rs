@@ -126,7 +126,25 @@ impl Parser {
             sql_without_global
         };
 
-        let rewritten_sql = self.rewrite_json_item_methods(&sql_with_rewritten_locks)?;
+        let sql_without_fk_match = if matches!(self.dialect_type, DialectType::PostgreSQL) {
+            Self::strip_fk_match(&sql_with_rewritten_locks)
+        } else {
+            sql_with_rewritten_locks
+        };
+
+        let sql_without_no_inherit = if matches!(self.dialect_type, DialectType::PostgreSQL) {
+            Self::strip_no_inherit(&sql_without_fk_match)
+        } else {
+            sql_without_fk_match
+        };
+
+        let sql_without_exclude = if matches!(self.dialect_type, DialectType::PostgreSQL) {
+            Self::strip_exclude_constraint(&sql_without_no_inherit)
+        } else {
+            sql_without_no_inherit
+        };
+
+        let rewritten_sql = self.rewrite_json_item_methods(&sql_without_exclude)?;
         let parse_result = SqlParser::parse_sql(&*self.dialect, &rewritten_sql);
 
         let sql_statements = match parse_result {
@@ -538,6 +556,77 @@ impl Parser {
 
         let re_skip_locked = regex::Regex::new(r"(?i)\bSKIP\s+LOCKED\b").unwrap();
         re_skip_locked.replace_all(&result, "").to_string()
+    }
+
+    fn strip_fk_match(sql: &str) -> String {
+        let re = regex::Regex::new(r"(?i)\bMATCH\s+(FULL|SIMPLE|PARTIAL)\b").unwrap();
+        re.replace_all(sql, "").to_string()
+    }
+
+    fn strip_no_inherit(sql: &str) -> String {
+        let re = regex::Regex::new(r"(?i)\bNO\s+INHERIT\b").unwrap();
+        re.replace_all(sql, "").to_string()
+    }
+
+    fn strip_exclude_constraint(sql: &str) -> String {
+        let mut result = String::with_capacity(sql.len());
+        let upper = sql.to_uppercase();
+        let mut idx = 0;
+
+        while idx < sql.len() {
+            let is_exclude_keyword = upper[idx..].starts_with("EXCLUDE")
+                && (idx + 7 >= sql.len()
+                    || !sql[idx + 7..].starts_with(|c: char| c.is_alphanumeric() || c == '_'));
+            if is_exclude_keyword {
+                idx += 7;
+
+                while idx < sql.len() && sql[idx..].starts_with(char::is_whitespace) {
+                    idx += sql[idx..].chars().next().unwrap().len_utf8();
+                }
+
+                if upper[idx..].starts_with("USING") {
+                    idx += 5;
+
+                    while idx < sql.len() && sql[idx..].starts_with(char::is_whitespace) {
+                        idx += sql[idx..].chars().next().unwrap().len_utf8();
+                    }
+
+                    while idx < sql.len() && sql[idx..].chars().next().unwrap().is_alphanumeric() {
+                        idx += sql[idx..].chars().next().unwrap().len_utf8();
+                    }
+
+                    while idx < sql.len() && sql[idx..].starts_with(char::is_whitespace) {
+                        idx += sql[idx..].chars().next().unwrap().len_utf8();
+                    }
+
+                    if idx < sql.len() && sql[idx..].starts_with('(') {
+                        let mut depth = 1;
+                        idx += 1;
+                        while idx < sql.len() && depth > 0 {
+                            let ch = sql[idx..].chars().next().unwrap();
+                            match ch {
+                                '(' => depth += 1,
+                                ')' => depth -= 1,
+                                _ => {}
+                            }
+                            idx += ch.len_utf8();
+                        }
+
+                        let trimmed = result.trim_end();
+                        if let Some(stripped) = trimmed.strip_suffix(',') {
+                            result = stripped.to_string();
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            let ch = sql[idx..].chars().next().unwrap();
+            result.push(ch);
+            idx += ch.len_utf8();
+        }
+
+        result
     }
 
     fn rewrite_asof_join(sql: &str) -> String {

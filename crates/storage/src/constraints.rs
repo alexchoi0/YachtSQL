@@ -126,14 +126,27 @@ fn validate_table_unique_constraints(
     row: &Row,
     existing_rows: &[Row],
 ) -> Result<()> {
-    for unique_cols in schema.unique_constraints() {
-        if columns_contain_null(schema, unique_cols, row) {
+    for unique_constraint in schema.unique_constraints() {
+        if !unique_constraint.enforced {
             continue;
         }
 
+        let unique_cols = &unique_constraint.columns;
+        let nulls_distinct = unique_constraint.nulls_distinct;
+
+        if nulls_distinct && columns_contain_null(schema, unique_cols, row) {
+            continue;
+        }
+
+        let matcher: fn(&Schema, &[String], &Row, &Row) -> bool = if nulls_distinct {
+            columns_match_non_null
+        } else {
+            columns_match_with_null_equal
+        };
+
         if existing_rows
             .iter()
-            .any(|existing_row| columns_match_non_null(schema, unique_cols, row, existing_row))
+            .any(|existing_row| matcher(schema, unique_cols, row, existing_row))
         {
             return Err(Error::UniqueConstraintViolation(format!(
                 "UNIQUE constraint violation: duplicate key value on columns: {}",
@@ -142,6 +155,25 @@ fn validate_table_unique_constraints(
         }
     }
     Ok(())
+}
+
+fn columns_match_with_null_equal(
+    schema: &Schema,
+    columns: &[String],
+    row1: &Row,
+    row2: &Row,
+) -> bool {
+    columns.iter().all(|col| {
+        let v1 = get_column_value(schema, row1, col);
+        let v2 = get_column_value(schema, row2, col);
+        if is_null(&v1) && is_null(&v2) {
+            return true;
+        }
+        if is_null(&v1) || is_null(&v2) {
+            return false;
+        }
+        values_equal(&v1, &v2)
+    })
 }
 
 fn columns_contain_null(schema: &Schema, columns: &[String], row: &Row) -> bool {

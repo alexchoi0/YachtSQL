@@ -75,7 +75,7 @@ impl TableConstraintOps for Table {
         }
 
         for unique in self.schema.unique_constraints() {
-            if unique != columns {
+            if unique.columns != columns {
                 new_schema.add_unique_constraint(unique.clone());
             }
         }

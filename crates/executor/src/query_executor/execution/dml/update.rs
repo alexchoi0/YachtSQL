@@ -1064,8 +1064,12 @@ impl QueryExecutor {
             }
         }
 
-        for unique_cols in schema.unique_constraints() {
-            let new_unique_values: Vec<yachtsql_core::types::Value> = unique_cols
+        for constraint in schema.unique_constraints() {
+            if !constraint.enforced {
+                continue;
+            }
+            let new_unique_values: Vec<yachtsql_core::types::Value> = constraint
+                .columns
                 .iter()
                 .filter_map(|col| {
                     schema
@@ -1079,7 +1083,8 @@ impl QueryExecutor {
             }
 
             for other_row in &other_rows {
-                let other_unique_values: Vec<yachtsql_core::types::Value> = unique_cols
+                let other_unique_values: Vec<yachtsql_core::types::Value> = constraint
+                    .columns
                     .iter()
                     .filter_map(|col| {
                         schema
@@ -1095,7 +1100,7 @@ impl QueryExecutor {
                 if new_unique_values == other_unique_values {
                     return Err(Error::UniqueConstraintViolation(format!(
                         "UNIQUE constraint violation: duplicate key value on columns: {}",
-                        unique_cols.join(", ")
+                        constraint.columns.join(", ")
                     )));
                 }
             }

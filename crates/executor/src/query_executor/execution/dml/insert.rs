@@ -1015,14 +1015,19 @@ impl QueryExecutor {
             }
         }
 
-        for columns in schema.unique_constraints() {
-            let new_unique_values: Vec<&Value> = columns
+        for constraint in schema.unique_constraints() {
+            if !constraint.enforced {
+                continue;
+            }
+            let new_unique_values: Vec<&Value> = constraint
+                .columns
                 .iter()
                 .filter_map(|col| schema.field_index(col).map(|idx| &new_row.values()[idx]))
                 .collect();
 
             for existing_row in existing_rows {
-                let existing_unique_values: Vec<&Value> = columns
+                let existing_unique_values: Vec<&Value> = constraint
+                    .columns
                     .iter()
                     .filter_map(|col| {
                         schema
@@ -1151,12 +1156,17 @@ impl QueryExecutor {
             }
         }
 
-        for columns in schema.unique_constraints() {
-            let new_unique_values: Vec<&Value> = columns
+        for constraint in schema.unique_constraints() {
+            if !constraint.enforced {
+                continue;
+            }
+            let new_unique_values: Vec<&Value> = constraint
+                .columns
                 .iter()
                 .filter_map(|col| schema.field_index(col).map(|idx| &new_row.values()[idx]))
                 .collect();
-            let existing_unique_values: Vec<&Value> = columns
+            let existing_unique_values: Vec<&Value> = constraint
+                .columns
                 .iter()
                 .filter_map(|col| {
                     schema
