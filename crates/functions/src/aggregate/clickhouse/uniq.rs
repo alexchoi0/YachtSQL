@@ -35,10 +35,13 @@ impl Accumulator for UniqAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "UNIQ merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for UniqAccumulator merge"))?;
+        self.estimator.merge(&other.estimator);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -103,10 +106,12 @@ impl Accumulator for UniqExactAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "UNIQ_EXACT merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other.as_any().downcast_ref::<Self>().ok_or_else(|| {
+            Error::internal("Invalid accumulator type for UniqExactAccumulator merge")
+        })?;
+        self.values.extend(other.values.iter().cloned());
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -192,10 +197,12 @@ impl Accumulator for UniqCombinedAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "UNIQ_COMBINED merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other.as_any().downcast_ref::<Self>().ok_or_else(|| {
+            Error::internal("Invalid accumulator type for UniqCombinedAccumulator merge")
+        })?;
+        self.estimator.merge(&other.estimator);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -281,10 +288,12 @@ impl Accumulator for UniqThetaSketchAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "UNIQ_THETA_SKETCH merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other.as_any().downcast_ref::<Self>().ok_or_else(|| {
+            Error::internal("Invalid accumulator type for UniqThetaSketchAccumulator merge")
+        })?;
+        self.estimator.merge(&other.estimator);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -356,10 +365,17 @@ impl Accumulator for UniqUpToAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "UNIQ_UP_TO merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other.as_any().downcast_ref::<Self>().ok_or_else(|| {
+            Error::internal("Invalid accumulator type for UniqUpToAccumulator merge")
+        })?;
+        for value in &other.values {
+            if self.values.len() >= self.threshold {
+                break;
+            }
+            self.values.insert(value.clone());
+        }
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {

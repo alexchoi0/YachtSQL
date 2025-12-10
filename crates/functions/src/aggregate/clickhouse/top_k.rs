@@ -33,10 +33,15 @@ impl Accumulator for TopKAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "TOP_K merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for TopKAccumulator merge"))?;
+        for (key, count) in &other.counts {
+            *self.counts.entry(key.clone()).or_insert(0) += count;
+        }
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -147,10 +152,14 @@ impl Accumulator for TopKWeightedAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "TOP_K_WEIGHTED merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other.as_any().downcast_ref::<Self>().ok_or_else(|| {
+            Error::internal("Invalid accumulator type for TopKWeightedAccumulator merge")
+        })?;
+        for (key, weight) in &other.sums {
+            *self.sums.entry(key.clone()).or_insert(0.0) += weight;
+        }
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
