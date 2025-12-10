@@ -1111,10 +1111,16 @@ impl QueryExecutor {
                     | "TSVECTOR_CONCAT"
                     | "TSQUERY_AND"
                     | "TSQUERY_OR"
-                    | "TSQUERY_NOT" => Ok(DataType::String),
+                    | "TSQUERY_NOT"
+                    | "QUERYTREE"
+                    | "TS_REWRITE"
+                    | "TS_DELETE"
+                    | "TS_FILTER"
+                    | "ARRAY_TO_TSVECTOR"
+                    | "GET_CURRENT_TS_CONFIG" => Ok(DataType::String),
                     "TS_RANK" | "TS_RANK_CD" => Ok(DataType::Float64),
                     "TS_MATCH" => Ok(DataType::Bool),
-                    "TSVECTOR_LENGTH" => Ok(DataType::Int64),
+                    "TSVECTOR_LENGTH" | "NUMNODE" => Ok(DataType::Int64),
 
                     _ => Ok(DataType::String),
                 }

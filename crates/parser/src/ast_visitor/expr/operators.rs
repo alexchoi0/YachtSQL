@@ -134,6 +134,7 @@ impl LogicalPlanBuilder {
             ast::BinaryOperator::HashMinus => Ok(BinaryOp::HashMinus),
             ast::BinaryOperator::PGBitwiseShiftLeft => Ok(BinaryOp::ShiftLeft),
             ast::BinaryOperator::PGBitwiseShiftRight => Ok(BinaryOp::ShiftRight),
+            ast::BinaryOperator::AtAt => Ok(BinaryOp::TSVectorMatch),
             _ => Err(Error::unsupported_feature(format!(
                 "Binary operator not supported: {:?}",
                 op
@@ -147,6 +148,7 @@ impl LogicalPlanBuilder {
             ast::UnaryOperator::Minus => Ok(UnaryOp::Negate),
             ast::UnaryOperator::Plus => Ok(UnaryOp::Plus),
             ast::UnaryOperator::PGBitwiseNot => Ok(UnaryOp::BitwiseNot),
+            ast::UnaryOperator::PGPrefixFactorial => Ok(UnaryOp::TSQueryNot),
             _ => Err(Error::unsupported_feature(format!(
                 "Unary operator not supported: {:?}",
                 op

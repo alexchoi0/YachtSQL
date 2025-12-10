@@ -266,6 +266,8 @@ pub enum BinaryOp {
     InetContainsOrEqual,
     InetContainedByOrEqual,
     InetOverlap,
+    TSVectorMatch,
+    TSQueryAnd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -276,6 +278,7 @@ pub enum UnaryOp {
     IsNull,
     IsNotNull,
     BitwiseNot,
+    TSQueryNot,
 }
 
 #[derive(Debug, Clone, PartialEq)]

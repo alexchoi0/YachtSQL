@@ -1021,6 +1021,12 @@ impl ProjectionWithExprExec {
                 | FunctionName::TsqueryAnd
                 | FunctionName::TsqueryOr
                 | FunctionName::TsqueryNot
+                | FunctionName::TsRewrite
+                | FunctionName::TsDelete
+                | FunctionName::TsFilter
+                | FunctionName::ArrayToTsvector
+                | FunctionName::TsvectorToArray
+                | FunctionName::GetCurrentTsConfig
         ) {
             return Self::evaluate_fulltext_function(func_name, args, batch, row_idx);
         }

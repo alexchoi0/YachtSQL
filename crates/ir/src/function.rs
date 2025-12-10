@@ -732,6 +732,12 @@ pub enum FunctionName {
     TsqueryAnd,
     TsqueryOr,
     TsqueryNot,
+    TsRewrite,
+    TsDelete,
+    TsFilter,
+    ArrayToTsvector,
+    TsvectorToArray,
+    GetCurrentTsConfig,
 
     // Hstore functions
     Hstore,
@@ -1865,6 +1871,12 @@ impl FunctionName {
             "TSQUERY_AND" => Self::TsqueryAnd,
             "TSQUERY_OR" => Self::TsqueryOr,
             "TSQUERY_NOT" => Self::TsqueryNot,
+            "TS_REWRITE" => Self::TsRewrite,
+            "TS_DELETE" => Self::TsDelete,
+            "TS_FILTER" => Self::TsFilter,
+            "ARRAY_TO_TSVECTOR" => Self::ArrayToTsvector,
+            "TSVECTOR_TO_ARRAY" => Self::TsvectorToArray,
+            "GET_CURRENT_TS_CONFIG" => Self::GetCurrentTsConfig,
 
             // Hstore functions
             "HSTORE" => Self::Hstore,
@@ -2955,6 +2967,12 @@ impl FunctionName {
             Self::TsqueryAnd => "TSQUERY_AND",
             Self::TsqueryOr => "TSQUERY_OR",
             Self::TsqueryNot => "TSQUERY_NOT",
+            Self::TsRewrite => "TS_REWRITE",
+            Self::TsDelete => "TS_DELETE",
+            Self::TsFilter => "TS_FILTER",
+            Self::ArrayToTsvector => "ARRAY_TO_TSVECTOR",
+            Self::TsvectorToArray => "TSVECTOR_TO_ARRAY",
+            Self::GetCurrentTsConfig => "GET_CURRENT_TS_CONFIG",
 
             // Hstore functions
             Self::Hstore => "HSTORE",

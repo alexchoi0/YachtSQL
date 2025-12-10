@@ -307,9 +307,12 @@ impl ProjectionWithExprExec {
             | BinaryOp::VectorInnerProduct
             | BinaryOp::VectorCosineDistance => Some(DataType::Float64),
 
-            BinaryOp::ArrayContains | BinaryOp::ArrayContainedBy | BinaryOp::ArrayOverlap => {
-                Some(DataType::Bool)
-            }
+            BinaryOp::ArrayContains | BinaryOp::ArrayContainedBy => Some(DataType::Bool),
+
+            BinaryOp::ArrayOverlap => match (&left_type, &right_type) {
+                (Some(DataType::String), Some(DataType::String)) => Some(DataType::String),
+                _ => Some(DataType::Bool),
+            },
 
             BinaryOp::Like
             | BinaryOp::NotLike
@@ -346,7 +349,10 @@ impl ProjectionWithExprExec {
             | BinaryOp::InetContainedBy
             | BinaryOp::InetContainsOrEqual
             | BinaryOp::InetContainedByOrEqual
-            | BinaryOp::InetOverlap => Some(DataType::Bool),
+            | BinaryOp::InetOverlap
+            | BinaryOp::TSVectorMatch => Some(DataType::Bool),
+
+            BinaryOp::TSQueryAnd => Some(DataType::String),
 
             BinaryOp::ShiftLeft | BinaryOp::ShiftRight => match (&left_type, &right_type) {
                 (Some(DataType::Range(_)), Some(DataType::Range(_))) => Some(DataType::Bool),
@@ -372,6 +378,7 @@ impl ProjectionWithExprExec {
                 Some(DataType::Inet) => Some(DataType::Inet),
                 _ => Some(DataType::Int64),
             },
+            UnaryOp::TSQueryNot => Some(DataType::String),
         }
     }
 
@@ -2115,10 +2122,17 @@ impl ProjectionWithExprExec {
             | FunctionName::TsvectorConcat
             | FunctionName::TsqueryAnd
             | FunctionName::TsqueryOr
-            | FunctionName::TsqueryNot => Some(DataType::String),
+            | FunctionName::TsqueryNot
+            | FunctionName::Querytree
+            | FunctionName::TsRewrite
+            | FunctionName::TsDelete
+            | FunctionName::TsFilter
+            | FunctionName::ArrayToTsvector
+            | FunctionName::GetCurrentTsConfig => Some(DataType::String),
             FunctionName::TsRank | FunctionName::TsRankCd => Some(DataType::Float64),
             FunctionName::TsMatch => Some(DataType::Bool),
-            FunctionName::TsvectorLength => Some(DataType::Int64),
+            FunctionName::TsvectorLength | FunctionName::Numnode => Some(DataType::Int64),
+            FunctionName::TsvectorToArray => Some(DataType::Array(Box::new(DataType::String))),
 
             FunctionName::Point => Some(DataType::Point),
             FunctionName::Box => Some(DataType::PgBox),

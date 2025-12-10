@@ -325,6 +325,16 @@ impl ProjectionWithExprExec {
                     let result = matches!(op, BinaryOp::RegexMatchI) == matches;
                     Ok(Value::bool_val(result))
                 }
+                BinaryOp::TSVectorMatch => {
+                    let result = yachtsql_functions::fulltext::ts_match(l, r)
+                        .map_err(|e| crate::error::Error::ExecutionError(e.to_string()))?;
+                    Ok(Value::bool_val(result))
+                }
+                BinaryOp::TSQueryAnd | BinaryOp::ArrayOverlap => {
+                    let result = yachtsql_functions::fulltext::tsquery_and(l, r)
+                        .map_err(|e| crate::error::Error::ExecutionError(e.to_string()))?;
+                    Ok(Value::string(result))
+                }
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for String",
                     op
@@ -1310,6 +1320,20 @@ impl ProjectionWithExprExec {
                 }
                 Err(crate::error::Error::TypeMismatch {
                     expected: "integer or INET".to_string(),
+                    actual: operand.data_type().to_string(),
+                })
+            }
+            UnaryOp::TSQueryNot => {
+                if operand.is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(s) = operand.as_str() {
+                    let result = yachtsql_functions::fulltext::tsquery_negate(s)
+                        .map_err(|e| crate::error::Error::ExecutionError(e.to_string()))?;
+                    return Ok(Value::string(result));
+                }
+                Err(crate::error::Error::TypeMismatch {
+                    expected: "STRING (tsquery)".to_string(),
                     actual: operand.data_type().to_string(),
                 })
             }

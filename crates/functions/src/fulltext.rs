@@ -1053,6 +1053,176 @@ pub fn tsquery_to_string(query: &TSQuery) -> String {
     query.to_string()
 }
 
+pub fn ts_match(tsvector_str: &str, tsquery_str: &str) -> Result<bool> {
+    let vector = parse_tsvector(tsvector_str)?;
+    let query = to_tsquery(tsquery_str)?;
+    Ok(query.matches(&vector))
+}
+
+pub fn tsquery_and(left_str: &str, right_str: &str) -> Result<String> {
+    let left = to_tsquery(left_str)?;
+    let right = to_tsquery(right_str)?;
+    Ok(tsquery_to_string(&left.and(right)))
+}
+
+pub fn tsquery_negate(query_str: &str) -> Result<String> {
+    let query = to_tsquery(query_str)?;
+    Ok(tsquery_to_string(&query.negate()))
+}
+
+pub fn numnode(query: &TSQuery) -> i64 {
+    count_nodes(&query.expr)
+}
+
+fn count_nodes(expr: &Option<TSQueryOp>) -> i64 {
+    match expr {
+        None => 0,
+        Some(op) => match op {
+            TSQueryOp::Lexeme(_, _) | TSQueryOp::Prefix(_) => 1,
+            TSQueryOp::And(a, b) | TSQueryOp::Or(a, b) | TSQueryOp::Phrase(a, b, _) => {
+                1 + count_nodes(&a.expr) + count_nodes(&b.expr)
+            }
+            TSQueryOp::Not(q) => 1 + count_nodes(&q.expr),
+        },
+    }
+}
+
+pub fn querytree(query: &TSQuery) -> String {
+    match &query.expr {
+        None => String::new(),
+        Some(op) => format_querytree(op),
+    }
+}
+
+fn format_querytree(op: &TSQueryOp) -> String {
+    match op {
+        TSQueryOp::Lexeme(lexeme, _) => format!("'{}'", lexeme),
+        TSQueryOp::Prefix(prefix) => format!("'{}':*", prefix),
+        TSQueryOp::And(a, b) => {
+            let a_str = a.expr.as_ref().map(format_querytree).unwrap_or_default();
+            let b_str = b.expr.as_ref().map(format_querytree).unwrap_or_default();
+            format!("( {} & {} )", a_str, b_str)
+        }
+        TSQueryOp::Or(a, b) => {
+            let a_str = a.expr.as_ref().map(format_querytree).unwrap_or_default();
+            let b_str = b.expr.as_ref().map(format_querytree).unwrap_or_default();
+            format!("( {} | {} )", a_str, b_str)
+        }
+        TSQueryOp::Not(q) => {
+            let q_str = q.expr.as_ref().map(format_querytree).unwrap_or_default();
+            format!("!( {} )", q_str)
+        }
+        TSQueryOp::Phrase(a, b, distance) => {
+            let a_str = a.expr.as_ref().map(format_querytree).unwrap_or_default();
+            let b_str = b.expr.as_ref().map(format_querytree).unwrap_or_default();
+            format!("( {} <{}> {} )", a_str, distance, b_str)
+        }
+    }
+}
+
+pub fn ts_rewrite(query: &TSQuery, old_query: &TSQuery, new_query: &TSQuery) -> TSQuery {
+    TSQuery {
+        expr: rewrite_expr(&query.expr, old_query, new_query),
+    }
+}
+
+fn rewrite_expr(
+    expr: &Option<TSQueryOp>,
+    old_query: &TSQuery,
+    new_query: &TSQuery,
+) -> Option<TSQueryOp> {
+    let current = TSQuery { expr: expr.clone() };
+    if current == *old_query {
+        return new_query.expr.clone();
+    }
+
+    match expr {
+        None => None,
+        Some(op) => match op {
+            TSQueryOp::Lexeme(_, _) | TSQueryOp::Prefix(_) => expr.clone(),
+            TSQueryOp::And(a, b) => Some(TSQueryOp::And(
+                Box::new(TSQuery {
+                    expr: rewrite_expr(&a.expr, old_query, new_query),
+                }),
+                Box::new(TSQuery {
+                    expr: rewrite_expr(&b.expr, old_query, new_query),
+                }),
+            )),
+            TSQueryOp::Or(a, b) => Some(TSQueryOp::Or(
+                Box::new(TSQuery {
+                    expr: rewrite_expr(&a.expr, old_query, new_query),
+                }),
+                Box::new(TSQuery {
+                    expr: rewrite_expr(&b.expr, old_query, new_query),
+                }),
+            )),
+            TSQueryOp::Not(q) => Some(TSQueryOp::Not(Box::new(TSQuery {
+                expr: rewrite_expr(&q.expr, old_query, new_query),
+            }))),
+            TSQueryOp::Phrase(a, b, distance) => Some(TSQueryOp::Phrase(
+                Box::new(TSQuery {
+                    expr: rewrite_expr(&a.expr, old_query, new_query),
+                }),
+                Box::new(TSQuery {
+                    expr: rewrite_expr(&b.expr, old_query, new_query),
+                }),
+                *distance,
+            )),
+        },
+    }
+}
+
+pub fn ts_delete(vector: &TSVector, lexemes_to_delete: &[String]) -> TSVector {
+    let mut result = TSVector::new();
+    for (lexeme, entry) in &vector.lexemes {
+        let normalized = normalize_lexeme(lexeme);
+        let should_delete = lexemes_to_delete
+            .iter()
+            .any(|l| normalize_lexeme(l) == normalized);
+        if !should_delete {
+            result.lexemes.insert(lexeme.clone(), entry.clone());
+        }
+    }
+    result
+}
+
+pub fn ts_filter(vector: &TSVector, weights: &[Weight]) -> TSVector {
+    let mut result = TSVector::new();
+    for (lexeme, entry) in &vector.lexemes {
+        let filtered_positions: Vec<(Position, Weight)> = entry
+            .positions
+            .iter()
+            .filter(|(_, w)| weights.contains(w))
+            .copied()
+            .collect();
+        if !filtered_positions.is_empty() {
+            result.lexemes.insert(
+                lexeme.clone(),
+                LexemeEntry {
+                    positions: filtered_positions,
+                },
+            );
+        }
+    }
+    result
+}
+
+pub fn array_to_tsvector(lexemes: &[String]) -> TSVector {
+    let mut vector = TSVector::new();
+    for lexeme in lexemes {
+        vector.add_lexeme_no_pos(lexeme);
+    }
+    vector
+}
+
+pub fn get_current_ts_config() -> String {
+    "english".to_string()
+}
+
+pub fn tsvector_to_array(vector: &TSVector) -> Vec<String> {
+    vector.lexemes.keys().cloned().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

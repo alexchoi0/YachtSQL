@@ -703,6 +703,18 @@ impl SubqueryExecutorImpl {
                             Ok(Value::null())
                         }
                     }
+                    UnaryOp::TSQueryNot => {
+                        if val.is_null() {
+                            Ok(Value::null())
+                        } else if let Some(s) = val.as_str() {
+                            match yachtsql_functions::fulltext::tsquery_negate(s) {
+                                Ok(result) => Ok(Value::string(result)),
+                                Err(_) => Ok(Value::null()),
+                            }
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
                 }
             }
 

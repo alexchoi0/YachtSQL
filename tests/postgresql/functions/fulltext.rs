@@ -361,7 +361,6 @@ fn test_array_to_tsvector() {
 }
 
 #[test]
-#[ignore = "TSVECTOR_TO_ARRAY function not available in PostgreSQL dialect"]
 fn test_tsvector_to_array() {
     let mut executor = create_executor();
     let result = executor
