@@ -49,9 +49,12 @@ impl WindowExec {
     ) -> Result<Self> {
         let input_schema = input.schema();
 
+        let normalized_window_exprs =
+            Self::normalize_nested_aggregates(&window_exprs, input_schema);
+
         let mut fields: Vec<crate::storage::Field> = input_schema.fields().to_vec();
 
-        for (expr, alias) in &window_exprs {
+        for (expr, alias) in &normalized_window_exprs {
             let (field_name, data_type) = match expr {
                 Expr::WindowFunction { name, args, .. } | Expr::Aggregate { name, args, .. } => {
                     let fname = alias
@@ -79,9 +82,274 @@ impl WindowExec {
         Ok(Self {
             input,
             schema,
-            window_exprs,
+            window_exprs: normalized_window_exprs,
             function_registry,
         })
+    }
+
+    fn normalize_nested_aggregates(
+        window_exprs: &[(Expr, Option<String>)],
+        input_schema: &Schema,
+    ) -> Vec<(Expr, Option<String>)> {
+        window_exprs
+            .iter()
+            .map(|(expr, alias)| {
+                let normalized = Self::normalize_window_expr(expr, input_schema);
+                (normalized, alias.clone())
+            })
+            .collect()
+    }
+
+    fn normalize_window_expr(expr: &Expr, input_schema: &Schema) -> Expr {
+        match expr {
+            Expr::WindowFunction {
+                name,
+                args,
+                partition_by,
+                order_by,
+                frame_units,
+                frame_start_offset,
+                frame_end_offset,
+                exclude,
+                null_treatment,
+            } => {
+                let normalized_args: Vec<Expr> = args
+                    .iter()
+                    .map(|arg| Self::replace_nested_aggregate(arg, input_schema))
+                    .collect();
+
+                let normalized_order_by: Vec<yachtsql_optimizer::expr::OrderByExpr> = order_by
+                    .iter()
+                    .map(|ob| yachtsql_optimizer::expr::OrderByExpr {
+                        expr: Self::normalize_expr_for_input(&ob.expr, input_schema),
+                        asc: ob.asc,
+                        nulls_first: ob.nulls_first,
+                        collation: ob.collation.clone(),
+                        with_fill: ob.with_fill.clone(),
+                    })
+                    .collect();
+
+                let normalized_partition_by: Vec<Expr> = partition_by
+                    .iter()
+                    .map(|pb| Self::normalize_expr_for_input(pb, input_schema))
+                    .collect();
+
+                Expr::WindowFunction {
+                    name: name.clone(),
+                    args: normalized_args,
+                    partition_by: normalized_partition_by,
+                    order_by: normalized_order_by,
+                    frame_units: *frame_units,
+                    frame_start_offset: *frame_start_offset,
+                    frame_end_offset: *frame_end_offset,
+                    exclude: *exclude,
+                    null_treatment: *null_treatment,
+                }
+            }
+            Expr::Aggregate {
+                name,
+                args,
+                distinct,
+                order_by,
+                filter,
+            } => {
+                let normalized_args: Vec<Expr> = args
+                    .iter()
+                    .map(|arg| Self::replace_nested_aggregate(arg, input_schema))
+                    .collect();
+
+                Expr::Aggregate {
+                    name: name.clone(),
+                    args: normalized_args,
+                    distinct: *distinct,
+                    order_by: order_by.clone(),
+                    filter: filter.clone(),
+                }
+            }
+            _ => expr.clone(),
+        }
+    }
+
+    fn normalize_expr_for_input(expr: &Expr, input_schema: &Schema) -> Expr {
+        let fields = input_schema.fields();
+
+        match expr {
+            Expr::Column { name, .. } => {
+                if fields.iter().any(|f| f.name == *name) {
+                    return expr.clone();
+                }
+                expr.clone()
+            }
+            Expr::Function {
+                name: func_name,
+                args,
+            } => {
+                let func_str = Self::function_to_string(func_name, args);
+                if let Some(field) = fields.iter().find(|f| f.name == func_str) {
+                    return Expr::Column {
+                        name: field.name.clone(),
+                        table: None,
+                    };
+                }
+
+                let func_name_str = func_name.as_str().to_uppercase();
+                if func_name_str == "DATE_TRUNC" || func_name_str == "TIMESTAMP_TRUNC" {
+                    if let Some(field) = fields.iter().find(|f| {
+                        matches!(
+                            f.data_type,
+                            crate::types::DataType::Date
+                                | crate::types::DataType::Timestamp
+                                | crate::types::DataType::DateTime
+                        )
+                    }) {
+                        return Expr::Column {
+                            name: field.name.clone(),
+                            table: None,
+                        };
+                    }
+                }
+
+                for field in fields {
+                    if Self::expr_might_match_field(expr, &field.name, &field.data_type) {
+                        return Expr::Column {
+                            name: field.name.clone(),
+                            table: None,
+                        };
+                    }
+                }
+                expr.clone()
+            }
+            Expr::Aggregate { .. } => Self::replace_nested_aggregate(expr, input_schema),
+            _ => expr.clone(),
+        }
+    }
+
+    fn function_to_string(name: &yachtsql_ir::function::FunctionName, args: &[Expr]) -> String {
+        let arg_str = args
+            .iter()
+            .map(|a| match a {
+                Expr::Column { name, .. } => name.clone(),
+                Expr::Wildcard => "*".to_string(),
+                _ => "_".to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("{}({})", name.as_str(), arg_str)
+    }
+
+    fn expr_might_match_field(
+        expr: &Expr,
+        field_name: &str,
+        _data_type: &crate::types::DataType,
+    ) -> bool {
+        match expr {
+            Expr::Function { name, args } => {
+                let func_name = name.as_str().to_lowercase();
+                let field_lower = field_name.to_lowercase();
+
+                if field_lower.starts_with(&func_name) || field_lower.contains(&func_name) {
+                    return true;
+                }
+
+                if let Some(Expr::Column { name: col_name, .. }) = args.first() {
+                    if field_lower.contains(&col_name.to_lowercase()) {
+                        return true;
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn replace_nested_aggregate(expr: &Expr, input_schema: &Schema) -> Expr {
+        match expr {
+            Expr::Aggregate {
+                name,
+                args,
+                distinct,
+                ..
+            } => {
+                let func_name = name.as_str();
+                let fields = input_schema.fields();
+
+                if let Some(field) = fields.iter().find(|f| f.name == func_name) {
+                    return Expr::Column {
+                        name: field.name.clone(),
+                        table: None,
+                    };
+                }
+
+                let arg_str = args
+                    .iter()
+                    .map(|a| match a {
+                        Expr::Column { name, .. } => name.clone(),
+                        Expr::Wildcard => "*".to_string(),
+                        _ => "*".to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let full_name = format!("{}({})", func_name, arg_str);
+                if let Some(field) = fields.iter().find(|f| f.name == full_name) {
+                    return Expr::Column {
+                        name: field.name.clone(),
+                        table: None,
+                    };
+                }
+
+                let distinct_prefix = if *distinct { "DISTINCT " } else { "" };
+                let full_name_distinct = format!("{}({}{})", func_name, distinct_prefix, arg_str);
+                if let Some(field) = fields.iter().find(|f| f.name == full_name_distinct) {
+                    return Expr::Column {
+                        name: field.name.clone(),
+                        table: None,
+                    };
+                }
+
+                let expected_type = Self::infer_aggregate_result_type(func_name);
+                if let Some(field) = fields.iter().find(|f| {
+                    Self::is_compatible_type(&f.data_type, expected_type) && !f.name.contains("__")
+                }) {
+                    return Expr::Column {
+                        name: field.name.clone(),
+                        table: None,
+                    };
+                }
+
+                expr.clone()
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(Self::replace_nested_aggregate(left, input_schema)),
+                op: op.clone(),
+                right: Box::new(Self::replace_nested_aggregate(right, input_schema)),
+            },
+            _ => expr.clone(),
+        }
+    }
+
+    fn infer_aggregate_result_type(func_name: &str) -> &'static str {
+        match func_name.to_uppercase().as_str() {
+            "COUNT" => "int64",
+            "SUM" => "numeric",
+            "AVG" => "float64",
+            "MIN" | "MAX" => "any",
+            _ => "any",
+        }
+    }
+
+    fn is_compatible_type(data_type: &crate::types::DataType, expected: &str) -> bool {
+        match expected {
+            "int64" => matches!(data_type, crate::types::DataType::Int64),
+            "float64" => matches!(data_type, crate::types::DataType::Float64),
+            "numeric" => matches!(
+                data_type,
+                crate::types::DataType::Int64
+                    | crate::types::DataType::Float64
+                    | crate::types::DataType::Numeric { .. }
+            ),
+            _ => true,
+        }
     }
 
     fn compute_window_results(

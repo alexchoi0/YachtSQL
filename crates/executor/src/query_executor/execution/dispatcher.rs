@@ -210,14 +210,6 @@ pub enum CursorOperation {
 }
 
 #[derive(Debug, Clone)]
-pub enum CursorOperation {
-    Declare { stmt: Box<SqlStatement> },
-    Fetch { stmt: Box<SqlStatement> },
-    Close { stmt: Box<SqlStatement> },
-    Move { stmt: Box<SqlStatement> },
-}
-
-#[derive(Debug, Clone)]
 pub enum UtilityOperation {
     Show {
         variable: Option<String>,

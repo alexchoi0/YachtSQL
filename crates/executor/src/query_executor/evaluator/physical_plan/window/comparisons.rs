@@ -2,26 +2,13 @@ use yachtsql_core::error::Result;
 use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
+use super::super::ProjectionWithExprExec;
 use super::WindowExec;
 use crate::Table;
 
 impl WindowExec {
     pub(super) fn evaluate_expr(expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
-        match expr {
-            Expr::Column { name, .. } => {
-                let schema = batch.schema();
-                let col_idx = schema
-                    .field_index(name)
-                    .ok_or_else(|| crate::error::Error::column_not_found(name.clone()))?;
-                let column = batch
-                    .column(col_idx)
-                    .ok_or_else(|| crate::error::Error::column_not_found(name.clone()))?;
-                column.get(row_idx)
-            }
-            _ => Err(crate::error::Error::unsupported_feature(
-                "Complex expressions in window functions not yet supported".to_string(),
-            )),
-        }
+        ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
     }
 
     pub(super) fn compare_values(a: &Value, b: &Value) -> std::cmp::Ordering {

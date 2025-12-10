@@ -266,37 +266,71 @@ impl ProjectionWithExprExec {
                 Self::evaluate_function_by_category(name, args, batch, row_idx, _dialect)
             }
 
-            Expr::Aggregate { name, args, .. } => {
+            Expr::Aggregate {
+                name,
+                args,
+                distinct,
+                ..
+            } => {
                 let func_name = name.as_str();
                 let fields = batch.schema().fields();
 
-                let col_idx = fields.iter().position(|f| f.name == func_name).or_else(|| {
-                    let full_name = format!(
-                        "{}({})",
-                        func_name,
-                        args.iter()
-                            .map(|a| match a {
-                                Expr::Column { name, .. } => name.clone(),
-                                Expr::Literal(lit) => format!("{:?}", lit),
-                                _ => "*".to_string(),
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
-                    fields.iter().position(|f| f.name == full_name)
-                });
+                let col_idx = fields
+                    .iter()
+                    .position(|f| f.name == func_name)
+                    .or_else(|| {
+                        let full_name = format!(
+                            "{}({})",
+                            func_name,
+                            args.iter()
+                                .map(|a| match a {
+                                    Expr::Column { name, .. } => name.clone(),
+                                    Expr::Literal(lit) => format!("{:?}", lit),
+                                    _ => "*".to_string(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
+                        fields.iter().position(|f| f.name == full_name)
+                    })
+                    .or_else(|| {
+                        let distinct_prefix = if *distinct { "DISTINCT " } else { "" };
+                        let full_name_with_distinct = format!(
+                            "{}({}{})",
+                            func_name,
+                            distinct_prefix,
+                            args.iter()
+                                .map(|a| match a {
+                                    Expr::Column { name, .. } => name.clone(),
+                                    Expr::Literal(lit) => format!("{:?}", lit),
+                                    _ => "*".to_string(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
+                        fields
+                            .iter()
+                            .position(|f| f.name == full_name_with_distinct)
+                    });
 
                 match col_idx {
                     Some(idx) => batch
                         .column(idx)
                         .ok_or_else(|| Error::column_not_found(func_name))?
                         .get(row_idx),
-                    None if args.len() == 1 => {
+                    None if batch.num_rows() > 1
+                        && args.len() == 1
+                        && !args.iter().any(|a| matches!(a, Expr::Aggregate { .. })) =>
+                    {
+                        Self::compute_aggregate_over_batch(name, &args[0], batch)
+                    }
+                    None if batch.num_rows() == 1 && args.len() == 1 => {
                         Self::compute_aggregate_over_batch(name, &args[0], batch)
                     }
                     None => Err(Error::unsupported_feature(format!(
-                        "Aggregate expression {} requires pre-computed values",
-                        func_name
+                        "Aggregate expression {} requires pre-computed values (available columns: {:?})",
+                        func_name,
+                        fields.iter().map(|f| &f.name).collect::<Vec<_>>()
                     ))),
                 }
             }

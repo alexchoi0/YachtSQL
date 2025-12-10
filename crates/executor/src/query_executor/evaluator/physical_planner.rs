@@ -460,12 +460,21 @@ impl PhysicalPlanner {
                     ),
                     (Some(_), _) => left_table,
                     (_, Some(_)) => right_table,
-                    (None, None) => panic!(
-                        "get_expr_table: BinaryOp has no column references (both sides are literals)"
-                    ),
+                    (None, None) => None,
                 }
             }
-            _ => panic!("get_expr_table: unhandled expression type: {:?}", expr),
+            yachtsql_optimizer::expr::Expr::Literal(_) => None,
+            yachtsql_optimizer::expr::Expr::Function { args, .. } => {
+                for arg in args {
+                    if let Some(table) = self.get_expr_table(arg) {
+                        return Some(table);
+                    }
+                }
+                None
+            }
+            yachtsql_optimizer::expr::Expr::Cast { expr, .. } => self.get_expr_table(expr),
+            yachtsql_optimizer::expr::Expr::UnaryOp { expr, .. } => self.get_expr_table(expr),
+            _ => None,
         }
     }
 
@@ -486,18 +495,20 @@ impl PhysicalPlanner {
                     let left_table = self.get_expr_table(left);
                     let right_table = self.get_expr_table(right);
 
-                    let left_is_left_side =
-                        left_table.as_ref().is_some_and(|t| left_tables.contains(t));
-                    let right_is_left_side = right_table
-                        .as_ref()
-                        .is_some_and(|t| left_tables.contains(t));
+                    match (&left_table, &right_table) {
+                        (Some(lt), Some(rt)) => {
+                            let left_is_left_side = left_tables.contains(lt);
+                            let right_is_left_side = left_tables.contains(rt);
 
-                    if left_is_left_side && !right_is_left_side {
-                        equi_conditions.push((*left.clone(), *right.clone()));
-                    } else if right_is_left_side && !left_is_left_side {
-                        equi_conditions.push((*right.clone(), *left.clone()));
-                    } else {
-                        equi_conditions.push((*left.clone(), *right.clone()));
+                            if left_is_left_side != right_is_left_side {
+                                if left_is_left_side {
+                                    equi_conditions.push((*left.clone(), *right.clone()));
+                                } else {
+                                    equi_conditions.push((*right.clone(), *left.clone()));
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 } else if *op == yachtsql_optimizer::BinaryOp::And {
                     equi_conditions.extend(self.extract_equi_join_conditions(
