@@ -376,6 +376,43 @@ impl LogicalToPhysicalPlanner {
         }
     }
 
+    fn has_filter_conditions(
+        &self,
+        expr: &yachtsql_ir::expr::Expr,
+        _left_tables: &std::collections::HashSet<String>,
+    ) -> bool {
+        use yachtsql_ir::expr::{BinaryOp, Expr};
+
+        match expr {
+            Expr::BinaryOp {
+                left,
+                op: BinaryOp::Equal,
+                right,
+            } => {
+                let left_table = self.get_expr_table(left);
+                let right_table = self.get_expr_table(right);
+
+                !matches!(
+                    (&left_table, &right_table),
+                    (Some(_), Some(_)) | (None, None)
+                )
+            }
+
+            Expr::BinaryOp {
+                left,
+                op: BinaryOp::And,
+                right,
+            } => {
+                self.has_filter_conditions(left, _left_tables)
+                    || self.has_filter_conditions(right, _left_tables)
+            }
+
+            Expr::BinaryOp { .. } => true,
+
+            _ => false,
+        }
+    }
+
     fn expand_nested_custom_types(
         &self,
         fields: &[yachtsql_core::types::StructField],
@@ -1079,6 +1116,17 @@ impl LogicalToPhysicalPlanner {
                 let left_tables = self.collect_table_names(left);
                 let join_conditions = self.parse_join_conditions(on, &left_tables);
                 let is_equi_join = !join_conditions.is_empty();
+
+                let has_filter_conditions = self.has_filter_conditions(on, &left_tables);
+
+                if has_filter_conditions {
+                    return Ok(Rc::new(NestedLoopJoinExec::new(
+                        left_exec,
+                        right_exec,
+                        join_type.clone(),
+                        Some(on.clone()),
+                    )?));
+                }
 
                 let left_stats = left_exec.statistics();
                 let right_stats = right_exec.statistics();
