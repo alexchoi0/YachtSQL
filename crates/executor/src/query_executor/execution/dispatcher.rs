@@ -54,6 +54,10 @@ pub enum StatementJob {
     Scripting {
         operation: ScriptingOperation,
     },
+
+    Cursor {
+        operation: CursorOperation,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -162,6 +166,14 @@ pub enum ScriptingOperation {
         name: String,
         value: Box<Expr>,
     },
+}
+
+#[derive(Debug, Clone)]
+pub enum CursorOperation {
+    Declare { stmt: Box<SqlStatement> },
+    Fetch { stmt: Box<SqlStatement> },
+    Close { stmt: Box<SqlStatement> },
+    Move { stmt: Box<SqlStatement> },
 }
 
 #[derive(Debug, Clone)]
@@ -591,6 +603,15 @@ impl Dispatcher {
                             ));
                         }
                         let first = &stmts[0];
+                        if first.declare_type == Some(sqlparser::ast::DeclareType::Cursor)
+                            || first.for_query.is_some()
+                        {
+                            return Ok(StatementJob::Cursor {
+                                operation: CursorOperation::Declare {
+                                    stmt: Box::new(ast.clone()),
+                                },
+                            });
+                        }
                         let names: Vec<String> = first
                             .names
                             .iter()
@@ -615,6 +636,18 @@ impl Dispatcher {
                             },
                         })
                     }
+
+                    SqlStatement::Fetch { .. } => Ok(StatementJob::Cursor {
+                        operation: CursorOperation::Fetch {
+                            stmt: Box::new(ast.clone()),
+                        },
+                    }),
+
+                    SqlStatement::Close { .. } => Ok(StatementJob::Cursor {
+                        operation: CursorOperation::Close {
+                            stmt: Box::new(ast.clone()),
+                        },
+                    }),
 
                     SqlStatement::OptimizeTable { name, .. } => Ok(StatementJob::Utility {
                         operation: UtilityOperation::OptimizeTable {

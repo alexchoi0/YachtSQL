@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use sqlparser::ast::Query;
 use yachtsql_capability::FeatureRegistry;
 use yachtsql_core::diagnostics::DiagnosticArea;
 use yachtsql_core::diagnostics::sqlstate::SqlState;
@@ -26,6 +27,17 @@ pub struct UdfDefinition {
     pub body: sqlparser::ast::Expr,
 }
 
+#[derive(Debug, Clone)]
+pub struct CursorState {
+    pub name: String,
+    pub query: Box<Query>,
+    pub result_set: Option<Table>,
+    pub position: i64,
+    pub is_scrollable: bool,
+    pub with_hold: bool,
+    pub is_binary: bool,
+}
+
 #[derive(Debug)]
 pub struct SessionState {
     dialect: DialectType,
@@ -37,6 +49,7 @@ pub struct SessionState {
     search_path: Vec<String>,
     variables: HashMap<String, SessionVariable>,
     udfs: HashMap<String, UdfDefinition>,
+    cursors: HashMap<String, CursorState>,
 }
 
 impl SessionState {
@@ -56,6 +69,7 @@ impl SessionState {
             search_path: vec!["default".to_string()],
             variables: HashMap::new(),
             udfs: HashMap::new(),
+            cursors: HashMap::new(),
         }
     }
 
@@ -212,6 +226,49 @@ impl SessionState {
                 )
             })
             .collect()
+    }
+
+    pub fn declare_cursor(&mut self, cursor: CursorState) -> Result<(), Error> {
+        let name = cursor.name.to_uppercase();
+        if self.cursors.contains_key(&name) {
+            return Err(Error::duplicate_cursor(format!(
+                "cursor \"{}\" already exists",
+                cursor.name
+            )));
+        }
+        self.cursors.insert(name, cursor);
+        Ok(())
+    }
+
+    pub fn get_cursor(&self, name: &str) -> Option<&CursorState> {
+        self.cursors.get(&name.to_uppercase())
+    }
+
+    pub fn get_cursor_mut(&mut self, name: &str) -> Option<&mut CursorState> {
+        self.cursors.get_mut(&name.to_uppercase())
+    }
+
+    pub fn close_cursor(&mut self, name: &str) -> Result<(), Error> {
+        let key = name.to_uppercase();
+        if self.cursors.remove(&key).is_none() {
+            return Err(Error::invalid_cursor_name(format!(
+                "cursor \"{}\" does not exist",
+                name
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn close_all_cursors(&mut self) {
+        self.cursors.clear();
+    }
+
+    pub fn cursors(&self) -> &HashMap<String, CursorState> {
+        &self.cursors
+    }
+
+    pub fn clear_non_holdable_cursors(&mut self) {
+        self.cursors.retain(|_, cursor| cursor.with_hold);
     }
 }
 

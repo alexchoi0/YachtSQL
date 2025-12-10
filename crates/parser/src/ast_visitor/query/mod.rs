@@ -173,7 +173,14 @@ impl LogicalPlanBuilder {
             });
         }
 
-        let (limit_val, offset_val) = self.parse_limit_clause(&query.limit_clause)?;
+        let (mut limit_val, offset_val) = self.parse_limit_clause(&query.limit_clause)?;
+
+        if let Some(fetch_limit) = self.parse_fetch_clause(&query.fetch)? {
+            limit_val = match limit_val {
+                Some(existing) => Some(existing.min(fetch_limit)),
+                None => Some(fetch_limit),
+            };
+        }
 
         if limit_val.is_some() || offset_val > 0 {
             plan = LogicalPlan::new(PlanNode::Limit {
@@ -1912,6 +1919,23 @@ impl LogicalPlanBuilder {
         }
 
         Ok((limit_val, offset_val))
+    }
+
+    fn parse_fetch_clause(&self, fetch: &Option<ast::Fetch>) -> Result<Option<usize>> {
+        let Some(fetch_clause) = fetch else {
+            return Ok(None);
+        };
+
+        if fetch_clause.percent {
+            return Err(Error::unsupported_feature(
+                "FETCH FIRST ... PERCENT is not supported yet".to_string(),
+            ));
+        }
+
+        match &fetch_clause.quantity {
+            Some(expr) => Ok(Some(Self::parse_positive_integer(expr, "FETCH")?)),
+            None => Ok(Some(1)),
+        }
     }
 
     fn parse_positive_integer(expr: &ast::Expr, label: &str) -> Result<usize> {

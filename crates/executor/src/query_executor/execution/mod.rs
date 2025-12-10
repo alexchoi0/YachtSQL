@@ -1,3 +1,4 @@
+mod cursor;
 mod ddl;
 mod dispatcher;
 mod dml;
@@ -18,15 +19,17 @@ pub use ddl::{
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
-    CopyOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation, ScriptingOperation,
-    StatementJob, TxOperation, UtilityOperation,
+    CopyOperation, CursorOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation,
+    ScriptingOperation, StatementJob, TxOperation, UtilityOperation,
 };
 pub use dml::{
     DmlDeleteExecutor, DmlInsertExecutor, DmlMergeExecutor, DmlTruncateExecutor, DmlUpdateExecutor,
 };
 pub use query::QueryExecutorTrait;
 use rust_decimal::prelude::ToPrimitive;
-pub use session::{DiagnosticsSnapshot, SessionDiagnostics, SessionVariable, UdfDefinition};
+pub use session::{
+    CursorState, DiagnosticsSnapshot, SessionDiagnostics, SessionVariable, UdfDefinition,
+};
 pub use utility::{
     add_interval_to_date, apply_interval_to_date, apply_numeric_precision_scale,
     calculate_date_diff, decode_values_match, evaluate_condition_as_bool, evaluate_numeric_op,
@@ -667,6 +670,8 @@ impl QueryExecutor {
             StatementJob::Copy { operation } => self.execute_copy(&operation.stmt),
 
             StatementJob::Scripting { operation } => self.execute_scripting(operation),
+
+            StatementJob::Cursor { operation } => self.execute_cursor_operation(operation),
         }
     }
 

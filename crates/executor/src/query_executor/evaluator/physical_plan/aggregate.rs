@@ -534,7 +534,7 @@ impl AggregateExec {
                     }
                 }
 
-                FunctionName::Any | FunctionName::AnyHeavy => {
+                FunctionName::Any | FunctionName::AnyLast | FunctionName::AnyHeavy => {
                     if let Some(arg) = args.first() {
                         Self::infer_expr_type(arg, schema)
                     } else {
@@ -585,6 +585,8 @@ impl AggregateExec {
                 }
 
                 FunctionName::WindowFunnel => Some(DataType::Int64),
+
+                FunctionName::Retention => Some(DataType::Array(Box::new(DataType::Bool))),
 
                 FunctionName::BitAnd | FunctionName::BitOr | FunctionName::BitXor => {
                     Some(DataType::Int64)
