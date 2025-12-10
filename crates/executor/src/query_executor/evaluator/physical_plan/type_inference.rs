@@ -2085,7 +2085,10 @@ impl ProjectionWithExprExec {
             FunctionName::NetIpToString
             | FunctionName::NetHost
             | FunctionName::NetPublicSuffix
-            | FunctionName::NetRegDomain => Some(DataType::String),
+            | FunctionName::NetRegDomain
+            | FunctionName::NetMakeNet => Some(DataType::String),
+
+            FunctionName::NetIpInNet | FunctionName::NetIpIsPrivate => Some(DataType::Bool),
 
             FunctionName::KeysKeysetChain
             | FunctionName::AeadEncrypt

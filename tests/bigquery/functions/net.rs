@@ -112,7 +112,6 @@ fn test_net_reg_domain() {
 }
 
 #[test]
-#[ignore = "NET.IP_IN_NET not yet implemented"]
 fn test_net_ip_in_net() {
     let mut executor = create_executor();
     let result = executor
@@ -122,7 +121,6 @@ fn test_net_ip_in_net() {
 }
 
 #[test]
-#[ignore = "NET.IP_IN_NET not yet implemented"]
 fn test_net_ip_in_net_false() {
     let mut executor = create_executor();
     let result = executor
@@ -132,7 +130,6 @@ fn test_net_ip_in_net_false() {
 }
 
 #[test]
-#[ignore = "NET.MAKE_NET not yet implemented"]
 fn test_net_make_net() {
     let mut executor = create_executor();
     let result = executor
@@ -142,7 +139,6 @@ fn test_net_make_net() {
 }
 
 #[test]
-#[ignore = "NET.IP_IS_PRIVATE not yet implemented"]
 fn test_net_ip_is_private() {
     let mut executor = create_executor();
     let result = executor
@@ -152,7 +148,6 @@ fn test_net_ip_is_private() {
 }
 
 #[test]
-#[ignore = "NET.IP_IS_PRIVATE not yet implemented"]
 fn test_net_ip_is_private_public() {
     let mut executor = create_executor();
     let result = executor
@@ -180,7 +175,6 @@ fn test_net_ipv6_to_string() {
 }
 
 #[test]
-#[ignore = "NET.IP_IN_NET not yet implemented"]
 fn test_net_in_table() {
     let mut executor = create_executor();
     executor
