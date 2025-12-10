@@ -44,9 +44,9 @@ impl Accumulator for ArgMinAccumulator {
             return Ok(());
         }
 
-        let (arg, val) = if let Some(arr) = value.as_array() {
+        let (arg_to_return, val_to_compare) = if let Some(arr) = value.as_array() {
             if arr.len() == 2 {
-                if arr[0].is_null() {
+                if arr[1].is_null() {
                     return Ok(());
                 }
                 (&arr[0], &arr[1])
@@ -63,19 +63,19 @@ impl Accumulator for ArgMinAccumulator {
             });
         };
 
-        let arg_f64 = numeric_value_to_f64(arg)?.ok_or_else(|| Error::TypeMismatch {
+        let val_f64 = numeric_value_to_f64(val_to_compare)?.ok_or_else(|| Error::TypeMismatch {
             expected: "NUMERIC".to_string(),
             actual: "NULL".to_string(),
         })?;
 
         match self.min_arg {
             None => {
-                self.min_arg = Some(arg_f64);
-                self.value_at_min = Some(val.clone());
+                self.min_arg = Some(val_f64);
+                self.value_at_min = Some(arg_to_return.clone());
             }
-            Some(current_min) if arg_f64 < current_min => {
-                self.min_arg = Some(arg_f64);
-                self.value_at_min = Some(val.clone());
+            Some(current_min) if val_f64 < current_min => {
+                self.min_arg = Some(val_f64);
+                self.value_at_min = Some(arg_to_return.clone());
             }
             _ => {}
         }
@@ -116,7 +116,7 @@ impl AggregateFunction for ArgMinFunction {
     }
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
-        Ok(arg_types.get(1).cloned().unwrap_or(DataType::String))
+        Ok(arg_types.first().cloned().unwrap_or(DataType::String))
     }
 
     fn create_accumulator(&self) -> Box<dyn Accumulator> {
@@ -151,9 +151,9 @@ impl Accumulator for ArgMaxAccumulator {
             return Ok(());
         }
 
-        let (arg, val) = if let Some(arr) = value.as_array() {
+        let (arg_to_return, val_to_compare) = if let Some(arr) = value.as_array() {
             if arr.len() == 2 {
-                if arr[0].is_null() {
+                if arr[1].is_null() {
                     return Ok(());
                 }
                 (&arr[0], &arr[1])
@@ -170,19 +170,19 @@ impl Accumulator for ArgMaxAccumulator {
             });
         };
 
-        let arg_f64 = numeric_value_to_f64(arg)?.ok_or_else(|| Error::TypeMismatch {
+        let val_f64 = numeric_value_to_f64(val_to_compare)?.ok_or_else(|| Error::TypeMismatch {
             expected: "NUMERIC".to_string(),
             actual: "NULL".to_string(),
         })?;
 
         match self.max_arg {
             None => {
-                self.max_arg = Some(arg_f64);
-                self.value_at_max = Some(val.clone());
+                self.max_arg = Some(val_f64);
+                self.value_at_max = Some(arg_to_return.clone());
             }
-            Some(current_max) if arg_f64 > current_max => {
-                self.max_arg = Some(arg_f64);
-                self.value_at_max = Some(val.clone());
+            Some(current_max) if val_f64 > current_max => {
+                self.max_arg = Some(val_f64);
+                self.value_at_max = Some(arg_to_return.clone());
             }
             _ => {}
         }
@@ -223,7 +223,7 @@ impl AggregateFunction for ArgMaxFunction {
     }
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
-        Ok(arg_types.get(1).cloned().unwrap_or(DataType::String))
+        Ok(arg_types.first().cloned().unwrap_or(DataType::String))
     }
 
     fn create_accumulator(&self) -> Box<dyn Accumulator> {

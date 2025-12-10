@@ -41,6 +41,32 @@ pub enum FunctionName {
     KurtSamp,
     AvgWeighted,
     CountIf,
+    SumIf,
+    AvgIf,
+    MinIf,
+    MaxIf,
+    AnyIf,
+    DeltaSum,
+    DeltaSumTimestamp,
+    SequenceMatch,
+    SequenceCount,
+    SumArray,
+    AvgArray,
+    MinArray,
+    MaxArray,
+    SumDistinct,
+    AvgDistinct,
+    Nothing,
+    SumKahan,
+    SingleValueOrNull,
+    BoundedSample,
+    LargestTriangleThreeBuckets,
+    SparkBar,
+    MaxIntersections,
+    MaxIntersectionsPosition,
+    SumOrNull,
+    SumOrDefault,
+    SumResample,
 
     BoolAnd,
     BoolOr,
@@ -1035,6 +1061,36 @@ impl FunctionName {
             "KURT_SAMP" | "KURTSAMP" => Self::KurtSamp,
             "AVG_WEIGHTED" | "AVGWEIGHTED" => Self::AvgWeighted,
             "COUNTIF" | "COUNT_IF" => Self::CountIf,
+            "SUMIF" | "SUM_IF" => Self::SumIf,
+            "AVGIF" | "AVG_IF" => Self::AvgIf,
+            "MINIF" | "MIN_IF" => Self::MinIf,
+            "MAXIF" | "MAX_IF" => Self::MaxIf,
+            "ANYIF" | "ANY_IF" => Self::AnyIf,
+            "DELTASUM" | "DELTA_SUM" => Self::DeltaSum,
+            "DELTASUMTIMESTAMP" | "DELTA_SUM_TIMESTAMP" => Self::DeltaSumTimestamp,
+            "SEQUENCEMATCH" | "SEQUENCE_MATCH" => Self::SequenceMatch,
+            "SEQUENCECOUNT" | "SEQUENCE_COUNT" => Self::SequenceCount,
+            "SUMARRAY" | "SUM_ARRAY" => Self::SumArray,
+            "AVGARRAY" | "AVG_ARRAY" => Self::AvgArray,
+            "MINARRAY" | "MIN_ARRAY" => Self::MinArray,
+            "MAXARRAY" | "MAX_ARRAY" => Self::MaxArray,
+            "SUMDISTINCT" | "SUM_DISTINCT" => Self::SumDistinct,
+            "AVGDISTINCT" | "AVG_DISTINCT" => Self::AvgDistinct,
+            "NOTHING" => Self::Nothing,
+            "SUMKAHAN" | "SUM_KAHAN" => Self::SumKahan,
+            "SINGLEVALUEORNULL" | "SINGLE_VALUE_OR_NULL" => Self::SingleValueOrNull,
+            "BOUNDEDSAMPLE" | "BOUNDED_SAMPLE" => Self::BoundedSample,
+            "LARGESTTRIANGLETHREEBUCKETS" | "LARGEST_TRIANGLE_THREE_BUCKETS" => {
+                Self::LargestTriangleThreeBuckets
+            }
+            "SPARKBAR" | "SPARK_BAR" => Self::SparkBar,
+            "MAXINTERSECTIONS" | "MAX_INTERSECTIONS" => Self::MaxIntersections,
+            "MAXINTERSECTIONSPOSITION" | "MAX_INTERSECTIONS_POSITION" => {
+                Self::MaxIntersectionsPosition
+            }
+            "SUMORNULL" | "SUM_OR_NULL" => Self::SumOrNull,
+            "SUMORDEFAULT" | "SUM_OR_DEFAULT" => Self::SumOrDefault,
+            "SUMRESAMPLE" | "SUM_RESAMPLE" => Self::SumResample,
 
             "BOOL_AND" => Self::BoolAnd,
             "BOOL_OR" => Self::BoolOr,
@@ -2116,6 +2172,32 @@ impl FunctionName {
             Self::KurtSamp => "KURT_SAMP",
             Self::AvgWeighted => "AVG_WEIGHTED",
             Self::CountIf => "COUNTIF",
+            Self::SumIf => "SUMIF",
+            Self::AvgIf => "AVGIF",
+            Self::MinIf => "MINIF",
+            Self::MaxIf => "MAXIF",
+            Self::AnyIf => "ANYIF",
+            Self::DeltaSum => "DELTASUM",
+            Self::DeltaSumTimestamp => "DELTASUMTIMESTAMP",
+            Self::SequenceMatch => "SEQUENCEMATCH",
+            Self::SequenceCount => "SEQUENCECOUNT",
+            Self::SumArray => "SUMARRAY",
+            Self::AvgArray => "AVGARRAY",
+            Self::MinArray => "MINARRAY",
+            Self::MaxArray => "MAXARRAY",
+            Self::SumDistinct => "SUMDISTINCT",
+            Self::AvgDistinct => "AVGDISTINCT",
+            Self::Nothing => "NOTHING",
+            Self::SumKahan => "SUMKAHAN",
+            Self::SingleValueOrNull => "SINGLEVALUEORNULL",
+            Self::BoundedSample => "BOUNDEDSAMPLE",
+            Self::LargestTriangleThreeBuckets => "LARGESTTRIANGLETHREEBUCKETS",
+            Self::SparkBar => "SPARKBAR",
+            Self::MaxIntersections => "MAXINTERSECTIONS",
+            Self::MaxIntersectionsPosition => "MAXINTERSECTIONSPOSITION",
+            Self::SumOrNull => "SUMORNULL",
+            Self::SumOrDefault => "SUMORDEFAULT",
+            Self::SumResample => "SUMRESAMPLE",
 
             Self::BoolAnd => "BOOL_AND",
             Self::BoolOr => "BOOL_OR",
@@ -3106,6 +3188,32 @@ impl FunctionName {
                 | Self::KurtSamp
                 | Self::AvgWeighted
                 | Self::CountIf
+                | Self::SumIf
+                | Self::AvgIf
+                | Self::MinIf
+                | Self::MaxIf
+                | Self::AnyIf
+                | Self::DeltaSum
+                | Self::DeltaSumTimestamp
+                | Self::SequenceMatch
+                | Self::SequenceCount
+                | Self::SumArray
+                | Self::AvgArray
+                | Self::MinArray
+                | Self::MaxArray
+                | Self::SumDistinct
+                | Self::AvgDistinct
+                | Self::Nothing
+                | Self::SumKahan
+                | Self::SingleValueOrNull
+                | Self::BoundedSample
+                | Self::LargestTriangleThreeBuckets
+                | Self::SparkBar
+                | Self::MaxIntersections
+                | Self::MaxIntersectionsPosition
+                | Self::SumOrNull
+                | Self::SumOrDefault
+                | Self::SumResample
                 | Self::BoolAnd
                 | Self::BoolOr
                 | Self::Every

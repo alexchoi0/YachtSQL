@@ -423,4 +423,71 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
     );
     registry.register_aggregate("SUMDISTINCT".to_string(), Rc::new(SumDistinctFunction));
     registry.register_aggregate("AVGDISTINCT".to_string(), Rc::new(AvgDistinctFunction));
+
+    registry.register_aggregate("SUMIF".to_string(), Rc::new(SumIfFunction));
+    registry.register_aggregate("AVGIF".to_string(), Rc::new(AvgIfFunction));
+    registry.register_aggregate("MINIF".to_string(), Rc::new(MinIfFunction));
+    registry.register_aggregate("MAXIF".to_string(), Rc::new(MaxIfFunction));
+    registry.register_aggregate(
+        "DELTASUMTIMESTAMP".to_string(),
+        Rc::new(DeltaSumTimestampFunction),
+    );
+    registry.register_aggregate("DELTASUM".to_string(), Rc::new(DeltaSumFunction));
+    registry.register_aggregate(
+        "INTERVALLENGTHSUM".to_string(),
+        Rc::new(IntervalLengthSumFunction),
+    );
+    registry.register_aggregate(
+        "WINDOWFUNNEL".to_string(),
+        Rc::new(WindowFunnelFunction::default()),
+    );
+    registry.register_aggregate(
+        "SEQUENCEMATCH".to_string(),
+        Rc::new(SequenceMatchFunction::default()),
+    );
+    registry.register_aggregate(
+        "SEQUENCECOUNT".to_string(),
+        Rc::new(SequenceCountFunction::default()),
+    );
+    registry.register_aggregate("ARGMIN".to_string(), Rc::new(ArgMinFunction));
+    registry.register_aggregate("ARGMAX".to_string(), Rc::new(ArgMaxFunction));
+    registry.register_aggregate("RANKCORR".to_string(), Rc::new(RankCorrFunction));
+    registry.register_aggregate("ANYHEAVY".to_string(), Rc::new(AnyHeavyFunction));
+    registry.register_aggregate("ANYLAST".to_string(), Rc::new(AnyLastFunction));
+    registry.register_aggregate("RETENTION".to_string(), Rc::new(RetentionFunction));
+    registry.register_aggregate(
+        "EXPONENTIALMOVINGAVERAGE".to_string(),
+        Rc::new(ExponentialMovingAverageFunction::default()),
+    );
+    registry.register_aggregate(
+        "SIMPLELINEARREGRESSION".to_string(),
+        Rc::new(SimpleLinearRegressionFunction),
+    );
+    registry.register_aggregate(
+        "MANNWHITNEYUTEST".to_string(),
+        Rc::new(MannWhitneyUTestFunction),
+    );
+    registry.register_aggregate("STUDENTTTEST".to_string(), Rc::new(StudentTTestFunction));
+    registry.register_aggregate("WELCHTTEST".to_string(), Rc::new(WelchTTestFunction));
+    registry.register_aggregate("CRAMERSV".to_string(), Rc::new(CramersVFunction));
+    registry.register_aggregate("CONTINGENCY".to_string(), Rc::new(ContingencyFunction));
+    registry.register_aggregate("THEILSU".to_string(), Rc::new(TheilUFunction));
+    registry.register_aggregate(
+        "CATEGORICALINFORMATIONVALUE".to_string(),
+        Rc::new(CategoricalInformationValueFunction),
+    );
+    registry.register_aggregate(
+        "SUMWITHOVERFLOW".to_string(),
+        Rc::new(SumWithOverflowFunction),
+    );
+    registry.register_aggregate("SUMARRAY".to_string(), Rc::new(SumArrayFunction));
+    registry.register_aggregate("AVGARRAY".to_string(), Rc::new(AvgArrayFunction));
+    registry.register_aggregate("MINARRAY".to_string(), Rc::new(MinArrayFunction));
+    registry.register_aggregate("MAXARRAY".to_string(), Rc::new(MaxArrayFunction));
+    registry.register_aggregate("UNIQHLL12".to_string(), Rc::new(UniqHll12Function));
+    registry.register_aggregate("UNIQCOMBINED".to_string(), Rc::new(UniqCombinedFunction));
+    registry.register_aggregate(
+        "UNIQCOMBINED64".to_string(),
+        Rc::new(UniqCombined64Function),
+    );
 }

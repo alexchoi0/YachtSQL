@@ -270,7 +270,7 @@ fn test_arg_min_basic() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT ARG_MIN(price, name) as cheapest FROM products")
+        .execute_sql("SELECT ARG_MIN(name, price) as cheapest FROM products")
         .unwrap();
 
     assert_eq!(result.num_rows(), 1);
@@ -296,7 +296,7 @@ fn test_arg_max_basic() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT ARG_MAX(price, name) as most_expensive FROM products")
+        .execute_sql("SELECT ARG_MAX(name, price) as most_expensive FROM products")
         .unwrap();
 
     assert_eq!(result.num_rows(), 1);
@@ -323,7 +323,7 @@ fn test_arg_min_with_nulls() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT ARG_MIN(score, value) as min_val FROM data")
+        .execute_sql("SELECT ARG_MIN(value, score) as min_val FROM data")
         .unwrap();
 
     assert_eq!(result.num_rows(), 1);
