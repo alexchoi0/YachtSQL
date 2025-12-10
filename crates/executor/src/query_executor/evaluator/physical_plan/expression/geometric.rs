@@ -37,6 +37,8 @@ impl ProjectionWithExprExec {
             "IS_PARALLEL" => Self::eval_is_parallel(args, batch, row_idx),
             "IS_PERPENDICULAR" => Self::eval_is_perpendicular(args, batch, row_idx),
             "INTERSECTS" => Self::eval_intersects(args, batch, row_idx),
+            "POLYGON" => Self::eval_polygon_constructor(args, batch, row_idx),
+            "BOUND_BOX" => Self::eval_bound_box(args, batch, row_idx),
             _ => Err(crate::error::Error::invalid_query(format!(
                 "Unknown geometric function: {}",
                 name
@@ -56,25 +58,49 @@ impl ProjectionWithExprExec {
     }
 
     fn eval_box_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        if args.len() != 2 {
-            return Err(crate::error::Error::invalid_query(
-                "BOX requires exactly 2 arguments (point1, point2)",
-            ));
+        match args.len() {
+            1 => {
+                let arg = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if arg.as_circle().is_some() {
+                    geometric::circle_to_box(&arg)
+                } else {
+                    Err(crate::error::Error::invalid_query(
+                        "BOX with 1 argument requires a CIRCLE",
+                    ))
+                }
+            }
+            2 => {
+                let p1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let p2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                geometric::box_constructor(&p1, &p2)
+            }
+            _ => Err(crate::error::Error::invalid_query(
+                "BOX requires 1 or 2 arguments",
+            )),
         }
-        let p1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let p2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
-        geometric::box_constructor(&p1, &p2)
     }
 
     fn eval_circle_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        if args.len() != 2 {
-            return Err(crate::error::Error::invalid_query(
-                "CIRCLE requires exactly 2 arguments (center, radius)",
-            ));
+        match args.len() {
+            1 => {
+                let arg = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if arg.as_pgbox().is_some() {
+                    geometric::box_to_circle(&arg)
+                } else {
+                    Err(crate::error::Error::invalid_query(
+                        "CIRCLE with 1 argument requires a BOX",
+                    ))
+                }
+            }
+            2 => {
+                let center = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let radius = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                geometric::circle_constructor(&center, &radius)
+            }
+            _ => Err(crate::error::Error::invalid_query(
+                "CIRCLE requires 1 or 2 arguments",
+            )),
         }
-        let center = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let radius = Self::evaluate_expr(&args[1], batch, row_idx)?;
-        geometric::circle_constructor(&center, &radius)
     }
 
     fn eval_area(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -283,5 +309,45 @@ impl ProjectionWithExprExec {
         let lseg1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
         let lseg2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
         geometric::intersects(&lseg1, &lseg2)
+    }
+
+    fn eval_polygon_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        match args.len() {
+            1 => {
+                let arg = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if arg.as_pgbox().is_some() {
+                    geometric::box_to_polygon(&arg)
+                } else {
+                    Err(crate::error::Error::invalid_query(
+                        "POLYGON with 1 argument requires a BOX",
+                    ))
+                }
+            }
+            2 => {
+                let npts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                let circle = Self::evaluate_expr(&args[1], batch, row_idx)?;
+                if circle.as_circle().is_some() {
+                    geometric::circle_to_polygon(&npts, &circle)
+                } else {
+                    Err(crate::error::Error::invalid_query(
+                        "POLYGON with 2 arguments requires (npoints, CIRCLE)",
+                    ))
+                }
+            }
+            _ => Err(crate::error::Error::invalid_query(
+                "POLYGON requires 1 or 2 arguments",
+            )),
+        }
+    }
+
+    fn eval_bound_box(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(crate::error::Error::invalid_query(
+                "BOUND_BOX requires exactly 2 arguments",
+            ));
+        }
+        let box1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let box2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        geometric::bound_box(&box1, &box2)
     }
 }

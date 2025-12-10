@@ -949,6 +949,7 @@ impl ProjectionWithExprExec {
                 | FunctionName::Contains
                 | FunctionName::ContainedBy
                 | FunctionName::Overlaps
+                | FunctionName::BoundBox
         ) {
             return Self::evaluate_geometric_function(func_name, args, batch, row_idx);
         }

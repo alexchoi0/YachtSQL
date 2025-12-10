@@ -2255,6 +2255,36 @@ impl<'a> ExpressionEvaluator<'a> {
                         .map_err(|e| Error::ExecutionError(e.to_string()))
                 }
             }
+            BinaryOperator::QuestionDoublePipe => {
+                if has_null {
+                    Ok(false)
+                } else {
+                    let result = yachtsql_functions::geometric::is_parallel(left, right)?;
+                    result.as_bool().ok_or_else(|| {
+                        Error::InvalidQuery("is_parallel should return boolean".to_string())
+                    })
+                }
+            }
+            BinaryOperator::QuestionDashPipe => {
+                if has_null {
+                    Ok(false)
+                } else {
+                    let result = yachtsql_functions::geometric::is_perpendicular(left, right)?;
+                    result.as_bool().ok_or_else(|| {
+                        Error::InvalidQuery("is_perpendicular should return boolean".to_string())
+                    })
+                }
+            }
+            BinaryOperator::QuestionHash => {
+                if has_null {
+                    Ok(false)
+                } else {
+                    let result = yachtsql_functions::geometric::intersects(left, right)?;
+                    result.as_bool().ok_or_else(|| {
+                        Error::InvalidQuery("intersects should return boolean".to_string())
+                    })
+                }
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Comparison operator {:?} not supported",
                 op

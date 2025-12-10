@@ -16,7 +16,6 @@ fn test_point_string_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_line_literal() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT LINE '{1,2,3}'").unwrap();
@@ -24,7 +23,6 @@ fn test_line_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lseg_literal() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT LSEG '[(0,0),(1,1)]'").unwrap();
@@ -39,7 +37,6 @@ fn test_box_literal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_path_open() {
     let mut executor = create_executor();
     let result = executor
@@ -49,7 +46,6 @@ fn test_path_open() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_path_closed() {
     let mut executor = create_executor();
     let result = executor
@@ -59,7 +55,6 @@ fn test_path_closed() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_polygon_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -162,7 +157,6 @@ fn test_point_contained_in_box() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lseg_parallel() {
     let mut executor = create_executor();
     let result = executor
@@ -172,7 +166,6 @@ fn test_lseg_parallel() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lseg_perpendicular() {
     let mut executor = create_executor();
     let result = executor
@@ -182,7 +175,6 @@ fn test_lseg_perpendicular() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lseg_intersects() {
     let mut executor = create_executor();
     let result = executor
@@ -201,7 +193,6 @@ fn test_circle_contains_point() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_polygon_contains_point() {
     let mut executor = create_executor();
     let result = executor
@@ -229,7 +220,6 @@ fn test_area_circle() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_area_polygon() {
     let mut executor = create_executor();
     let result = executor
@@ -293,7 +283,6 @@ fn test_width_box() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_length_lseg() {
     let mut executor = create_executor();
     let result = executor
@@ -303,7 +292,6 @@ fn test_length_lseg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_length_path() {
     let mut executor = create_executor();
     let result = executor
@@ -313,7 +301,6 @@ fn test_length_path() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_npoints_path() {
     let mut executor = create_executor();
     let result = executor
@@ -323,7 +310,6 @@ fn test_npoints_path() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_npoints_polygon() {
     let mut executor = create_executor();
     let result = executor
@@ -333,7 +319,6 @@ fn test_npoints_polygon() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_isclosed_path() {
     let mut executor = create_executor();
     let result = executor
@@ -343,7 +328,6 @@ fn test_isclosed_path() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_isopen_path() {
     let mut executor = create_executor();
     let result = executor
@@ -353,7 +337,6 @@ fn test_isopen_path() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_popen() {
     let mut executor = create_executor();
     let result = executor
@@ -363,7 +346,6 @@ fn test_popen() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pclose() {
     let mut executor = create_executor();
     let result = executor
@@ -373,7 +355,6 @@ fn test_pclose() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_box_to_circle() {
     let mut executor = create_executor();
     let result = executor
@@ -383,7 +364,6 @@ fn test_box_to_circle() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_box_to_polygon() {
     let mut executor = create_executor();
     let result = executor
@@ -393,7 +373,6 @@ fn test_box_to_polygon() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_circle_to_box() {
     let mut executor = create_executor();
     let result = executor
@@ -403,7 +382,6 @@ fn test_circle_to_box() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_circle_to_polygon() {
     let mut executor = create_executor();
     let result = executor
@@ -413,7 +391,6 @@ fn test_circle_to_polygon() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_bound_box() {
     let mut executor = create_executor();
     let result = executor

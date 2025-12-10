@@ -138,6 +138,9 @@ impl LogicalPlanBuilder {
             ast::BinaryOperator::PGBitwiseShiftLeft => Ok(BinaryOp::ShiftLeft),
             ast::BinaryOperator::PGBitwiseShiftRight => Ok(BinaryOp::ShiftRight),
             ast::BinaryOperator::AtAt => Ok(BinaryOp::TSVectorMatch),
+            ast::BinaryOperator::QuestionDoublePipe => Ok(BinaryOp::GeometricParallel),
+            ast::BinaryOperator::QuestionDashPipe => Ok(BinaryOp::GeometricPerpendicular),
+            ast::BinaryOperator::QuestionHash => Ok(BinaryOp::GeometricIntersects),
             _ => Err(Error::unsupported_feature(format!(
                 "Binary operator not supported: {:?}",
                 op

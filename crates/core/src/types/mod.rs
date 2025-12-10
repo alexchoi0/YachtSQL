@@ -356,6 +356,10 @@ impl PgBox {
             && self.low.y <= other.high.y
             && self.high.y >= other.low.y
     }
+
+    pub fn diagonal(&self) -> f64 {
+        self.low.distance(&self.high)
+    }
 }
 
 impl Eq for PgBox {}

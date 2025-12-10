@@ -13,7 +13,11 @@ impl ProjectionWithExprExec {
     ) -> Result<Value> {
         Self::validate_arg_count("LENGTH", args, 1)?;
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        crate::functions::scalar::eval_length(&val)
+        if val.as_lseg().is_some() || val.as_path().is_some() {
+            yachtsql_functions::geometric::length(&val)
+        } else {
+            crate::functions::scalar::eval_length(&val)
+        }
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_octet_length(

@@ -667,6 +667,7 @@ pub enum FunctionName {
     Isopen,
     Popen,
     Pclose,
+    BoundBox,
 
     // Geography (ST_*) functions
     StGeogpoint,
@@ -1814,6 +1815,7 @@ impl FunctionName {
             "ISOPEN" => Self::Isopen,
             "POPEN" => Self::Popen,
             "PCLOSE" => Self::Pclose,
+            "BOUND_BOX" => Self::BoundBox,
 
             // Geography (ST_*) functions
             "ST_GEOGPOINT" => Self::StGeogpoint,
@@ -2918,6 +2920,7 @@ impl FunctionName {
             Self::Isopen => "ISOPEN",
             Self::Popen => "POPEN",
             Self::Pclose => "PCLOSE",
+            Self::BoundBox => "BOUND_BOX",
 
             // Geography (ST_*) functions
             Self::StGeogpoint => "ST_GEOGPOINT",

@@ -1,5 +1,5 @@
 use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{PgBox, PgCircle, PgLseg, PgPoint, Value};
+use yachtsql_core::types::{PgBox, PgCircle, PgLseg, PgPoint, PgPolygon, Value};
 
 pub fn point_constructor(x: &Value, y: &Value) -> Result<Value> {
     if x.is_null() || y.is_null() {
@@ -519,6 +519,107 @@ pub fn intersects(lseg1: &Value, lseg2: &Value) -> Result<Value> {
     })?;
 
     Ok(Value::bool_val(l1.intersects(l2)))
+}
+
+pub fn box_to_circle(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    let b = geom.as_pgbox().ok_or_else(|| Error::TypeMismatch {
+        expected: "BOX".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    let center = b.center();
+    let radius = b.diagonal() / 2.0;
+    Ok(Value::circle(PgCircle::new(center, radius)))
+}
+
+pub fn circle_to_box(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    let c = geom.as_circle().ok_or_else(|| Error::TypeMismatch {
+        expected: "CIRCLE".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    let half_side = c.radius / std::f64::consts::SQRT_2;
+    let low = PgPoint::new(c.center.x - half_side, c.center.y - half_side);
+    let high = PgPoint::new(c.center.x + half_side, c.center.y + half_side);
+    Ok(Value::pgbox(PgBox::new(low, high)))
+}
+
+pub fn box_to_polygon(geom: &Value) -> Result<Value> {
+    if geom.is_null() {
+        return Ok(Value::null());
+    }
+
+    let b = geom.as_pgbox().ok_or_else(|| Error::TypeMismatch {
+        expected: "BOX".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    let points = vec![
+        PgPoint::new(b.low.x, b.low.y),
+        PgPoint::new(b.high.x, b.low.y),
+        PgPoint::new(b.high.x, b.high.y),
+        PgPoint::new(b.low.x, b.high.y),
+    ];
+    Ok(Value::polygon(PgPolygon::new(points)))
+}
+
+pub fn circle_to_polygon(npts: &Value, geom: &Value) -> Result<Value> {
+    if geom.is_null() || npts.is_null() {
+        return Ok(Value::null());
+    }
+
+    let n = npts.as_i64().ok_or_else(|| Error::TypeMismatch {
+        expected: "INTEGER".to_string(),
+        actual: npts.data_type().to_string(),
+    })? as usize;
+
+    if n < 3 {
+        return Err(Error::InvalidQuery(
+            "POLYGON requires at least 3 points".to_string(),
+        ));
+    }
+
+    let c = geom.as_circle().ok_or_else(|| Error::TypeMismatch {
+        expected: "CIRCLE".to_string(),
+        actual: geom.data_type().to_string(),
+    })?;
+
+    let mut points = Vec::with_capacity(n);
+    for i in 0..n {
+        let angle = 2.0 * std::f64::consts::PI * (i as f64) / (n as f64);
+        let x = c.center.x + c.radius * angle.cos();
+        let y = c.center.y + c.radius * angle.sin();
+        points.push(PgPoint::new(x, y));
+    }
+    Ok(Value::polygon(PgPolygon::new(points)))
+}
+
+pub fn bound_box(box1: &Value, box2: &Value) -> Result<Value> {
+    if box1.is_null() || box2.is_null() {
+        return Ok(Value::null());
+    }
+
+    let b1 = box1.as_pgbox().ok_or_else(|| Error::TypeMismatch {
+        expected: "BOX".to_string(),
+        actual: box1.data_type().to_string(),
+    })?;
+
+    let b2 = box2.as_pgbox().ok_or_else(|| Error::TypeMismatch {
+        expected: "BOX".to_string(),
+        actual: box2.data_type().to_string(),
+    })?;
+
+    let low = PgPoint::new(b1.low.x.min(b2.low.x), b1.low.y.min(b2.low.y));
+    let high = PgPoint::new(b1.high.x.max(b2.high.x), b1.high.y.max(b2.high.y));
+    Ok(Value::pgbox(PgBox::new(low, high)))
 }
 
 #[cfg(test)]

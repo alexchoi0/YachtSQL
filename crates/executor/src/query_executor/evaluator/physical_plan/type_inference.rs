@@ -188,7 +188,10 @@ impl ProjectionWithExprExec {
             | BinaryOp::Or
             | BinaryOp::RangeAdjacent
             | BinaryOp::RangeStrictlyLeft
-            | BinaryOp::RangeStrictlyRight => Some(DataType::Bool),
+            | BinaryOp::RangeStrictlyRight
+            | BinaryOp::GeometricParallel
+            | BinaryOp::GeometricPerpendicular
+            | BinaryOp::GeometricIntersects => Some(DataType::Bool),
 
             BinaryOp::Add => match (&left_type, &right_type) {
                 (Some(DataType::Point), Some(DataType::Point)) => Some(DataType::Point),
@@ -2157,6 +2160,8 @@ impl ProjectionWithExprExec {
             FunctionName::Isclosed | FunctionName::Isopen => Some(DataType::Bool),
 
             FunctionName::Popen | FunctionName::Pclose => Some(DataType::Path),
+
+            FunctionName::BoundBox => Some(DataType::PgBox),
 
             FunctionName::Center => Some(DataType::Point),
 
