@@ -30,10 +30,13 @@ impl Accumulator for QuantileAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.digest.merge(&other.digest);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -109,10 +112,13 @@ impl Accumulator for QuantileExactAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_EXACT merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -196,10 +202,13 @@ impl Accumulator for QuantilesAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILES merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.digest.merge(&other.digest);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -279,10 +288,13 @@ impl Accumulator for QuantilesExactAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILES_EXACT merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -409,10 +421,13 @@ impl Accumulator for QuantileExactWeightedAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_EXACT_WEIGHTED merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -507,10 +522,13 @@ impl Accumulator for QuantileTimingAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_TIMING merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -620,10 +638,13 @@ impl Accumulator for QuantileTimingWeightedAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_TIMING_WEIGHTED merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -718,10 +739,13 @@ impl Accumulator for QuantileTDigestAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_TDIGEST merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.digest.merge(&other.digest);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -822,10 +846,13 @@ impl Accumulator for QuantileTDigestWeightedAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_TDIGEST_WEIGHTED merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.digest.merge(&other.digest);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -900,10 +927,13 @@ impl Accumulator for QuantilesTimingAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILES_TIMING merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -997,10 +1027,13 @@ impl Accumulator for QuantilesTDigestAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILES_TDIGEST merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.digest.merge(&other.digest);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -1092,10 +1125,13 @@ impl Accumulator for QuantileDeterministicAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_DETERMINISTIC merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {
@@ -1196,10 +1232,13 @@ impl Accumulator for QuantileBFloat16Accumulator {
         Ok(())
     }
 
-    fn merge(&mut self, _other: &dyn Accumulator) -> Result<()> {
-        Err(Error::unsupported_feature(
-            "QUANTILE_BFLOAT16 merge not implemented".to_string(),
-        ))
+    fn merge(&mut self, other: &dyn Accumulator) -> Result<()> {
+        let other = other
+            .as_any()
+            .downcast_ref::<Self>()
+            .ok_or_else(|| Error::internal("Invalid accumulator type for merge"))?;
+        self.values.extend_from_slice(&other.values);
+        Ok(())
     }
 
     fn finalize(&self) -> Result<Value> {

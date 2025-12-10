@@ -41,6 +41,10 @@ impl TDigest {
             })
             .collect()
     }
+
+    pub fn merge(&mut self, other: &TDigest) {
+        self.values.extend_from_slice(&other.values);
+    }
 }
 
 impl Default for TDigest {
