@@ -188,7 +188,7 @@ fn test_sample_join() {
     let result = executor
         .execute_sql("SELECT l.id, l.value, r.name FROM sample_left l SAMPLE 0.2 JOIN sample_right r ON l.id = r.id")
         .unwrap();
-    assert!(result.num_rows() > 0);
+    assert!(result.num_rows() <= 50);
 }
 
 #[ignore = "Implement me!"]

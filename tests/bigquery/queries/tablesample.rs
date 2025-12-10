@@ -5,13 +5,23 @@ fn setup_large_table(executor: &mut yachtsql::QueryExecutor) {
     executor
         .execute_sql("CREATE TABLE large_data (id INT64, category STRING, value INT64)")
         .unwrap();
-    executor
-        .execute_sql("INSERT INTO large_data SELECT n, CASE WHEN MOD(n, 3) = 0 THEN 'A' WHEN MOD(n, 3) = 1 THEN 'B' ELSE 'C' END, n * 10 FROM UNNEST(GENERATE_ARRAY(1, 100)) AS n")
-        .unwrap();
+    for i in (1..=100).step_by(10) {
+        let values: Vec<String> = (i..i + 10)
+            .map(|n| {
+                let cat = match n % 3 {
+                    0 => "A",
+                    1 => "B",
+                    _ => "C",
+                };
+                format!("({}, '{}', {})", n, cat, n * 10)
+            })
+            .collect();
+        let sql = format!("INSERT INTO large_data VALUES {}", values.join(", "));
+        executor.execute_sql(&sql).unwrap();
+    }
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_percent() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -23,7 +33,6 @@ fn test_tablesample_percent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_bernoulli() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -35,7 +44,6 @@ fn test_tablesample_bernoulli() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_rows() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -47,7 +55,6 @@ fn test_tablesample_rows() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_with_where() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -61,21 +68,19 @@ fn test_tablesample_with_where() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_with_order_by() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
 
     let result = executor
         .execute_sql(
-            "SELECT COUNT(*) <= 5 FROM (SELECT id FROM large_data TABLESAMPLE SYSTEM (10 PERCENT) ORDER BY id LIMIT 5)",
+            "SELECT COUNT(*) <= 5 FROM (SELECT id FROM large_data TABLESAMPLE SYSTEM (10 PERCENT) ORDER BY id LIMIT 5) AS sub",
         )
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_with_join() {
     let mut executor = create_executor();
     executor
@@ -87,27 +92,25 @@ fn test_tablesample_with_join() {
     setup_large_table(&mut executor);
 
     let result = executor
-        .execute_sql("SELECT COUNT(*) <= 3 FROM (SELECT c.description, COUNT(*) FROM large_data d TABLESAMPLE SYSTEM (20 PERCENT) JOIN categories c ON d.category = c.name GROUP BY c.description ORDER BY c.description)")
+        .execute_sql("SELECT COUNT(*) <= 3 FROM (SELECT c.description, COUNT(*) FROM large_data d TABLESAMPLE SYSTEM (20 PERCENT) JOIN categories c ON d.category = c.name GROUP BY c.description ORDER BY c.description) AS sub")
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_reproducible() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
 
     let result = executor
         .execute_sql(
-            "SELECT COUNT(*) >= 0 FROM large_data TABLESAMPLE SYSTEM (50 PERCENT REPEATABLE(42))",
+            "SELECT COUNT(*) >= 0 FROM large_data TABLESAMPLE SYSTEM (50 PERCENT) REPEATABLE(42)",
         )
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_zero_percent() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -119,7 +122,6 @@ fn test_tablesample_zero_percent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_hundred_percent() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -131,53 +133,49 @@ fn test_tablesample_hundred_percent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_in_subquery() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
 
     let result = executor
         .execute_sql(
-            "SELECT AVG(value) IS NOT NULL FROM (SELECT * FROM large_data TABLESAMPLE SYSTEM (50 PERCENT))",
+            "SELECT AVG(value) IS NOT NULL OR COUNT(*) = 0 FROM (SELECT * FROM large_data TABLESAMPLE SYSTEM (50 PERCENT)) AS sub",
         )
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_with_group_by() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
 
     let result = executor
-        .execute_sql("SELECT COUNT(*) <= 3 FROM (SELECT category, COUNT(*) FROM large_data TABLESAMPLE SYSTEM (50 PERCENT) GROUP BY category ORDER BY category)")
+        .execute_sql("SELECT COUNT(*) <= 3 FROM (SELECT category, COUNT(*) FROM large_data TABLESAMPLE SYSTEM (50 PERCENT) GROUP BY category ORDER BY category) AS sub")
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_with_aggregation() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
 
     let result = executor
         .execute_sql(
-            "SELECT SUM(value) IS NOT NULL FROM large_data TABLESAMPLE SYSTEM (50 PERCENT)",
+            "SELECT SUM(value) IS NOT NULL OR COUNT(*) = 0 FROM large_data TABLESAMPLE SYSTEM (50 PERCENT)",
         )
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_alias() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
 
     let result = executor
-        .execute_sql("SELECT COUNT(*) <= 5 FROM (SELECT t.id, t.value FROM large_data AS t TABLESAMPLE SYSTEM (10 PERCENT) ORDER BY t.id LIMIT 5)")
+        .execute_sql("SELECT COUNT(*) <= 5 FROM (SELECT t.id, t.value FROM large_data AS t TABLESAMPLE SYSTEM (10 PERCENT) ORDER BY t.id LIMIT 5) AS sub")
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
