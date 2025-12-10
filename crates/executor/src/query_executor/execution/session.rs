@@ -28,6 +28,26 @@ pub struct UdfDefinition {
 }
 
 #[derive(Debug, Clone)]
+pub struct ProcedureDefinition {
+    pub parameters: Vec<ProcedureParameter>,
+    pub body: Vec<sqlparser::ast::Statement>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcedureParameter {
+    pub name: String,
+    pub data_type: DataType,
+    pub mode: ProcedureParameterMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcedureParameterMode {
+    In,
+    Out,
+    InOut,
+}
+
+#[derive(Debug, Clone)]
 pub struct CursorState {
     pub name: String,
     pub query: Box<Query>,
@@ -49,6 +69,7 @@ pub struct SessionState {
     search_path: Vec<String>,
     variables: HashMap<String, SessionVariable>,
     udfs: HashMap<String, UdfDefinition>,
+    procedures: HashMap<String, ProcedureDefinition>,
     cursors: HashMap<String, CursorState>,
 }
 
@@ -69,6 +90,7 @@ impl SessionState {
             search_path: vec!["default".to_string()],
             variables: HashMap::new(),
             udfs: HashMap::new(),
+            procedures: HashMap::new(),
             cursors: HashMap::new(),
         }
     }
@@ -230,6 +252,23 @@ impl SessionState {
                 )
             })
             .collect()
+    }
+
+    pub fn register_procedure(&mut self, name: String, definition: ProcedureDefinition) {
+        debug_print::debug_eprintln!("[session] Registering procedure: {}", name.to_uppercase());
+        self.procedures.insert(name.to_uppercase(), definition);
+    }
+
+    pub fn get_procedure(&self, name: &str) -> Option<&ProcedureDefinition> {
+        self.procedures.get(&name.to_uppercase())
+    }
+
+    pub fn has_procedure(&self, name: &str) -> bool {
+        self.procedures.contains_key(&name.to_uppercase())
+    }
+
+    pub fn drop_procedure(&mut self, name: &str) -> bool {
+        self.procedures.remove(&name.to_uppercase()).is_some()
     }
 
     pub fn declare_cursor(&mut self, cursor: CursorState) -> Result<(), Error> {

@@ -15,7 +15,7 @@ pub use create::DdlExecutor;
 pub use domain::DomainExecutor;
 pub use drop::DdlDropExecutor;
 pub use extension::ExtensionExecutor;
-pub use function::FunctionExecutor;
+pub use function::{FunctionExecutor, ProcedureExecutor};
 pub use materialized_view::MaterializedViewExecutor;
 pub use schema::SchemaExecutor;
 pub use sequence::SequenceExecutor;

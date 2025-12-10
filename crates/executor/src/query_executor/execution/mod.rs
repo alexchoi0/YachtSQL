@@ -14,8 +14,8 @@ use std::str::FromStr;
 use chrono::Datelike;
 pub use ddl::{
     AlterTableExecutor, DdlDropExecutor, DdlExecutor, DomainExecutor, ExtensionExecutor,
-    FunctionExecutor, MaterializedViewExecutor, SchemaExecutor, SequenceExecutor, TriggerExecutor,
-    TypeExecutor,
+    FunctionExecutor, MaterializedViewExecutor, ProcedureExecutor, SchemaExecutor,
+    SequenceExecutor, TriggerExecutor, TypeExecutor,
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
@@ -28,7 +28,8 @@ pub use dml::{
 pub use query::QueryExecutorTrait;
 use rust_decimal::prelude::ToPrimitive;
 pub use session::{
-    CursorState, DiagnosticsSnapshot, SessionDiagnostics, SessionVariable, UdfDefinition,
+    CursorState, DiagnosticsSnapshot, ProcedureDefinition, ProcedureParameter,
+    ProcedureParameterMode, SessionDiagnostics, SessionVariable, UdfDefinition,
 };
 pub use utility::{
     add_interval_to_date, apply_interval_to_date, apply_numeric_precision_scale,
@@ -542,6 +543,15 @@ impl QueryExecutor {
                     }
                     DdlOperation::DropFunction => {
                         self.execute_drop_function(&stmt)?;
+                        Self::empty_result()
+                    }
+                    DdlOperation::CreateProcedure => {
+                        debug_eprintln!("[mod] Executing CREATE PROCEDURE");
+                        self.execute_create_procedure(&stmt)?;
+                        Self::empty_result()
+                    }
+                    DdlOperation::DropProcedure => {
+                        self.execute_drop_procedure(&stmt)?;
                         Self::empty_result()
                     }
                     DdlOperation::CreateDatabase {
@@ -1652,10 +1662,22 @@ impl QueryExecutor {
                 self.execute_set_capabilities(false, &features)
             }
 
-            _ => Err(Error::unsupported_feature(format!(
-                "Unknown procedure: {}",
-                name
-            ))),
+            _ => {
+                if let Some(proc_def) = self.session.get_procedure(name).cloned() {
+                    debug_eprintln!("[procedure] Executing user-defined procedure: {}", name);
+                    let mut last_result = Self::empty_result()?;
+                    for stmt in &proc_def.body {
+                        let sql = stmt.to_string();
+                        last_result = self.execute_sql(&sql)?;
+                    }
+                    Ok(last_result)
+                } else {
+                    Err(Error::unsupported_feature(format!(
+                        "Unknown procedure: {}",
+                        name
+                    )))
+                }
+            }
         }
     }
 
