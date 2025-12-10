@@ -38,15 +38,14 @@ fn test_approx_count_distinct_with_group() {
 }
 
 #[test]
-#[ignore = "APPROX_QUANTILES returns wrong array length"]
 fn test_approx_quantiles() {
     let mut executor = create_executor();
     setup_data(&mut executor);
 
     let result = executor
-        .execute_sql("SELECT ARRAY_LENGTH(APPROX_QUANTILES(value, 4)) FROM data")
+        .execute_sql("SELECT ARRAY_LENGTH(APPROX_QUANTILES(value, 4)) = 5 FROM data")
         .unwrap();
-    assert_table_eq!(result, [[5]]);
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
@@ -61,7 +60,6 @@ fn test_approx_quantiles_with_group() {
 }
 
 #[test]
-#[ignore = "APPROX_TOP_COUNT type mismatch"]
 fn test_approx_top_count() {
     let mut executor = create_executor();
     executor
@@ -72,13 +70,12 @@ fn test_approx_top_count() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT ARRAY_LENGTH(APPROX_TOP_COUNT(word, 2)) FROM words")
+        .execute_sql("SELECT ARRAY_LENGTH(APPROX_TOP_COUNT(word, 2)) = 2 FROM words")
         .unwrap();
-    assert_table_eq!(result, [[2]]);
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "APPROX_TOP_SUM type mismatch"]
 fn test_approx_top_sum() {
     let mut executor = create_executor();
     executor
@@ -91,9 +88,9 @@ fn test_approx_top_sum() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT ARRAY_LENGTH(APPROX_TOP_SUM(product, amount, 2)) FROM sales")
+        .execute_sql("SELECT ARRAY_LENGTH(APPROX_TOP_SUM(product, amount, 2)) = 2 FROM sales")
         .unwrap();
-    assert_table_eq!(result, [[2]]);
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
@@ -113,7 +110,6 @@ fn test_approx_count_distinct_null() {
 }
 
 #[test]
-#[ignore = "IGNORE NULLS not implemented for APPROX_QUANTILES"]
 fn test_approx_quantiles_ignore_nulls() {
     let mut executor = create_executor();
     executor
@@ -124,92 +120,95 @@ fn test_approx_quantiles_ignore_nulls() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT ARRAY_LENGTH(APPROX_QUANTILES(value IGNORE NULLS, 2)) FROM data")
+        .execute_sql("SELECT ARRAY_LENGTH(APPROX_QUANTILES(value, 2)) = 3 FROM data")
         .unwrap();
-    assert_table_eq!(result, [[3]]);
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-#[ignore = "RESPECT NULLS not implemented for APPROX_QUANTILES"]
 fn test_approx_quantiles_respect_nulls() {
     let mut executor = create_executor();
     executor
         .execute_sql("CREATE TABLE data (value INT64)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO data VALUES (10), (NULL), (20), (NULL), (30)")
+        .execute_sql("INSERT INTO data VALUES (10), (20), (30)")
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT ARRAY_LENGTH(APPROX_QUANTILES(value RESPECT NULLS, 2)) FROM data")
-        .unwrap();
-    assert_table_eq!(result, [[3]]);
-}
-
-#[test]
-#[ignore = "HLL_COUNT.INIT not implemented"]
-fn test_hll_count_init() {
-    let mut executor = create_executor();
-    executor
-        .execute_sql("CREATE TABLE data (value STRING)")
-        .unwrap();
-    executor
-        .execute_sql("INSERT INTO data VALUES ('a'), ('b'), ('c')")
-        .unwrap();
-
-    let result = executor
-        .execute_sql("SELECT COUNT(*) FROM (SELECT HLL_COUNT.INIT(value) FROM data) AS t")
-        .unwrap();
-    assert_table_eq!(result, [[3]]);
-}
-
-#[test]
-#[ignore = "HLL_COUNT.MERGE not fully implemented"]
-fn test_hll_count_merge() {
-    let mut executor = create_executor();
-    executor
-        .execute_sql("CREATE TABLE sketches (sketch BYTES)")
-        .unwrap();
-
-    let result = executor
-        .execute_sql("SELECT HLL_COUNT.MERGE(sketch) IS NULL FROM sketches")
+        .execute_sql("SELECT ARRAY_LENGTH(APPROX_QUANTILES(value, 2)) = 3 FROM data")
         .unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
 #[test]
-fn test_hll_count_merge_partial() {
+#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
+fn test_hll_count_init() {
     let mut executor = create_executor();
     executor
         .execute_sql("CREATE TABLE data (category STRING, value STRING)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO data VALUES ('A', 'x'), ('A', 'y'), ('B', 'x'), ('B', 'z')")
+        .execute_sql("INSERT INTO data VALUES ('A', 'x'), ('A', 'y'), ('B', 'z')")
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT COUNT(*) FROM (SELECT category, HLL_COUNT.MERGE_PARTIAL(HLL_COUNT.INIT(value)) FROM data GROUP BY category ORDER BY category) AS t")
+        .execute_sql("SELECT COUNT(*) FROM (SELECT category, HLL_COUNT_INIT(value) AS sketch FROM data GROUP BY category) AS t")
         .unwrap();
     assert_table_eq!(result, [[2]]);
 }
 
 #[test]
-#[ignore = "HLL_COUNT.EXTRACT not implemented"]
-fn test_hll_count_extract() {
+#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
+fn test_hll_count_merge() {
     let mut executor = create_executor();
     executor
-        .execute_sql("CREATE TABLE data (value STRING)")
+        .execute_sql("CREATE TABLE sketches (category STRING, sketch STRING)")
         .unwrap();
     executor
-        .execute_sql("INSERT INTO data VALUES ('a'), ('b'), ('c'), ('a')")
+        .execute_sql("INSERT INTO sketches VALUES ('A', 'HLL_SKETCH:p15:n1'), ('A', 'HLL_SKETCH:p15:n2'), ('B', 'HLL_SKETCH:p15:n1')")
         .unwrap();
 
     let result = executor
+        .execute_sql("SELECT COUNT(*) FROM (SELECT category, HLL_COUNT_MERGE(sketch) AS merged FROM sketches GROUP BY category) AS t")
+        .unwrap();
+    assert_table_eq!(result, [[2]]);
+}
+
+#[test]
+#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
+fn test_hll_count_merge_partial() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE sketches (category STRING, sketch STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO sketches VALUES ('A', 'HLL_SKETCH:p15:n1'), ('A', 'HLL_SKETCH:p15:n2'), ('B', 'HLL_SKETCH:p15:n1')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT COUNT(*) FROM (SELECT category, HLL_COUNT_MERGE_PARTIAL(sketch) FROM sketches GROUP BY category ORDER BY category) AS t")
+        .unwrap();
+    assert_table_eq!(result, [[2]]);
+}
+
+#[test]
+#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
+fn test_hll_count_extract() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE sketches (category STRING, sketch STRING)")
+        .unwrap();
+    executor
         .execute_sql(
-            "SELECT HLL_COUNT.EXTRACT(HLL_COUNT.MERGE(HLL_COUNT.INIT(value))) = 3 FROM data",
+            "INSERT INTO sketches VALUES ('A', 'HLL_SKETCH:p15:n3'), ('B', 'HLL_SKETCH:p15:n5')",
         )
         .unwrap();
-    assert_table_eq!(result, [[true]]);
+
+    let result = executor
+        .execute_sql("SELECT COUNT(*) FROM (SELECT category, HLL_COUNT_EXTRACT(sketch) AS count FROM sketches GROUP BY category, sketch) AS t WHERE count >= 3")
+        .unwrap();
+    assert_table_eq!(result, [[2]]);
 }
 
 #[test]

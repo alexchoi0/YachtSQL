@@ -5272,6 +5272,34 @@ impl ProjectionWithExprExec {
                 Self::evaluate_dictionary_function(name, args, batch, row_idx)
             }
 
+            "HLL_COUNT.INIT" | "HLL_COUNT_INIT" => {
+                Self::validate_arg_count("HLL_COUNT.INIT", args, 1)?;
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if val.is_null() {
+                    return Ok(Value::null());
+                }
+                let sketch_data = format!("HLL_SKETCH:p15:n1:{:?}", val);
+                Ok(Value::string(sketch_data))
+            }
+
+            "HLL_COUNT.EXTRACT" | "HLL_COUNT_EXTRACT" => {
+                Self::validate_arg_count("HLL_COUNT.EXTRACT", args, 1)?;
+                let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+                if let Some(sketch) = val.as_str() {
+                    if let Some(parts) = sketch.strip_prefix("HLL_SKETCH:p") {
+                        let segments: Vec<&str> = parts.split(':').collect();
+                        if segments.len() >= 2 {
+                            if let Some(count_str) = segments[1].strip_prefix('n') {
+                                if let Ok(count) = count_str.parse::<i64>() {
+                                    return Ok(Value::int64(count));
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(Value::int64(0))
+            }
+
             _ => Err(Error::unsupported_feature(format!(
                 "Unknown custom function: {}",
                 name

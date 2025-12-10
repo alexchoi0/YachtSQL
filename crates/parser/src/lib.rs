@@ -264,5 +264,13 @@ macro_rules! aggregate_function_names {
             | "QUANTILES_EXACT"
             | "UNIQUPTO"
             | "UNIQ_UP_TO"
+            | "HLL_COUNT_INIT"
+            | "HLL_COUNT.INIT"
+            | "HLL_COUNT_MERGE"
+            | "HLL_COUNT.MERGE"
+            | "HLL_COUNT_MERGE_PARTIAL"
+            | "HLL_COUNT.MERGE_PARTIAL"
+            | "HLL_COUNT_EXTRACT"
+            | "HLL_COUNT.EXTRACT"
     };
 }
