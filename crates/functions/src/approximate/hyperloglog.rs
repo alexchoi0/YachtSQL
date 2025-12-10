@@ -27,6 +27,10 @@ impl HyperLogLogPlusPlus {
     pub fn estimate(&self) -> u64 {
         self.cardinality()
     }
+
+    pub fn merge(&mut self, other: &HyperLogLogPlusPlus) {
+        self.seen_hashes.extend(other.seen_hashes.iter().cloned());
+    }
 }
 
 impl Default for HyperLogLogPlusPlus {
