@@ -1428,6 +1428,173 @@ impl CustomStatementParser {
         None
     }
 
+    pub fn parse_create_snapshot_table(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "CREATE") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "SNAPSHOT") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
+            return Ok(None);
+        }
+
+        let if_not_exists = ParserHelpers::consume_keyword_pair(tokens, &mut idx, "IF", "NOT")
+            && ParserHelpers::consume_keyword(tokens, &mut idx, "EXISTS");
+
+        let name = ParserHelpers::parse_object_name_at(tokens, &mut idx)?;
+
+        if !ParserHelpers::consume_keyword(tokens, &mut idx, "CLONE") {
+            return Err(Error::parse_error(
+                "CREATE SNAPSHOT TABLE requires CLONE clause".to_string(),
+            ));
+        }
+
+        let source_table = ParserHelpers::parse_object_name_at(tokens, &mut idx)?;
+
+        let mut for_system_time = None;
+        if ParserHelpers::consume_keyword(tokens, &mut idx, "FOR")
+            && ParserHelpers::consume_keyword(tokens, &mut idx, "SYSTEM_TIME")
+        {
+            if !ParserHelpers::consume_keyword(tokens, &mut idx, "AS") {
+                return Err(Error::parse_error(
+                    "FOR SYSTEM_TIME requires AS OF clause".to_string(),
+                ));
+            }
+            if !ParserHelpers::consume_keyword(tokens, &mut idx, "OF") {
+                return Err(Error::parse_error(
+                    "FOR SYSTEM_TIME requires AS OF clause".to_string(),
+                ));
+            }
+            let expr_start = idx;
+            let mut paren_depth = 0;
+            while idx < tokens.len() {
+                match tokens.get(idx) {
+                    Some(Token::LParen) => {
+                        paren_depth += 1;
+                        idx += 1;
+                    }
+                    Some(Token::RParen) => {
+                        if paren_depth > 0 {
+                            paren_depth -= 1;
+                            idx += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    Some(Token::SemiColon) => break,
+                    Some(Token::Word(w))
+                        if paren_depth == 0 && w.value.eq_ignore_ascii_case("OPTIONS") =>
+                    {
+                        break;
+                    }
+                    _ => idx += 1,
+                }
+            }
+            let expr_tokens = &tokens[expr_start..idx];
+            let expr_str = Self::tokens_to_string(expr_tokens);
+            for_system_time = Some(expr_str);
+        }
+
+        let mut options = Vec::new();
+        if ParserHelpers::consume_keyword(tokens, &mut idx, "OPTIONS") {
+            if !matches!(tokens.get(idx), Some(Token::LParen)) {
+                return Err(Error::parse_error(
+                    "OPTIONS requires parentheses".to_string(),
+                ));
+            }
+            idx += 1;
+
+            while idx < tokens.len() {
+                if matches!(tokens.get(idx), Some(Token::RParen)) {
+                    break;
+                }
+
+                let key = match tokens.get(idx) {
+                    Some(Token::Word(w)) => {
+                        idx += 1;
+                        w.value.clone()
+                    }
+                    _ => break,
+                };
+
+                if !matches!(tokens.get(idx), Some(Token::Eq)) {
+                    return Err(Error::parse_error("Expected '=' in OPTIONS".to_string()));
+                }
+                idx += 1;
+
+                let value_start = idx;
+                let mut paren_depth = 0;
+                while idx < tokens.len() {
+                    match tokens.get(idx) {
+                        Some(Token::LParen) => {
+                            paren_depth += 1;
+                            idx += 1;
+                        }
+                        Some(Token::RParen) => {
+                            if paren_depth > 0 {
+                                paren_depth -= 1;
+                                idx += 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        Some(Token::Comma) if paren_depth == 0 => break,
+                        _ => idx += 1,
+                    }
+                }
+                let value_tokens = &tokens[value_start..idx];
+                let value = Self::tokens_to_string(value_tokens);
+                options.push((key, value));
+
+                if matches!(tokens.get(idx), Some(Token::Comma)) {
+                    idx += 1;
+                }
+            }
+        }
+
+        Ok(Some(CustomStatement::CreateSnapshotTable {
+            name,
+            source_table,
+            if_not_exists,
+            for_system_time,
+            options,
+        }))
+    }
+
+    pub fn parse_drop_snapshot_table(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "DROP") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "SNAPSHOT") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "TABLE") {
+            return Ok(None);
+        }
+
+        let if_exists = ParserHelpers::consume_keyword_pair(tokens, &mut idx, "IF", "EXISTS");
+
+        let name = ParserHelpers::parse_object_name_at(tokens, &mut idx)?;
+
+        Ok(Some(CustomStatement::DropSnapshotTable { name, if_exists }))
+    }
+
+    fn tokens_to_string(tokens: &[&Token]) -> String {
+        let mut result = String::new();
+        for (i, token) in tokens.iter().enumerate() {
+            if i > 0 {
+                result.push(' ');
+            }
+            result.push_str(&Self::token_to_string(token));
+        }
+        result
+    }
+
     pub fn parse_while_statement(sql: &str) -> Result<Option<CustomStatement>> {
         let trimmed = sql.trim();
 
