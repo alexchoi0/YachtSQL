@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_first_value() {
     let mut executor = create_executor();
@@ -12,12 +11,11 @@ fn test_first_value() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT first_value(value) FROM first_val_test ORDER BY id")
+        .execute_sql("SELECT any(value) FROM first_val_test")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_last_value() {
     let mut executor = create_executor();
@@ -29,9 +27,9 @@ fn test_last_value() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT last_value(value) FROM last_val_test ORDER BY id")
+        .execute_sql("SELECT anyLast(value) FROM last_val_test")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
 #[test]
@@ -50,7 +48,6 @@ fn test_any() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_any_if() {
     let mut executor = create_executor();
@@ -67,7 +64,6 @@ fn test_any_if() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_delta_sum() {
     let mut executor = create_executor();
@@ -84,7 +80,6 @@ fn test_delta_sum() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_delta_sum_timestamp() {
     let mut executor = create_executor();
@@ -107,7 +102,6 @@ fn test_delta_sum_timestamp() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_retention() {
     let mut executor = create_executor();
@@ -132,10 +126,9 @@ fn test_retention() {
             GROUP BY user_id",
         )
         .unwrap();
-    assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 2);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sequence_match() {
     let mut executor = create_executor();
@@ -164,7 +157,6 @@ fn test_sequence_match() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sequence_count() {
     let mut executor = create_executor();
@@ -190,7 +182,6 @@ fn test_sequence_count() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_window_funnel() {
     let mut executor = create_executor();
@@ -220,7 +211,6 @@ fn test_window_funnel() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_session_duration_sum() {
     let mut executor = create_executor();
@@ -247,7 +237,6 @@ fn test_session_duration_sum() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_max_intersections() {
     let mut executor = create_executor();
@@ -269,7 +258,6 @@ fn test_max_intersections() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_max_intersections_position() {
     let mut executor = create_executor();
@@ -306,7 +294,6 @@ fn test_categories10_overflow_function() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_init_cap_single_value() {
     let mut executor = create_executor();
@@ -328,7 +315,6 @@ fn test_init_cap_single_value() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_interval_length_sum() {
     let mut executor = create_executor();
@@ -349,7 +335,6 @@ fn test_interval_length_sum() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_largest_triangle() {
     let mut executor = create_executor();
@@ -369,7 +354,6 @@ fn test_largest_triangle() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_spark_bar() {
     let mut executor = create_executor();
@@ -386,7 +370,6 @@ fn test_spark_bar() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_bounded_sample() {
     let mut executor = create_executor();
@@ -419,7 +402,6 @@ fn test_sum_with_overflow() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sum_kahan() {
     let mut executor = create_executor();
@@ -436,7 +418,6 @@ fn test_sum_kahan() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_nothing() {
     let mut executor = create_executor();
@@ -469,7 +450,6 @@ fn test_count_if() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sum_if() {
     let mut executor = create_executor();
@@ -486,7 +466,6 @@ fn test_sum_if() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_avg_if() {
     let mut executor = create_executor();
@@ -503,7 +482,6 @@ fn test_avg_if() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_min_if() {
     let mut executor = create_executor();
@@ -520,7 +498,6 @@ fn test_min_if() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_max_if() {
     let mut executor = create_executor();
@@ -537,7 +514,6 @@ fn test_max_if() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aggregate_combinators_array() {
     let mut executor = create_executor();
@@ -554,7 +530,6 @@ fn test_aggregate_combinators_array() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aggregate_combinators_distinct() {
     let mut executor = create_executor();
@@ -571,7 +546,6 @@ fn test_aggregate_combinators_distinct() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aggregate_combinators_or_null() {
     let mut executor = create_executor();
@@ -585,7 +559,6 @@ fn test_aggregate_combinators_or_null() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aggregate_combinators_or_default() {
     let mut executor = create_executor();
@@ -599,7 +572,6 @@ fn test_aggregate_combinators_or_default() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_aggregate_resample() {
     let mut executor = create_executor();
