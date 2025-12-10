@@ -11,7 +11,6 @@ fn setup_sales_table(executor: &mut yachtsql::QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_row_number() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -26,7 +25,6 @@ fn test_qualify_row_number() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_rank() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -41,7 +39,6 @@ fn test_qualify_rank() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_dense_rank() {
     let mut executor = create_executor();
     executor
@@ -61,7 +58,6 @@ fn test_qualify_dense_rank() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_with_where() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -85,7 +81,6 @@ fn test_qualify_with_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_ntile() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -99,7 +94,6 @@ fn test_qualify_ntile() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_percent_rank() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -111,7 +105,6 @@ fn test_qualify_percent_rank() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_cume_dist() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -123,7 +116,6 @@ fn test_qualify_cume_dist() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_lag() {
     let mut executor = create_executor();
     executor
@@ -142,7 +134,6 @@ fn test_qualify_lag() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_lead() {
     let mut executor = create_executor();
     executor
@@ -161,7 +152,6 @@ fn test_qualify_lead() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_first_value() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -173,7 +163,6 @@ fn test_qualify_first_value() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_last_value() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -185,7 +174,6 @@ fn test_qualify_last_value() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_qualify_multiple_conditions() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);

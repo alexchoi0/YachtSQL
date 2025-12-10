@@ -327,9 +327,21 @@ impl LogicalPlanBuilder {
             .map(|item| self.select_item_to_expr(item))
             .collect::<Result<Vec<_>>>()?;
 
+        let qualify_expr = select
+            .qualify
+            .as_ref()
+            .map(|q| self.sql_expr_to_expr(q))
+            .transpose()?;
+
+        let qualify_has_windows = qualify_expr
+            .as_ref()
+            .map(|q| self.has_window_function(q))
+            .unwrap_or(false);
+
         let has_window_functions = projection_exprs
             .iter()
-            .any(|(expr, _)| self.has_window_function(expr));
+            .any(|(expr, _)| self.has_window_function(expr))
+            || qualify_has_windows;
 
         let select_alias_map: HashMap<String, Expr> = projection_exprs
             .iter()
@@ -472,6 +484,16 @@ impl LogicalPlanBuilder {
                     }
                 }
 
+                if let Some(ref q_expr) = qualify_expr
+                    && self.has_window_function(q_expr)
+                {
+                    self.extract_window_functions_with_aggregate_rewrite(
+                        q_expr,
+                        &mut all_windows,
+                        &mut counter,
+                    );
+                }
+
                 if !all_windows.is_empty() {
                     let window_exprs: Vec<(Expr, Option<String>)> = all_windows
                         .iter()
@@ -480,6 +502,14 @@ impl LogicalPlanBuilder {
 
                     plan = LogicalPlan::new(PlanNode::Window {
                         window_exprs,
+                        input: plan.root,
+                    });
+                }
+
+                if let Some(ref q_expr) = qualify_expr {
+                    let qualify_predicate = self.replace_window_functions(q_expr, &all_windows);
+                    plan = LogicalPlan::new(PlanNode::Filter {
+                        predicate: qualify_predicate,
                         input: plan.root,
                     });
                 }
@@ -625,6 +655,12 @@ impl LogicalPlanBuilder {
                     }
                 }
 
+                if let Some(ref q_expr) = qualify_expr
+                    && self.has_window_function(q_expr)
+                {
+                    self.extract_window_functions(q_expr, &mut all_windows, &mut counter);
+                }
+
                 if !all_windows.is_empty() {
                     let window_exprs: Vec<(Expr, Option<String>)> = all_windows
                         .iter()
@@ -633,6 +669,14 @@ impl LogicalPlanBuilder {
 
                     plan = LogicalPlan::new(PlanNode::Window {
                         window_exprs,
+                        input: plan.root,
+                    });
+                }
+
+                if let Some(ref q_expr) = qualify_expr {
+                    let qualify_predicate = self.replace_window_functions(q_expr, &all_windows);
+                    plan = LogicalPlan::new(PlanNode::Filter {
+                        predicate: qualify_predicate,
                         input: plan.root,
                     });
                 }

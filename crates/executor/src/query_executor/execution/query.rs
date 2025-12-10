@@ -1282,14 +1282,14 @@ impl QueryExecutor {
             return self.execute_group_by_select(select);
         }
 
-        if self.has_window_functions(&select.projection) {
-            return self.execute_window_select_base(select);
-        }
+        let qualify_has_window = select
+            .qualify
+            .as_ref()
+            .map(|q| self.contains_window_function(q))
+            .unwrap_or(false);
 
-        if select.qualify.is_some() {
-            return Err(Error::UnsupportedFeature(
-                "QUALIFY can only be used with window functions".to_string(),
-            ));
+        if self.has_window_functions(&select.projection) || qualify_has_window {
+            return self.execute_window_select_base(select);
         }
 
         if select.from.is_empty() {
@@ -4274,6 +4274,137 @@ impl QueryExecutor {
         }
     }
 
+    fn extract_window_functions_from_expr(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        named_windows: &[sqlparser::ast::NamedWindowDefinition],
+    ) -> Result<Vec<(String, super::super::window_functions::WindowFunction, Expr)>> {
+        let mut result = Vec::new();
+        self.collect_window_functions_from_expr(expr, schema, named_windows, &mut result)?;
+        Ok(result)
+    }
+
+    fn collect_window_functions_from_expr(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        named_windows: &[sqlparser::ast::NamedWindowDefinition],
+        result: &mut Vec<(String, super::super::window_functions::WindowFunction, Expr)>,
+    ) -> Result<()> {
+        match expr {
+            Expr::Function(func) if func.over.is_some() => {
+                let (col_name, window_fn) =
+                    self.parse_window_function_with_named(expr, schema, named_windows)?;
+                let unique_name = format!("__qualify_window_{}_{}", col_name, result.len());
+                result.push((unique_name, window_fn, expr.clone()));
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.collect_window_functions_from_expr(left, schema, named_windows, result)?;
+                self.collect_window_functions_from_expr(right, schema, named_windows, result)?;
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                self.collect_window_functions_from_expr(inner, schema, named_windows, result)?;
+            }
+            Expr::Nested(inner) => {
+                self.collect_window_functions_from_expr(inner, schema, named_windows, result)?;
+            }
+            Expr::Case {
+                operand,
+                conditions,
+                else_result,
+                ..
+            } => {
+                if let Some(op) = operand {
+                    self.collect_window_functions_from_expr(op, schema, named_windows, result)?;
+                }
+                for cond in conditions {
+                    self.collect_window_functions_from_expr(
+                        &cond.condition,
+                        schema,
+                        named_windows,
+                        result,
+                    )?;
+                    self.collect_window_functions_from_expr(
+                        &cond.result,
+                        schema,
+                        named_windows,
+                        result,
+                    )?;
+                }
+                if let Some(else_res) = else_result {
+                    self.collect_window_functions_from_expr(
+                        else_res,
+                        schema,
+                        named_windows,
+                        result,
+                    )?;
+                }
+            }
+            Expr::IsNull(inner) | Expr::IsNotNull(inner) => {
+                self.collect_window_functions_from_expr(inner, schema, named_windows, result)?;
+            }
+            Expr::InList {
+                expr: inner, list, ..
+            } => {
+                self.collect_window_functions_from_expr(inner, schema, named_windows, result)?;
+                for item in list {
+                    self.collect_window_functions_from_expr(item, schema, named_windows, result)?;
+                }
+            }
+            Expr::Between {
+                expr: inner,
+                low,
+                high,
+                ..
+            } => {
+                self.collect_window_functions_from_expr(inner, schema, named_windows, result)?;
+                self.collect_window_functions_from_expr(low, schema, named_windows, result)?;
+                self.collect_window_functions_from_expr(high, schema, named_windows, result)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn rewrite_qualify_expr_with_columns(
+        &self,
+        expr: &Expr,
+        window_mappings: &[(String, Expr)],
+    ) -> Expr {
+        for (col_name, original_expr) in window_mappings {
+            if self.exprs_equal(expr, original_expr) {
+                return Expr::Identifier(sqlparser::ast::Ident::new(col_name.clone()));
+            }
+        }
+
+        match expr {
+            Expr::BinaryOp { left, right, op } => Expr::BinaryOp {
+                left: Box::new(self.rewrite_qualify_expr_with_columns(left, window_mappings)),
+                op: op.clone(),
+                right: Box::new(self.rewrite_qualify_expr_with_columns(right, window_mappings)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: op.clone(),
+                expr: Box::new(self.rewrite_qualify_expr_with_columns(inner, window_mappings)),
+            },
+            Expr::Nested(inner) => Expr::Nested(Box::new(
+                self.rewrite_qualify_expr_with_columns(inner, window_mappings),
+            )),
+            Expr::IsNull(inner) => Expr::IsNull(Box::new(
+                self.rewrite_qualify_expr_with_columns(inner, window_mappings),
+            )),
+            Expr::IsNotNull(inner) => Expr::IsNotNull(Box::new(
+                self.rewrite_qualify_expr_with_columns(inner, window_mappings),
+            )),
+            other => other.clone(),
+        }
+    }
+
+    fn exprs_equal(&self, a: &Expr, b: &Expr) -> bool {
+        format!("{:?}", a) == format!("{:?}", b)
+    }
+
     fn contains_aggregate_function(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Function(func)
@@ -4634,6 +4765,23 @@ impl QueryExecutor {
             window_col_info.push((col_name, window_fn));
         }
 
+        let mut qualify_window_mappings: Vec<(String, Expr)> = Vec::new();
+        if let Some(ref qualify_expr) = select.qualify {
+            let qualify_window_funcs = self.extract_window_functions_from_expr(
+                qualify_expr,
+                &schema,
+                &select.named_window,
+            )?;
+
+            for (col_name, window_fn, original_expr) in qualify_window_funcs {
+                let executor = WindowExecutor::new(&schema, rows.clone());
+                let results = executor.execute(&window_fn)?;
+                window_results.push(results);
+                window_col_info.push((col_name.clone(), window_fn));
+                qualify_window_mappings.push((col_name, original_expr));
+            }
+        }
+
         let final_schema = self.build_window_result_schema(&schema, &window_col_info)?;
         let window_col_names: Vec<String> = window_col_info
             .iter()
@@ -4647,8 +4795,14 @@ impl QueryExecutor {
         )?;
 
         if let Some(ref qualify_expr) = select.qualify {
+            let rewritten_expr =
+                self.rewrite_qualify_expr_with_columns(qualify_expr, &qualify_window_mappings);
             let evaluator = ExpressionEvaluator::new(&final_schema);
-            final_rows.retain(|row| evaluator.evaluate_where(qualify_expr, row).unwrap_or(false));
+            final_rows.retain(|row| {
+                evaluator
+                    .evaluate_where(&rewritten_expr, row)
+                    .unwrap_or(false)
+            });
         }
 
         self.rows_to_record_batch(final_schema, final_rows)
