@@ -38,11 +38,12 @@ mod tests {
     }
 
     #[test]
-    fn test_to_hex_non_bytes_literal_errors() {
+    fn test_to_hex_int64_literal() {
         let batch = create_test_batch();
         let args = vec![Expr::Literal(LiteralValue::Int64(255))];
         let result = ProjectionWithExprExec::eval_to_hex(&args, &batch, 0);
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Value::string("ff".to_string()));
     }
 
     #[test]
