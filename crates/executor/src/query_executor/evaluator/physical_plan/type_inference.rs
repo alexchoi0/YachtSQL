@@ -2203,6 +2203,7 @@ impl ProjectionWithExprExec {
             FunctionName::Circle => Some(DataType::Circle),
             FunctionName::Line => Some(DataType::Line),
             FunctionName::Lseg => Some(DataType::Lseg),
+            FunctionName::Path => Some(DataType::Path),
             FunctionName::Polygon => Some(DataType::Polygon),
 
             FunctionName::Area
