@@ -1,5 +1,6 @@
 use yachtsql_core::error::Result;
-use yachtsql_ir::expr::{BinaryOp, Expr};
+use yachtsql_ir::FunctionName;
+use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue};
 use yachtsql_ir::plan::{JoinType, PlanNode};
 
 use crate::optimizer::plan::LogicalPlan;
@@ -510,18 +511,29 @@ impl SubqueryFlattening {
             using_columns: None,
         };
 
+        let is_count_aggregate = matches!(
+            &info.aggregate_expr,
+            Expr::Aggregate { name, .. } if *name == FunctionName::Count
+        );
+
         let new_expressions: Vec<(Expr, Option<String>)> = expressions
             .iter()
             .enumerate()
             .map(|(idx, (expr, alias))| {
                 if idx == subquery_idx {
-                    (
-                        Expr::Column {
-                            name: info.result_alias.clone(),
-                            table: Some(agg_alias.clone()),
-                        },
-                        alias.clone(),
-                    )
+                    let col_ref = Expr::Column {
+                        name: info.result_alias.clone(),
+                        table: Some(agg_alias.clone()),
+                    };
+                    let result_expr = if is_count_aggregate {
+                        Expr::Function {
+                            name: FunctionName::Coalesce,
+                            args: vec![col_ref, Expr::Literal(LiteralValue::Int64(0))],
+                        }
+                    } else {
+                        col_ref
+                    };
+                    (result_expr, alias.clone())
                 } else {
                     (expr.clone(), alias.clone())
                 }

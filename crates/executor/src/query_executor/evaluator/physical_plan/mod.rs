@@ -1161,6 +1161,10 @@ impl ProjectionWithExprExec {
                     field.name.as_str()
                 };
 
+                if let Some(source_table) = &field.source_table {
+                    ctx.bind(format!("{}.{}", source_table, col_name), value.clone());
+                }
+
                 for alias in outer_table_aliases {
                     ctx.bind(format!("{}.{}", alias, col_name), value.clone());
                 }
@@ -1289,8 +1293,20 @@ impl ExecutionPlan for FilterExec {
             let mut passing_rows = Vec::new();
 
             for row_idx in 0..num_rows {
+                let correlation_ctx =
+                    ProjectionWithExprExec::build_correlation_context(&batch, row_idx)?;
+                CORRELATION_CONTEXT.with(|ctx| {
+                    *ctx.borrow_mut() = Some(correlation_ctx);
+                });
+
                 let result =
-                    ProjectionWithExprExec::evaluate_expr(&self.predicate, &batch, row_idx)?;
+                    ProjectionWithExprExec::evaluate_expr(&self.predicate, &batch, row_idx);
+
+                CORRELATION_CONTEXT.with(|ctx| {
+                    *ctx.borrow_mut() = None;
+                });
+
+                let result = result?;
 
                 if let Some(true) = result.as_bool() {
                     passing_rows.push(row_idx);

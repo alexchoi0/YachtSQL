@@ -745,6 +745,32 @@ impl ExecutionPlan for AggregateExec {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
+            if self.group_by.is_empty() {
+                let empty_agg_values: Vec<Value> = self
+                    .aggregates
+                    .iter()
+                    .map(|(agg_expr, _)| match agg_expr {
+                        Expr::Aggregate { name, .. } => {
+                            use yachtsql_ir::FunctionName;
+                            match name {
+                                FunctionName::Count => Value::int64(0),
+                                _ => Value::null(),
+                            }
+                        }
+                        _ => Value::null(),
+                    })
+                    .collect();
+
+                let mut columns = Vec::new();
+
+                for (idx, field) in self.schema.fields().iter().enumerate() {
+                    let mut column = Column::new(&field.data_type, 1);
+                    column.push(empty_agg_values.get(idx).cloned().unwrap_or(Value::null()))?;
+                    columns.push(column);
+                }
+
+                return Ok(vec![Table::new(self.schema.clone(), columns)?]);
+            }
             return Ok(vec![Table::empty(self.schema.clone())]);
         }
 
@@ -4843,6 +4869,32 @@ impl ExecutionPlan for SortAggregateExec {
         let input_batches = self.input.execute()?;
 
         if input_batches.is_empty() {
+            if self.group_by.is_empty() {
+                let empty_agg_values: Vec<Value> = self
+                    .aggregates
+                    .iter()
+                    .map(|(agg_expr, _)| match agg_expr {
+                        Expr::Aggregate { name, .. } => {
+                            use yachtsql_ir::FunctionName;
+                            match name {
+                                FunctionName::Count => Value::int64(0),
+                                _ => Value::null(),
+                            }
+                        }
+                        _ => Value::null(),
+                    })
+                    .collect();
+
+                let mut columns = Vec::new();
+
+                for (idx, field) in self.schema.fields().iter().enumerate() {
+                    let mut column = Column::new(&field.data_type, 1);
+                    column.push(empty_agg_values.get(idx).cloned().unwrap_or(Value::null()))?;
+                    columns.push(column);
+                }
+
+                return Ok(vec![Table::new(self.schema.clone(), columns)?]);
+            }
             return Ok(vec![Table::empty(self.schema.clone())]);
         }
 

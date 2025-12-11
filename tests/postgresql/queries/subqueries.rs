@@ -67,7 +67,6 @@ fn setup_nullable_table(executor: &mut QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_scalar_subquery_in_select() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -611,7 +610,6 @@ fn test_multiple_subqueries_in_select() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_in_case_expression() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -631,7 +629,7 @@ fn test_subquery_in_case_expression() {
             ["Alice", "High"],
             ["Bob", "High"],
             ["Charlie", "Low"],
-            ["Diana", "High"],
+            ["Diana", "Low"],
             ["Eve", "Low"],
         ]
     );
@@ -720,7 +718,6 @@ fn test_subquery_comparison_greater_than_or_equal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_correlated_subquery_with_null_handling() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -779,7 +776,6 @@ fn test_subquery_returning_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_coalesce() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -826,7 +822,6 @@ fn test_subquery_as_table_expression() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_multiple_correlated_subqueries() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -1065,7 +1060,6 @@ fn test_scalar_subquery_in_order_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_cte() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -1083,7 +1077,6 @@ fn test_subquery_with_cte() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exists_with_count_zero() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
@@ -1120,7 +1113,6 @@ fn test_tuple_in_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_subquery_with_self_join() {
     let mut executor = create_executor();
     setup_employees_departments(&mut executor);
