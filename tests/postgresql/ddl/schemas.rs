@@ -84,7 +84,6 @@ fn test_create_table_in_schema() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_schema_qualified_name() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA app").unwrap();
@@ -128,7 +127,6 @@ fn test_schema_authorization() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_current_schema() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT CURRENT_SCHEMA()").unwrap();
@@ -136,7 +134,6 @@ fn test_current_schema() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_tables() {
     let mut executor = create_executor();
     executor
@@ -151,7 +148,6 @@ fn test_information_schema_tables() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_columns() {
     let mut executor = create_executor();
     executor
@@ -166,7 +162,6 @@ fn test_information_schema_columns() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_schema() {
     let mut executor = create_executor();
     let result = executor
@@ -192,7 +187,6 @@ fn test_public_schema() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_alter_schema_rename() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA old_name").unwrap();
@@ -204,7 +198,6 @@ fn test_alter_schema_rename() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_alter_schema_owner() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA owner_schema").unwrap();
@@ -228,7 +221,6 @@ fn test_schema_search_path_multiple() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_show_search_path() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SHOW search_path").unwrap();

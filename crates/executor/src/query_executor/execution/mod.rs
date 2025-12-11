@@ -393,6 +393,7 @@ impl QueryExecutor {
                 CustomStatement::CreateDomain { .. } => self.execute_create_domain(custom_stmt),
                 CustomStatement::AlterDomain { .. } => self.execute_alter_domain(custom_stmt),
                 CustomStatement::DropDomain { .. } => self.execute_drop_domain(custom_stmt),
+                CustomStatement::AlterSchema { .. } => self.execute_alter_schema(custom_stmt),
                 CustomStatement::CreateType { .. } => {
                     self.execute_create_composite_type(custom_stmt)
                 }
@@ -1009,7 +1010,17 @@ impl QueryExecutor {
         match var_name.to_lowercase().as_str() {
             "search_path" => {
                 let path = self.session.search_path();
-                let path_str = path.join(", ");
+                let path_str = path
+                    .iter()
+                    .map(|s| {
+                        if s.starts_with('$') {
+                            format!("\"{}\"", s)
+                        } else {
+                            s.clone()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
                     "search_path".to_string(),
                     DataType::String,

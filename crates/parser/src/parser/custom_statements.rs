@@ -4,9 +4,10 @@ use yachtsql_core::error::{Error, Result};
 use super::helpers::ParserHelpers;
 use crate::pattern_matcher::{PatternMatcher, TokenPattern};
 use crate::validator::{
-    AlterDomainAction, CompositeTypeField, CustomStatement, DiagnosticsAssignment, DiagnosticsItem,
-    DiagnosticsScope, DomainConstraint, ExportFormat, LockMode, PostgresPartitionBoundDef,
-    PostgresPartitionStrategyDef, SetConstraintsMode, SetConstraintsTarget,
+    AlterDomainAction, AlterSchemaAction, CompositeTypeField, CustomStatement,
+    DiagnosticsAssignment, DiagnosticsItem, DiagnosticsScope, DomainConstraint, ExportFormat,
+    LockMode, PostgresPartitionBoundDef, PostgresPartitionStrategyDef, SetConstraintsMode,
+    SetConstraintsTarget,
 };
 
 pub struct CustomStatementParser;
@@ -888,6 +889,43 @@ impl CustomStatementParser {
         };
 
         Ok(Some(CustomStatement::AlterDomain { name, action }))
+    }
+
+    pub fn parse_alter_schema(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "ALTER") {
+            return Ok(None);
+        }
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "SCHEMA") {
+            return Ok(None);
+        }
+
+        let name = Self::parse_identifier(tokens, &mut idx)?;
+
+        let action = if ParserHelpers::consume_keyword(tokens, &mut idx, "RENAME") {
+            if !ParserHelpers::consume_keyword(tokens, &mut idx, "TO") {
+                return Err(Error::parse_error(
+                    "Expected TO after RENAME in ALTER SCHEMA".to_string(),
+                ));
+            }
+            let new_name = Self::parse_identifier(tokens, &mut idx)?;
+            AlterSchemaAction::RenameTo { new_name }
+        } else if ParserHelpers::consume_keyword(tokens, &mut idx, "OWNER") {
+            if !ParserHelpers::consume_keyword(tokens, &mut idx, "TO") {
+                return Err(Error::parse_error(
+                    "Expected TO after OWNER in ALTER SCHEMA".to_string(),
+                ));
+            }
+            let new_owner = Self::parse_identifier(tokens, &mut idx)?;
+            AlterSchemaAction::OwnerTo { new_owner }
+        } else {
+            return Err(Error::parse_error(
+                "Expected RENAME or OWNER after schema name in ALTER SCHEMA".to_string(),
+            ));
+        };
+
+        Ok(Some(CustomStatement::AlterSchema { name, action }))
     }
 
     pub fn parse_drop_domain(tokens: &[&Token]) -> Result<Option<CustomStatement>> {

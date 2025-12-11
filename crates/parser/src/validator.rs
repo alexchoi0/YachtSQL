@@ -76,6 +76,11 @@ pub enum CustomStatement {
         restrict: bool,
     },
 
+    AlterSchema {
+        name: String,
+        action: AlterSchemaAction,
+    },
+
     CreateType {
         if_not_exists: bool,
         name: sqlparser::ast::ObjectName,
@@ -506,6 +511,12 @@ pub enum AlterDomainAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlterSchemaAction {
+    RenameTo { new_name: String },
+    OwnerTo { new_owner: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompositeTypeField {
     pub name: String,
     pub data_type: sqlparser::ast::DataType,
@@ -568,6 +579,7 @@ impl StatementValidator {
             }
             CustomStatement::CreateDomain { name, .. } => self.validate_create_domain(name),
             CustomStatement::AlterDomain { name, .. } => self.validate_alter_domain(name),
+            CustomStatement::AlterSchema { .. } => Ok(()),
             CustomStatement::DropDomain {
                 names,
                 cascade,

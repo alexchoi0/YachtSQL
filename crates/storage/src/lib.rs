@@ -71,7 +71,7 @@ pub use transaction::{
 pub use trigger::{TriggerEvent, TriggerLevel, TriggerMetadata, TriggerRegistry, TriggerTiming};
 pub use type_registry::{TypeDefinition, TypeRegistry, UserDefinedType};
 pub use view::{ViewDefinition, ViewRegistry, WithCheckOption};
-use yachtsql_core::error::Result;
+use yachtsql_core::error::{Error, Result};
 
 #[derive(Debug, Clone, Default)]
 pub struct QuotaMetadata {
@@ -266,6 +266,18 @@ impl Storage {
     pub fn delete_dataset(&mut self, dataset_id: &str) -> Result<()> {
         self.datasets.shift_remove(dataset_id);
         Ok(())
+    }
+
+    pub fn rename_dataset(&mut self, old_name: &str, new_name: &str) -> Result<()> {
+        if let Some(dataset) = self.datasets.shift_remove(old_name) {
+            self.datasets.insert(new_name.to_string(), dataset);
+            Ok(())
+        } else {
+            Err(Error::DatasetNotFound(format!(
+                "Dataset '{}' not found",
+                old_name
+            )))
+        }
     }
 
     pub fn list_datasets(&self) -> Vec<&String> {

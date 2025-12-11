@@ -33,6 +33,23 @@ impl LogicalPlanBuilder {
     }
 
     pub(super) fn build_struct_field_access_expr(&self, idents: &[ast::Ident]) -> Result<Expr> {
+        if idents.len() == 3 {
+            let schema_name = &idents[0].value;
+            let table_name = &idents[1].value;
+            let column_name = &idents[2].value;
+
+            if self.is_current_alias(schema_name) {
+                let base = Expr::qualified_column(schema_name.clone(), table_name.clone());
+                return Ok(Expr::StructFieldAccess {
+                    expr: Box::new(base),
+                    field: column_name.clone(),
+                });
+            }
+
+            let qualified_table = format!("{}.{}", schema_name, table_name);
+            return Ok(Expr::qualified_column(qualified_table, column_name.clone()));
+        }
+
         let (mut current_expr, start_idx) = if self.is_current_alias(&idents[0].value) {
             (
                 Expr::qualified_column(idents[0].value.clone(), idents[1].value.clone()),

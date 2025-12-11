@@ -1,12 +1,15 @@
 use sqlparser::ast::Statement as SqlStatement;
 use yachtsql_core::error::{Error, Result};
+use yachtsql_parser::validator::{AlterSchemaAction, CustomStatement};
 
-use crate::QueryExecutor;
+use crate::{QueryExecutor, Table};
 
 pub trait SchemaExecutor {
     fn execute_create_schema(&mut self, stmt: &SqlStatement) -> Result<()>;
 
     fn execute_drop_schema(&mut self, stmt: &SqlStatement) -> Result<()>;
+
+    fn execute_alter_schema(&mut self, stmt: &CustomStatement) -> Result<Table>;
 }
 
 impl SchemaExecutor for QueryExecutor {
@@ -98,6 +101,38 @@ impl SchemaExecutor for QueryExecutor {
                 "Expected DROP SCHEMA statement".to_string(),
             ))
         }
+    }
+
+    fn execute_alter_schema(&mut self, stmt: &CustomStatement) -> Result<Table> {
+        let CustomStatement::AlterSchema { name, action } = stmt else {
+            return Err(Error::InternalError(
+                "Not an ALTER SCHEMA statement".to_string(),
+            ));
+        };
+
+        let mut storage = self.storage.borrow_mut();
+
+        if storage.get_dataset(name).is_none() {
+            return Err(Error::invalid_query(format!(
+                "schema \"{}\" does not exist",
+                name
+            )));
+        }
+
+        match action {
+            AlterSchemaAction::RenameTo { new_name } => {
+                if storage.get_dataset(new_name).is_some() {
+                    return Err(Error::invalid_query(format!(
+                        "schema \"{}\" already exists",
+                        new_name
+                    )));
+                }
+                storage.rename_dataset(name, new_name)?;
+            }
+            AlterSchemaAction::OwnerTo { new_owner: _ } => {}
+        }
+
+        Self::empty_result()
     }
 }
 

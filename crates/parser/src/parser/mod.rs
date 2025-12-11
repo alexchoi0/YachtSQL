@@ -395,6 +395,13 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.is_alter_schema(&meaningful_tokens)
+            && let Some(custom_stmt) =
+                CustomStatementParser::parse_alter_schema(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         if self.is_drop_type(&meaningful_tokens)
             && let Some(custom_stmt) = CustomStatementParser::parse_drop_type(&meaningful_tokens)?
         {
@@ -1513,6 +1520,10 @@ impl Parser {
 
     fn is_drop_domain(&self, tokens: &[&Token]) -> bool {
         self.matches_keyword_sequence(tokens, &["DROP", "DOMAIN"])
+    }
+
+    fn is_alter_schema(&self, tokens: &[&Token]) -> bool {
+        self.matches_keyword_sequence(tokens, &["ALTER", "SCHEMA"])
     }
 
     fn is_create_type(&self, tokens: &[&Token]) -> bool {

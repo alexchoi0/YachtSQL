@@ -83,6 +83,10 @@ impl SessionState {
     pub fn with_registry(dialect: DialectType, feature_registry: Rc<FeatureRegistry>) -> Self {
         let mut system_variables = HashMap::new();
         system_variables.insert("time_zone".to_string(), Value::string("UTC".to_string()));
+        let search_path = match dialect {
+            DialectType::PostgreSQL => vec!["$user".to_string(), "public".to_string()],
+            _ => vec!["default".to_string()],
+        };
         Self {
             dialect,
             diagnostics: SessionDiagnostics::new(),
@@ -90,7 +94,7 @@ impl SessionState {
             function_registry: Rc::new(crate::functions::FunctionRegistry::new()),
             feature_registry_snapshot: None,
             extension_registry: ExtensionRegistry::new(),
-            search_path: vec!["default".to_string()],
+            search_path,
             variables: HashMap::new(),
             system_variables,
             udfs: HashMap::new(),
@@ -168,10 +172,16 @@ impl SessionState {
     }
 
     pub fn current_schema(&self) -> &str {
-        self.search_path
-            .first()
-            .map(|s| s.as_str())
-            .unwrap_or("default")
+        for schema in &self.search_path {
+            if schema == "$user" {
+                continue;
+            }
+            return schema.as_str();
+        }
+        match self.dialect {
+            DialectType::PostgreSQL => "public",
+            _ => "default",
+        }
     }
 
     pub fn declare_variable(
