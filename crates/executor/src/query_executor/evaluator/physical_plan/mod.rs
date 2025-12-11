@@ -1372,15 +1372,18 @@ pub struct FilterExec {
     input: Rc<dyn ExecutionPlan>,
     schema: Schema,
     predicate: Expr,
+    has_subqueries: bool,
 }
 
 impl FilterExec {
     pub fn new(input: Rc<dyn ExecutionPlan>, predicate: Expr) -> Self {
         let schema = input.schema().clone();
+        let has_subqueries = predicate.contains_subquery();
         Self {
             input,
             schema,
             predicate,
+            has_subqueries,
         }
     }
 }
@@ -1406,20 +1409,24 @@ impl ExecutionPlan for FilterExec {
             let mut passing_rows = Vec::new();
 
             for row_idx in 0..num_rows {
-                let correlation_ctx =
-                    ProjectionWithExprExec::build_correlation_context(&batch, row_idx)?;
-                CORRELATION_CONTEXT.with(|ctx| {
-                    *ctx.borrow_mut() = Some(correlation_ctx);
-                });
+                let result = if self.has_subqueries {
+                    let correlation_ctx =
+                        ProjectionWithExprExec::build_correlation_context(&batch, row_idx)?;
+                    CORRELATION_CONTEXT.with(|ctx| {
+                        *ctx.borrow_mut() = Some(correlation_ctx);
+                    });
 
-                let result =
-                    ProjectionWithExprExec::evaluate_expr(&self.predicate, &batch, row_idx);
+                    let result =
+                        ProjectionWithExprExec::evaluate_expr(&self.predicate, &batch, row_idx);
 
-                CORRELATION_CONTEXT.with(|ctx| {
-                    *ctx.borrow_mut() = None;
-                });
+                    CORRELATION_CONTEXT.with(|ctx| {
+                        *ctx.borrow_mut() = None;
+                    });
 
-                let result = result?;
+                    result?
+                } else {
+                    ProjectionWithExprExec::evaluate_expr(&self.predicate, &batch, row_idx)?
+                };
 
                 if let Some(true) = result.as_bool() {
                     passing_rows.push(row_idx);
