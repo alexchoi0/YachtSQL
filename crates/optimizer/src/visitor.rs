@@ -155,6 +155,7 @@ pub trait PlanRewriter {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
                 let new_left = self.rewrite_plan_node(left)?;
                 let new_right = self.rewrite_plan_node(right)?;
@@ -165,6 +166,7 @@ pub trait PlanRewriter {
                         right: Box::new(new_right.unwrap_or_else(|| right.as_ref().clone())),
                         on: on.clone(),
                         join_type: *join_type,
+                        using_columns: using_columns.clone(),
                     }))
                 } else {
                     Ok(None)

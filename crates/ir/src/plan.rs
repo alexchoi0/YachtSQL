@@ -73,6 +73,7 @@ pub enum PlanNode {
         right: Box<PlanNode>,
         on: Expr,
         join_type: JoinType,
+        using_columns: Option<Vec<String>>,
     },
 
     LateralJoin {

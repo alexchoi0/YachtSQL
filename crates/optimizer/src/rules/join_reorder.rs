@@ -97,12 +97,14 @@ impl JoinReorder {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
                 if let PlanNode::Join {
                     left: ll,
                     right: lr,
                     on: left_on,
                     join_type: left_join_type,
+                    using_columns: left_using_columns,
                 } = left.as_ref()
                     && Self::can_reorder_joins(left_join_type, join_type)
                 {
@@ -116,6 +118,7 @@ impl JoinReorder {
                             right: right.clone(),
                             on: on.clone(),
                             join_type: *join_type,
+                            using_columns: using_columns.clone(),
                         };
 
                         return Some(PlanNode::Join {
@@ -123,6 +126,7 @@ impl JoinReorder {
                             right: lr.clone(),
                             on: left_on.clone(),
                             join_type: *left_join_type,
+                            using_columns: left_using_columns.clone(),
                         });
                     }
                 }
@@ -136,6 +140,7 @@ impl JoinReorder {
                         right: Box::new(right_opt.unwrap_or_else(|| right.as_ref().clone())),
                         on: on.clone(),
                         join_type: *join_type,
+                        using_columns: using_columns.clone(),
                     })
                 } else {
                     None
@@ -502,6 +507,7 @@ mod tests {
             right: Box::new(right_scan),
             on: Expr::column("id"),
             join_type: JoinType::Inner,
+            using_columns: None,
         };
 
         let plan = LogicalPlan::new(join);
@@ -547,6 +553,7 @@ mod tests {
             right: Box::new(medium_scan),
             on: Expr::column("id"),
             join_type: JoinType::Inner,
+            using_columns: None,
         };
 
         let outer_join = PlanNode::Join {
@@ -554,6 +561,7 @@ mod tests {
             right: Box::new(large_scan),
             on: Expr::column("id2"),
             join_type: JoinType::Inner,
+            using_columns: None,
         };
 
         let plan = LogicalPlan::new(outer_join);
@@ -593,6 +601,7 @@ mod tests {
             right: Box::new(right_scan),
             on: Expr::column("id"),
             join_type: JoinType::Left,
+            using_columns: None,
         };
 
         let outer_join = PlanNode::Join {
@@ -600,6 +609,7 @@ mod tests {
             right: Box::new(third_scan),
             on: Expr::column("id2"),
             join_type: JoinType::Inner,
+            using_columns: None,
         };
 
         let plan = LogicalPlan::new(outer_join);

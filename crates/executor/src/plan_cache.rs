@@ -818,6 +818,7 @@ mod tests {
             }),
             on: yachtsql_ir::expr::Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),
             join_type: yachtsql_ir::plan::JoinType::Inner,
+            using_columns: None,
         };
         cache.insert(
             join_key,
@@ -876,6 +877,7 @@ mod tests {
             }),
             on: yachtsql_ir::expr::Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),
             join_type: yachtsql_ir::plan::JoinType::Inner,
+            using_columns: None,
         };
         let tables = extract_referenced_tables(&join_plan);
         assert_eq!(tables.len(), 2);
@@ -1020,6 +1022,7 @@ mod tests {
                         true,
                     )),
                     join_type: yachtsql_ir::plan::JoinType::Inner,
+                    using_columns: None,
                 },
                 "SELECT * FROM users JOIN orders".to_string(),
             ),

@@ -93,6 +93,7 @@ impl InterestingOrderRule {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
                 let join_order = if is_equi_join(on) {
                     self.extract_join_key_ordering(on)
@@ -127,6 +128,7 @@ impl InterestingOrderRule {
                     right: Box::new(opt_right),
                     on: on.clone(),
                     join_type: *join_type,
+                    using_columns: using_columns.clone(),
                 };
                 Ok((new_node, output_order, left_changed || right_changed))
             }

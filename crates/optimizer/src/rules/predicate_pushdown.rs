@@ -216,6 +216,7 @@ impl PredicatePushdown {
                     right,
                     on,
                     join_type,
+                    using_columns,
                 } = input.as_ref()
                 {
                     let predicates = Self::split_conjunction(predicate);
@@ -279,6 +280,7 @@ impl PredicatePushdown {
                         right: new_right,
                         on: on.clone(),
                         join_type: *join_type,
+                        using_columns: using_columns.clone(),
                     };
 
                     return if let Some(remaining_pred) = Self::combine_predicates(join_predicates) {
@@ -309,6 +311,7 @@ impl PredicatePushdown {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
                 let left_opt = self.optimize_node(left);
                 let right_opt = self.optimize_node(right);
@@ -319,6 +322,7 @@ impl PredicatePushdown {
                         right: Box::new(right_opt.unwrap_or_else(|| right.as_ref().clone())),
                         on: on.clone(),
                         join_type: *join_type,
+                        using_columns: using_columns.clone(),
                     })
                 } else {
                     None

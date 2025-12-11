@@ -178,6 +178,7 @@ fn format_node_with_metrics(
             right,
             join_type,
             on,
+            ..
         } => {
             let join_type_str = format!("{:?}", join_type);
             output.push_str(&format!(
@@ -463,6 +464,7 @@ fn format_node(node: &PlanNode, output: &mut String, indent: usize, verbose: boo
             right,
             join_type,
             on,
+            ..
         } => {
             let join_type_str = format!("{:?}", join_type);
             output.push_str(&format!(

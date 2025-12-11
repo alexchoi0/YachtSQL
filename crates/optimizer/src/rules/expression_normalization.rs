@@ -196,6 +196,7 @@ impl ExpressionNormalization {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
                 let left_opt = self.optimize_node(left);
                 let right_opt = self.optimize_node(right);
@@ -206,6 +207,7 @@ impl ExpressionNormalization {
                         right: Box::new(right_opt.unwrap_or_else(|| right.as_ref().clone())),
                         on: on.clone(),
                         join_type: *join_type,
+                        using_columns: using_columns.clone(),
                     })
                 } else {
                     None

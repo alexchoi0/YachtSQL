@@ -229,6 +229,7 @@ impl LogicalToPhysicalPlanner {
         &self,
         expressions: &[(yachtsql_ir::expr::Expr, Option<String>)],
         input_schema: &yachtsql_storage::Schema,
+        using_columns: Option<&[String]>,
     ) -> Result<yachtsql_storage::Schema> {
         use yachtsql_storage::{Field, Schema};
 
@@ -236,7 +237,7 @@ impl LogicalToPhysicalPlanner {
 
         for (idx, (expr, alias)) in expressions.iter().enumerate() {
             Self::validate_expr(expr)?;
-            Self::validate_column_references(expr, input_schema)?;
+            Self::validate_column_references(expr, input_schema, using_columns)?;
 
             let data_type = ProjectionWithExprExec::infer_expr_type_with_schema(expr, input_schema)
                 .unwrap_or(yachtsql_core::types::DataType::Unknown);
@@ -266,18 +267,49 @@ impl LogicalToPhysicalPlanner {
     fn validate_column_references(
         expr: &yachtsql_ir::expr::Expr,
         schema: &yachtsql_storage::Schema,
+        using_columns: Option<&[String]>,
     ) -> Result<()> {
         use yachtsql_ir::expr::Expr;
 
         match expr {
             Expr::Column { name, table } => {
-                if schema.field(name).is_some() {
-                    return Ok(());
-                }
                 if is_system_column(name) {
                     return Ok(());
                 }
+                if table.is_none() {
+                    let matching_fields: Vec<_> =
+                        schema.fields().iter().filter(|f| f.name == *name).collect();
+
+                    if matching_fields.len() > 1 {
+                        let is_using_column = using_columns
+                            .map(|cols| cols.iter().any(|c| c == name))
+                            .unwrap_or(false);
+
+                        if !is_using_column {
+                            let distinct_sources: std::collections::HashSet<_> = matching_fields
+                                .iter()
+                                .filter_map(|f| f.source_table.as_ref())
+                                .collect();
+
+                            if distinct_sources.len() > 1 {
+                                return Err(Error::invalid_query(format!(
+                                    "column reference \"{}\" is ambiguous",
+                                    name
+                                )));
+                            }
+                        }
+                    }
+                    if !matching_fields.is_empty() {
+                        return Ok(());
+                    }
+                }
                 if let Some(table_name) = table {
+                    if schema
+                        .field_index_qualified(name, Some(table_name))
+                        .is_some()
+                    {
+                        return Ok(());
+                    }
                     let qualified_name = format!("{}.{}", table_name, name);
                     if schema.field(&qualified_name).is_some() {
                         return Ok(());
@@ -299,30 +331,35 @@ impl LogicalToPhysicalPlanner {
                         }
                     }
                 }
+                if schema.field(name).is_some() {
+                    return Ok(());
+                }
                 Err(Error::ColumnNotFound(name.clone()))
             }
             Expr::BinaryOp { left, right, .. } => {
-                Self::validate_column_references(left, schema)?;
-                Self::validate_column_references(right, schema)
+                Self::validate_column_references(left, schema, using_columns)?;
+                Self::validate_column_references(right, schema, using_columns)
             }
-            Expr::UnaryOp { expr: inner, .. } => Self::validate_column_references(inner, schema),
+            Expr::UnaryOp { expr: inner, .. } => {
+                Self::validate_column_references(inner, schema, using_columns)
+            }
             Expr::Function { args, .. } => {
                 for arg in args {
-                    Self::validate_column_references(arg, schema)?;
+                    Self::validate_column_references(arg, schema, using_columns)?;
                 }
                 Ok(())
             }
             Expr::Aggregate { args, filter, .. } => {
                 for arg in args {
-                    Self::validate_column_references(arg, schema)?;
+                    Self::validate_column_references(arg, schema, using_columns)?;
                 }
                 if let Some(f) = filter {
-                    Self::validate_column_references(f, schema)?;
+                    Self::validate_column_references(f, schema, using_columns)?;
                 }
                 Ok(())
             }
             Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
-                Self::validate_column_references(inner, schema)
+                Self::validate_column_references(inner, schema, using_columns)
             }
             Expr::Case {
                 operand,
@@ -330,23 +367,23 @@ impl LogicalToPhysicalPlanner {
                 else_expr,
             } => {
                 if let Some(op) = operand {
-                    Self::validate_column_references(op, schema)?;
+                    Self::validate_column_references(op, schema, using_columns)?;
                 }
                 for (when_expr, then_expr) in when_then {
-                    Self::validate_column_references(when_expr, schema)?;
-                    Self::validate_column_references(then_expr, schema)?;
+                    Self::validate_column_references(when_expr, schema, using_columns)?;
+                    Self::validate_column_references(then_expr, schema, using_columns)?;
                 }
                 if let Some(el) = else_expr {
-                    Self::validate_column_references(el, schema)?;
+                    Self::validate_column_references(el, schema, using_columns)?;
                 }
                 Ok(())
             }
             Expr::InList {
                 expr: inner, list, ..
             } => {
-                Self::validate_column_references(inner, schema)?;
+                Self::validate_column_references(inner, schema, using_columns)?;
                 for item in list {
-                    Self::validate_column_references(item, schema)?;
+                    Self::validate_column_references(item, schema, using_columns)?;
                 }
                 Ok(())
             }
@@ -356,18 +393,25 @@ impl LogicalToPhysicalPlanner {
                 high,
                 ..
             } => {
-                Self::validate_column_references(inner, schema)?;
-                Self::validate_column_references(low, schema)?;
-                Self::validate_column_references(high, schema)
+                Self::validate_column_references(inner, schema, using_columns)?;
+                Self::validate_column_references(low, schema, using_columns)?;
+                Self::validate_column_references(high, schema, using_columns)
             }
             Expr::StructFieldAccess { expr: inner, .. } => {
-                Self::validate_column_references(inner, schema)
+                Self::validate_column_references(inner, schema, using_columns)
             }
             Expr::ArrayIndex { array, index, .. } => {
-                Self::validate_column_references(array, schema)?;
-                Self::validate_column_references(index, schema)
+                Self::validate_column_references(array, schema, using_columns)?;
+                Self::validate_column_references(index, schema, using_columns)
             }
             _ => Ok(()),
+        }
+    }
+
+    fn extract_using_columns(node: &PlanNode) -> Option<Vec<String>> {
+        match node {
+            PlanNode::Join { using_columns, .. } => using_columns.clone(),
+            _ => None,
         }
     }
 
@@ -1240,12 +1284,16 @@ impl LogicalToPhysicalPlanner {
             }
 
             PlanNode::Projection { input, expressions } => {
+                let using_columns = Self::extract_using_columns(input);
                 let input_exec = self.plan_node_to_exec(input)?;
                 let input_schema = input_exec.schema();
 
                 let resolved_expressions = self.resolve_custom_type_in_expressions(expressions);
-                let output_schema =
-                    self.infer_projection_schema(&resolved_expressions, input_schema)?;
+                let output_schema = self.infer_projection_schema(
+                    &resolved_expressions,
+                    input_schema,
+                    using_columns.as_deref(),
+                )?;
 
                 Ok(Rc::new(
                     ProjectionWithExprExec::new(input_exec, output_schema, resolved_expressions)
@@ -1258,7 +1306,9 @@ impl LogicalToPhysicalPlanner {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
+                let _ = using_columns;
                 let left_exec = self.plan_node_to_exec(left)?;
                 let right_exec = self.plan_node_to_exec(right)?;
 

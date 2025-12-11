@@ -47,6 +47,7 @@ impl SubqueryFlattening {
                             right: Box::new(subquery_plan),
                             on: join_condition,
                             join_type,
+                            using_columns: None,
                         };
 
                         match Self::remove_subquery_from_predicate(predicate) {
@@ -78,11 +79,13 @@ impl SubqueryFlattening {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => Ok(PlanNode::Join {
                 left: Box::new(self.transform_node(left)?),
                 right: Box::new(self.transform_node(right)?),
                 on: on.clone(),
                 join_type: *join_type,
+                using_columns: using_columns.clone(),
             }),
             PlanNode::Aggregate {
                 group_by,
@@ -504,6 +507,7 @@ impl SubqueryFlattening {
             }),
             on: join_condition,
             join_type: JoinType::Left,
+            using_columns: None,
         };
 
         let new_expressions: Vec<(Expr, Option<String>)> = expressions

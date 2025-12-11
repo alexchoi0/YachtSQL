@@ -434,6 +434,7 @@ mod tests {
                     }),
                     join_type: JoinType::Inner,
                     on: Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),
+                    using_columns: None,
                 }),
                 right: Box::new(PlanNode::Scan {
                     table_name: "c".to_string(),
@@ -444,6 +445,7 @@ mod tests {
                 }),
                 join_type: JoinType::Inner,
                 on: Expr::Literal(yachtsql_ir::expr::LiteralValue::Boolean(true)),
+                using_columns: None,
             }),
         };
 

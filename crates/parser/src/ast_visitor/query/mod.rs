@@ -2358,7 +2358,7 @@ impl LogicalPlanBuilder {
             );
             let is_lateral = is_lateral || is_apply;
 
-            let on_expr = match &join.join_operator {
+            let (on_expr, using_columns) = match &join.join_operator {
                 ast::JoinOperator::Join(ast::JoinConstraint::On(expr))
                 | ast::JoinOperator::Inner(ast::JoinConstraint::On(expr))
                 | ast::JoinOperator::Left(ast::JoinConstraint::On(expr))
@@ -2366,7 +2366,7 @@ impl LogicalPlanBuilder {
                 | ast::JoinOperator::Right(ast::JoinConstraint::On(expr))
                 | ast::JoinOperator::RightOuter(ast::JoinConstraint::On(expr))
                 | ast::JoinOperator::FullOuter(ast::JoinConstraint::On(expr)) => {
-                    self.sql_expr_to_expr(expr)?
+                    (self.sql_expr_to_expr(expr)?, None)
                 }
                 ast::JoinOperator::Join(ast::JoinConstraint::Using(cols))
                 | ast::JoinOperator::Inner(ast::JoinConstraint::Using(cols))
@@ -2376,7 +2376,9 @@ impl LogicalPlanBuilder {
                 | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(cols))
                 | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(cols)) => {
                     let ident_cols = Self::object_names_to_idents(cols)?;
-                    self.build_using_condition(&ident_cols)?
+                    let col_names: Vec<String> =
+                        ident_cols.iter().map(|c| c.value.clone()).collect();
+                    (self.build_using_condition(&ident_cols)?, Some(col_names))
                 }
                 ast::JoinOperator::Join(ast::JoinConstraint::Natural)
                 | ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
@@ -2385,12 +2387,17 @@ impl LogicalPlanBuilder {
                 | ast::JoinOperator::Right(ast::JoinConstraint::Natural)
                 | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
                 | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
-                    self.build_natural_join_condition(&plan, &right_plan)?
+                    let common_cols = self.get_common_columns(&plan, &right_plan)?;
+                    (
+                        self.build_natural_join_condition(&plan, &right_plan)?,
+                        Some(common_cols),
+                    )
                 }
-                ast::JoinOperator::CrossJoin(_) => Expr::Literal(LiteralValue::Boolean(true)),
-
+                ast::JoinOperator::CrossJoin(_) => {
+                    (Expr::Literal(LiteralValue::Boolean(true)), None)
+                }
                 ast::JoinOperator::CrossApply | ast::JoinOperator::OuterApply => {
-                    Expr::Literal(LiteralValue::Boolean(true))
+                    (Expr::Literal(LiteralValue::Boolean(true)), None)
                 }
                 _ => {
                     return Err(Error::unsupported_feature(
@@ -2412,6 +2419,7 @@ impl LogicalPlanBuilder {
                     right: right_plan.root,
                     on: on_expr,
                     join_type,
+                    using_columns,
                 })
             };
         }
@@ -2432,6 +2440,7 @@ impl LogicalPlanBuilder {
                     right: right_plan.root,
                     on: Expr::Literal(LiteralValue::Boolean(true)),
                     join_type: JoinType::Cross,
+                    using_columns: None,
                 })
             };
 
@@ -2464,7 +2473,7 @@ impl LogicalPlanBuilder {
                 );
                 let is_lateral = is_lateral || is_apply;
 
-                let on_expr = match &join.join_operator {
+                let (on_expr, using_columns) = match &join.join_operator {
                     ast::JoinOperator::Join(ast::JoinConstraint::On(expr))
                     | ast::JoinOperator::Inner(ast::JoinConstraint::On(expr))
                     | ast::JoinOperator::Left(ast::JoinConstraint::On(expr))
@@ -2472,7 +2481,7 @@ impl LogicalPlanBuilder {
                     | ast::JoinOperator::Right(ast::JoinConstraint::On(expr))
                     | ast::JoinOperator::RightOuter(ast::JoinConstraint::On(expr))
                     | ast::JoinOperator::FullOuter(ast::JoinConstraint::On(expr)) => {
-                        self.sql_expr_to_expr(expr)?
+                        (self.sql_expr_to_expr(expr)?, None)
                     }
                     ast::JoinOperator::Join(ast::JoinConstraint::Using(cols))
                     | ast::JoinOperator::Inner(ast::JoinConstraint::Using(cols))
@@ -2482,7 +2491,9 @@ impl LogicalPlanBuilder {
                     | ast::JoinOperator::RightOuter(ast::JoinConstraint::Using(cols))
                     | ast::JoinOperator::FullOuter(ast::JoinConstraint::Using(cols)) => {
                         let ident_cols = Self::object_names_to_idents(cols)?;
-                        self.build_using_condition(&ident_cols)?
+                        let col_names: Vec<String> =
+                            ident_cols.iter().map(|c| c.value.clone()).collect();
+                        (self.build_using_condition(&ident_cols)?, Some(col_names))
                     }
                     ast::JoinOperator::Join(ast::JoinConstraint::Natural)
                     | ast::JoinOperator::Inner(ast::JoinConstraint::Natural)
@@ -2491,11 +2502,17 @@ impl LogicalPlanBuilder {
                     | ast::JoinOperator::Right(ast::JoinConstraint::Natural)
                     | ast::JoinOperator::RightOuter(ast::JoinConstraint::Natural)
                     | ast::JoinOperator::FullOuter(ast::JoinConstraint::Natural) => {
-                        self.build_natural_join_condition(&plan, &right_plan)?
+                        let common_cols = self.get_common_columns(&plan, &right_plan)?;
+                        (
+                            self.build_natural_join_condition(&plan, &right_plan)?,
+                            Some(common_cols),
+                        )
                     }
-                    ast::JoinOperator::CrossJoin(_) => Expr::Literal(LiteralValue::Boolean(true)),
+                    ast::JoinOperator::CrossJoin(_) => {
+                        (Expr::Literal(LiteralValue::Boolean(true)), None)
+                    }
                     ast::JoinOperator::CrossApply | ast::JoinOperator::OuterApply => {
-                        Expr::Literal(LiteralValue::Boolean(true))
+                        (Expr::Literal(LiteralValue::Boolean(true)), None)
                     }
                     _ => {
                         return Err(Error::unsupported_feature(
@@ -2517,6 +2534,7 @@ impl LogicalPlanBuilder {
                         right: right_plan.root,
                         on: on_expr,
                         join_type,
+                        using_columns,
                     })
                 };
             }

@@ -133,11 +133,13 @@ pub fn bind_correlation(plan: PlanNode, context: &CorrelationContext) -> Result<
             right,
             on,
             join_type,
+            using_columns,
         } => Ok(PlanNode::Join {
             left: Box::new(bind_correlation(clone_box(&left), context)?),
             right: Box::new(bind_correlation(clone_box(&right), context)?),
             on: bind_correlation_expr(on, context)?,
             join_type,
+            using_columns,
         }),
         PlanNode::Aggregate {
             group_by,

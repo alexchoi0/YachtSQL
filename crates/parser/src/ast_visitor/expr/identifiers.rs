@@ -167,6 +167,21 @@ impl LogicalPlanBuilder {
         Ok(condition)
     }
 
+    pub(crate) fn get_common_columns(
+        &self,
+        left: &LogicalPlan,
+        right: &LogicalPlan,
+    ) -> Result<Vec<String>> {
+        let left_cols = self.get_column_names(left)?;
+        let right_cols = self.get_column_names(right)?;
+
+        Ok(left_cols
+            .iter()
+            .filter(|col| right_cols.contains(col))
+            .cloned()
+            .collect())
+    }
+
     pub(super) fn get_column_names(&self, plan: &LogicalPlan) -> Result<Vec<String>> {
         match plan.root.as_ref() {
             PlanNode::Scan {

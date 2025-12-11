@@ -117,6 +117,7 @@ impl PhysicalPlanner {
                 right,
                 join_type,
                 on,
+                ..
             } => self.create_join(left, right, *join_type, Some(on)),
 
             PlanNode::LateralJoin {

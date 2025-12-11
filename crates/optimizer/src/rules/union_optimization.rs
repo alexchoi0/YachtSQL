@@ -90,11 +90,13 @@ impl UnionOptimization {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => Ok(PlanNode::Join {
                 left: Box::new(self.transform_node(left)?),
                 right: Box::new(self.transform_node(right)?),
                 on: on.clone(),
                 join_type: *join_type,
+                using_columns: using_columns.clone(),
             }),
 
             PlanNode::Intersect { left, right, all } => Ok(PlanNode::Intersect {

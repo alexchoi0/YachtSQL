@@ -95,6 +95,7 @@ impl FilterReorder {
                 right,
                 join_type,
                 on,
+                using_columns,
             } => {
                 let new_left = self.optimize_node(left)?;
                 let new_right = self.optimize_node(right)?;
@@ -105,6 +106,7 @@ impl FilterReorder {
                         right: Box::new(new_right.unwrap_or_else(|| right.as_ref().clone())),
                         join_type: *join_type,
                         on: on.clone(),
+                        using_columns: using_columns.clone(),
                     }));
                 }
                 Ok(None)

@@ -192,6 +192,7 @@ impl ConstantFolding {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
                 let folded_on = self.fold_expr(on);
                 let left_opt = self.optimize_node(left);
@@ -203,6 +204,7 @@ impl ConstantFolding {
                         right: Box::new(right_opt.unwrap_or_else(|| right.as_ref().clone())),
                         on: folded_on,
                         join_type: *join_type,
+                        using_columns: using_columns.clone(),
                     })
                 } else {
                     None

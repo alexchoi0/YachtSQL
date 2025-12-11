@@ -330,6 +330,7 @@ impl ProjectionPushdown {
                 right,
                 on,
                 join_type,
+                using_columns,
             } => {
                 let mut cols_needed = required_cols.clone();
                 cols_needed.extend(Self::get_column_references(on));
@@ -343,6 +344,7 @@ impl ProjectionPushdown {
                         right: Box::new(right_opt.unwrap_or_else(|| right.as_ref().clone())),
                         on: on.clone(),
                         join_type: *join_type,
+                        using_columns: using_columns.clone(),
                     })
                 } else {
                     None
