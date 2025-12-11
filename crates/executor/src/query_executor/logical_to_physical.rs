@@ -1200,21 +1200,33 @@ impl LogicalToPhysicalPlanner {
                     )));
                 }
 
-                if matches!(self.dialect, crate::DialectType::ClickHouse)
-                    && !table_name.contains('.')
-                {
-                    use std::str::FromStr;
-                    if let Ok(system_table) = SystemTable::from_str(table_id) {
-                        let provider = SystemSchemaProvider::new(Rc::clone(&self.storage));
-                        let (schema, rows) = provider.query(system_table)?;
-                        let source_table = alias.as_ref().unwrap_or(table_name);
-                        let schema_with_source = schema.with_source_table(source_table);
-                        let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
-                        return Ok(Rc::new(MaterializedViewScanExec::new(
-                            schema_with_source,
-                            batch,
-                        )));
+                let table_exists = {
+                    let storage = self.storage.borrow();
+                    let dataset = storage.get_dataset(dataset_name);
+                    dataset.is_some_and(|d| d.get_table(table_id).is_some())
+                };
+
+                if !table_exists {
+                    if matches!(self.dialect, crate::DialectType::ClickHouse)
+                        && !table_name.contains('.')
+                    {
+                        use std::str::FromStr;
+                        if let Ok(system_table) = SystemTable::from_str(table_id) {
+                            let provider = SystemSchemaProvider::new(Rc::clone(&self.storage));
+                            let (schema, rows) = provider.query(system_table)?;
+                            let source_table = alias.as_ref().unwrap_or(table_name);
+                            let schema_with_source = schema.with_source_table(source_table);
+                            let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
+                            return Ok(Rc::new(MaterializedViewScanExec::new(
+                                schema_with_source,
+                                batch,
+                            )));
+                        }
                     }
+                    return Err(Error::TableNotFound(format!(
+                        "Table '{}' not found",
+                        table_id
+                    )));
                 }
 
                 let storage = self.storage.borrow_mut();
