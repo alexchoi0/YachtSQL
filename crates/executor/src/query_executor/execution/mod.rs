@@ -1582,6 +1582,31 @@ impl QueryExecutor {
         let schema = table.schema().clone();
         let rows = table.get_all_rows();
 
+        if let TableEngine::Buffer {
+            database,
+            table: target_table,
+        } = &engine
+        {
+            let target_db = if database.is_empty() {
+                dataset_id.clone()
+            } else {
+                database.clone()
+            };
+            let target_table_name = target_table.clone();
+            let buffer_rows = rows;
+
+            table.clear_rows()?;
+
+            if let Some(target_dataset) = storage.get_dataset_mut(&target_db) {
+                if let Some(dest_table) = target_dataset.get_table_mut(&target_table_name) {
+                    dest_table.insert_rows(buffer_rows)?;
+                }
+            }
+
+            drop(storage);
+            return Self::empty_result();
+        }
+
         let get_key_indices = |order_by: &[String]| -> Vec<usize> {
             order_by
                 .iter()

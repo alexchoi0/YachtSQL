@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_create() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_buffer_create() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_insert() {
     let mut executor = create_executor();
@@ -43,7 +41,6 @@ fn test_buffer_insert() {
     assert_table_eq!(result, [[1, "test"], [2, "data"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_select() {
     let mut executor = create_executor();
@@ -68,7 +65,6 @@ fn test_buffer_select() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_aggregate() {
     let mut executor = create_executor();
@@ -93,7 +89,6 @@ fn test_buffer_aggregate() {
     assert_table_eq!(result, [["A", 30], ["B", 30]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_flush() {
     let mut executor = create_executor();
@@ -117,7 +112,6 @@ fn test_buffer_flush() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_multiple_inserts() {
     let mut executor = create_executor();
@@ -146,7 +140,6 @@ fn test_buffer_multiple_inserts() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_join() {
     let mut executor = create_executor();
@@ -179,7 +172,6 @@ fn test_buffer_join() {
     assert_table_eq!(result, [["alice", 100], ["bob", 200]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_with_nullable() {
     let mut executor = create_executor();
@@ -202,7 +194,6 @@ fn test_buffer_with_nullable() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_buffer_order_by() {
     let mut executor = create_executor();

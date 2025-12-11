@@ -740,27 +740,28 @@ impl ExecutionPlan for TableScanExec {
                 })?;
                 (underlying, underlying.engine().clone())
             }
-            TableEngine::Buffer {
-                database,
-                table: target_table,
-            } => {
-                let target_db = if database.is_empty() {
-                    dataset_name
-                } else {
-                    database.as_str()
-                };
-                let target_dataset = storage.get_dataset(target_db).ok_or_else(|| {
-                    Error::DatasetNotFound(format!("Dataset '{}' not found", target_db))
-                })?;
-                let underlying = target_dataset.get_table(target_table).ok_or_else(|| {
-                    Error::TableNotFound(format!("Table '{}' not found", target_table))
-                })?;
-                (underlying, underlying.engine().clone())
-            }
             engine => (table, engine.clone()),
         };
 
         let mut all_rows = actual_table.get_all_rows();
+
+        if let TableEngine::Buffer {
+            database,
+            table: target_table,
+        } = table.engine()
+        {
+            let target_db = if database.is_empty() {
+                dataset_name
+            } else {
+                database.as_str()
+            };
+            if let Some(target_dataset) = storage.get_dataset(target_db) {
+                if let Some(dest_table) = target_dataset.get_table(target_table) {
+                    let dest_rows = dest_table.get_all_rows();
+                    all_rows.extend(dest_rows);
+                }
+            }
+        }
 
         if let Some(ref tm) = self.transaction_manager {
             let manager = tm.borrow();
