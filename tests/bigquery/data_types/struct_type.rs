@@ -29,7 +29,6 @@ fn test_struct_string_field_access() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_in_table() {
     let mut executor = create_executor();
     executor
@@ -73,7 +72,6 @@ fn test_struct_in_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_with_null_field() {
     let mut executor = create_executor();
     let result = executor
@@ -101,7 +99,6 @@ fn test_struct_comparison_false() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_in_where() {
     let mut executor = create_executor();
     executor
@@ -118,7 +115,6 @@ fn test_struct_in_where() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_in_group_by() {
     let mut executor = create_executor();
     executor
@@ -135,7 +131,6 @@ fn test_struct_in_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_in_order_by() {
     let mut executor = create_executor();
     executor
@@ -161,7 +156,6 @@ fn test_struct_with_array_field() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_unnest() {
     let mut executor = create_executor();
     let result = executor
@@ -171,7 +165,6 @@ fn test_struct_unnest() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_as_function_result() {
     let mut executor = create_executor();
     executor
@@ -183,7 +176,7 @@ fn test_struct_as_function_result() {
 
     let result = executor
         .execute_sql(
-            "SELECT (STRUCT(id, value, id + value AS sum) AS result).sum FROM data ORDER BY id",
+            "SELECT STRUCT(id AS id, value AS value, id + value AS sum).sum FROM data ORDER BY id",
         )
         .unwrap();
     assert_table_eq!(result, [[11], [22]]);
@@ -199,7 +192,6 @@ fn test_struct_is_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_null_struct() {
     let mut executor = create_executor();
     executor

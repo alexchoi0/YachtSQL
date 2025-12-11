@@ -2140,6 +2140,22 @@ impl LogicalToPhysicalPlanner {
                 LiteralValue::MacAddr(_) => DataType::MacAddr,
                 LiteralValue::MacAddr8(_) => DataType::MacAddr8,
             },
+            Expr::StructLiteral { fields } => {
+                let struct_fields = fields
+                    .iter()
+                    .map(|f| {
+                        let field_type = f
+                            .declared_type
+                            .clone()
+                            .unwrap_or_else(|| self.infer_literal_type(&f.expr));
+                        yachtsql_core::types::StructField {
+                            name: f.name.clone(),
+                            data_type: field_type,
+                        }
+                    })
+                    .collect();
+                DataType::Struct(struct_fields)
+            }
             _ => panic!("infer_literal_type: unhandled expression type: {:?}", expr),
         }
     }

@@ -1546,6 +1546,15 @@ impl UnnestExec {
                     }
                 }
             }),
+            Expr::StructLiteral { fields } => {
+                use indexmap::IndexMap;
+                let mut map = IndexMap::new();
+                for field in fields {
+                    let value = self.evaluate_constant_expr(&field.expr)?;
+                    map.insert(field.name.clone(), value);
+                }
+                Ok(Value::struct_val(map))
+            }
             _ => Err(Error::unsupported_feature(
                 "UNNEST currently only supports literal values in ARRAY()".to_string(),
             )),
