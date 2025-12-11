@@ -635,7 +635,6 @@ impl LogicalPlanBuilder {
                                     | Expr::Literal(_)
                                     | Expr::Tuple(_)
                                     | Expr::TryCast { .. }
-                                    | Expr::Function { .. }
                                     | Expr::InList { .. }
                                     | Expr::Between { .. }
                             )
