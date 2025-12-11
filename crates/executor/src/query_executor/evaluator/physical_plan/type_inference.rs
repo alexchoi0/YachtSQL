@@ -2517,14 +2517,25 @@ impl ProjectionWithExprExec {
                 if args.len() >= 2 {
                     let tuple_type = Self::infer_expr_type_with_schema(&args[0], schema);
                     if let Some(DataType::Struct(fields)) = tuple_type {
-                        if let yachtsql_optimizer::expr::Expr::Literal(
-                            yachtsql_optimizer::expr::LiteralValue::Int64(idx),
-                        ) = &args[1]
-                        {
-                            let idx = *idx as usize;
-                            if idx > 0 && idx <= fields.len() {
-                                return Some(fields[idx - 1].data_type.clone());
+                        match &args[1] {
+                            yachtsql_optimizer::expr::Expr::Literal(
+                                yachtsql_optimizer::expr::LiteralValue::Int64(idx),
+                            ) => {
+                                let idx = *idx as usize;
+                                if idx > 0 && idx <= fields.len() {
+                                    return Some(fields[idx - 1].data_type.clone());
+                                }
                             }
+                            yachtsql_optimizer::expr::Expr::Literal(
+                                yachtsql_optimizer::expr::LiteralValue::String(name),
+                            ) => {
+                                if let Some(field) =
+                                    fields.iter().find(|f| f.name.eq_ignore_ascii_case(name))
+                                {
+                                    return Some(field.data_type.clone());
+                                }
+                            }
+                            _ => {}
                         }
                         if !fields.is_empty() {
                             return Some(fields[0].data_type.clone());
@@ -2649,6 +2660,18 @@ impl ProjectionWithExprExec {
                     _ => None,
                 }
             }
+            Expr::TupleElementAccess { expr, index } => {
+                match Self::infer_expr_type_with_schema(expr, schema)? {
+                    DataType::Struct(fields) => {
+                        if *index >= 1 && *index <= fields.len() {
+                            Some(fields[*index - 1].data_type.clone())
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            }
             Expr::ScalarSubquery { subquery } => {
                 crate::query_executor::execution::infer_scalar_subquery_type_static(
                     subquery,
@@ -2756,6 +2779,16 @@ impl ProjectionWithExprExec {
                     .into_iter()
                     .find(|f| f.name == *field)
                     .map(|f| f.data_type),
+                _ => None,
+            },
+            Expr::TupleElementAccess { expr, index } => match Self::infer_expr_type(expr)? {
+                DataType::Struct(fields) => {
+                    if *index >= 1 && *index <= fields.len() {
+                        Some(fields[*index - 1].data_type.clone())
+                    } else {
+                        None
+                    }
+                }
                 _ => None,
             },
             Expr::ArrayIndex { array, .. } => match Self::infer_expr_type(array)? {

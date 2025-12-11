@@ -143,10 +143,16 @@ impl Parser {
             sql_without_settings
         };
 
-        let sql_with_named_tuples = if matches!(self.dialect_type, DialectType::ClickHouse) {
-            Self::rewrite_named_tuples(&sql_without_global)
+        let sql_with_tuple_as = if matches!(self.dialect_type, DialectType::ClickHouse) {
+            Self::rewrite_tuple_as_names(&sql_without_global)
         } else {
             sql_without_global
+        };
+
+        let sql_with_named_tuples = if matches!(self.dialect_type, DialectType::ClickHouse) {
+            Self::rewrite_named_tuples(&sql_with_tuple_as)
+        } else {
+            sql_with_tuple_as
         };
 
         let sql_with_single_element_tuples = if matches!(self.dialect_type, DialectType::ClickHouse)
@@ -156,10 +162,17 @@ impl Parser {
             sql_with_named_tuples
         };
 
-        let sql_with_view_rewritten = if matches!(self.dialect_type, DialectType::ClickHouse) {
-            Self::rewrite_view_table_function(&sql_with_single_element_tuples)
+        let sql_with_tuple_element_access = if matches!(self.dialect_type, DialectType::ClickHouse)
+        {
+            Self::rewrite_tuple_element_access(&sql_with_single_element_tuples)
         } else {
             sql_with_single_element_tuples
+        };
+
+        let sql_with_view_rewritten = if matches!(self.dialect_type, DialectType::ClickHouse) {
+            Self::rewrite_view_table_function(&sql_with_tuple_element_access)
+        } else {
+            sql_with_tuple_element_access
         };
 
         let sql_with_rewritten_locks = if matches!(self.dialect_type, DialectType::PostgreSQL) {
@@ -683,6 +696,163 @@ impl Parser {
         RE_GLOBAL_IN.replace_all(sql, "IN").to_string()
     }
 
+    fn rewrite_tuple_as_names(sql: &str) -> String {
+        let mut result = String::with_capacity(sql.len());
+        let mut byte_idx = 0;
+        let upper = sql.to_uppercase();
+
+        while byte_idx < sql.len() {
+            let ch = match sql[byte_idx..].chars().next() {
+                Some(c) => c,
+                None => break,
+            };
+            let ch_len = ch.len_utf8();
+
+            if ch == '\'' || ch == '"' {
+                result.push(ch);
+                byte_idx += ch_len;
+                let quote_char = ch;
+                while byte_idx < sql.len() {
+                    let inner_ch = match sql[byte_idx..].chars().next() {
+                        Some(c) => c,
+                        None => break,
+                    };
+                    result.push(inner_ch);
+                    byte_idx += inner_ch.len_utf8();
+                    if inner_ch == quote_char {
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            if byte_idx < upper.len()
+                && upper[byte_idx..].starts_with("TUPLE(")
+                && (byte_idx == 0 || {
+                    let prev = sql[..byte_idx].chars().last().unwrap_or(' ');
+                    !prev.is_ascii_alphanumeric() && prev != '_'
+                })
+            {
+                let paren_start = byte_idx + 5;
+                if let Some(paren_end) = Self::find_matching_paren_at(sql, paren_start) {
+                    let inner = &sql[paren_start + 1..paren_end];
+
+                    if let Some(named_args) = Self::parse_tuple_as_args(inner) {
+                        result.push_str("__NAMED_TUPLE__(");
+                        for (i, (name, value)) in named_args.iter().enumerate() {
+                            if i > 0 {
+                                result.push_str(", ");
+                            }
+                            result.push('\'');
+                            result.push_str(name);
+                            result.push_str("', ");
+                            result.push_str(value);
+                        }
+                        result.push(')');
+                        byte_idx = paren_end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            result.push(ch);
+            byte_idx += ch_len;
+        }
+
+        result
+    }
+
+    fn parse_tuple_as_args(inner: &str) -> Option<Vec<(String, String)>> {
+        let mut args = Vec::new();
+        let mut current_pos = 0;
+        let inner_bytes = inner.as_bytes();
+        let upper = inner.to_uppercase();
+        let mut has_as = false;
+
+        while current_pos < inner.len() {
+            while current_pos < inner.len() && inner_bytes[current_pos].is_ascii_whitespace() {
+                current_pos += 1;
+            }
+            if current_pos >= inner.len() {
+                break;
+            }
+
+            let value_start = current_pos;
+            let mut depth = 0;
+            let mut in_str = false;
+            let mut str_char = b' ';
+            let mut as_pos = None;
+
+            while current_pos < inner.len() {
+                let c = inner_bytes[current_pos];
+                if in_str {
+                    if c == str_char {
+                        in_str = false;
+                    }
+                    current_pos += 1;
+                } else {
+                    match c {
+                        b'\'' | b'"' => {
+                            in_str = true;
+                            str_char = c;
+                            current_pos += 1;
+                        }
+                        b'(' => {
+                            depth += 1;
+                            current_pos += 1;
+                        }
+                        b')' => {
+                            if depth == 0 {
+                                break;
+                            }
+                            depth -= 1;
+                            current_pos += 1;
+                        }
+                        b',' if depth == 0 => {
+                            break;
+                        }
+                        _ => {
+                            if depth == 0
+                                && as_pos.is_none()
+                                && upper[current_pos..].starts_with("AS ")
+                                && (current_pos == 0
+                                    || inner_bytes[current_pos - 1].is_ascii_whitespace())
+                            {
+                                as_pos = Some(current_pos);
+                            }
+                            current_pos += 1;
+                        }
+                    }
+                }
+            }
+
+            if let Some(as_idx) = as_pos {
+                let value = inner[value_start..as_idx].trim().to_string();
+                let name_start = as_idx + 3;
+                let name = inner[name_start..current_pos].trim().to_string();
+
+                if value.is_empty() || name.is_empty() {
+                    return None;
+                }
+
+                args.push((name, value));
+                has_as = true;
+            } else {
+                return None;
+            }
+
+            if current_pos < inner.len() && inner_bytes[current_pos] == b',' {
+                current_pos += 1;
+            }
+        }
+
+        if has_as && !args.is_empty() {
+            Some(args)
+        } else {
+            None
+        }
+    }
+
     fn rewrite_named_tuples(sql: &str) -> String {
         let mut result = String::with_capacity(sql.len());
         let mut idx = 0;
@@ -918,6 +1088,169 @@ impl Parser {
 
         let result = format!("tuple({})", value);
         Some((result, close_idx + 1))
+    }
+
+    fn rewrite_tuple_element_access(sql: &str) -> String {
+        let mut result = sql.to_string();
+        let mut changed = true;
+
+        while changed {
+            changed = false;
+            let chars: Vec<char> = result.chars().collect();
+            let mut new_result = String::with_capacity(result.len());
+            let mut idx = 0;
+            let mut in_string = false;
+            let mut string_char = ' ';
+
+            while idx < chars.len() {
+                let ch = chars[idx];
+
+                if in_string {
+                    new_result.push(ch);
+                    if ch == string_char {
+                        in_string = false;
+                    }
+                    idx += 1;
+                    continue;
+                }
+
+                if ch == '\'' || ch == '"' {
+                    in_string = true;
+                    string_char = ch;
+                    new_result.push(ch);
+                    idx += 1;
+                    continue;
+                }
+
+                if ch == ')'
+                    && idx + 1 < chars.len()
+                    && chars[idx + 1] == '.'
+                    && idx + 2 < chars.len()
+                    && chars[idx + 2].is_ascii_digit()
+                {
+                    let digit_start = idx + 2;
+                    let mut digit_end = digit_start;
+                    while digit_end < chars.len() && chars[digit_end].is_ascii_digit() {
+                        digit_end += 1;
+                    }
+                    let index_str: String = chars[digit_start..digit_end].iter().collect();
+
+                    if let Some(open_paren_idx) = Self::find_matching_open_paren_chars(&new_result)
+                    {
+                        let before_expr = &new_result[..open_paren_idx];
+                        let expr = &new_result[open_paren_idx..];
+                        new_result = format!("{}tupleElement({}", before_expr, expr);
+                        new_result.push(')');
+                        new_result.push_str(", ");
+                        new_result.push_str(&index_str);
+                        new_result.push(')');
+                        idx = digit_end;
+                        changed = true;
+                        continue;
+                    }
+                }
+
+                if (ch.is_ascii_alphanumeric() || ch == '_')
+                    && idx + 1 < chars.len()
+                    && chars[idx + 1] == '.'
+                    && idx + 2 < chars.len()
+                    && chars[idx + 2].is_ascii_digit()
+                {
+                    let digit_start = idx + 2;
+                    let mut digit_end = digit_start;
+                    while digit_end < chars.len() && chars[digit_end].is_ascii_digit() {
+                        digit_end += 1;
+                    }
+
+                    if digit_end < chars.len()
+                        && (chars[digit_end].is_ascii_alphanumeric() || chars[digit_end] == '_')
+                    {
+                        new_result.push(ch);
+                        idx += 1;
+                        continue;
+                    }
+
+                    let ident_start = Self::find_identifier_start(&new_result);
+                    let ident = &new_result[ident_start..];
+
+                    if ident.is_empty() || ident.chars().next().unwrap().is_ascii_digit() {
+                        new_result.push(ch);
+                        idx += 1;
+                        continue;
+                    }
+
+                    let index_str: String = chars[digit_start..digit_end].iter().collect();
+
+                    let before_ident = &new_result[..ident_start];
+                    new_result = format!("{}tupleElement({}", before_ident, ident);
+                    new_result.push(ch);
+                    new_result.push_str(", ");
+                    new_result.push_str(&index_str);
+                    new_result.push(')');
+                    idx = digit_end;
+                    changed = true;
+                    continue;
+                }
+
+                new_result.push(ch);
+                idx += 1;
+            }
+
+            result = new_result;
+        }
+
+        result
+    }
+
+    fn find_matching_open_paren_chars(s: &str) -> Option<usize> {
+        let mut depth = 1;
+        let mut in_string = false;
+        let mut string_char = ' ';
+
+        for (i, ch) in s.char_indices().rev() {
+            if in_string {
+                if ch == string_char {
+                    in_string = false;
+                }
+                continue;
+            }
+
+            if ch == '\'' || ch == '"' {
+                in_string = true;
+                string_char = ch;
+                continue;
+            }
+
+            match ch {
+                ')' => depth += 1,
+                '(' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let mut byte_idx = i;
+                        while byte_idx > 0 {
+                            let prev_char = s[..byte_idx].chars().last()?;
+                            if prev_char.is_ascii_alphanumeric() || prev_char == '_' {
+                                byte_idx -= prev_char.len_utf8();
+                            } else {
+                                break;
+                            }
+                        }
+                        return Some(byte_idx);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn find_identifier_start(s: &str) -> usize {
+        let bytes = s.as_bytes();
+        let mut idx = bytes.len();
+        while idx > 0 && (bytes[idx - 1].is_ascii_alphanumeric() || bytes[idx - 1] == b'_') {
+            idx -= 1;
+        }
+        idx
     }
 
     fn rewrite_pg_lock_clauses(sql: &str) -> String {

@@ -106,6 +106,10 @@ pub enum Expr {
         expr: Box<Expr>,
         field: String,
     },
+    TupleElementAccess {
+        expr: Box<Expr>,
+        index: usize,
+    },
     AnyOp {
         left: Box<Expr>,
         compare_op: BinaryOp,
@@ -540,6 +544,7 @@ impl Expr {
                 fields.iter().any(|field| field.expr.contains_subquery())
             }
             Expr::StructFieldAccess { expr, .. } => expr.contains_subquery(),
+            Expr::TupleElementAccess { expr, .. } => expr.contains_subquery(),
             Expr::Tuple(exprs) => exprs.iter().any(|e| e.contains_subquery()),
             Expr::IsDistinctFrom { left, right, .. } => {
                 left.contains_subquery() || right.contains_subquery()

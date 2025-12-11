@@ -184,6 +184,7 @@ impl SortExec {
                 Ok(())
             }
             Expr::StructFieldAccess { expr, .. } => Self::validate_expr_columns(expr, schema),
+            Expr::TupleElementAccess { expr, .. } => Self::validate_expr_columns(expr, schema),
             Expr::WindowFunction {
                 args,
                 partition_by,

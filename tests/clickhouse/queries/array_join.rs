@@ -263,7 +263,6 @@ fn test_array_join_subquery() {
     assert!(result.num_rows() == 9); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires tuple field access support"]
 #[test]
 fn test_array_join_with_tuple_array() {
     let mut executor = create_executor();

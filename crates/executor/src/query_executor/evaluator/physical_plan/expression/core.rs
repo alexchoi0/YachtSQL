@@ -378,6 +378,10 @@ impl ProjectionWithExprExec {
                 Self::evaluate_struct_field_access(expr, field, batch, row_idx)
             }
 
+            Expr::TupleElementAccess { expr, index } => {
+                Self::evaluate_tuple_element_access(expr, *index, batch, row_idx)
+            }
+
             Expr::Grouping { column } => {
                 let grouping_col_name = format!("__grouping_{}", column);
                 Ok(Self::evaluate_column(&grouping_col_name, batch, row_idx)

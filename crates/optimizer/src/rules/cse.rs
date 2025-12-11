@@ -210,6 +210,9 @@ impl CommonSubexpressionElimination {
             Expr::StructFieldAccess { expr, field } => {
                 format!("structfield:{}.{}", Self::expr_signature(expr), field)
             }
+            Expr::TupleElementAccess { expr, index } => {
+                format!("tupleelem:{}.{}", Self::expr_signature(expr), index)
+            }
             Expr::IsDistinctFrom {
                 left,
                 right,
@@ -369,6 +372,9 @@ impl CommonSubexpressionElimination {
             Expr::StructFieldAccess { expr, .. } => {
                 Self::count_subexpressions(expr, counts);
             }
+            Expr::TupleElementAccess { expr, .. } => {
+                Self::count_subexpressions(expr, counts);
+            }
             Expr::IsDistinctFrom { left, right, .. } => {
                 Self::count_subexpressions(left, counts);
                 Self::count_subexpressions(right, counts);
@@ -425,6 +431,7 @@ impl CommonSubexpressionElimination {
             | Expr::ArraySubquery { .. }
             | Expr::StructLiteral { .. }
             | Expr::StructFieldAccess { .. }
+            | Expr::TupleElementAccess { .. }
             | Expr::IsDistinctFrom { .. }
             | Expr::Lambda { .. } => true,
         }

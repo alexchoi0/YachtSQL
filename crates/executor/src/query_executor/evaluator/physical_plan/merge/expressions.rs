@@ -95,6 +95,22 @@ pub(super) fn evaluate_expr_row(expr: &Expr, row: &Row, schema: &Schema) -> Resu
                 }
             }
         },
+        Expr::TupleElementAccess {
+            expr: inner_expr,
+            index,
+        } => {
+            let val = evaluate_expr_row(inner_expr, row, schema)?;
+            if let Some(fields) = val.as_struct() {
+                if *index >= 1 && *index <= fields.len() {
+                    let (_, value) = fields.get_index(*index - 1).unwrap();
+                    Ok(value.clone())
+                } else {
+                    Ok(Value::null())
+                }
+            } else {
+                Ok(Value::null())
+            }
+        }
         Expr::BinaryOp { left, op, right } => {
             let left_val = evaluate_expr_row(left, row, schema)?;
             let right_val = evaluate_expr_row(right, row, schema)?;

@@ -62,6 +62,37 @@ impl ProjectionWithExprExec {
             })
         }
     }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_tuple_element_access(
+        expr: &Expr,
+        index: usize,
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        let tuple_value = Self::evaluate_expr(expr, batch, row_idx)?;
+        if tuple_value.is_null() {
+            return Ok(Value::null());
+        }
+
+        if let Some(map) = tuple_value.as_struct() {
+            if index < 1 || index > map.len() {
+                return Err(Error::invalid_query(format!(
+                    "Tuple index {} out of range, tuple has {} elements",
+                    index,
+                    map.len()
+                )));
+            }
+            let (_, value) = map.get_index(index - 1).ok_or_else(|| {
+                Error::invalid_query(format!("Tuple index {} out of range", index))
+            })?;
+            Ok(value.clone())
+        } else {
+            Err(Error::TypeMismatch {
+                expected: "TUPLE".to_string(),
+                actual: tuple_value.data_type().to_string(),
+            })
+        }
+    }
 }
 
 #[cfg(test)]

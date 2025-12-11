@@ -318,6 +318,11 @@ impl NullPropagation {
                 field: field.clone(),
             },
 
+            Expr::TupleElementAccess { expr, index } => Expr::TupleElementAccess {
+                expr: Box::new(self.simplify_expr(expr)),
+                index: *index,
+            },
+
             _ => expr.clone(),
         }
     }

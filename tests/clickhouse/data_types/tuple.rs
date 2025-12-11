@@ -10,7 +10,6 @@ fn test_tuple_literal() {
     assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Parser doesn't support tuple().N syntax"]
 #[test]
 fn test_tuple_access() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_tuple_access() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Parser doesn't support tuple().N syntax"]
 #[test]
 fn test_tuple_access_second() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_tuple_element() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Parser doesn't support AS inside tuple()"]
 #[test]
 fn test_tuple_element_by_name() {
     let mut executor = create_executor();
@@ -45,7 +42,6 @@ fn test_tuple_element_by_name() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[ignore = "Parser doesn't support AS inside tuple()"]
 #[test]
 fn test_named_tuple() {
     let mut executor = create_executor();
@@ -55,7 +51,6 @@ fn test_named_tuple() {
     assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Tuple column types not fully supported"]
 #[test]
 fn test_tuple_in_table() {
     let mut executor = create_executor();
@@ -135,7 +130,6 @@ fn test_untuple() {
     assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Parser doesn't support AS inside tuple()"]
 #[test]
 fn test_tuple_to_name_value_pairs() {
     let mut executor = create_executor();
@@ -145,7 +139,6 @@ fn test_tuple_to_name_value_pairs() {
     assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Parser doesn't support AS inside tuple()"]
 #[test]
 fn test_tuple_names() {
     let mut executor = create_executor();
@@ -164,7 +157,6 @@ fn test_tuple_comparison() {
     assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Tuple column types not fully supported"]
 #[test]
 fn test_tuple_in_where() {
     let mut executor = create_executor();

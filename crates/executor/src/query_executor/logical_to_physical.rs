@@ -485,6 +485,9 @@ impl LogicalToPhysicalPlanner {
             Expr::StructFieldAccess { expr: inner, .. } => {
                 Self::validate_column_references(inner, schema, using_columns)
             }
+            Expr::TupleElementAccess { expr: inner, .. } => {
+                Self::validate_column_references(inner, schema, using_columns)
+            }
             Expr::ArrayIndex { array, index, .. } => {
                 Self::validate_column_references(array, schema, using_columns)?;
                 Self::validate_column_references(index, schema, using_columns)
@@ -822,6 +825,10 @@ impl LogicalToPhysicalPlanner {
             Expr::StructFieldAccess { expr: inner, field } => Expr::StructFieldAccess {
                 expr: Box::new(self.resolve_custom_type_fields(inner)),
                 field: field.clone(),
+            },
+            Expr::TupleElementAccess { expr: inner, index } => Expr::TupleElementAccess {
+                expr: Box::new(self.resolve_custom_type_fields(inner)),
+                index: *index,
             },
             Expr::Tuple(exprs) => {
                 debug_print::debug_eprintln!(

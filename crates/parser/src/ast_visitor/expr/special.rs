@@ -103,18 +103,32 @@ impl LogicalPlanBuilder {
 
     fn apply_access_expr(&self, base_expr: Expr, access: &ast::AccessExpr) -> Result<Expr> {
         match access {
-            ast::AccessExpr::Dot(field_expr) => {
-                if let ast::Expr::Identifier(ident) = field_expr {
-                    Ok(Expr::StructFieldAccess {
+            ast::AccessExpr::Dot(field_expr) => match field_expr {
+                ast::Expr::Identifier(ident) => Ok(Expr::StructFieldAccess {
+                    expr: Box::new(base_expr),
+                    field: ident.value.clone(),
+                }),
+                ast::Expr::Value(ast::ValueWithSpan {
+                    value: ast::Value::Number(num_str, _),
+                    ..
+                }) => {
+                    let index: i64 = num_str.parse().map_err(|_| {
+                        Error::invalid_query(format!("Invalid tuple index: {}", num_str))
+                    })?;
+                    if index < 1 {
+                        return Err(Error::invalid_query(
+                            "Tuple indices are 1-based in ClickHouse".to_string(),
+                        ));
+                    }
+                    Ok(Expr::TupleElementAccess {
                         expr: Box::new(base_expr),
-                        field: ident.value.clone(),
+                        index: index as usize,
                     })
-                } else {
-                    Err(Error::unsupported_feature(
-                        "Only identifier-based dot access is supported".to_string(),
-                    ))
                 }
-            }
+                _ => Err(Error::unsupported_feature(
+                    "Only identifier or numeric dot access is supported".to_string(),
+                )),
+            },
             ast::AccessExpr::Subscript(subscript) => {
                 self.convert_subscript_access(base_expr, subscript)
             }

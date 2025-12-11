@@ -177,6 +177,7 @@ impl PredicatePushdown {
                 refs
             }
             Expr::StructFieldAccess { expr, .. } => Self::get_column_references(expr),
+            Expr::TupleElementAccess { expr, .. } => Self::get_column_references(expr),
             Expr::IsDistinctFrom { left, right, .. } => {
                 let mut refs = Self::get_column_references(left);
                 refs.extend(Self::get_column_references(right));
