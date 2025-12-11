@@ -84,10 +84,10 @@ mod tests {
         let args = vec![Expr::column("json"), Expr::column("path")];
         let result =
             ProjectionWithExprExec::evaluate_json_value(&args, &batch, 0).expect("success");
-        if let Some(n) = result.as_i64() {
-            assert_eq!(n, 30)
+        if let Some(s) = result.as_str() {
+            assert_eq!(s, "30")
         } else {
-            panic!("Expected Int64")
+            panic!("Expected String")
         }
     }
 

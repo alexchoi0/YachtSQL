@@ -646,6 +646,13 @@ impl CoercionRules {
             (DataType::Numeric(_), DataType::Numeric(_)) => true,
 
             (DataType::String, DataType::Json) => true,
+            (DataType::Int64, DataType::Json) => true,
+            (DataType::Float64, DataType::Json) => true,
+            (DataType::Float32, DataType::Json) => true,
+            (DataType::Bool, DataType::Json) => true,
+            (DataType::Numeric(_), DataType::Json) => true,
+            (DataType::Array(_), DataType::Json) => true,
+            (DataType::Struct(_), DataType::Json) => true,
 
             (DataType::String, DataType::Time) => true,
             (DataType::String, DataType::DateTime) => true,

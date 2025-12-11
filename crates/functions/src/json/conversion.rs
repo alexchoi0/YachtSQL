@@ -172,16 +172,6 @@ pub fn sql_to_json_fallible(value: &Value) -> Result<JsonValue> {
     ))
 }
 
-fn json_number_to_sql(n: &serde_json::Number) -> Value {
-    if let Some(i) = n.as_i64() {
-        Value::int64(i)
-    } else if let Some(f) = n.as_f64() {
-        Value::float64(f)
-    } else {
-        Value::string(n.to_string())
-    }
-}
-
 pub fn json_to_sql_value(json: &JsonValue) -> Result<Value> {
     match json {
         JsonValue::Null => Ok(Value::null()),
@@ -193,11 +183,9 @@ pub fn json_to_sql_value(json: &JsonValue) -> Result<Value> {
 pub fn json_to_sql_scalar_only(json: &JsonValue) -> Result<Value> {
     match json {
         JsonValue::String(s) => Ok(Value::string(s.clone())),
-        JsonValue::Number(n) => Ok(json_number_to_sql(n)),
-        JsonValue::Bool(b) => Ok(Value::bool_val(*b)),
-
+        JsonValue::Number(n) => Ok(Value::string(n.to_string())),
+        JsonValue::Bool(b) => Ok(Value::string(b.to_string())),
         JsonValue::Null => Ok(Value::string("null".to_string())),
-
         JsonValue::Object(_) | JsonValue::Array(_) => Ok(Value::null()),
     }
 }
@@ -378,11 +366,11 @@ mod tests {
         );
         assert_eq!(
             json_to_sql_scalar_only(&JsonValue::Bool(true)).unwrap(),
-            Value::bool_val(true)
+            Value::string("true".into())
         );
         assert_eq!(
             json_to_sql_scalar_only(&serde_json::json!(42)).unwrap(),
-            Value::int64(42)
+            Value::string("42".into())
         );
 
         let obj = serde_json::json!({"key": "value"});
