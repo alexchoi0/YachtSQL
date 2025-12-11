@@ -15,23 +15,56 @@ pub fn infer_scalar_subquery_type_static(
     _schema: Option<&Schema>,
 ) -> Option<DataType> {
     match subquery {
-        PlanNode::Projection { expressions, .. } => {
+        PlanNode::Projection { expressions, input } => {
             if expressions.len() == 1 {
-                infer_expr_type_basic(&expressions[0].0)
+                infer_expr_type_with_plan(&expressions[0].0, input)
+                    .or_else(|| infer_expr_type_basic(&expressions[0].0))
             } else {
                 None
             }
         }
         PlanNode::Aggregate {
-            aggregates, input, ..
+            group_by,
+            aggregates,
+            input,
+            ..
         } => {
-            if aggregates.len() == 1 {
+            let total_output_cols = group_by.len() + aggregates.len();
+            if total_output_cols == 1 {
+                if let Some(first_group_by) = group_by.first() {
+                    infer_expr_type_with_plan(first_group_by, input)
+                        .or_else(|| infer_expr_type_basic(first_group_by))
+                } else if let Some(first_agg) = aggregates.first() {
+                    infer_aggregate_type_with_input_plan(first_agg, input)
+                } else {
+                    None
+                }
+            } else if !group_by.is_empty() {
+                infer_expr_type_with_plan(&group_by[0], input)
+                    .or_else(|| infer_expr_type_basic(&group_by[0]))
+            } else if !aggregates.is_empty() {
                 infer_aggregate_type_with_input_plan(&aggregates[0], input)
             } else {
                 None
             }
         }
+        PlanNode::Limit { input, .. }
+        | PlanNode::LimitPercent { input, .. }
+        | PlanNode::Sort { input, .. }
+        | PlanNode::Filter { input, .. }
+        | PlanNode::Distinct { input, .. }
+        | PlanNode::DistinctOn { input, .. }
+        | PlanNode::SubqueryScan {
+            subquery: input, ..
+        } => infer_scalar_subquery_type_static(input, _schema),
         _ => None,
+    }
+}
+
+fn infer_expr_type_with_plan(expr: &Expr, plan: &PlanNode) -> Option<DataType> {
+    match expr {
+        Expr::Column { name, .. } => find_column_type_in_plan(name, plan),
+        _ => infer_expr_type_basic(expr),
     }
 }
 
@@ -84,8 +117,29 @@ fn infer_column_type_from_plan(expr: &Expr, plan: &PlanNode) -> Option<DataType>
 
 fn find_column_type_in_plan(col_name: &str, plan: &PlanNode) -> Option<DataType> {
     match plan {
-        PlanNode::Scan { .. } => None,
-        PlanNode::Filter { input, .. } => find_column_type_in_plan(col_name, input),
+        PlanNode::Scan { .. } | PlanNode::IndexScan { .. } => None,
+        PlanNode::Filter { input, .. }
+        | PlanNode::Limit { input, .. }
+        | PlanNode::LimitPercent { input, .. }
+        | PlanNode::Sort { input, .. }
+        | PlanNode::Distinct { input, .. }
+        | PlanNode::DistinctOn { input, .. } => find_column_type_in_plan(col_name, input),
+        PlanNode::Join { left, right, .. } | PlanNode::LateralJoin { left, right, .. } => {
+            find_column_type_in_plan(col_name, left)
+                .or_else(|| find_column_type_in_plan(col_name, right))
+        }
+        PlanNode::Aggregate {
+            group_by, input, ..
+        } => {
+            for expr in group_by {
+                if let Expr::Column { name, .. } = expr {
+                    if name.eq_ignore_ascii_case(col_name) {
+                        return find_column_type_in_plan(col_name, input);
+                    }
+                }
+            }
+            find_column_type_in_plan(col_name, input)
+        }
         PlanNode::Projection { expressions, input } => {
             for (expr, alias) in expressions {
                 let alias_name = alias.as_deref().unwrap_or("");
@@ -100,6 +154,8 @@ fn find_column_type_in_plan(col_name: &str, plan: &PlanNode) -> Option<DataType>
             }
             find_column_type_in_plan(col_name, input)
         }
+        PlanNode::SubqueryScan { subquery, .. } => find_column_type_in_plan(col_name, subquery),
+        PlanNode::Cte { input, .. } => find_column_type_in_plan(col_name, input),
         _ => None,
     }
 }

@@ -695,9 +695,17 @@ impl Column {
                     )))
                 }
             }
-            Column::Unknown { nulls: _ } => Err(Error::invalid_query(
-                "Unknown column type can only contain NULL values".to_string(),
-            )),
+            Column::Unknown { nulls } => {
+                let null_count = nulls.len();
+                let target_type = value.data_type();
+                let mut new_col = Column::new(&target_type, null_count + 1);
+                for _ in 0..null_count {
+                    new_col.push_null()?;
+                }
+                new_col.push(value)?;
+                *self = new_col;
+                Ok(())
+            }
             Column::Date { data, nulls } => {
                 if let Some(v) = value.as_date() {
                     data.push(v);

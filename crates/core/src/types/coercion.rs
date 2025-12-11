@@ -623,6 +623,14 @@ impl CoercionRules {
             return true;
         }
 
+        if *to_type == DataType::Unknown {
+            return true;
+        }
+
+        if *from_type == DataType::Unknown {
+            return true;
+        }
+
         match (from_type, to_type) {
             (DataType::Int64, DataType::Float32) => true,
             (DataType::Int64, DataType::Float64) => true,
@@ -815,6 +823,14 @@ impl CoercionRules {
 
         if &source_type == target_type {
             return Ok(value);
+        }
+
+        if *target_type == DataType::Unknown {
+            return Ok(value);
+        }
+
+        if source_type == DataType::Unknown {
+            return Ok(Value::null());
         }
 
         match (&source_type, target_type) {

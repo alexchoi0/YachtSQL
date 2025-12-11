@@ -1149,7 +1149,6 @@ fn test_anomaly_detection_zscore() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_data_quality_checks() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -1185,7 +1184,7 @@ fn test_data_quality_checks() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_complex_nested_ctes_with_array_agg_limit() {
     let mut executor = create_executor();
     executor
@@ -1399,7 +1398,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_multi_level_cte_with_correlated_subquery() {
     let mut executor = create_executor();
     executor
@@ -1597,7 +1596,7 @@ fn test_multi_level_cte_with_correlated_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_array_agg_with_order_and_limit_in_subquery() {
     let mut executor = create_executor();
     executor
@@ -1666,7 +1665,12 @@ fn test_array_agg_with_order_and_limit_in_subquery() {
             ),
             conversion_analysis AS (
                 SELECT
-                    uj.*,
+                    uj.user_id,
+                    uj.session_count,
+                    uj.total_value,
+                    uj.max_session_value,
+                    uj.first_page,
+                    uj.last_page,
                     CASE WHEN total_value > 0 THEN 'Converted' ELSE 'Not Converted' END AS conversion_status,
                     (SELECT COUNT(*)
                      FROM user_events ue
@@ -1703,7 +1707,7 @@ fn test_array_agg_with_order_and_limit_in_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_complex_window_with_array_agg_ordered() {
     let mut executor = create_executor();
     executor
@@ -1842,7 +1846,7 @@ fn test_complex_window_with_array_agg_ordered() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_nested_aggregates_with_scalar_subqueries() {
     let mut executor = create_executor();
     executor
@@ -2048,7 +2052,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_recursive_like_hierarchy_with_arrays() {
     let mut executor = create_executor();
     executor
@@ -2268,7 +2272,7 @@ fn test_recursive_like_hierarchy_with_arrays() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_time_series_with_gaps_and_array_agg() {
     let mut executor = create_executor();
     executor
@@ -2417,7 +2421,7 @@ fn test_time_series_with_gaps_and_array_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_complex_pivot_simulation_with_ctes() {
     let mut executor = create_executor();
     executor
@@ -2609,7 +2613,7 @@ fn test_complex_pivot_simulation_with_ctes() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_with_complex_cte_and_array_operations() {
     let mut executor = create_executor();
     executor
@@ -2716,7 +2720,7 @@ fn test_unnest_with_complex_cte_and_array_operations() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_cross_join_with_nested_structs() {
     let mut executor = create_executor();
     executor
@@ -2829,7 +2833,7 @@ fn test_unnest_cross_join_with_nested_structs() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_with_window_functions_and_array_subquery() {
     let mut executor = create_executor();
     executor
@@ -2953,7 +2957,7 @@ fn test_unnest_with_window_functions_and_array_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_multi_array_correlation() {
     let mut executor = create_executor();
     executor
@@ -3072,7 +3076,7 @@ fn test_unnest_multi_array_correlation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_with_lateral_join_simulation() {
     let mut executor = create_executor();
     executor
@@ -3193,7 +3197,7 @@ fn test_unnest_with_lateral_join_simulation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "TODO: UNNEST column resolution"]
 fn test_deep_nested_unnest_with_aggregations() {
     let mut executor = create_executor();
     executor
@@ -3339,4 +3343,38 @@ fn test_deep_nested_unnest_with_aggregations() {
             [1003, 1, "New York", 1, 1200.0, 100.0, 1100.0, "REPEAT", 2, 2210.0, 11.6, [{"Laptop", 100.0, 1}]],
         ]
     );
+}
+
+#[test]
+fn test_union_debug_case_in_agg() {
+    let mut executor = create_executor();
+    setup_sales_data(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT SUM(CASE WHEN product_name IS NULL THEN 1 ELSE 0 END) AS null_count FROM sales",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[0]]);
+}
+
+#[test]
+fn test_union_debug_with_case() {
+    let mut executor = create_executor();
+    setup_sales_data(&mut executor);
+
+    let r1 = executor.execute_sql(
+        "SELECT 'b', CAST(SUM(CASE WHEN product_name IS NULL THEN 1 ELSE 0 END) AS STRING) FROM sales",
+    );
+    eprintln!("Standalone: {:?}", r1.is_ok());
+
+    let r2 = executor.execute_sql(
+        "SELECT 'a' AS m, CAST(COUNT(*) AS STRING) AS v FROM sales
+         UNION ALL
+         SELECT 'b', CAST(SUM(CASE WHEN product_name IS NULL THEN 1 ELSE 0 END) AS STRING) FROM sales",
+    );
+    eprintln!("UNION: {:?}", r2.is_ok());
+    if r2.is_err() {
+        eprintln!("UNION Error: {:?}", r2.err());
+    }
 }

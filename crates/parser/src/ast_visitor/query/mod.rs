@@ -632,6 +632,11 @@ impl LogicalPlanBuilder {
                                     | Expr::UnaryOp { .. }
                                     | Expr::Case { .. }
                                     | Expr::Cast { .. }
+                                    | Expr::Literal(_)
+                                    | Expr::Tuple(_)
+                                    | Expr::TryCast { .. }
+                                    | Expr::InList { .. }
+                                    | Expr::Between { .. }
                             )
                     });
                 if needs_projection {
@@ -1774,6 +1779,22 @@ impl LogicalPlanBuilder {
                 }
             }
 
+            Expr::Cast {
+                expr: inner,
+                data_type,
+            } => Expr::Cast {
+                expr: Box::new(self.rewrite_post_aggregate_expr(inner, group_by_exprs)),
+                data_type: data_type.clone(),
+            },
+
+            Expr::TryCast {
+                expr: inner,
+                data_type,
+            } => Expr::TryCast {
+                expr: Box::new(self.rewrite_post_aggregate_expr(inner, group_by_exprs)),
+                data_type: data_type.clone(),
+            },
+
             _ => expr.clone(),
         }
     }
@@ -1860,6 +1881,9 @@ impl LogicalPlanBuilder {
                 for ob in order_by {
                     self.collect_aggregates_from_expr(&ob.expr, aggregates);
                 }
+            }
+            Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
+                self.collect_aggregates_from_expr(inner, aggregates);
             }
             _ => {}
         }
