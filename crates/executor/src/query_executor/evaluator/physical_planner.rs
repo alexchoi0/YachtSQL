@@ -139,14 +139,14 @@ impl PhysicalPlanner {
             PlanNode::Except { left, right, all } => self.create_except(left, right, *all),
 
             PlanNode::Cte {
-                name: _,
+                name,
                 cte_plan,
                 input,
                 recursive: _,
                 use_union_all: _,
                 materialization_hint,
-                column_aliases: _,
-            } => self.create_cte(cte_plan, input, materialization_hint),
+                column_aliases,
+            } => self.create_cte(name, cte_plan, input, materialization_hint, column_aliases),
 
             PlanNode::SubqueryScan { subquery, alias: _ } => self.create_subquery_scan(subquery),
 
@@ -565,9 +565,11 @@ impl PhysicalPlanner {
 
     fn create_cte(
         &self,
+        name: &str,
         cte_plan: &PlanNode,
         input: &PlanNode,
         materialization_hint: &Option<sqlparser::ast::CteAsMaterialized>,
+        column_aliases: &Option<Vec<String>>,
     ) -> Result<Rc<dyn ExecutionPlan>> {
         let cte_exec = self.create_exec_node(cte_plan)?;
         let input_exec = self.create_exec_node(input)?;
@@ -578,7 +580,13 @@ impl PhysicalPlanner {
             None => true,
         };
 
-        Ok(Rc::new(CteExec::new(cte_exec, input_exec, materialized)))
+        Ok(Rc::new(CteExec::new_with_name(
+            cte_exec,
+            input_exec,
+            materialized,
+            name.to_string(),
+            column_aliases.clone(),
+        )))
     }
 
     fn create_subquery_scan(&self, subquery: &PlanNode) -> Result<Rc<dyn ExecutionPlan>> {

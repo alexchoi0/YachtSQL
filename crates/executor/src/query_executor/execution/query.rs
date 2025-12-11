@@ -6652,7 +6652,98 @@ impl QueryExecutor {
     }
 
     fn rename_table_references(expr: &mut Box<SetExpr>, old_name: &str, new_name: &str) {
-        use sqlparser::ast::{SetExpr, TableFactor};
+        use sqlparser::ast::{Expr, SetExpr, TableFactor};
+
+        fn rename_in_expr(expr: &mut Expr, old_name: &str, new_name: &str) {
+            match expr {
+                Expr::Subquery(q) => {
+                    rename_in_set_expr(&mut q.body, old_name, new_name);
+                }
+                Expr::BinaryOp { left, right, .. } => {
+                    rename_in_expr(left, old_name, new_name);
+                    rename_in_expr(right, old_name, new_name);
+                }
+                Expr::UnaryOp { expr: inner, .. } => {
+                    rename_in_expr(inner, old_name, new_name);
+                }
+                Expr::Nested(inner) => {
+                    rename_in_expr(inner, old_name, new_name);
+                }
+                Expr::Case {
+                    operand,
+                    conditions,
+                    else_result,
+                    ..
+                } => {
+                    if let Some(op) = operand {
+                        rename_in_expr(op, old_name, new_name);
+                    }
+                    for cond in conditions {
+                        let sqlparser::ast::CaseWhen { condition, result } = cond;
+                        rename_in_expr(condition, old_name, new_name);
+                        rename_in_expr(result, old_name, new_name);
+                    }
+                    if let Some(el) = else_result {
+                        rename_in_expr(el, old_name, new_name);
+                    }
+                }
+                Expr::Function(func) => {
+                    if let sqlparser::ast::FunctionArguments::List(arg_list) = &mut func.args {
+                        for arg in &mut arg_list.args {
+                            if let sqlparser::ast::FunctionArg::Unnamed(
+                                sqlparser::ast::FunctionArgExpr::Expr(e),
+                            ) = arg
+                            {
+                                rename_in_expr(e, old_name, new_name);
+                            }
+                        }
+                    }
+                }
+                Expr::InSubquery { subquery, expr, .. } => {
+                    rename_in_expr(expr, old_name, new_name);
+                    rename_in_set_expr(&mut subquery.body, old_name, new_name);
+                }
+                Expr::InList { expr, list, .. } => {
+                    rename_in_expr(expr, old_name, new_name);
+                    for item in list {
+                        rename_in_expr(item, old_name, new_name);
+                    }
+                }
+                Expr::Between {
+                    expr, low, high, ..
+                } => {
+                    rename_in_expr(expr, old_name, new_name);
+                    rename_in_expr(low, old_name, new_name);
+                    rename_in_expr(high, old_name, new_name);
+                }
+                Expr::Exists { subquery, .. } => {
+                    rename_in_set_expr(&mut subquery.body, old_name, new_name);
+                }
+                Expr::Cast { expr: inner, .. } => {
+                    rename_in_expr(inner, old_name, new_name);
+                }
+                Expr::IsNull(inner) | Expr::IsNotNull(inner) => {
+                    rename_in_expr(inner, old_name, new_name);
+                }
+                _ => {}
+            }
+        }
+
+        fn rename_in_select_item(
+            item: &mut sqlparser::ast::SelectItem,
+            old_name: &str,
+            new_name: &str,
+        ) {
+            match item {
+                sqlparser::ast::SelectItem::UnnamedExpr(e) => {
+                    rename_in_expr(e, old_name, new_name);
+                }
+                sqlparser::ast::SelectItem::ExprWithAlias { expr, .. } => {
+                    rename_in_expr(expr, old_name, new_name);
+                }
+                _ => {}
+            }
+        }
 
         fn rename_in_set_expr(expr: &mut SetExpr, old_name: &str, new_name: &str) {
             match expr {
@@ -6662,7 +6753,26 @@ impl QueryExecutor {
 
                         for join in &mut table_with_joins.joins {
                             rename_in_table_factor(&mut join.relation, old_name, new_name);
+                            let constraint = match &mut join.join_operator {
+                                sqlparser::ast::JoinOperator::Inner(c)
+                                | sqlparser::ast::JoinOperator::LeftOuter(c)
+                                | sqlparser::ast::JoinOperator::RightOuter(c)
+                                | sqlparser::ast::JoinOperator::FullOuter(c) => Some(c),
+                                _ => None,
+                            };
+                            if let Some(sqlparser::ast::JoinConstraint::On(e)) = constraint {
+                                rename_in_expr(e, old_name, new_name);
+                            }
                         }
+                    }
+                    for item in &mut select.projection {
+                        rename_in_select_item(item, old_name, new_name);
+                    }
+                    if let Some(sel) = &mut select.selection {
+                        rename_in_expr(sel, old_name, new_name);
+                    }
+                    if let Some(having) = &mut select.having {
+                        rename_in_expr(having, old_name, new_name);
                     }
                 }
                 SetExpr::SetOperation { left, right, .. } => {

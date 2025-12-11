@@ -1,11 +1,43 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
+use debug_print::debug_eprintln;
 use yachtsql_core::error::Result;
 use yachtsql_storage::{Column, Schema};
 
 use super::ExecutionPlan;
 use crate::Table;
+
+thread_local! {
+    pub static CTE_STORAGE_CONTEXT: RefCell<HashMap<String, Vec<Table>>> =
+        RefCell::new(HashMap::new());
+}
+
+pub struct CteStorageGuard {
+    name: String,
+}
+
+impl CteStorageGuard {
+    pub fn set(name: String, tables: Vec<Table>) -> Self {
+        CTE_STORAGE_CONTEXT.with(|ctx| {
+            ctx.borrow_mut().insert(name.clone(), tables);
+        });
+        Self { name }
+    }
+}
+
+impl Drop for CteStorageGuard {
+    fn drop(&mut self) {
+        CTE_STORAGE_CONTEXT.with(|ctx| {
+            ctx.borrow_mut().remove(&self.name);
+        });
+    }
+}
+
+pub fn get_cte_from_context(name: &str) -> Option<Vec<Table>> {
+    CTE_STORAGE_CONTEXT.with(|ctx| ctx.borrow().get(name).cloned())
+}
 
 #[derive(Debug)]
 pub struct CteExec {
@@ -14,6 +46,8 @@ pub struct CteExec {
     schema: Schema,
     materialized: bool,
     cached_result: RefCell<Option<Vec<Table>>>,
+    name: Option<String>,
+    column_aliases: Option<Vec<String>>,
 }
 
 impl CteExec {
@@ -30,6 +64,28 @@ impl CteExec {
             schema,
             materialized,
             cached_result: RefCell::new(None),
+            name: None,
+            column_aliases: None,
+        }
+    }
+
+    pub fn new_with_name(
+        cte_plan: Rc<dyn ExecutionPlan>,
+        input: Rc<dyn ExecutionPlan>,
+        materialized: bool,
+        name: String,
+        column_aliases: Option<Vec<String>>,
+    ) -> Self {
+        let schema = input.schema().clone();
+
+        Self {
+            cte_plan,
+            input,
+            schema,
+            materialized,
+            cached_result: RefCell::new(None),
+            name: Some(name),
+            column_aliases,
         }
     }
 
@@ -47,6 +103,35 @@ impl CteExec {
             self.cte_plan.execute()
         }
     }
+
+    fn apply_column_aliases(&self, tables: Vec<Table>) -> Result<Vec<Table>> {
+        let aliases = match &self.column_aliases {
+            Some(a) if !a.is_empty() => a,
+            _ => return Ok(tables),
+        };
+
+        tables
+            .into_iter()
+            .map(|table| {
+                let col_table = table.to_column_format()?;
+                let old_fields = col_table.schema().fields();
+                let columns = col_table.columns().map(|c| c.to_vec()).unwrap_or_default();
+
+                let new_fields: Vec<yachtsql_storage::Field> = old_fields
+                    .iter()
+                    .zip(aliases.iter())
+                    .map(|(field, alias)| {
+                        let mut new_field = field.clone();
+                        new_field.name = alias.clone();
+                        new_field
+                    })
+                    .collect();
+
+                let new_schema = Schema::from_fields(new_fields);
+                Table::new(new_schema, columns)
+            })
+            .collect()
+    }
 }
 
 impl ExecutionPlan for CteExec {
@@ -55,8 +140,17 @@ impl ExecutionPlan for CteExec {
     }
 
     fn execute(&self) -> Result<Vec<Table>> {
-        let _ = self.execute_cte()?;
-        self.input.execute()
+        let cte_result = self.execute_cte()?;
+        let aliased_result = self.apply_column_aliases(cte_result)?;
+
+        let guard = self.name.as_ref().map(|n| {
+            let key = format!("__cte_{}", n);
+            CteStorageGuard::set(key, aliased_result.clone())
+        });
+
+        let result = self.input.execute();
+        drop(guard);
+        result
     }
 
     fn children(&self) -> Vec<Rc<dyn ExecutionPlan>> {

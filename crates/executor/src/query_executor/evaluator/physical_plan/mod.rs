@@ -13,7 +13,7 @@ use crate::Table;
 mod aggregate;
 mod aggregate_strategy;
 mod array_join;
-mod cte;
+pub mod cte;
 mod distinct;
 mod expression;
 mod index_scan;

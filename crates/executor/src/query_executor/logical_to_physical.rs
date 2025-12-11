@@ -5,6 +5,91 @@ use std::rc::Rc;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_ir::plan::{JoinType, LogicalPlan, PlanNode};
 
+thread_local! {
+    static CTE_PLAN_REGISTRY: RefCell<HashMap<String, PlanNode>> = RefCell::new(HashMap::new());
+    static CTE_REGISTRY_DEPTH: RefCell<usize> = const { RefCell::new(0) };
+}
+
+pub struct CtePlanRegistryGuard {
+    is_root: bool,
+}
+
+impl CtePlanRegistryGuard {
+    pub fn new() -> Self {
+        let is_root = CTE_REGISTRY_DEPTH.with(|d| {
+            let mut depth = d.borrow_mut();
+            let is_root = *depth == 0;
+            *depth += 1;
+            is_root
+        });
+        Self { is_root }
+    }
+
+    pub fn register(name: String, plan: PlanNode) {
+        CTE_PLAN_REGISTRY.with(|r| {
+            r.borrow_mut().insert(name, plan);
+        });
+    }
+
+    pub fn get(name: &str) -> Option<PlanNode> {
+        CTE_PLAN_REGISTRY.with(|r| r.borrow().get(name).cloned())
+    }
+}
+
+impl Drop for CtePlanRegistryGuard {
+    fn drop(&mut self) {
+        CTE_REGISTRY_DEPTH.with(|d| {
+            let mut depth = d.borrow_mut();
+            *depth -= 1;
+            if *depth == 0 {
+                CTE_PLAN_REGISTRY.with(|r| r.borrow_mut().clear());
+            }
+        });
+    }
+}
+
+fn collect_cte_definitions(node: &PlanNode) {
+    match node {
+        PlanNode::Cte {
+            name,
+            cte_plan,
+            input,
+            ..
+        } => {
+            CtePlanRegistryGuard::register(name.clone(), (**cte_plan).clone());
+            collect_cte_definitions(cte_plan);
+            collect_cte_definitions(input);
+        }
+        PlanNode::Projection { input, .. } => collect_cte_definitions(input),
+        PlanNode::Filter { input, .. } => collect_cte_definitions(input),
+        PlanNode::Aggregate { input, .. } => collect_cte_definitions(input),
+        PlanNode::Sort { input, .. } => collect_cte_definitions(input),
+        PlanNode::Limit { input, .. } => collect_cte_definitions(input),
+        PlanNode::Join { left, right, .. } => {
+            collect_cte_definitions(left);
+            collect_cte_definitions(right);
+        }
+        PlanNode::Union { left, right, .. } => {
+            collect_cte_definitions(left);
+            collect_cte_definitions(right);
+        }
+        PlanNode::Except { left, right, .. } => {
+            collect_cte_definitions(left);
+            collect_cte_definitions(right);
+        }
+        PlanNode::Intersect { left, right, .. } => {
+            collect_cte_definitions(left);
+            collect_cte_definitions(right);
+        }
+        PlanNode::SubqueryScan { subquery, .. } => collect_cte_definitions(subquery),
+        PlanNode::Distinct { input, .. } => collect_cte_definitions(input),
+        PlanNode::Window { input, .. } => collect_cte_definitions(input),
+        PlanNode::Pivot { input, .. } => collect_cte_definitions(input),
+        PlanNode::Unpivot { input, .. } => collect_cte_definitions(input),
+        _ => {}
+    }
+}
+
 use super::evaluator::physical_plan::{
     AggregateExec, AggregateStrategy, ArrayJoinExec, AsOfJoinExec, CteExec, DistinctExec,
     DistinctOnExec, EmptyRelationExec, ExceptExec, ExecutionPlan, FilterExec, HashJoinExec,
@@ -1028,6 +1113,8 @@ impl LogicalToPhysicalPlanner {
     }
 
     pub fn create_physical_plan(&self, logical_plan: &LogicalPlan) -> Result<PhysicalPlan> {
+        let _guard = CtePlanRegistryGuard::new();
+        collect_cte_definitions(logical_plan.root());
         let root_exec = self.plan_node_to_exec(logical_plan.root())?;
         Ok(PhysicalPlan::new(root_exec))
     }
@@ -1065,6 +1152,11 @@ impl LogicalToPhysicalPlanner {
                         }
                         return Ok(Rc::new(SubqueryScanExec::new(exec)));
                     }
+                }
+
+                if let Some(cte_plan_node) = CtePlanRegistryGuard::get(table_name) {
+                    let exec = self.plan_node_to_exec(&cte_plan_node)?;
+                    return Ok(Rc::new(SubqueryScanExec::new(exec)));
                 }
 
                 let (dataset_name, table_id) = if let Some(dot_pos) = table_name.find('.') {
@@ -1645,7 +1737,13 @@ impl LogicalToPhysicalPlanner {
                     None => true,
                 };
 
-                Ok(Rc::new(CteExec::new(cte_exec, input_exec, materialized)))
+                Ok(Rc::new(CteExec::new_with_name(
+                    cte_exec,
+                    input_exec,
+                    materialized,
+                    name.clone(),
+                    column_aliases.clone(),
+                )))
             }
 
             PlanNode::EmptyRelation => {

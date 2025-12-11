@@ -4,7 +4,8 @@ use std::rc::Rc;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_optimizer::expr::{BinaryOp, Expr, LiteralValue, UnaryOp};
-use yachtsql_optimizer::plan::PlanNode;
+use yachtsql_optimizer::plan::{JoinType, PlanNode};
+use yachtsql_storage::Column;
 
 use super::physical_plan::{
     CORRELATION_CONTEXT, CachedSubqueryResult, SubqueryExecutor, UNCORRELATED_SUBQUERY_CACHE,
@@ -84,14 +85,22 @@ impl SubqueryExecutorImpl {
                 projection: _,
                 ..
             } => {
-                let storage = self._storage.borrow();
+                use super::physical_plan::cte::get_cte_from_context;
 
                 let cte_table_name = format!("__cte_{}", table_name);
+                if let Some(cte_tables) = get_cte_from_context(&cte_table_name) {
+                    if let Some(first_table) = cte_tables.into_iter().next() {
+                        return first_table.to_column_format();
+                    }
+                }
+
+                let storage = self._storage.borrow();
+
                 let table = storage
                     .get_table(table_name)
                     .or_else(|| storage.get_table(&cte_table_name))
                     .ok_or_else(|| {
-                        Error::InvalidQuery(format!("Table '{}' not found", table_name))
+                        Error::TableNotFound(format!("Table '{}' not found", table_name))
                     })?;
 
                 let schema = table.schema().clone();
@@ -637,10 +646,257 @@ impl SubqueryExecutorImpl {
                 }
             }
 
+            PlanNode::Join {
+                left,
+                right,
+                on,
+                join_type,
+                using_columns: _,
+            } => {
+                let left_batch = self.execute_plan(left)?.to_column_format()?;
+                let right_batch = self.execute_plan(right)?.to_column_format()?;
+
+                let left_fields = left_batch.schema().fields().to_vec();
+                let right_fields = right_batch.schema().fields().to_vec();
+
+                let mut combined_fields = left_fields.clone();
+                combined_fields.extend(right_fields.clone());
+                let combined_schema = yachtsql_storage::Schema::from_fields(combined_fields);
+
+                let left_cols = left_batch.columns().ok_or_else(|| {
+                    Error::InternalError("Expected column-format table for left".to_string())
+                })?;
+                let right_cols = right_batch.columns().ok_or_else(|| {
+                    Error::InternalError("Expected column-format table for right".to_string())
+                })?;
+
+                let mut result_rows: Vec<(usize, usize)> = Vec::new();
+                let mut left_matched: std::collections::HashSet<usize> =
+                    std::collections::HashSet::new();
+                let mut right_matched: std::collections::HashSet<usize> =
+                    std::collections::HashSet::new();
+
+                for left_idx in 0..left_batch.num_rows() {
+                    for right_idx in 0..right_batch.num_rows() {
+                        let combined_row = self.build_combined_row(
+                            left_cols,
+                            &left_fields,
+                            left_idx,
+                            right_cols,
+                            &right_fields,
+                            right_idx,
+                        )?;
+
+                        let matched = self.evaluate_join_condition(on, &combined_row)?;
+
+                        if matched {
+                            result_rows.push((left_idx, right_idx));
+                            left_matched.insert(left_idx);
+                            right_matched.insert(right_idx);
+                        }
+                    }
+                }
+
+                match join_type {
+                    JoinType::Inner | JoinType::Cross => {}
+                    JoinType::Left => {
+                        for left_idx in 0..left_batch.num_rows() {
+                            if !left_matched.contains(&left_idx) {
+                                result_rows.push((left_idx, usize::MAX));
+                            }
+                        }
+                    }
+                    JoinType::Right => {
+                        for right_idx in 0..right_batch.num_rows() {
+                            if !right_matched.contains(&right_idx) {
+                                result_rows.push((usize::MAX, right_idx));
+                            }
+                        }
+                    }
+                    JoinType::Full => {
+                        for left_idx in 0..left_batch.num_rows() {
+                            if !left_matched.contains(&left_idx) {
+                                result_rows.push((left_idx, usize::MAX));
+                            }
+                        }
+                        for right_idx in 0..right_batch.num_rows() {
+                            if !right_matched.contains(&right_idx) {
+                                result_rows.push((usize::MAX, right_idx));
+                            }
+                        }
+                    }
+                    JoinType::Semi => {
+                        let mut seen = std::collections::HashSet::new();
+                        result_rows.retain(|(left_idx, _)| seen.insert(*left_idx));
+                    }
+                    JoinType::Anti => {
+                        result_rows.clear();
+                        for left_idx in 0..left_batch.num_rows() {
+                            if !left_matched.contains(&left_idx) {
+                                result_rows.push((left_idx, usize::MAX));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+
+                let num_cols = combined_schema.fields().len();
+                let num_left_cols = left_fields.len();
+                let mut new_columns = Vec::with_capacity(num_cols);
+
+                for col_idx in 0..num_cols {
+                    let field = &combined_schema.fields()[col_idx];
+                    let mut new_col = Column::new(&field.data_type, result_rows.len());
+
+                    for &(left_idx, right_idx) in &result_rows {
+                        if col_idx < num_left_cols {
+                            if left_idx == usize::MAX {
+                                new_col.push(Value::null())?;
+                            } else {
+                                new_col.push(left_cols[col_idx].get(left_idx)?)?;
+                            }
+                        } else {
+                            let right_col_idx = col_idx - num_left_cols;
+                            if right_idx == usize::MAX {
+                                new_col.push(Value::null())?;
+                            } else {
+                                new_col.push(right_cols[right_col_idx].get(right_idx)?)?;
+                            }
+                        }
+                    }
+                    new_columns.push(new_col);
+                }
+
+                Ok(Table::new(combined_schema, new_columns)?)
+            }
+
             _ => Err(Error::UnsupportedFeature(format!(
                 "Subquery execution for {:?} not yet implemented",
                 plan
             ))),
+        }
+    }
+
+    fn build_combined_row(
+        &self,
+        left_cols: &[Column],
+        left_fields: &[yachtsql_storage::Field],
+        left_idx: usize,
+        right_cols: &[Column],
+        right_fields: &[yachtsql_storage::Field],
+        right_idx: usize,
+    ) -> Result<std::collections::HashMap<String, Value>> {
+        let mut row = std::collections::HashMap::new();
+
+        for (col_idx, field) in left_fields.iter().enumerate() {
+            let value = left_cols[col_idx].get(left_idx)?;
+            row.insert(field.name.clone(), value.clone());
+            if let Some(table) = &field.source_table {
+                row.insert(format!("{}.{}", table, field.name), value);
+            }
+        }
+
+        for (col_idx, field) in right_fields.iter().enumerate() {
+            let value = right_cols[col_idx].get(right_idx)?;
+            row.insert(field.name.clone(), value.clone());
+            if let Some(table) = &field.source_table {
+                row.insert(format!("{}.{}", table, field.name), value);
+            }
+        }
+
+        Ok(row)
+    }
+
+    fn evaluate_join_condition(
+        &self,
+        condition: &Expr,
+        row: &std::collections::HashMap<String, Value>,
+    ) -> Result<bool> {
+        match condition {
+            Expr::Literal(LiteralValue::Boolean(true)) => Ok(true),
+            Expr::Literal(LiteralValue::Boolean(false)) => Ok(false),
+
+            Expr::BinaryOp { left, op, right } => match op {
+                BinaryOp::And => {
+                    let left_result = self.evaluate_join_condition(left, row)?;
+                    if !left_result {
+                        return Ok(false);
+                    }
+                    self.evaluate_join_condition(right, row)
+                }
+                BinaryOp::Or => {
+                    let left_result = self.evaluate_join_condition(left, row)?;
+                    if left_result {
+                        return Ok(true);
+                    }
+                    self.evaluate_join_condition(right, row)
+                }
+                _ => {
+                    let left_val = self.evaluate_join_expr(left, row)?;
+                    let right_val = self.evaluate_join_expr(right, row)?;
+                    self.apply_binary_op_bool(&left_val, op, &right_val)
+                }
+            },
+
+            Expr::Column { name, table } => {
+                if let Some(t) = table {
+                    let key = format!("{}.{}", t, name);
+                    if let Some(v) = row.get(&key) {
+                        return Ok(v.as_bool().unwrap_or(false));
+                    }
+                }
+                if let Some(v) = row.get(name) {
+                    return Ok(v.as_bool().unwrap_or(false));
+                }
+                Ok(false)
+            }
+
+            _ => Ok(true),
+        }
+    }
+
+    fn evaluate_join_expr(
+        &self,
+        expr: &Expr,
+        row: &std::collections::HashMap<String, Value>,
+    ) -> Result<Value> {
+        match expr {
+            Expr::Column { name, table } => {
+                if let Some(t) = table {
+                    let key = format!("{}.{}", t, name);
+                    if let Some(v) = row.get(&key) {
+                        return Ok(v.clone());
+                    }
+                }
+                if let Some(v) = row.get(name) {
+                    return Ok(v.clone());
+                }
+                Ok(Value::null())
+            }
+            Expr::Literal(lit) => Ok(self.literal_to_value(lit)),
+            _ => Ok(Value::null()),
+        }
+    }
+
+    fn apply_binary_op_bool(&self, left: &Value, op: &BinaryOp, right: &Value) -> Result<bool> {
+        if left.is_null() || right.is_null() {
+            return Ok(false);
+        }
+
+        match op {
+            BinaryOp::Equal => Ok(left == right),
+            BinaryOp::NotEqual => Ok(left != right),
+            BinaryOp::LessThan => Ok(self.compare_values(left, right) == std::cmp::Ordering::Less),
+            BinaryOp::LessThanOrEqual => {
+                Ok(self.compare_values(left, right) != std::cmp::Ordering::Greater)
+            }
+            BinaryOp::GreaterThan => {
+                Ok(self.compare_values(left, right) == std::cmp::Ordering::Greater)
+            }
+            BinaryOp::GreaterThanOrEqual => {
+                Ok(self.compare_values(left, right) != std::cmp::Ordering::Less)
+            }
+            _ => Ok(false),
         }
     }
 
