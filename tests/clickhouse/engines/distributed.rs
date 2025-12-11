@@ -1,7 +1,6 @@
 use crate::assert_table_eq;
 use crate::common::create_executor;
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_create() {
     let mut executor = create_executor();
@@ -18,7 +17,6 @@ fn test_distributed_create() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_with_sharding_key() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_distributed_with_sharding_key() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_with_rand_sharding() {
     let mut executor = create_executor();
@@ -50,7 +47,6 @@ fn test_distributed_with_rand_sharding() {
         .unwrap();
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_select() {
     let mut executor = create_executor();
@@ -75,7 +71,6 @@ fn test_distributed_select() {
     assert_table_eq!(result, [[1, 100], [2, 200]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_insert() {
     let mut executor = create_executor();
@@ -100,7 +95,6 @@ fn test_distributed_insert() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_aggregate() {
     let mut executor = create_executor();
@@ -125,7 +119,6 @@ fn test_distributed_aggregate() {
     assert_table_eq!(result, [["A", 30], ["B", 30]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_global_in() {
     let mut executor = create_executor();
@@ -156,7 +149,6 @@ fn test_distributed_global_in() {
     assert_table_eq!(result, [[100], [300]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_settings() {
     let mut executor = create_executor();
@@ -181,7 +173,6 @@ fn test_distributed_settings() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_join() {
     let mut executor = create_executor();
@@ -214,7 +205,6 @@ fn test_distributed_join() {
     assert_table_eq!(result, [["alice", 100], ["bob", 200]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_distributed_count() {
     let mut executor = create_executor();
