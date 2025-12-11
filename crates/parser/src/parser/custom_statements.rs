@@ -5,8 +5,8 @@ use super::helpers::ParserHelpers;
 use crate::pattern_matcher::{PatternMatcher, TokenPattern};
 use crate::validator::{
     AlterDomainAction, CompositeTypeField, CustomStatement, DiagnosticsAssignment, DiagnosticsItem,
-    DiagnosticsScope, DomainConstraint, ExportFormat, LockMode, SetConstraintsMode,
-    SetConstraintsTarget,
+    DiagnosticsScope, DomainConstraint, ExportFormat, LockMode, PostgresPartitionBoundDef,
+    PostgresPartitionStrategyDef, SetConstraintsMode, SetConstraintsTarget,
 };
 
 pub struct CustomStatementParser;
@@ -1986,5 +1986,422 @@ impl CustomStatementParser {
             uris,
             allow_schema_update,
         }))
+    }
+
+    pub fn parse_create_partition(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("CREATE TABLE") {
+            return Ok(None);
+        }
+
+        if !upper.contains("PARTITION OF") {
+            return Ok(None);
+        }
+
+        let partition_of_idx = upper.find("PARTITION OF").unwrap();
+
+        let name_part = &trimmed[12..partition_of_idx].trim();
+        let partition_name = Self::parse_object_name(name_part)?;
+
+        let after_partition_of = &trimmed[partition_of_idx + 12..].trim_start();
+
+        let (parent_end_idx, parent_name_str) = Self::find_parent_name_end(after_partition_of)?;
+        let parent_name = Self::parse_object_name(&parent_name_str)?;
+
+        let remaining = after_partition_of[parent_end_idx..].trim_start();
+
+        let (bound, sub_partition) = Self::parse_partition_bound_and_strategy(remaining)?;
+
+        Ok(Some(CustomStatement::CreatePartition {
+            partition_name,
+            parent_name,
+            bound,
+            sub_partition,
+        }))
+    }
+
+    fn find_parent_name_end(s: &str) -> Result<(usize, String)> {
+        let upper = s.to_uppercase();
+
+        let keywords = ["FOR VALUES", "DEFAULT", "PARTITION BY", ";"];
+        let mut end_idx = s.len();
+
+        for kw in keywords {
+            if let Some(idx) = upper.find(kw) {
+                end_idx = end_idx.min(idx);
+            }
+        }
+
+        let name_str = s[..end_idx].trim();
+        Ok((end_idx, name_str.to_string()))
+    }
+
+    fn parse_partition_bound_and_strategy(
+        s: &str,
+    ) -> Result<(
+        PostgresPartitionBoundDef,
+        Option<PostgresPartitionStrategyDef>,
+    )> {
+        let trimmed = s.trim().trim_end_matches(';').trim();
+        let upper = trimmed.to_uppercase();
+
+        let partition_by_idx = upper.find("PARTITION BY");
+        let sub_partition = if let Some(idx) = partition_by_idx {
+            let partition_by_str = &trimmed[idx + 12..].trim_start();
+            Some(Self::parse_partition_strategy(partition_by_str)?)
+        } else {
+            None
+        };
+
+        let bound_str = if let Some(idx) = partition_by_idx {
+            &trimmed[..idx]
+        } else {
+            trimmed
+        };
+        let bound_str = bound_str.trim();
+
+        let bound = Self::parse_partition_bound(bound_str)?;
+
+        Ok((bound, sub_partition))
+    }
+
+    fn parse_partition_bound(s: &str) -> Result<PostgresPartitionBoundDef> {
+        let trimmed = s.trim();
+        let upper = trimmed.to_uppercase();
+
+        if upper == "DEFAULT" || upper.is_empty() {
+            return Ok(PostgresPartitionBoundDef::Default);
+        }
+
+        if !upper.starts_with("FOR VALUES") {
+            if upper.is_empty() {
+                return Ok(PostgresPartitionBoundDef::Default);
+            }
+            return Err(Error::parse_error(format!(
+                "Expected FOR VALUES or DEFAULT, got: {}",
+                trimmed
+            )));
+        }
+
+        let after_for_values = trimmed[10..].trim_start();
+        let after_upper = after_for_values.to_uppercase();
+
+        if after_upper.starts_with("IN") {
+            let after_in = after_for_values[2..].trim_start();
+            let values = Self::parse_parenthesized_values(after_in)?;
+            return Ok(PostgresPartitionBoundDef::List { values });
+        }
+
+        if after_upper.starts_with("FROM") {
+            let after_from = after_for_values[4..].trim_start();
+
+            let (from_values, after_from_paren) = Self::parse_one_parenthesized_list(after_from)?;
+
+            let remaining = after_from_paren.trim_start();
+            let remaining_upper = remaining.to_uppercase();
+
+            if !remaining_upper.starts_with("TO") {
+                return Err(Error::parse_error(
+                    "RANGE partition requires TO clause".to_string(),
+                ));
+            }
+
+            let after_to = remaining[2..].trim_start();
+            let (to_values, _) = Self::parse_one_parenthesized_list(after_to)?;
+
+            return Ok(PostgresPartitionBoundDef::Range {
+                from: from_values,
+                to: to_values,
+            });
+        }
+
+        if after_upper.starts_with("WITH") {
+            let after_with = after_for_values[4..].trim_start();
+            let (params, _) = Self::parse_one_parenthesized_list(after_with)?;
+
+            let mut modulus = 0i64;
+            let mut remainder = 0i64;
+
+            for param in params {
+                let param_upper = param.to_uppercase();
+                if let Some(stripped) = param_upper.strip_prefix("MODULUS") {
+                    let val_str = stripped.trim().trim_start_matches('=').trim();
+                    modulus = val_str.parse().unwrap_or(0);
+                } else if let Some(stripped) = param_upper.strip_prefix("REMAINDER") {
+                    let val_str = stripped.trim().trim_start_matches('=').trim();
+                    remainder = val_str.parse().unwrap_or(0);
+                }
+            }
+
+            return Ok(PostgresPartitionBoundDef::Hash { modulus, remainder });
+        }
+
+        Ok(PostgresPartitionBoundDef::Default)
+    }
+
+    fn parse_parenthesized_values(s: &str) -> Result<Vec<String>> {
+        let (values, _) = Self::parse_one_parenthesized_list(s)?;
+        Ok(values)
+    }
+
+    fn parse_one_parenthesized_list(s: &str) -> Result<(Vec<String>, &str)> {
+        let trimmed = s.trim();
+        if !trimmed.starts_with('(') {
+            return Err(Error::parse_error(format!(
+                "Expected '(' but got: {}",
+                &trimmed[..trimmed.len().min(20)]
+            )));
+        }
+
+        let mut depth = 1;
+        let mut end_idx = 1;
+        let chars: Vec<char> = trimmed.chars().collect();
+
+        while end_idx < chars.len() && depth > 0 {
+            match chars[end_idx] {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                _ => {}
+            }
+            if depth > 0 {
+                end_idx += 1;
+            }
+        }
+
+        let inner = &trimmed[1..end_idx];
+
+        let mut values = Vec::new();
+        let mut current = String::new();
+        let mut paren_depth = 0;
+        let mut in_quote = false;
+        let mut quote_char = ' ';
+
+        for ch in inner.chars() {
+            match ch {
+                '\'' | '"' if paren_depth == 0 => {
+                    if !in_quote {
+                        in_quote = true;
+                        quote_char = ch;
+                    } else if ch == quote_char {
+                        in_quote = false;
+                    }
+                    current.push(ch);
+                }
+                '(' if !in_quote => {
+                    paren_depth += 1;
+                    current.push(ch);
+                }
+                ')' if !in_quote => {
+                    paren_depth -= 1;
+                    current.push(ch);
+                }
+                ',' if !in_quote && paren_depth == 0 => {
+                    let val = current.trim().to_string();
+                    if !val.is_empty() {
+                        values.push(val);
+                    }
+                    current = String::new();
+                }
+                _ => current.push(ch),
+            }
+        }
+
+        let val = current.trim().to_string();
+        if !val.is_empty() {
+            values.push(val);
+        }
+
+        let remaining = if end_idx + 1 < trimmed.len() {
+            &trimmed[end_idx + 1..]
+        } else {
+            ""
+        };
+
+        Ok((values, remaining))
+    }
+
+    fn parse_partition_strategy(s: &str) -> Result<PostgresPartitionStrategyDef> {
+        let trimmed = s.trim();
+        let upper = trimmed.to_uppercase();
+
+        if upper.starts_with("RANGE") {
+            let after_range = trimmed[5..].trim_start();
+            let columns = Self::parse_partition_columns(after_range)?;
+            return Ok(PostgresPartitionStrategyDef::Range { columns });
+        }
+
+        if upper.starts_with("LIST") {
+            let after_list = trimmed[4..].trim_start();
+            let columns = Self::parse_partition_columns(after_list)?;
+            return Ok(PostgresPartitionStrategyDef::List { columns });
+        }
+
+        if upper.starts_with("HASH") {
+            let after_hash = trimmed[4..].trim_start();
+            let columns = Self::parse_partition_columns(after_hash)?;
+            return Ok(PostgresPartitionStrategyDef::Hash { columns });
+        }
+
+        Err(Error::parse_error(format!(
+            "Unknown partition strategy: {}",
+            trimmed
+        )))
+    }
+
+    fn parse_partition_columns(s: &str) -> Result<Vec<String>> {
+        let trimmed = s.trim();
+        if !trimmed.starts_with('(') {
+            return Err(Error::parse_error(
+                "Expected '(' after partition type".to_string(),
+            ));
+        }
+
+        let end_paren = trimmed.find(')').unwrap_or(trimmed.len());
+        let inner = &trimmed[1..end_paren];
+
+        let columns: Vec<String> = inner
+            .split(',')
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty())
+            .collect();
+
+        Ok(columns)
+    }
+
+    fn parse_object_name(s: &str) -> Result<sqlparser::ast::ObjectName> {
+        use sqlparser::ast::{Ident, ObjectName};
+
+        let trimmed = s.trim();
+        let parts: Vec<Ident> = trimmed
+            .split('.')
+            .map(|part| {
+                let part = part.trim();
+                let unquoted = part.trim_matches('"');
+                Ident::new(unquoted)
+            })
+            .collect();
+
+        Ok(ObjectName(
+            parts
+                .into_iter()
+                .map(sqlparser::ast::ObjectNamePart::Identifier)
+                .collect(),
+        ))
+    }
+
+    pub fn parse_detach_partition(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("ALTER TABLE") {
+            return Ok(None);
+        }
+
+        if !upper.contains("DETACH PARTITION") {
+            return Ok(None);
+        }
+
+        let detach_idx = upper.find("DETACH PARTITION").unwrap();
+        let table_name_part = &trimmed[11..detach_idx].trim();
+        let parent_name = Self::parse_object_name(table_name_part)?;
+
+        let after_detach = &trimmed[detach_idx + 16..].trim_start();
+
+        let concurrently = after_detach.to_uppercase().starts_with("CONCURRENTLY");
+        let partition_start = if concurrently {
+            &after_detach[12..].trim_start()
+        } else {
+            after_detach
+        };
+
+        let finalize = partition_start.to_uppercase().contains("FINALIZE");
+
+        let partition_end = partition_start
+            .to_uppercase()
+            .find("FINALIZE")
+            .or_else(|| partition_start.find(';'))
+            .unwrap_or(partition_start.len());
+
+        let partition_name_str = &partition_start[..partition_end].trim();
+        let partition_name = Self::parse_object_name(partition_name_str)?;
+
+        Ok(Some(CustomStatement::DetachPartition {
+            parent_name,
+            partition_name,
+            concurrently,
+            finalize,
+        }))
+    }
+
+    pub fn parse_attach_partition(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("ALTER TABLE") {
+            return Ok(None);
+        }
+
+        if !upper.contains("ATTACH PARTITION") {
+            return Ok(None);
+        }
+
+        let attach_idx = upper.find("ATTACH PARTITION").unwrap();
+        let table_name_part = &trimmed[11..attach_idx].trim();
+        let parent_name = Self::parse_object_name(table_name_part)?;
+
+        let after_attach = &trimmed[attach_idx + 16..].trim_start();
+
+        let (partition_end, _) = Self::find_parent_name_end(after_attach)?;
+        let partition_name_str = &after_attach[..partition_end].trim();
+        let partition_name = Self::parse_object_name(partition_name_str)?;
+
+        let remaining = &after_attach[partition_end..].trim_start();
+        let (bound, _) = Self::parse_partition_bound_and_strategy(remaining)?;
+
+        Ok(Some(CustomStatement::AttachPartition {
+            parent_name,
+            partition_name,
+            bound,
+        }))
+    }
+
+    pub fn parse_enable_row_movement(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("ALTER TABLE") {
+            return Ok(None);
+        }
+
+        if !upper.contains("ENABLE ROW MOVEMENT") {
+            return Ok(None);
+        }
+
+        let enable_idx = upper.find("ENABLE ROW MOVEMENT").unwrap();
+        let table_name_part = &trimmed[11..enable_idx].trim();
+        let table_name = Self::parse_object_name(table_name_part)?;
+
+        Ok(Some(CustomStatement::EnableRowMovement { table_name }))
+    }
+
+    pub fn parse_disable_row_movement(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("ALTER TABLE") {
+            return Ok(None);
+        }
+
+        if !upper.contains("DISABLE ROW MOVEMENT") {
+            return Ok(None);
+        }
+
+        let disable_idx = upper.find("DISABLE ROW MOVEMENT").unwrap();
+        let table_name_part = &trimmed[11..disable_idx].trim();
+        let table_name = Self::parse_object_name(table_name_part)?;
+
+        Ok(Some(CustomStatement::DisableRowMovement { table_name }))
     }
 }

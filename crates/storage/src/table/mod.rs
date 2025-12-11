@@ -14,7 +14,10 @@ pub use core::{Table, TableEngine};
 pub use constraints::TableConstraintOps;
 pub use indexes::TableIndexOps;
 pub use iterator::TableIterator;
-pub use partition::{PartitionSpec, PartitionType};
+pub use partition::{
+    PartitionSpec, PartitionType, PostgresPartitionBound, PostgresPartitionInfo,
+    PostgresPartitionStrategy,
+};
 pub use schema_ops::TableSchemaOps;
 pub use statistics::{ColumnStatistics, TableStatistics};
 

@@ -14,8 +14,8 @@ use std::str::FromStr;
 use chrono::Datelike;
 pub use ddl::{
     AlterTableExecutor, DdlDropExecutor, DdlExecutor, DomainExecutor, ExtensionExecutor,
-    FunctionExecutor, MaterializedViewExecutor, ProcedureExecutor, SchemaExecutor,
-    SequenceExecutor, SnapshotExecutor, TriggerExecutor, TypeExecutor,
+    FunctionExecutor, MaterializedViewExecutor, PartitionExecutor, ProcedureExecutor,
+    SchemaExecutor, SequenceExecutor, SnapshotExecutor, TriggerExecutor, TypeExecutor,
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
@@ -572,6 +572,36 @@ impl QueryExecutor {
                 }
                 CustomStatement::DropSnapshotTable { .. } => {
                     self.execute_drop_snapshot_table(custom_stmt)
+                }
+                CustomStatement::CreatePartition {
+                    partition_name,
+                    parent_name,
+                    bound,
+                    sub_partition,
+                } => {
+                    self.execute_create_partition(partition_name, parent_name, bound, sub_partition)
+                }
+                CustomStatement::DetachPartition {
+                    parent_name,
+                    partition_name,
+                    concurrently,
+                    finalize,
+                } => self.execute_detach_partition(
+                    parent_name,
+                    partition_name,
+                    *concurrently,
+                    *finalize,
+                ),
+                CustomStatement::AttachPartition {
+                    parent_name,
+                    partition_name,
+                    bound,
+                } => self.execute_attach_partition(parent_name, partition_name, bound),
+                CustomStatement::EnableRowMovement { table_name } => {
+                    self.execute_enable_row_movement(table_name)
+                }
+                CustomStatement::DisableRowMovement { table_name } => {
+                    self.execute_disable_row_movement(table_name)
                 }
             };
         }

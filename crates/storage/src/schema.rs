@@ -270,6 +270,7 @@ pub struct Schema {
     parent_tables: Vec<String>,
     child_tables: Vec<String>,
     inherited_column_count: usize,
+    postgres_partition: Option<crate::PostgresPartitionInfo>,
 }
 
 impl std::fmt::Debug for Schema {
@@ -313,6 +314,7 @@ impl Schema {
             parent_tables: Vec::new(),
             child_tables: Vec::new(),
             inherited_column_count: 0,
+            postgres_partition: None,
         }
     }
 
@@ -329,6 +331,7 @@ impl Schema {
             parent_tables: Vec::new(),
             child_tables: Vec::new(),
             inherited_column_count: 0,
+            postgres_partition: None,
         }
     }
 
@@ -719,6 +722,64 @@ impl Schema {
         new_fields.append(&mut self.fields);
         self.fields = new_fields;
         self.inherited_column_count += count;
+    }
+
+    pub fn postgres_partition(&self) -> Option<&crate::PostgresPartitionInfo> {
+        self.postgres_partition.as_ref()
+    }
+
+    pub fn postgres_partition_mut(&mut self) -> Option<&mut crate::PostgresPartitionInfo> {
+        self.postgres_partition.as_mut()
+    }
+
+    pub fn set_postgres_partition(&mut self, info: crate::PostgresPartitionInfo) {
+        self.postgres_partition = Some(info);
+    }
+
+    pub fn is_partitioned(&self) -> bool {
+        self.postgres_partition
+            .as_ref()
+            .map(|p| p.strategy.is_some())
+            .unwrap_or(false)
+    }
+
+    pub fn is_partition(&self) -> bool {
+        self.postgres_partition
+            .as_ref()
+            .map(|p| p.parent_table.is_some())
+            .unwrap_or(false)
+    }
+
+    pub fn partition_parent(&self) -> Option<&str> {
+        self.postgres_partition
+            .as_ref()
+            .and_then(|p| p.parent_table.as_deref())
+    }
+
+    pub fn add_partition_child(&mut self, child: String) {
+        if let Some(ref mut p) = self.postgres_partition {
+            if !p.child_partitions.contains(&child) {
+                p.child_partitions.push(child);
+            }
+        } else {
+            self.postgres_partition = Some(crate::PostgresPartitionInfo {
+                child_partitions: vec![child],
+                ..Default::default()
+            });
+        }
+    }
+
+    pub fn remove_partition_child(&mut self, child: &str) {
+        if let Some(ref mut p) = self.postgres_partition {
+            p.child_partitions.retain(|c| c != child);
+        }
+    }
+
+    pub fn partition_children(&self) -> &[String] {
+        self.postgres_partition
+            .as_ref()
+            .map(|p| p.child_partitions.as_slice())
+            .unwrap_or(&[])
     }
 }
 

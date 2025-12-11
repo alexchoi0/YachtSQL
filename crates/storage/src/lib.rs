@@ -58,8 +58,9 @@ pub use sequence::{Sequence, SequenceConfig, SequenceRegistry};
 pub use snapshot::{SnapshotRegistry, SnapshotTable};
 pub use storage_backend::{StorageBackend, StorageLayout};
 pub use table::{
-    ColumnStatistics, PartitionSpec, PartitionType, Table, TableConstraintOps, TableEngine,
-    TableIndexOps, TableIterator, TableSchemaOps, TableStatistics,
+    ColumnStatistics, PartitionSpec, PartitionType, PostgresPartitionBound, PostgresPartitionInfo,
+    PostgresPartitionStrategy, Table, TableConstraintOps, TableEngine, TableIndexOps,
+    TableIterator, TableSchemaOps, TableStatistics,
 };
 pub use temp_storage::{OnCommitAction, TempStorage, TempTableMetadata};
 pub use transaction::{

@@ -266,6 +266,36 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.dialect_type == DialectType::PostgreSQL
+            && let Some(custom_stmt) = CustomStatementParser::parse_create_partition(sql)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::PostgreSQL
+            && let Some(custom_stmt) = CustomStatementParser::parse_detach_partition(sql)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::PostgreSQL
+            && let Some(custom_stmt) = CustomStatementParser::parse_attach_partition(sql)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::PostgreSQL
+            && let Some(custom_stmt) = CustomStatementParser::parse_enable_row_movement(sql)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
+        if self.dialect_type == DialectType::PostgreSQL
+            && let Some(custom_stmt) = CustomStatementParser::parse_disable_row_movement(sql)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         let tokens = Tokenizer::new(&*self.dialect, sql)
             .tokenize()
             .map_err(|e| Error::parse_error(format!("Tokenization error: {}", e)))?;

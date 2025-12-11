@@ -3,7 +3,10 @@ use sqlparser::ast::{ColumnDef, ColumnOption, DataType as SqlDataType};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_parser::Sql2023Types;
-use yachtsql_storage::{DefaultValue, Field, Schema, TableEngine, TableIndexOps, TableSchemaOps};
+use yachtsql_storage::{
+    DefaultValue, Field, PostgresPartitionInfo, PostgresPartitionStrategy, Schema, TableEngine,
+    TableIndexOps, TableSchemaOps,
+};
 
 fn parse_engine_from_sql(
     sql: &str,
@@ -127,6 +130,48 @@ fn extract_parenthesized_params(s: &str) -> Vec<String> {
     Vec::new()
 }
 
+fn parse_partition_strategy_from_sql(sql: &str) -> Option<PostgresPartitionStrategy> {
+    let upper = sql.to_uppercase();
+
+    let partition_by_idx = upper.find("PARTITION BY")?;
+    let after_partition_by = &sql[partition_by_idx + 12..].trim_start();
+    let after_partition_by_upper = after_partition_by.to_uppercase();
+
+    let strategy_type = if after_partition_by_upper.starts_with("RANGE") {
+        "RANGE"
+    } else if after_partition_by_upper.starts_with("LIST") {
+        "LIST"
+    } else if after_partition_by_upper.starts_with("HASH") {
+        "HASH"
+    } else {
+        return None;
+    };
+
+    let open_paren = after_partition_by.find('(')?;
+    let close_paren = after_partition_by.find(')')?;
+    if open_paren >= close_paren {
+        return None;
+    }
+
+    let columns_str = &after_partition_by[open_paren + 1..close_paren];
+    let columns: Vec<String> = columns_str
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if columns.is_empty() {
+        return None;
+    }
+
+    match strategy_type {
+        "RANGE" => Some(PostgresPartitionStrategy::Range { columns }),
+        "LIST" => Some(PostgresPartitionStrategy::List { columns }),
+        "HASH" => Some(PostgresPartitionStrategy::Hash { columns }),
+        _ => None,
+    }
+}
+
 use super::super::QueryExecutor;
 
 #[derive(Debug, Clone, Copy)]
@@ -201,6 +246,17 @@ impl DdlExecutor for QueryExecutor {
         all_constraints.extend(column_level_fks);
 
         self.parse_table_constraints(&mut schema, &all_constraints)?;
+
+        if let Some(partition_strategy) = parse_partition_strategy_from_sql(original_sql) {
+            let partition_info = PostgresPartitionInfo {
+                parent_table: None,
+                bound: None,
+                strategy: Some(partition_strategy),
+                child_partitions: Vec::new(),
+                row_movement_enabled: false,
+            };
+            schema.set_postgres_partition(partition_info);
+        }
 
         let table_full_name = format!("{}.{}", dataset_id, table_id);
 

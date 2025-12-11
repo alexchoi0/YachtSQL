@@ -289,6 +289,34 @@ pub enum CustomStatement {
         uris: Vec<String>,
         allow_schema_update: bool,
     },
+
+    CreatePartition {
+        partition_name: sqlparser::ast::ObjectName,
+        parent_name: sqlparser::ast::ObjectName,
+        bound: PostgresPartitionBoundDef,
+        sub_partition: Option<PostgresPartitionStrategyDef>,
+    },
+
+    DetachPartition {
+        parent_name: sqlparser::ast::ObjectName,
+        partition_name: sqlparser::ast::ObjectName,
+        concurrently: bool,
+        finalize: bool,
+    },
+
+    AttachPartition {
+        parent_name: sqlparser::ast::ObjectName,
+        partition_name: sqlparser::ast::ObjectName,
+        bound: PostgresPartitionBoundDef,
+    },
+
+    EnableRowMovement {
+        table_name: sqlparser::ast::ObjectName,
+    },
+
+    DisableRowMovement {
+        table_name: sqlparser::ast::ObjectName,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -397,6 +425,21 @@ pub enum DictionaryLayoutDef {
 pub struct DictionaryLifetimeDef {
     pub min_seconds: u64,
     pub max_seconds: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PostgresPartitionBoundDef {
+    Range { from: Vec<String>, to: Vec<String> },
+    List { values: Vec<String> },
+    Hash { modulus: i64, remainder: i64 },
+    Default,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PostgresPartitionStrategyDef {
+    Range { columns: Vec<String> },
+    List { columns: Vec<String> },
+    Hash { columns: Vec<String> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -659,6 +702,26 @@ impl StatementValidator {
             }
             CustomStatement::LoadData { .. } => {
                 self.require_bigquery("LOAD DATA")?;
+                Ok(())
+            }
+            CustomStatement::CreatePartition { .. } => {
+                self.require_postgresql("CREATE TABLE PARTITION OF")?;
+                Ok(())
+            }
+            CustomStatement::DetachPartition { .. } => {
+                self.require_postgresql("DETACH PARTITION")?;
+                Ok(())
+            }
+            CustomStatement::AttachPartition { .. } => {
+                self.require_postgresql("ATTACH PARTITION")?;
+                Ok(())
+            }
+            CustomStatement::EnableRowMovement { .. } => {
+                self.require_postgresql("ENABLE ROW MOVEMENT")?;
+                Ok(())
+            }
+            CustomStatement::DisableRowMovement { .. } => {
+                self.require_postgresql("DISABLE ROW MOVEMENT")?;
                 Ok(())
             }
         }
