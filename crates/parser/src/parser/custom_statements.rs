@@ -5,7 +5,8 @@ use super::helpers::ParserHelpers;
 use crate::pattern_matcher::{PatternMatcher, TokenPattern};
 use crate::validator::{
     AlterDomainAction, CompositeTypeField, CustomStatement, DiagnosticsAssignment, DiagnosticsItem,
-    DiagnosticsScope, DomainConstraint, ExportFormat, SetConstraintsMode, SetConstraintsTarget,
+    DiagnosticsScope, DomainConstraint, ExportFormat, LockMode, SetConstraintsMode,
+    SetConstraintsTarget,
 };
 
 pub struct CustomStatementParser;
@@ -93,6 +94,96 @@ impl CustomStatementParser {
         }
 
         Ok(Some(CustomStatement::Abort))
+    }
+
+    pub fn parse_lock_table(tokens: &[&Token]) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "LOCK") {
+            return Ok(None);
+        }
+
+        ParserHelpers::consume_keyword(tokens, &mut idx, "TABLE");
+        ParserHelpers::consume_keyword(tokens, &mut idx, "ONLY");
+
+        let mut tables = Vec::new();
+        loop {
+            let table = ParserHelpers::parse_object_name_at(tokens, &mut idx)?;
+            tables.push(table);
+
+            if matches!(tokens.get(idx), Some(Token::Comma)) {
+                idx += 1;
+                continue;
+            }
+            break;
+        }
+
+        if tables.is_empty() {
+            return Err(Error::parse_error(
+                "LOCK TABLE requires at least one table name".to_string(),
+            ));
+        }
+
+        let mode = if ParserHelpers::consume_keyword(tokens, &mut idx, "IN") {
+            let lock_mode = Self::parse_lock_mode(tokens, &mut idx)?;
+            if !ParserHelpers::consume_keyword(tokens, &mut idx, "MODE") {
+                return Err(Error::parse_error(
+                    "LOCK TABLE requires MODE keyword after lock mode".to_string(),
+                ));
+            }
+            lock_mode
+        } else {
+            LockMode::AccessExclusive
+        };
+
+        let nowait = ParserHelpers::consume_keyword(tokens, &mut idx, "NOWAIT");
+
+        if matches!(tokens.get(idx), Some(Token::SemiColon)) {
+            idx += 1;
+        }
+
+        if idx < tokens.len() {
+            return Err(Error::parse_error(format!(
+                "Unexpected tokens after LOCK TABLE statement: {:?}",
+                tokens[idx]
+            )));
+        }
+
+        Ok(Some(CustomStatement::LockTable {
+            tables,
+            mode,
+            nowait,
+        }))
+    }
+
+    fn parse_lock_mode(tokens: &[&Token], idx: &mut usize) -> Result<LockMode> {
+        if ParserHelpers::consume_keyword_pair(tokens, idx, "ACCESS", "SHARE") {
+            return Ok(LockMode::AccessShare);
+        }
+        if ParserHelpers::consume_keyword_pair(tokens, idx, "ACCESS", "EXCLUSIVE") {
+            return Ok(LockMode::AccessExclusive);
+        }
+        if ParserHelpers::consume_keyword_pair(tokens, idx, "ROW", "SHARE") {
+            return Ok(LockMode::RowShare);
+        }
+        if ParserHelpers::consume_keyword_pair(tokens, idx, "ROW", "EXCLUSIVE") {
+            return Ok(LockMode::RowExclusive);
+        }
+        if ParserHelpers::consume_keyword(tokens, idx, "SHARE") {
+            if ParserHelpers::consume_keyword_pair(tokens, idx, "UPDATE", "EXCLUSIVE") {
+                return Ok(LockMode::ShareUpdateExclusive);
+            }
+            if ParserHelpers::consume_keyword_pair(tokens, idx, "ROW", "EXCLUSIVE") {
+                return Ok(LockMode::ShareRowExclusive);
+            }
+            return Ok(LockMode::Share);
+        }
+        if ParserHelpers::consume_keyword(tokens, idx, "EXCLUSIVE") {
+            return Ok(LockMode::Exclusive);
+        }
+        Err(Error::parse_error(
+            "Expected lock mode: ACCESS SHARE, ROW SHARE, ROW EXCLUSIVE, SHARE UPDATE EXCLUSIVE, SHARE, SHARE ROW EXCLUSIVE, EXCLUSIVE, or ACCESS EXCLUSIVE".to_string(),
+        ))
     }
 
     pub fn parse_begin_transaction_with_deferrable(

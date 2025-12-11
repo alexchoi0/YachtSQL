@@ -404,6 +404,21 @@ impl QueryExecutor {
                     self.execute_rollback_transaction()?;
                     Self::empty_result()
                 }
+                CustomStatement::LockTable { tables, .. } => {
+                    for table in tables {
+                        let table_str = table.to_string();
+                        let (dataset_id, table_id) = self.parse_ddl_table_name(&table_str)?;
+                        let storage = self.storage.borrow();
+                        let exists = storage
+                            .get_dataset(&dataset_id)
+                            .and_then(|d| d.get_table(&table_id))
+                            .is_some();
+                        if !exists {
+                            return Err(Error::table_not_found(table_str));
+                        }
+                    }
+                    Self::empty_result()
+                }
                 CustomStatement::BeginTransaction {
                     isolation_level,
                     read_only,

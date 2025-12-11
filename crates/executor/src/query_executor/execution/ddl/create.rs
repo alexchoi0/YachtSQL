@@ -204,34 +204,12 @@ impl DdlExecutor for QueryExecutor {
 
         let table_full_name = format!("{}.{}", dataset_id, table_id);
 
-        let mut tm = self.transaction_manager.borrow_mut();
-        if let Some(_txn) = tm.get_active_transaction_mut() {
-            drop(tm);
+        let in_transaction = {
+            let tm = self.transaction_manager.borrow();
+            tm.get_active_transaction().is_some()
+        };
 
-            {
-                let storage = self.storage.borrow_mut();
-                if storage.get_dataset(&dataset_id).is_some() {
-                    let dataset = storage.get_dataset(&dataset_id).unwrap();
-                    if dataset.get_table(&table_id).is_some() {
-                        if create_table.if_not_exists {
-                            return Ok(());
-                        } else {
-                            return Err(Error::InvalidQuery(format!(
-                                "Table '{}.{}' already exists",
-                                dataset_id, table_id
-                            )));
-                        }
-                    }
-                }
-            }
-
-            let mut tm = self.transaction_manager.borrow_mut();
-            if let Some(txn) = tm.get_active_transaction_mut() {
-                txn.track_create_table(table_full_name, schema);
-            }
-        } else {
-            drop(tm);
-
+        {
             let mut storage = self.storage.borrow_mut();
 
             if storage.get_dataset(&dataset_id).is_none() {
@@ -289,6 +267,13 @@ impl DdlExecutor for QueryExecutor {
                             .add_child_table(child_full_name.clone());
                     }
                 }
+            }
+        }
+
+        if in_transaction {
+            let mut tm = self.transaction_manager.borrow_mut();
+            if let Some(txn) = tm.get_active_transaction_mut() {
+                txn.track_create_table(table_full_name, schema);
             }
         }
 

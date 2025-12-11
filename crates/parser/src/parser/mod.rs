@@ -385,6 +385,12 @@ impl Parser {
             return Ok(Some(Statement::Custom(custom_stmt)));
         }
 
+        if self.is_lock_table(&meaningful_tokens)
+            && let Some(custom_stmt) = CustomStatementParser::parse_lock_table(&meaningful_tokens)?
+        {
+            return Ok(Some(Statement::Custom(custom_stmt)));
+        }
+
         if self.is_begin(&meaningful_tokens)
             && let Some(custom_stmt) =
                 CustomStatementParser::parse_begin_transaction_with_deferrable(&meaningful_tokens)?
@@ -1430,6 +1436,10 @@ impl Parser {
 
     fn is_abort(&self, tokens: &[&Token]) -> bool {
         self.matches_keyword_sequence(tokens, &["ABORT"])
+    }
+
+    fn is_lock_table(&self, tokens: &[&Token]) -> bool {
+        self.matches_keyword_sequence(tokens, &["LOCK"])
     }
 
     fn is_begin(&self, tokens: &[&Token]) -> bool {

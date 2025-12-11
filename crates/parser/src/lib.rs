@@ -20,7 +20,7 @@ pub use parser::{
 pub use sql_json::Sql2023Json;
 pub use sql_types::Sql2023Types;
 pub use validator::{
-    ClickHouseSystemCommand, CustomStatement, SetConstraintsMode, SetConstraintsTarget,
+    ClickHouseSystemCommand, CustomStatement, LockMode, SetConstraintsMode, SetConstraintsTarget,
 };
 
 #[macro_export]

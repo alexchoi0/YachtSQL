@@ -104,6 +104,12 @@ pub enum CustomStatement {
 
     Abort,
 
+    LockTable {
+        tables: Vec<sqlparser::ast::ObjectName>,
+        mode: LockMode,
+        nowait: bool,
+    },
+
     Loop {
         label: Option<String>,
         body: String,
@@ -399,6 +405,18 @@ pub enum SetConstraintsMode {
     Deferred,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LockMode {
+    AccessShare,
+    RowShare,
+    RowExclusive,
+    ShareUpdateExclusive,
+    Share,
+    ShareRowExclusive,
+    Exclusive,
+    AccessExclusive,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SetConstraintsTarget {
     All,
@@ -517,6 +535,18 @@ impl StatementValidator {
             CustomStatement::SetConstraints { .. } => self.validate_set_constraints(),
             CustomStatement::ExistsTable { .. } | CustomStatement::ExistsDatabase { .. } => Ok(()),
             CustomStatement::Abort => Ok(()),
+            CustomStatement::LockTable { tables, .. } => {
+                self.require_postgresql("LOCK TABLE")?;
+                if tables.is_empty() {
+                    return Err(Error::invalid_query(
+                        "LOCK TABLE requires at least one table name".to_string(),
+                    ));
+                }
+                for table in tables {
+                    self.validate_object_name(table, "table")?;
+                }
+                Ok(())
+            }
             CustomStatement::BeginTransaction { .. } => Ok(()),
             CustomStatement::ClickHouseCreateIndex { .. } => {
                 self.require_clickhouse("CREATE INDEX with TYPE")?;

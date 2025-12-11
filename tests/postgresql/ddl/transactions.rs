@@ -443,7 +443,6 @@ fn test_rollback_work() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_transaction_ddl_create_table() {
     let mut executor = create_executor();
 
@@ -607,7 +606,6 @@ fn test_transaction_with_select_for_update() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lock_table() {
     let mut executor = create_executor();
     executor
@@ -628,7 +626,6 @@ fn test_lock_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lock_table_share_mode() {
     let mut executor = create_executor();
     executor
@@ -649,7 +646,6 @@ fn test_lock_table_share_mode() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lock_table_row_exclusive() {
     let mut executor = create_executor();
     executor
@@ -672,7 +668,6 @@ fn test_lock_table_row_exclusive() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lock_table_share_row_exclusive() {
     let mut executor = create_executor();
     executor
@@ -693,7 +688,6 @@ fn test_lock_table_share_row_exclusive() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lock_table_exclusive() {
     let mut executor = create_executor();
     executor
@@ -714,7 +708,6 @@ fn test_lock_table_exclusive() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_lock_table_nowait() {
     let mut executor = create_executor();
     executor

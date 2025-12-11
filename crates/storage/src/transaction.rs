@@ -847,14 +847,28 @@ impl TransactionManager {
         Ok(())
     }
 
-    pub fn rollback(&mut self, _storage: &mut Storage) -> Result<()> {
+    pub fn rollback(&mut self, storage: &mut Storage) -> Result<()> {
         if self.active_transaction.is_none() {
             return Ok(());
         }
 
-        self.active_transaction
+        let context = self
+            .active_transaction
             .take()
             .ok_or_else(|| Self::no_transaction_error("ROLLBACK"))?;
+
+        if let Some(changes) = context.transaction.pending_changes() {
+            for table_name in changes.created_tables().keys() {
+                if let Some(dot_pos) = table_name.find('.') {
+                    let dataset_name = &table_name[..dot_pos];
+                    let table_id = &table_name[dot_pos + 1..];
+
+                    if let Some(dataset) = storage.get_dataset_mut(dataset_name) {
+                        let _ = dataset.delete_table(table_id);
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
