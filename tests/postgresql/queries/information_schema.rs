@@ -494,7 +494,6 @@ fn test_information_schema_view_table_usage() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_information_schema_view_routine_usage() {
     let mut executor = create_executor();
     executor
@@ -682,7 +681,6 @@ fn test_query_columns_by_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_query_tables_in_schema() {
     let mut executor = create_executor();
     executor
@@ -835,7 +833,6 @@ fn test_information_schema_statistics() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_tables() {
     let mut executor = create_executor();
     executor
@@ -849,7 +846,6 @@ fn test_pg_catalog_pg_tables() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_indexes() {
     let mut executor = create_executor();
     executor
@@ -866,7 +862,6 @@ fn test_pg_catalog_pg_indexes() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_views() {
     let mut executor = create_executor();
     executor
@@ -883,7 +878,6 @@ fn test_pg_catalog_pg_views() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_class() {
     let mut executor = create_executor();
     executor
@@ -899,7 +893,6 @@ fn test_pg_catalog_pg_class() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_attribute() {
     let mut executor = create_executor();
     executor
@@ -918,7 +911,6 @@ fn test_pg_catalog_pg_attribute() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_namespace() {
     let mut executor = create_executor();
 
@@ -929,7 +921,6 @@ fn test_pg_catalog_pg_namespace() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_type() {
     let mut executor = create_executor();
 
@@ -998,7 +989,6 @@ fn test_pg_catalog_pg_index() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_description() {
     let mut executor = create_executor();
     executor
@@ -1017,7 +1007,6 @@ fn test_pg_catalog_pg_description() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_database() {
     let mut executor = create_executor();
 
@@ -1030,7 +1019,6 @@ fn test_pg_catalog_pg_database() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_roles() {
     let mut executor = create_executor();
 
@@ -1041,7 +1029,6 @@ fn test_pg_catalog_pg_roles() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_pg_catalog_pg_settings() {
     let mut executor = create_executor();
 

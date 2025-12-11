@@ -70,6 +70,8 @@ pub struct Table {
     pub(super) index_metadata: Vec<IndexMetadata>,
 
     pub(super) engine: TableEngine,
+
+    pub(super) comment: Option<String>,
 }
 
 impl Clone for Table {
@@ -84,6 +86,7 @@ impl Clone for Table {
             indexes: HashMap::new(),
             index_metadata: Vec::new(),
             engine: self.engine.clone(),
+            comment: self.comment.clone(),
         }
     }
 }
@@ -100,6 +103,7 @@ impl std::fmt::Debug for Table {
             .field("index_count", &self.indexes.len())
             .field("index_metadata", &self.index_metadata)
             .field("engine", &self.engine)
+            .field("comment", &self.comment)
             .finish()
     }
 }
@@ -134,6 +138,7 @@ impl Table {
             indexes: HashMap::new(),
             index_metadata: Vec::new(),
             engine: TableEngine::default(),
+            comment: None,
         }
     }
 
@@ -143,6 +148,14 @@ impl Table {
 
     pub fn set_engine(&mut self, engine: TableEngine) {
         self.engine = engine;
+    }
+
+    pub fn comment(&self) -> Option<&str> {
+        self.comment.as_deref()
+    }
+
+    pub fn set_comment(&mut self, comment: Option<String>) {
+        self.comment = comment;
     }
 
     pub fn schema(&self) -> &Schema {
@@ -266,6 +279,7 @@ impl Table {
                     indexes: HashMap::new(),
                     index_metadata: Vec::new(),
                     engine: self.engine.clone(),
+                    comment: self.comment.clone(),
                 })
             }
         }
@@ -292,6 +306,7 @@ impl Table {
                     indexes: HashMap::new(),
                     index_metadata: Vec::new(),
                     engine: self.engine.clone(),
+                    comment: self.comment.clone(),
                 })
             }
         }
@@ -331,6 +346,7 @@ impl Table {
             indexes: HashMap::new(),
             index_metadata: Vec::new(),
             engine: self.engine.clone(),
+            comment: self.comment.clone(),
         }
     }
 
@@ -345,6 +361,7 @@ impl Table {
             indexes: HashMap::new(),
             index_metadata: Vec::new(),
             engine: self.engine.clone(),
+            comment: self.comment.clone(),
         }
     }
 }

@@ -794,6 +794,15 @@ impl PgCatalogProvider {
         for dataset_id in storage.list_datasets() {
             if let Some(dataset) = storage.get_dataset(dataset_id) {
                 for (_, table) in dataset.tables() {
+                    if let Some(table_comment) = table.comment() {
+                        rows.push(Row::from_values(vec![
+                            Value::int64(reloid),
+                            Value::int64(1259),
+                            Value::int64(0),
+                            Value::string(table_comment.to_string()),
+                        ]));
+                    }
+
                     let table_schema = table.schema();
                     for (attnum, field) in table_schema.fields().iter().enumerate() {
                         if let Some(desc) = &field.description {

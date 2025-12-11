@@ -677,6 +677,10 @@ impl QueryExecutor {
                     DdlOperation::Revoke => Self::empty_result(),
                     DdlOperation::SetRole => Self::empty_result(),
                     DdlOperation::SetDefaultRole => Self::empty_result(),
+                    DdlOperation::CommentOn => {
+                        self.execute_comment_on(&stmt)?;
+                        Self::empty_result()
+                    }
 
                     DdlOperation::CreateSequence
                     | DdlOperation::AlterSequence

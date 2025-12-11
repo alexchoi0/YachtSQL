@@ -1702,4 +1702,100 @@ impl QueryExecutor {
             vec![],
         )))
     }
+
+    pub fn execute_comment_on(&mut self, stmt: &sqlparser::ast::Statement) -> Result<()> {
+        use sqlparser::ast::{CommentObject, Statement};
+
+        let Statement::Comment {
+            object_type,
+            object_name,
+            comment,
+            if_exists,
+        } = stmt
+        else {
+            return Err(Error::InternalError("Not a COMMENT statement".to_string()));
+        };
+
+        match object_type {
+            CommentObject::Table => {
+                let table_name = object_name.to_string();
+                let (dataset_id, table_id) = self.parse_ddl_table_name(&table_name)?;
+
+                let mut storage = self.storage.borrow_mut();
+                if let Some(dataset) = storage.get_dataset_mut(&dataset_id) {
+                    if let Some(table) = dataset.get_table_mut(&table_id) {
+                        table.set_comment(comment.clone());
+                        Ok(())
+                    } else if *if_exists {
+                        Ok(())
+                    } else {
+                        Err(Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        )))
+                    }
+                } else if *if_exists {
+                    Ok(())
+                } else {
+                    Err(Error::table_not_found(format!(
+                        "Schema '{}' not found",
+                        dataset_id
+                    )))
+                }
+            }
+            CommentObject::Column => {
+                let full_name = object_name.to_string();
+                let parts: Vec<&str> = full_name.split('.').collect();
+
+                let (table_name, column_name) = match parts.len() {
+                    2 => (parts[0].to_string(), parts[1]),
+                    3 => (format!("{}.{}", parts[0], parts[1]), parts[2]),
+                    _ => {
+                        return Err(Error::InvalidQuery(
+                            "Invalid column reference for COMMENT ON COLUMN".to_string(),
+                        ));
+                    }
+                };
+
+                let (dataset_id, table_id) = self.parse_ddl_table_name(&table_name)?;
+
+                let mut storage = self.storage.borrow_mut();
+                if let Some(dataset) = storage.get_dataset_mut(&dataset_id) {
+                    if let Some(table) = dataset.get_table_mut(&table_id) {
+                        let schema = table.schema_mut();
+                        if let Some(field) = schema
+                            .fields_mut()
+                            .iter_mut()
+                            .find(|f| f.name == column_name)
+                        {
+                            field.description = comment.clone();
+                            Ok(())
+                        } else if *if_exists {
+                            Ok(())
+                        } else {
+                            Err(Error::column_not_found(format!(
+                                "Column '{}' not found in table '{}.{}'",
+                                column_name, dataset_id, table_id
+                            )))
+                        }
+                    } else if *if_exists {
+                        Ok(())
+                    } else {
+                        Err(Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        )))
+                    }
+                } else if *if_exists {
+                    Ok(())
+                } else {
+                    Err(Error::table_not_found(format!(
+                        "Schema '{}' not found",
+                        dataset_id
+                    )))
+                }
+            }
+            _ => Ok(()),
+        }
+    }
 }

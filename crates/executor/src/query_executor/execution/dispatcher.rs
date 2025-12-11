@@ -115,6 +115,8 @@ pub enum DdlOperation {
 
     CreateSnapshotTable,
     DropSnapshotTable,
+
+    CommentOn,
 }
 
 #[derive(Debug, Clone)]
@@ -747,6 +749,11 @@ impl Dispatcher {
                         operation: ScriptingOperation::ExecuteImmediate {
                             stmt: Box::new(ast.clone()),
                         },
+                    }),
+
+                    SqlStatement::Comment { .. } => Ok(StatementJob::DDL {
+                        operation: DdlOperation::CommentOn,
+                        stmt: Box::new(ast.clone()),
                     }),
 
                     _ => Err(Error::unsupported_feature(format!(
