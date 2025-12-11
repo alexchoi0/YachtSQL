@@ -99,7 +99,6 @@ fn test_create_hash_partition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_partition_default() {
     let mut executor = create_executor();
     executor
@@ -122,7 +121,6 @@ fn test_partition_default() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_partition_insert() {
     let mut executor = create_executor();
     executor
@@ -161,7 +159,6 @@ fn test_partition_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_partition_query_routing() {
     let mut executor = create_executor();
     executor
@@ -244,7 +241,6 @@ fn test_attach_partition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_detach_partition() {
     let mut executor = create_executor();
     executor
@@ -267,7 +263,6 @@ fn test_detach_partition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_detach_partition_concurrently() {
     let mut executor = create_executor();
     executor
@@ -292,7 +287,6 @@ fn test_detach_partition_concurrently() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_partition_index() {
     let mut executor = create_executor();
     executor
@@ -356,7 +350,6 @@ fn test_partition_foreign_key() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_partition_exclusion() {
     let mut executor = create_executor();
     executor
@@ -382,7 +375,6 @@ fn test_partition_exclusion() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_partition_update_move_row() {
     let mut executor = create_executor();
     executor
@@ -435,7 +427,6 @@ fn test_partition_trigger() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_drop_partition() {
     let mut executor = create_executor();
     executor
