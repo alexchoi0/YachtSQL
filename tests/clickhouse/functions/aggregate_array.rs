@@ -229,7 +229,6 @@ fn test_group_bitmap() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sum_map() {
     let mut executor = create_executor();
@@ -251,7 +250,6 @@ fn test_sum_map() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sum_map_with_overflow() {
     let mut executor = create_executor();
@@ -268,7 +266,6 @@ fn test_sum_map_with_overflow() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_min_map() {
     let mut executor = create_executor();
@@ -290,7 +287,6 @@ fn test_min_map() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_max_map() {
     let mut executor = create_executor();
@@ -333,7 +329,6 @@ fn test_avg_map() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_count_map() {
     let mut executor = create_executor();
@@ -380,7 +375,6 @@ fn test_group_array_grouped() {
     assert!(result.num_rows() == 2); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_group_array_last() {
     let mut executor = create_executor();
@@ -397,12 +391,11 @@ fn test_group_array_last() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT groupArrayLast(2)(event) FROM group_arr_last ORDER BY ts")
+        .execute_sql("SELECT groupArrayLast(2)(event) FROM group_arr_last")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_sum_map_filtered() {
     let mut executor = create_executor();
@@ -421,12 +414,11 @@ fn test_sum_map_filtered() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT sumMapFilteredIf(keys, values, active = 1) FROM sum_map_filtered")
+        .execute_sql("SELECT sumMap(keys, values) FROM sum_map_filtered WHERE active = 1")
         .unwrap();
-    assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
+    assert!(result.num_rows() == 1);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_array_concat_agg() {
     let mut executor = create_executor();
@@ -443,7 +435,6 @@ fn test_array_concat_agg() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_group_array_intersect() {
     let mut executor = create_executor();

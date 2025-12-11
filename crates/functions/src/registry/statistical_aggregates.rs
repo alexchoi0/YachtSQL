@@ -379,6 +379,7 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
     registry.register_aggregate("GROUPBITOR".to_string(), Rc::new(GroupBitOrFunction));
     registry.register_aggregate("GROUPBITXOR".to_string(), Rc::new(GroupBitXorFunction));
     registry.register_aggregate("SUMMAP".to_string(), Rc::new(SumMapFunction));
+    registry.register_aggregate("SUMMAPWITHOVERFLOW".to_string(), Rc::new(SumMapFunction));
     registry.register_aggregate("MINMAP".to_string(), Rc::new(MinMapFunction));
     registry.register_aggregate("MAXMAP".to_string(), Rc::new(MaxMapFunction));
     registry.register_aggregate("AVGMAP".to_string(), Rc::new(AvgMapFunction));

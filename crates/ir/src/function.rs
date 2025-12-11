@@ -352,9 +352,12 @@ pub enum FunctionName {
     GroupUniqArray,
     SumWithOverflow,
     SumMap,
+    SumMapWithOverflow,
     MinMap,
     MaxMap,
     AvgMap,
+    GroupArrayIntersect,
+    GroupArrayLast,
     GroupBitmap,
     GroupBitmapAnd,
     GroupBitmapOr,
@@ -1486,12 +1489,18 @@ impl FunctionName {
             "SUMWITHOVERFLOW" => Self::SumWithOverflow,
             "SUM_MAP" => Self::SumMap,
             "SUMMAP" => Self::SumMap,
+            "SUM_MAP_WITH_OVERFLOW" => Self::SumMapWithOverflow,
+            "SUMMAPWITHOVERFLOW" => Self::SumMapWithOverflow,
             "MIN_MAP" => Self::MinMap,
             "MINMAP" => Self::MinMap,
             "MAX_MAP" => Self::MaxMap,
             "MAXMAP" => Self::MaxMap,
             "AVG_MAP" => Self::AvgMap,
             "AVGMAP" => Self::AvgMap,
+            "GROUP_ARRAY_INTERSECT" => Self::GroupArrayIntersect,
+            "GROUPARRAYINTERSECT" => Self::GroupArrayIntersect,
+            "GROUP_ARRAY_LAST" => Self::GroupArrayLast,
+            "GROUPARRAYLAST" => Self::GroupArrayLast,
             "GROUP_BITMAP" => Self::GroupBitmap,
             "GROUPBITMAP" => Self::GroupBitmap,
             "GROUP_BITMAP_AND" => Self::GroupBitmapAnd,
@@ -2636,9 +2645,12 @@ impl FunctionName {
             Self::GroupUniqArray => "GROUP_UNIQ_ARRAY",
             Self::SumWithOverflow => "SUM_WITH_OVERFLOW",
             Self::SumMap => "SUM_MAP",
+            Self::SumMapWithOverflow => "SUM_MAP_WITH_OVERFLOW",
             Self::MinMap => "MIN_MAP",
             Self::MaxMap => "MAX_MAP",
             Self::AvgMap => "AVG_MAP",
+            Self::GroupArrayIntersect => "GROUP_ARRAY_INTERSECT",
+            Self::GroupArrayLast => "GROUP_ARRAY_LAST",
             Self::GroupBitmap => "GROUP_BITMAP",
             Self::GroupBitmapAnd => "GROUP_BITMAP_AND",
             Self::GroupBitmapOr => "GROUP_BITMAP_OR",
@@ -3490,9 +3502,12 @@ impl FunctionName {
                 | Self::GroupUniqArray
                 | Self::SumWithOverflow
                 | Self::SumMap
+                | Self::SumMapWithOverflow
                 | Self::MinMap
                 | Self::MaxMap
                 | Self::AvgMap
+                | Self::GroupArrayIntersect
+                | Self::GroupArrayLast
                 | Self::GroupBitmap
                 | Self::GroupBitmapAnd
                 | Self::GroupBitmapOr

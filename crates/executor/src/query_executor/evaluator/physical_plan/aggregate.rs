@@ -670,6 +670,24 @@ impl AggregateExec {
 
                 FunctionName::GroupBitmapState => Some(DataType::Array(Box::new(DataType::Int64))),
 
+                FunctionName::SumMap
+                | FunctionName::SumMapWithOverflow
+                | FunctionName::MinMap
+                | FunctionName::MaxMap
+                | FunctionName::AvgMap => Some(DataType::Array(Box::new(DataType::Array(
+                    Box::new(DataType::Unknown),
+                )))),
+
+                FunctionName::GroupArrayIntersect | FunctionName::GroupArrayLast => {
+                    if let Some(arg) = args.first() {
+                        let elem_type =
+                            Self::infer_expr_type(arg, schema).unwrap_or(DataType::String);
+                        Some(DataType::Array(Box::new(elem_type)))
+                    } else {
+                        Some(DataType::Array(Box::new(DataType::String)))
+                    }
+                }
+
                 _ => Some(DataType::Float64),
             },
             _ => None,
