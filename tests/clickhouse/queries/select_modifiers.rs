@@ -1,6 +1,5 @@
 use crate::common::create_executor;
 
-#[ignore = "Requires COLUMNS modifier support"]
 #[test]
 fn test_columns_regex() {
     let mut executor = create_executor();
@@ -64,7 +63,7 @@ fn test_columns_replace() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
+#[ignore = "Requires COLUMNS APPLY aggregate handling"]
 #[test]
 fn test_columns_apply() {
     let mut executor = create_executor();
@@ -87,7 +86,7 @@ fn test_columns_apply() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
+#[ignore = "Requires toString function registration"]
 #[test]
 fn test_columns_apply_multiple() {
     let mut executor = create_executor();
@@ -122,7 +121,6 @@ fn test_negative_order_by() {
     assert!(result.num_rows() == 3); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
 #[test]
 fn test_negative_group_by() {
     let mut executor = create_executor();
@@ -184,7 +182,7 @@ fn test_all_modifier() {
     assert!(result.num_rows() == 5); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
+#[ignore = "Requires COLUMNS APPLY aggregate handling"]
 #[test]
 fn test_columns_with_aggregates() {
     let mut executor = create_executor();
@@ -213,7 +211,7 @@ fn test_columns_with_aggregates() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
+#[ignore = "Requires lambda expression parsing"]
 #[test]
 fn test_columns_in_expression() {
     let mut executor = create_executor();
@@ -230,7 +228,7 @@ fn test_columns_in_expression() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
+#[ignore = "Requires subquery without alias support"]
 #[test]
 fn test_select_from_subquery_columns() {
     let mut executor = create_executor();
@@ -267,7 +265,7 @@ fn test_columns_except_multiple() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires COLUMNS modifier support"]
+#[ignore = "Requires ifNull function with APPLY syntax"]
 #[test]
 fn test_columns_apply_if() {
     let mut executor = create_executor();

@@ -46,6 +46,9 @@ lazy_static! {
     )
     .unwrap();
     static ref RE_PROC_LANGUAGE: Regex = Regex::new(r"(?i)^\s*(LANGUAGE\s+\w+)").unwrap();
+    static ref RE_COLUMNS_APPLY: Regex =
+        Regex::new(r"(?i)COLUMNS\s*\(\s*'([^']+)'\s*\)((?:\s+APPLY\s+\S+)+)").unwrap();
+    static ref RE_APPLY_PART: Regex = Regex::new(r"(?i)\bAPPLY\s+(\S+)").unwrap();
 }
 
 pub struct Parser {
@@ -177,10 +180,16 @@ impl Parser {
             sql_with_tuple_element_access
         };
 
-        let sql_with_in_table = if matches!(self.dialect_type, DialectType::ClickHouse) {
-            Self::rewrite_in_table(&sql_with_view_rewritten)
+        let sql_with_columns_apply = if matches!(self.dialect_type, DialectType::ClickHouse) {
+            Self::rewrite_columns_apply(&sql_with_view_rewritten)
         } else {
             sql_with_view_rewritten
+        };
+
+        let sql_with_in_table = if matches!(self.dialect_type, DialectType::ClickHouse) {
+            Self::rewrite_in_table(&sql_with_columns_apply)
+        } else {
+            sql_with_columns_apply
         };
 
         let sql_with_rewritten_locks = if matches!(self.dialect_type, DialectType::PostgreSQL) {
@@ -2429,6 +2438,25 @@ impl Parser {
                 let schema = &caps[1];
                 let values = &caps[2];
                 format!("VALUES('{}', {})", schema, values.trim())
+            })
+            .to_string()
+    }
+
+    fn rewrite_columns_apply(sql: &str) -> String {
+        RE_COLUMNS_APPLY
+            .replace_all(sql, |caps: &regex::Captures| {
+                let pattern = &caps[1];
+                let apply_part = &caps[2];
+                let fns: Vec<&str> = RE_APPLY_PART
+                    .captures_iter(apply_part)
+                    .filter_map(|c| c.get(1).map(|m| m.as_str()))
+                    .collect();
+                let fns_str = fns
+                    .iter()
+                    .map(|f| format!("'{}'", f))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("__COLUMNS_APPLY__('{}', {})", pattern, fns_str)
             })
             .to_string()
     }

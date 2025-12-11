@@ -1,8 +1,13 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use regex::Regex;
 use yachtsql_core::error::{Error, Result};
+use yachtsql_functions::dialects::clickhouse::clickhouse_aggregate_functions;
+use yachtsql_functions::dialects::core_aggregate_functions;
+use yachtsql_ir::FunctionName;
+use yachtsql_ir::expr::{Expr, LiteralValue};
 use yachtsql_ir::plan::{JoinType, LogicalPlan, PlanNode};
 
 thread_local! {
@@ -893,6 +898,127 @@ impl LogicalToPhysicalPlanner {
         }
     }
 
+    fn expand_columns_in_expressions(
+        expressions: &[(Expr, Option<String>)],
+        schema: &yachtsql_storage::Schema,
+    ) -> Vec<(Expr, Option<String>)> {
+        let aggregate_fns: HashSet<&str> = core_aggregate_functions()
+            .into_iter()
+            .chain(clickhouse_aggregate_functions())
+            .collect();
+
+        let mut result = Vec::new();
+        for (expr, alias) in expressions {
+            match expr {
+                Expr::Function { name, args } => {
+                    let func_name = name.as_str().to_uppercase();
+                    match func_name.as_str() {
+                        "COLUMNS" => {
+                            if let Some(Expr::Literal(LiteralValue::String(pattern))) = args.first()
+                            {
+                                let expanded = Self::expand_columns_regex(
+                                    pattern,
+                                    schema,
+                                    &[],
+                                    &aggregate_fns,
+                                );
+                                result.extend(expanded);
+                            } else {
+                                result.push((expr.clone(), alias.clone()));
+                            }
+                        }
+                        "__COLUMNS_APPLY__" => {
+                            if args.len() >= 2 {
+                                if let Some(Expr::Literal(LiteralValue::String(pattern))) =
+                                    args.first()
+                                {
+                                    let wrapper_fns: Vec<String> = args[1..]
+                                        .iter()
+                                        .filter_map(|a| {
+                                            if let Expr::Literal(LiteralValue::String(s)) = a {
+                                                Some(s.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .collect();
+                                    let expanded = Self::expand_columns_regex(
+                                        pattern,
+                                        schema,
+                                        &wrapper_fns,
+                                        &aggregate_fns,
+                                    );
+                                    result.extend(expanded);
+                                } else {
+                                    result.push((expr.clone(), alias.clone()));
+                                }
+                            } else {
+                                result.push((expr.clone(), alias.clone()));
+                            }
+                        }
+                        _ => result.push((expr.clone(), alias.clone())),
+                    }
+                }
+                _ => result.push((expr.clone(), alias.clone())),
+            }
+        }
+        result
+    }
+
+    fn expand_columns_regex(
+        pattern: &str,
+        schema: &yachtsql_storage::Schema,
+        wrapper_fns: &[String],
+        aggregate_fns: &HashSet<&str>,
+    ) -> Vec<(Expr, Option<String>)> {
+        let re = match Regex::new(pattern) {
+            Ok(r) => r,
+            Err(_) => return vec![],
+        };
+
+        let mut result = Vec::new();
+        for field in schema.fields() {
+            let field_name = field.name.as_str();
+            if re.is_match(field_name) {
+                let mut expr: Expr = Expr::Column {
+                    name: field_name.to_string(),
+                    table: None,
+                };
+
+                for fn_name in wrapper_fns {
+                    let fn_upper = fn_name.to_uppercase();
+                    if aggregate_fns.contains(fn_upper.as_str()) {
+                        expr = Expr::Aggregate {
+                            name: FunctionName::Custom(fn_name.clone()),
+                            args: vec![expr],
+                            distinct: false,
+                            order_by: None,
+                            filter: None,
+                        };
+                    } else {
+                        expr = Expr::Function {
+                            name: FunctionName::Custom(fn_name.clone()),
+                            args: vec![expr],
+                        };
+                    }
+                }
+
+                let alias = if wrapper_fns.is_empty() {
+                    None
+                } else {
+                    Some(format!(
+                        "{}({})",
+                        wrapper_fns.last().unwrap_or(&String::new()),
+                        field_name
+                    ))
+                };
+
+                result.push((expr, alias));
+            }
+        }
+        result
+    }
+
     fn resolve_custom_type_in_expressions(
         &self,
         expressions: &[(yachtsql_ir::expr::Expr, Option<String>)],
@@ -1416,15 +1542,40 @@ impl LogicalToPhysicalPlanner {
                 let input_exec = self.plan_node_to_exec(input)?;
                 let input_schema = input_exec.schema();
 
-                let resolved_expressions = self.resolve_custom_type_in_expressions(expressions);
+                let expanded_expressions =
+                    Self::expand_columns_in_expressions(expressions, input_schema);
+                let resolved_expressions =
+                    self.resolve_custom_type_in_expressions(&expanded_expressions);
+
+                let has_aggregates = resolved_expressions
+                    .iter()
+                    .any(|(e, _)| matches!(e, Expr::Aggregate { .. }));
+
+                let final_input =
+                    if has_aggregates && !matches!(input.as_ref(), PlanNode::Aggregate { .. }) {
+                        let agg_exprs: Vec<(Expr, Option<String>)> = resolved_expressions
+                            .iter()
+                            .filter(|(e, _)| matches!(e, Expr::Aggregate { .. }))
+                            .cloned()
+                            .collect();
+                        Rc::new(AggregateExec::new(
+                            input_exec.clone(),
+                            vec![],
+                            agg_exprs,
+                            None,
+                        )?) as Rc<dyn ExecutionPlan>
+                    } else {
+                        input_exec
+                    };
+
                 let output_schema = self.infer_projection_schema(
                     &resolved_expressions,
-                    input_schema,
+                    final_input.schema(),
                     using_columns.as_deref(),
                 )?;
 
                 Ok(Rc::new(
-                    ProjectionWithExprExec::new(input_exec, output_schema, resolved_expressions)
+                    ProjectionWithExprExec::new(final_input, output_schema, resolved_expressions)
                         .with_dialect(self.dialect),
                 ))
             }

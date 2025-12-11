@@ -701,6 +701,8 @@ pub fn clickhouse_scalar_functions() -> Vec<&'static str> {
         "NULLIN",
         "NOTNULLIN",
         "NULLINIGNORENULL",
+        "COLUMNS",
+        "__COLUMNS_APPLY__",
     ]
 }
 
