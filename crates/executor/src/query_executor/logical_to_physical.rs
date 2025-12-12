@@ -970,6 +970,14 @@ impl LogicalToPhysicalPlanner {
                                 result.push((expr.clone(), alias.clone()));
                             }
                         }
+                        "UNTUPLE" => {
+                            if let Some(arg) = args.first() {
+                                let expanded = Self::expand_untuple(arg);
+                                result.extend(expanded);
+                            } else {
+                                result.push((expr.clone(), alias.clone()));
+                            }
+                        }
                         _ => result.push((expr.clone(), alias.clone())),
                     }
                 }
@@ -1031,6 +1039,45 @@ impl LogicalToPhysicalPlanner {
             }
         }
         result
+    }
+
+    fn expand_untuple(expr: &Expr) -> Vec<(Expr, Option<String>)> {
+        match expr {
+            Expr::Tuple(elements) => elements
+                .iter()
+                .enumerate()
+                .map(|(i, e)| (e.clone(), Some(format!("_{}", i + 1))))
+                .collect(),
+            Expr::Function {
+                name: FunctionName::NamedTuple,
+                args,
+            } => {
+                let mut result = Vec::new();
+                let mut iter = args.iter();
+                while let (Some(name_expr), Some(value_expr)) = (iter.next(), iter.next()) {
+                    let alias = if let Expr::Literal(LiteralValue::String(name)) = name_expr {
+                        Some(name.clone())
+                    } else {
+                        None
+                    };
+                    result.push((value_expr.clone(), alias));
+                }
+                result
+            }
+            Expr::Column { name, table } => {
+                vec![(
+                    Expr::Function {
+                        name: FunctionName::Untuple,
+                        args: vec![Expr::Column {
+                            name: name.clone(),
+                            table: table.clone(),
+                        }],
+                    },
+                    None,
+                )]
+            }
+            _ => vec![(expr.clone(), None)],
+        }
     }
 
     fn expand_columns_regex(

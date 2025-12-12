@@ -38,7 +38,6 @@ fn test_tuple_dot_access() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "untuple expands to multiple columns - complex to implement"]
 #[test]
 fn test_untuple() {
     let mut executor = create_executor();
@@ -192,7 +191,6 @@ fn test_tuple_names() {
     assert_table_eq!(result, [[["a", "b", "c"]]]);
 }
 
-#[ignore = "Tuple column types need schema integration"]
 #[test]
 fn test_tuple_column() {
     let mut executor = create_executor();
@@ -218,7 +216,6 @@ fn test_tuple_column() {
     assert_table_eq!(result, [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0],]);
 }
 
-#[ignore = "Nested tuple field access needs implementation"]
 #[test]
 fn test_nested_tuple() {
     let mut executor = create_executor();
@@ -226,7 +223,6 @@ fn test_nested_tuple() {
     assert_table_eq!(result, [[(1, 2)]]);
 }
 
-#[ignore = "Tuple comparison needs implementation"]
 #[test]
 fn test_tuple_comparison() {
     let mut executor = create_executor();
@@ -253,7 +249,6 @@ fn test_tuple_comparison() {
     assert_table_eq!(result, [[(1, 3)], [(2, 1)]]);
 }
 
-#[ignore = "Array of tuples needs schema integration"]
 #[test]
 fn test_tuple_array_operations() {
     let mut executor = create_executor();
