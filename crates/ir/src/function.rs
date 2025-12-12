@@ -991,6 +991,9 @@ pub enum FunctionName {
     IsDecimalOverflow,
     CountDigits,
 
+    // BigQuery error function
+    Error,
+
     // PostgreSQL system functions
     PgTypeof,
     SessionUser,
@@ -2187,6 +2190,9 @@ impl FunctionName {
             "COUNTDIGITS" => Self::CountDigits,
             "COUNT_DIGITS" => Self::CountDigits,
 
+            // BigQuery error function
+            "ERROR" => Self::Error,
+
             // PostgreSQL system functions
             "PG_TYPEOF" => Self::PgTypeof,
             "SESSION_USER" => Self::SessionUser,
@@ -3291,6 +3297,9 @@ impl FunctionName {
             Self::GetSetting => "GETSETTING",
             Self::IsDecimalOverflow => "ISDECIMALOVERFLOW",
             Self::CountDigits => "COUNTDIGITS",
+
+            // BigQuery error function
+            Self::Error => "ERROR",
 
             // PostgreSQL system functions
             Self::PgTypeof => "PG_TYPEOF",

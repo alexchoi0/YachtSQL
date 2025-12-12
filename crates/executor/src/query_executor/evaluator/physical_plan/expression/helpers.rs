@@ -446,6 +446,30 @@ impl ProjectionWithExprExec {
                                 });
                             }
                         }
+                        't' => {
+                            if arg.is_null() {
+                                "NULL".to_string()
+                            } else if let Some(d) = arg.as_date() {
+                                format!("{}", d)
+                            } else if let Some(t) = arg.as_time() {
+                                format!("{}", t)
+                            } else if let Some(ts) = arg.as_timestamp() {
+                                format!("{}", ts)
+                            } else {
+                                Self::format_value_as_string(arg)
+                            }
+                        }
+                        'T' => {
+                            if arg.is_null() {
+                                "NULL".to_string()
+                            } else if let Some(t) = arg.as_time() {
+                                format!("{}", t)
+                            } else if let Some(ts) = arg.as_timestamp() {
+                                format!("{}", ts)
+                            } else {
+                                Self::format_value_as_string(arg)
+                            }
+                        }
                         _ => {
                             return Err(crate::error::Error::invalid_query(format!(
                                 "FORMAT: unsupported format specifier '%{}'",

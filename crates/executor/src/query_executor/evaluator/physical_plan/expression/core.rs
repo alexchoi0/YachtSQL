@@ -964,8 +964,17 @@ impl ProjectionWithExprExec {
                 | FunctionName::UuidGenerateV1
                 | FunctionName::Uuidv4
                 | FunctionName::Uuidv7
+                | FunctionName::SessionUser
+                | FunctionName::CurrentUser
         ) {
             return Self::evaluate_generator_function(func_name, args, batch, row_idx);
+        }
+
+        if matches!(name, FunctionName::Error) {
+            Self::validate_arg_count("ERROR", args, 1)?;
+            let msg = Self::evaluate_expr(&args[0], batch, row_idx)?;
+            let error_message = msg.as_str().unwrap_or("ERROR");
+            return Err(Error::invalid_query(error_message.to_string()));
         }
 
         if matches!(
