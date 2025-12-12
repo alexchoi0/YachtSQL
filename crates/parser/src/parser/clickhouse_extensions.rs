@@ -6,6 +6,16 @@ use super::helpers::ParserHelpers;
 use crate::validator::{ClickHouseSystemCommand, ClickHouseTtlOperation, CustomStatement};
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ClickHouseExplainVariant {
+    Ast,
+    Syntax,
+    Plan,
+    Pipeline,
+    Estimate,
+    Default,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ClickHouseIndexType {
     MinMax,
     Set {
@@ -1221,7 +1231,112 @@ impl ClickHouseStatementParser for CreateTableAsParser {
 
 static CREATE_TABLE_AS_PARSER: CreateTableAsParser = CreateTableAsParser;
 
+struct ExplainVariantParser;
+
+impl ClickHouseStatementParser for ExplainVariantParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWith(&["EXPLAIN"])
+    }
+
+    fn parse(&self, tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        let mut idx = 0;
+
+        if !ParserHelpers::expect_keyword(tokens, &mut idx, "EXPLAIN") {
+            return Ok(None);
+        }
+
+        let mut variant = ClickHouseExplainVariant::Default;
+        let mut options = Vec::new();
+
+        while idx < tokens.len() {
+            match tokens.get(idx) {
+                Some(Token::Word(w)) => {
+                    let upper = w.value.to_uppercase();
+                    match upper.as_str() {
+                        "AST" => {
+                            variant = ClickHouseExplainVariant::Ast;
+                            idx += 1;
+                        }
+                        "SYNTAX" => {
+                            variant = ClickHouseExplainVariant::Syntax;
+                            idx += 1;
+                        }
+                        "PLAN" => {
+                            variant = ClickHouseExplainVariant::Plan;
+                            idx += 1;
+                        }
+                        "PIPELINE" => {
+                            variant = ClickHouseExplainVariant::Pipeline;
+                            idx += 1;
+                        }
+                        "ESTIMATE" => {
+                            variant = ClickHouseExplainVariant::Estimate;
+                            idx += 1;
+                        }
+                        "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "WITH" => {
+                            break;
+                        }
+                        _ => {
+                            if let Some(Token::Eq) = tokens.get(idx + 1) {
+                                let key = w.value.clone();
+                                idx += 2;
+                                if let Some(Token::Number(n, _)) = tokens.get(idx) {
+                                    options.push((key, n.clone()));
+                                    idx += 1;
+                                } else if let Some(Token::Word(v)) = tokens.get(idx) {
+                                    options.push((key, v.value.clone()));
+                                    idx += 1;
+                                }
+                                if let Some(Token::Comma) = tokens.get(idx) {
+                                    idx += 1;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        if matches!(variant, ClickHouseExplainVariant::Default) && options.is_empty() {
+            return Ok(None);
+        }
+
+        let mut statement_tokens = Vec::new();
+        for token in tokens.iter().skip(idx) {
+            statement_tokens.push(format!("{}", token));
+        }
+        let statement = statement_tokens.join(" ").trim().to_string();
+
+        let statement = if statement.is_empty() {
+            let upper = sql.to_uppercase();
+            if let Some(select_pos) = upper.find("SELECT") {
+                sql[select_pos..].to_string()
+            } else if let Some(insert_pos) = upper.find("INSERT") {
+                sql[insert_pos..].to_string()
+            } else if let Some(with_pos) = upper.find("WITH") {
+                sql[with_pos..].to_string()
+            } else {
+                sql.to_string()
+            }
+        } else {
+            statement
+        };
+
+        Ok(Some(CustomStatement::ClickHouseExplain {
+            variant,
+            statement,
+            options,
+        }))
+    }
+}
+
+static EXPLAIN_VARIANT_PARSER: ExplainVariantParser = ExplainVariantParser;
+
 static PARSERS: &[&dyn ClickHouseStatementParser] = &[
+    &EXPLAIN_VARIANT_PARSER,
     &CREATE_TABLE_AS_PARSER,
     &CREATE_DICT_PARSER,
     &CREATE_INDEX_PARSER,

@@ -270,6 +270,12 @@ pub enum CustomStatement {
         statement: String,
     },
 
+    ClickHouseExplain {
+        variant: ClickHouseExplainVariant,
+        statement: String,
+        options: Vec<(String, String)>,
+    },
+
     CreateSnapshotTable {
         name: sqlparser::ast::ObjectName,
         source_table: sqlparser::ast::ObjectName,
@@ -330,6 +336,37 @@ pub enum CustomStatement {
     DisableRowMovement {
         table_name: sqlparser::ast::ObjectName,
     },
+
+    CreateRule {
+        name: String,
+        table_name: sqlparser::ast::ObjectName,
+        event: RuleEvent,
+        condition: Option<String>,
+        instead: bool,
+        commands: Vec<String>,
+        or_replace: bool,
+    },
+
+    DropRule {
+        name: String,
+        table_name: sqlparser::ast::ObjectName,
+        if_exists: bool,
+        cascade: bool,
+    },
+
+    AlterRuleRename {
+        name: String,
+        table_name: sqlparser::ast::ObjectName,
+        new_name: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleEvent {
+    Select,
+    Insert,
+    Update,
+    Delete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -406,7 +443,7 @@ pub enum ClickHouseSystemCommand {
     Kill,
 }
 
-use crate::parser::ClickHouseIndexType;
+use crate::parser::{ClickHouseExplainVariant, ClickHouseIndexType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DictionaryColumnDef {
@@ -750,6 +787,22 @@ impl StatementValidator {
             }
             CustomStatement::DisableRowMovement { .. } => {
                 self.require_postgresql("DISABLE ROW MOVEMENT")?;
+                Ok(())
+            }
+            CustomStatement::CreateRule { .. } => {
+                self.require_postgresql("CREATE RULE")?;
+                Ok(())
+            }
+            CustomStatement::DropRule { .. } => {
+                self.require_postgresql("DROP RULE")?;
+                Ok(())
+            }
+            CustomStatement::AlterRuleRename { .. } => {
+                self.require_postgresql("ALTER RULE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseExplain { .. } => {
+                self.require_clickhouse("EXPLAIN variants")?;
                 Ok(())
             }
         }

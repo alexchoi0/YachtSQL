@@ -447,6 +447,19 @@ impl LogicalPlanBuilder {
             .iter()
             .any(|(expr, _)| self.has_aggregate(expr));
 
+        let mut group_by_exprs = group_by_exprs;
+
+        if has_aggregates && group_by_exprs.is_empty() {
+            for (expr, _) in &projection_exprs {
+                if !self.has_aggregate(expr)
+                    && !matches!(expr, Expr::ScalarSubquery { .. })
+                    && !self.has_window_function(expr)
+                {
+                    self.collect_non_aggregate_columns(expr, &mut group_by_exprs);
+                }
+            }
+        }
+
         if has_aggregates || !group_by_exprs.is_empty() {
             let mut all_aggregates: Vec<Expr> = Vec::new();
             for (expr, _alias) in &projection_exprs {
@@ -1276,6 +1289,48 @@ impl LogicalPlanBuilder {
                 expr, low, high, ..
             } => self.has_aggregate(expr) || self.has_aggregate(low) || self.has_aggregate(high),
             _ => false,
+        }
+    }
+
+    fn collect_non_aggregate_columns(&self, expr: &Expr, columns: &mut Vec<Expr>) {
+        match expr {
+            Expr::Column { .. } => {
+                if !columns.contains(expr) {
+                    columns.push(expr.clone());
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.collect_non_aggregate_columns(left, columns);
+                self.collect_non_aggregate_columns(right, columns);
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                self.collect_non_aggregate_columns(inner, columns);
+            }
+            Expr::Function { args, .. } if !self.is_aggregate(expr) => {
+                for arg in args {
+                    self.collect_non_aggregate_columns(arg, columns);
+                }
+            }
+            Expr::Cast { expr: inner, .. } | Expr::TryCast { expr: inner, .. } => {
+                self.collect_non_aggregate_columns(inner, columns);
+            }
+            Expr::Case {
+                operand,
+                when_then,
+                else_expr,
+            } => {
+                if let Some(op) = operand {
+                    self.collect_non_aggregate_columns(op, columns);
+                }
+                for (when_expr, then_expr) in when_then {
+                    self.collect_non_aggregate_columns(when_expr, columns);
+                    self.collect_non_aggregate_columns(then_expr, columns);
+                }
+                if let Some(else_e) = else_expr {
+                    self.collect_non_aggregate_columns(else_e, columns);
+                }
+            }
+            _ => {}
         }
     }
 

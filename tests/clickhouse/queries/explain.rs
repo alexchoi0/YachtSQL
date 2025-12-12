@@ -13,7 +13,6 @@ fn test_explain_basic() {
     assert!(result.num_rows() > 0);
 }
 
-#[ignore = "Parser doesn't support EXPLAIN AST syntax"]
 #[test]
 fn test_explain_ast() {
     let mut executor = create_executor();
@@ -27,7 +26,6 @@ fn test_explain_ast() {
     assert!(result.num_rows() > 0);
 }
 
-#[ignore = "Parser doesn't support EXPLAIN SYNTAX"]
 #[test]
 fn test_explain_syntax() {
     let mut executor = create_executor();
@@ -35,7 +33,6 @@ fn test_explain_syntax() {
     assert!(result.num_rows() > 0);
 }
 
-#[ignore = "Parser doesn't support EXPLAIN PLAN syntax"]
 #[test]
 fn test_explain_plan() {
     let mut executor = create_executor();
@@ -49,7 +46,6 @@ fn test_explain_plan() {
     assert!(result.num_rows() > 0);
 }
 
-#[ignore = "Parser doesn't support EXPLAIN PIPELINE syntax"]
 #[test]
 fn test_explain_pipeline() {
     let mut executor = create_executor();
@@ -79,7 +75,6 @@ fn test_explain_estimate() {
     assert!(result.num_rows() > 0);
 }
 
-#[ignore = "Parser doesn't support EXPLAIN indexes = 1 syntax"]
 #[test]
 fn test_explain_indexes() {
     let mut executor = create_executor();

@@ -6,8 +6,8 @@ use crate::pattern_matcher::{PatternMatcher, TokenPattern};
 use crate::validator::{
     AlterDomainAction, AlterSchemaAction, CompositeTypeField, CustomStatement,
     DiagnosticsAssignment, DiagnosticsItem, DiagnosticsScope, DomainConstraint, ExportFormat,
-    LockMode, PostgresPartitionBoundDef, PostgresPartitionStrategyDef, SetConstraintsMode,
-    SetConstraintsTarget,
+    LockMode, PostgresPartitionBoundDef, PostgresPartitionStrategyDef, RuleEvent,
+    SetConstraintsMode, SetConstraintsTarget,
 };
 
 pub struct CustomStatementParser;
@@ -2441,5 +2441,239 @@ impl CustomStatementParser {
         let table_name = Self::parse_object_name(table_name_part)?;
 
         Ok(Some(CustomStatement::DisableRowMovement { table_name }))
+    }
+
+    pub fn parse_create_rule(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        let or_replace = upper.starts_with("CREATE OR REPLACE RULE");
+        let rule_idx = if or_replace {
+            if !upper.starts_with("CREATE OR REPLACE RULE") {
+                return Ok(None);
+            }
+            22
+        } else if upper.starts_with("CREATE RULE") {
+            11
+        } else {
+            return Ok(None);
+        };
+
+        let after_rule = trimmed[rule_idx..].trim_start();
+
+        let as_idx = after_rule
+            .to_uppercase()
+            .find(" AS ")
+            .ok_or_else(|| Error::parse_error("CREATE RULE requires AS clause".to_string()))?;
+
+        let rule_name = after_rule[..as_idx].trim().trim_matches('"').to_string();
+        let after_as = after_rule[as_idx + 4..].trim_start();
+        let after_as_upper = after_as.to_uppercase();
+
+        if !after_as_upper.starts_with("ON ") {
+            return Err(Error::parse_error(
+                "CREATE RULE requires ON event clause".to_string(),
+            ));
+        }
+
+        let after_on = after_as[3..].trim_start();
+        let after_on_upper = after_on.to_uppercase();
+
+        let (event, event_len) = if after_on_upper.starts_with("SELECT ") {
+            (RuleEvent::Select, 6)
+        } else if after_on_upper.starts_with("INSERT ") {
+            (RuleEvent::Insert, 6)
+        } else if after_on_upper.starts_with("UPDATE ") {
+            (RuleEvent::Update, 6)
+        } else if after_on_upper.starts_with("DELETE ") {
+            (RuleEvent::Delete, 6)
+        } else {
+            return Err(Error::parse_error(
+                "CREATE RULE requires SELECT, INSERT, UPDATE, or DELETE event".to_string(),
+            ));
+        };
+
+        let after_event = after_on[event_len..].trim_start();
+        let after_event_upper = after_event.to_uppercase();
+
+        if !after_event_upper.starts_with("TO ") {
+            return Err(Error::parse_error(
+                "CREATE RULE requires TO table clause".to_string(),
+            ));
+        }
+
+        let after_to = after_event[3..].trim_start();
+
+        let (table_name_str, remaining) = Self::extract_table_name_from_rule(after_to)?;
+        let table_name = Self::parse_object_name(&table_name_str)?;
+
+        let remaining_upper = remaining.to_uppercase();
+        let (condition, after_condition) = if remaining_upper.trim_start().starts_with("WHERE ") {
+            let where_start = remaining.to_uppercase().find("WHERE ").unwrap();
+            let after_where = remaining[where_start + 6..].trim_start();
+            let do_idx = after_where
+                .to_uppercase()
+                .find(" DO ")
+                .ok_or_else(|| Error::parse_error("CREATE RULE requires DO clause".to_string()))?;
+            let cond = after_where[..do_idx].trim().to_string();
+            (Some(cond), &after_where[do_idx..])
+        } else {
+            (None, remaining.trim_start())
+        };
+
+        let after_condition_upper = after_condition.to_uppercase();
+        let do_idx = after_condition_upper
+            .find("DO ")
+            .ok_or_else(|| Error::parse_error("CREATE RULE requires DO clause".to_string()))?;
+
+        let after_do = after_condition[do_idx + 3..].trim_start();
+        let after_do_upper = after_do.to_uppercase();
+
+        let (instead, command_part) = if after_do_upper.starts_with("INSTEAD ") {
+            (true, after_do[8..].trim_start())
+        } else if after_do_upper.starts_with("ALSO ") {
+            (false, after_do[5..].trim_start())
+        } else {
+            (false, after_do)
+        };
+
+        let commands = Self::parse_rule_commands(command_part)?;
+
+        Ok(Some(CustomStatement::CreateRule {
+            name: rule_name,
+            table_name,
+            event,
+            condition,
+            instead,
+            commands,
+            or_replace,
+        }))
+    }
+
+    fn extract_table_name_from_rule(s: &str) -> Result<(String, &str)> {
+        let upper = s.to_uppercase();
+
+        let keywords = ["WHERE ", " DO "];
+        let mut end_idx = s.len();
+
+        for kw in keywords {
+            if let Some(idx) = upper.find(kw) {
+                end_idx = end_idx.min(idx);
+            }
+        }
+
+        let name_str = s[..end_idx].trim();
+        Ok((name_str.to_string(), &s[end_idx..]))
+    }
+
+    fn parse_rule_commands(s: &str) -> Result<Vec<String>> {
+        let trimmed = s.trim().trim_end_matches(';').trim();
+
+        if trimmed.to_uppercase() == "NOTHING" {
+            return Ok(vec!["NOTHING".to_string()]);
+        }
+
+        if trimmed.starts_with('(') && trimmed.ends_with(')') {
+            let inner = &trimmed[1..trimmed.len() - 1];
+            let commands: Vec<String> = inner
+                .split(';')
+                .map(|c| c.trim().to_string())
+                .filter(|c| !c.is_empty())
+                .collect();
+            return Ok(commands);
+        }
+
+        Ok(vec![trimmed.to_string()])
+    }
+
+    pub fn parse_drop_rule(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("DROP RULE") {
+            return Ok(None);
+        }
+
+        let after_drop_rule = trimmed[9..].trim_start();
+        let after_upper = after_drop_rule.to_uppercase();
+
+        let if_exists = after_upper.starts_with("IF EXISTS");
+        let after_if_exists = if if_exists {
+            after_drop_rule[9..].trim_start()
+        } else {
+            after_drop_rule
+        };
+
+        let on_idx = after_if_exists
+            .to_uppercase()
+            .find(" ON ")
+            .ok_or_else(|| Error::parse_error("DROP RULE requires ON table clause".to_string()))?;
+
+        let rule_name = after_if_exists[..on_idx]
+            .trim()
+            .trim_matches('"')
+            .to_string();
+        let after_on = after_if_exists[on_idx + 4..].trim_start();
+
+        let cascade_idx = after_on.to_uppercase().find(" CASCADE");
+        let restrict_idx = after_on.to_uppercase().find(" RESTRICT");
+
+        let table_end = cascade_idx
+            .or(restrict_idx)
+            .unwrap_or_else(|| after_on.find(';').unwrap_or(after_on.len()));
+
+        let table_name_str = after_on[..table_end].trim();
+        let table_name = Self::parse_object_name(table_name_str)?;
+
+        let cascade = cascade_idx.is_some();
+
+        Ok(Some(CustomStatement::DropRule {
+            name: rule_name,
+            table_name,
+            if_exists,
+            cascade,
+        }))
+    }
+
+    pub fn parse_alter_rule(sql: &str) -> Result<Option<CustomStatement>> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if !upper.starts_with("ALTER RULE") {
+            return Ok(None);
+        }
+
+        let after_alter_rule = trimmed[10..].trim_start();
+
+        let on_idx = after_alter_rule
+            .to_uppercase()
+            .find(" ON ")
+            .ok_or_else(|| Error::parse_error("ALTER RULE requires ON table clause".to_string()))?;
+
+        let rule_name = after_alter_rule[..on_idx]
+            .trim()
+            .trim_matches('"')
+            .to_string();
+        let after_on = after_alter_rule[on_idx + 4..].trim_start();
+
+        let rename_idx = after_on.to_uppercase().find(" RENAME TO ").ok_or_else(|| {
+            Error::parse_error("ALTER RULE requires RENAME TO clause".to_string())
+        })?;
+
+        let table_name_str = after_on[..rename_idx].trim();
+        let table_name = Self::parse_object_name(table_name_str)?;
+
+        let new_name = after_on[rename_idx + 11..]
+            .trim()
+            .trim_end_matches(';')
+            .trim()
+            .trim_matches('"')
+            .to_string();
+
+        Ok(Some(CustomStatement::AlterRuleRename {
+            name: rule_name,
+            table_name,
+            new_name,
+        }))
     }
 }

@@ -149,7 +149,6 @@ fn test_create_rule_on_view_delete() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_drop_rule() {
     let mut executor = create_executor();
     executor
@@ -175,7 +174,6 @@ fn test_drop_rule_if_exists() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_drop_rule_cascade() {
     let mut executor = create_executor();
     executor
@@ -190,7 +188,6 @@ fn test_drop_rule_cascade() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_alter_rule_rename() {
     let mut executor = create_executor();
     executor
@@ -206,7 +203,6 @@ fn test_alter_rule_rename() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_create_or_replace_rule() {
     let mut executor = create_executor();
     executor
@@ -258,7 +254,6 @@ fn test_rule_using_old_new() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_rule_priority() {
     let mut executor = create_executor();
     executor
