@@ -1281,7 +1281,7 @@ impl QueryExecutor {
         Ok(())
     }
 
-    fn contains_subquery(expr: &sqlparser::ast::Expr) -> bool {
+    pub(crate) fn contains_subquery(expr: &sqlparser::ast::Expr) -> bool {
         use sqlparser::ast::Expr;
 
         match expr {

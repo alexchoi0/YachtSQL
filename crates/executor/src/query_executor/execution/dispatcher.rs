@@ -204,6 +204,10 @@ pub enum ScriptingOperation {
     ExecuteImmediate {
         stmt: Box<SqlStatement>,
     },
+    Assert {
+        condition: Box<Expr>,
+        message: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -755,6 +759,16 @@ impl Dispatcher {
                         operation: DdlOperation::CommentOn,
                         stmt: Box::new(ast.clone()),
                     }),
+
+                    SqlStatement::Assert { condition, message } => {
+                        let message_str = message.as_ref().map(|m| m.to_string());
+                        Ok(StatementJob::Scripting {
+                            operation: ScriptingOperation::Assert {
+                                condition: Box::new(condition.clone()),
+                                message: message_str,
+                            },
+                        })
+                    }
 
                     _ => Err(Error::unsupported_feature(format!(
                         "Statement type {:?} is not yet supported",

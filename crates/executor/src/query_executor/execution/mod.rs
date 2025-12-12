@@ -2932,7 +2932,16 @@ impl QueryExecutor {
                 Self::empty_result()
             }
             ScriptingOperation::SetVariable { name, value } => {
-                let evaluated = self.evaluate_constant_expr(&value)?;
+                let evaluated = self.evaluate_constant_expr(&value).or_else(|_| {
+                    let select_sql = format!("SELECT {}", value);
+                    let result = self.execute_sql(&select_sql)?;
+                    if result.num_rows() != 1 || result.num_columns() != 1 {
+                        return Err(Error::invalid_query(
+                            "SET expression must return exactly one value".to_string(),
+                        ));
+                    }
+                    result.column(0).unwrap().get(0)
+                })?;
                 self.session.set_variable(&name, evaluated)?;
                 Self::empty_result()
             }
@@ -2952,7 +2961,44 @@ impl QueryExecutor {
                 Err(Error::invalid_query("RETURN".to_string()))
             }
             ScriptingOperation::ExecuteImmediate { stmt } => self.execute_execute_immediate(&stmt),
+            ScriptingOperation::Assert { condition, message } => {
+                self.execute_assert(&condition, message.as_deref())
+            }
         }
+    }
+
+    fn execute_assert(
+        &mut self,
+        condition: &sqlparser::ast::Expr,
+        message: Option<&str>,
+    ) -> Result<Table> {
+        let result = self.evaluate_assert_condition(condition)?;
+        let cond_bool = result.as_bool().ok_or_else(|| {
+            Error::invalid_query("ASSERT condition must evaluate to boolean".to_string())
+        })?;
+
+        if cond_bool {
+            Self::empty_result()
+        } else {
+            let error_msg = match message {
+                Some(msg) => format!("Assertion failed: {}", msg),
+                None => "Assertion failed".to_string(),
+            };
+            Err(Error::assertion_failed(error_msg))
+        }
+    }
+
+    fn evaluate_assert_condition(&mut self, condition: &sqlparser::ast::Expr) -> Result<Value> {
+        self.evaluate_constant_expr(condition).or_else(|_| {
+            let select_sql = format!("SELECT {}", condition);
+            let result = self.execute_sql(&select_sql)?;
+            if result.num_rows() != 1 || result.num_columns() != 1 {
+                return Err(Error::invalid_query(
+                    "ASSERT condition must return exactly one value".to_string(),
+                ));
+            }
+            result.column(0).unwrap().get(0)
+        })
     }
 
     fn execute_if_statement(&mut self, stmt: &SqlStatement) -> Result<Table> {

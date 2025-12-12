@@ -206,6 +206,9 @@ pub enum Error {
     #[error("Duplicate cursor: {0}")]
     DuplicateCursor(String),
 
+    #[error("{0}")]
+    AssertionFailed(String),
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
@@ -384,6 +387,10 @@ impl Error {
         Error::DuplicateCursor(msg.to_string())
     }
 
+    pub fn assertion_failed(msg: impl fmt::Display) -> Self {
+        Error::AssertionFailed(msg.to_string())
+    }
+
     pub fn sqlstate(&self) -> &'static str {
         match self {
             Error::CardinalityViolation { .. }
@@ -443,6 +450,8 @@ impl Error {
             | Error::JobNotFound(_)
             | Error::InvalidOperation(_)
             | Error::ExecutionError(_) => diagnostics::SYSTEM_ERROR.as_str(),
+
+            Error::AssertionFailed(_) => diagnostics::RAISE_EXCEPTION.as_str(),
 
             Error::InternalError(_) | Error::Other(_) => diagnostics::INTERNAL_ERROR.as_str(),
         }
