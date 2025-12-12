@@ -898,6 +898,14 @@ impl LogicalToPhysicalPlanner {
         }
     }
 
+    fn is_system_column(dt: &yachtsql_core::types::DataType) -> bool {
+        use yachtsql_core::types::DataType;
+        matches!(
+            dt,
+            DataType::Tid | DataType::Xid | DataType::Cid | DataType::Oid
+        )
+    }
+
     fn expand_columns_in_expressions(
         expressions: &[(Expr, Option<String>)],
         schema: &yachtsql_storage::Schema,
@@ -957,6 +965,32 @@ impl LogicalToPhysicalPlanner {
                             }
                         }
                         _ => result.push((expr.clone(), alias.clone())),
+                    }
+                }
+                Expr::Wildcard => {
+                    for field in schema.fields() {
+                        if !Self::is_system_column(&field.data_type) {
+                            let column_expr = Expr::Column {
+                                name: field.name.clone(),
+                                table: field.source_table.clone(),
+                            };
+                            result.push((column_expr, None));
+                        }
+                    }
+                }
+                Expr::QualifiedWildcard { qualifier } => {
+                    for field in schema.fields() {
+                        if !Self::is_system_column(&field.data_type) {
+                            let should_include = field.source_table.as_ref() == Some(qualifier)
+                                || field.source_table.is_none();
+                            if should_include {
+                                let column_expr = Expr::Column {
+                                    name: field.name.clone(),
+                                    table: field.source_table.clone(),
+                                };
+                                result.push((column_expr, None));
+                            }
+                        }
                     }
                 }
                 _ => result.push((expr.clone(), alias.clone())),
