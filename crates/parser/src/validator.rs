@@ -270,6 +270,12 @@ pub enum CustomStatement {
         statement: String,
     },
 
+    ClickHouseExplain {
+        variant: ClickHouseExplainVariant,
+        statement: String,
+        options: Vec<(String, String)>,
+    },
+
     CreateSnapshotTable {
         name: sqlparser::ast::ObjectName,
         source_table: sqlparser::ast::ObjectName,
@@ -437,7 +443,7 @@ pub enum ClickHouseSystemCommand {
     Kill,
 }
 
-use crate::parser::ClickHouseIndexType;
+use crate::parser::{ClickHouseExplainVariant, ClickHouseIndexType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DictionaryColumnDef {
@@ -793,6 +799,10 @@ impl StatementValidator {
             }
             CustomStatement::AlterRuleRename { .. } => {
                 self.require_postgresql("ALTER RULE")?;
+                Ok(())
+            }
+            CustomStatement::ClickHouseExplain { .. } => {
+                self.require_clickhouse("EXPLAIN variants")?;
                 Ok(())
             }
         }

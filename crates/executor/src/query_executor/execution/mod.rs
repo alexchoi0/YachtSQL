@@ -342,6 +342,7 @@ impl QueryExecutor {
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> Result<Table> {
+        use yachtsql_parser::parser::ClickHouseExplainVariant;
         use yachtsql_parser::validator::{CustomStatement, ExportFormat};
         use yachtsql_parser::{Parser, Statement};
 
@@ -502,6 +503,13 @@ impl QueryExecutor {
                     return self.execute_create_table_as(new_table, source_table, engine_clause);
                 }
                 CustomStatement::ClickHouseAlterTable { .. } => Self::empty_result(),
+                CustomStatement::ClickHouseExplain {
+                    variant,
+                    statement,
+                    options,
+                } => {
+                    return self.execute_clickhouse_explain(variant, statement, options);
+                }
                 CustomStatement::Loop { label, body } => {
                     self.execute_loop_custom(label.clone(), body)
                 }
@@ -2349,6 +2357,154 @@ impl QueryExecutor {
                 )]);
                 let rows = vec![vec![Value::string(format!("Statement:\n  {}", stmt))]];
                 Table::from_values(schema, rows)
+            }
+        }
+    }
+
+    fn execute_clickhouse_explain(
+        &mut self,
+        variant: &yachtsql_parser::parser::ClickHouseExplainVariant,
+        statement: &str,
+        options: &[(String, String)],
+    ) -> Result<Table> {
+        use yachtsql_parser::parser::ClickHouseExplainVariant;
+
+        let parser = Parser::with_dialect(self.dialect());
+        let parsed_statements = parser.parse_sql(statement)?;
+
+        let inner_stmt = parsed_statements
+            .first()
+            .ok_or_else(|| Error::invalid_query("Empty statement in EXPLAIN"))?;
+
+        let inner_sql_stmt = match inner_stmt {
+            Statement::Standard(std_stmt) => Box::new(std_stmt.ast().clone()),
+            _ => {
+                return Err(Error::invalid_query(
+                    "EXPLAIN variants require a standard SQL statement",
+                ));
+            }
+        };
+
+        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+            "explain".to_string(),
+            DataType::String,
+        )]);
+
+        match variant {
+            ClickHouseExplainVariant::Ast => {
+                let output = format!("{:#?}", inner_sql_stmt);
+                let rows = output
+                    .lines()
+                    .map(|line| vec![Value::string(line.to_string())])
+                    .collect();
+                Table::from_values(schema, rows)
+            }
+            ClickHouseExplainVariant::Syntax => {
+                let optimized_sql = inner_sql_stmt.to_string();
+                let rows = vec![vec![Value::string(optimized_sql)]];
+                Table::from_values(schema, rows)
+            }
+            ClickHouseExplainVariant::Plan => {
+                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
+                    let session_udfs = self.session.udfs_for_parser();
+                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
+                        .with_storage(Rc::clone(&self.storage))
+                        .with_dialect(self.dialect())
+                        .with_udfs(session_udfs);
+                    let logical_plan = plan_builder.query_to_plan(query)?;
+                    let optimized = self.optimizer.optimize(logical_plan)?;
+                    let query_plan = optimized.root().clone();
+
+                    let explain_options = crate::explain::ExplainOptions {
+                        analyze: false,
+                        verbose: false,
+                        profiler_metrics: None,
+                    };
+                    crate::explain::explain_query(&query_plan, explain_options)
+                } else {
+                    let rows = vec![vec![Value::string(format!("Plan for: {}", inner_sql_stmt))]];
+                    Table::from_values(schema, rows)
+                }
+            }
+            ClickHouseExplainVariant::Pipeline => {
+                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
+                    let session_udfs = self.session.udfs_for_parser();
+                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
+                        .with_storage(Rc::clone(&self.storage))
+                        .with_dialect(self.dialect())
+                        .with_udfs(session_udfs);
+                    let logical_plan = plan_builder.query_to_plan(query)?;
+                    let optimized = self.optimizer.optimize(logical_plan)?;
+                    let query_plan = optimized.root().clone();
+
+                    let explain_options = crate::explain::ExplainOptions {
+                        analyze: false,
+                        verbose: true,
+                        profiler_metrics: None,
+                    };
+                    crate::explain::explain_query(&query_plan, explain_options)
+                } else {
+                    let rows = vec![vec![Value::string(format!(
+                        "Pipeline for: {}",
+                        inner_sql_stmt
+                    ))]];
+                    Table::from_values(schema, rows)
+                }
+            }
+            ClickHouseExplainVariant::Estimate => {
+                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
+                    let session_udfs = self.session.udfs_for_parser();
+                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
+                        .with_storage(Rc::clone(&self.storage))
+                        .with_dialect(self.dialect())
+                        .with_udfs(session_udfs);
+                    let logical_plan = plan_builder.query_to_plan(query)?;
+                    let optimized = self.optimizer.optimize(logical_plan)?;
+                    let query_plan = optimized.root().clone();
+
+                    let explain_options = crate::explain::ExplainOptions {
+                        analyze: false,
+                        verbose: false,
+                        profiler_metrics: None,
+                    };
+                    crate::explain::explain_query(&query_plan, explain_options)
+                } else {
+                    let rows = vec![vec![Value::string(format!(
+                        "Estimate for: {}",
+                        inner_sql_stmt
+                    ))]];
+                    Table::from_values(schema, rows)
+                }
+            }
+            ClickHouseExplainVariant::Default => {
+                let show_indexes = options.iter().any(|(k, v)| {
+                    k.eq_ignore_ascii_case("indexes")
+                        && (v == "1" || v.eq_ignore_ascii_case("true"))
+                });
+
+                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
+                    let session_udfs = self.session.udfs_for_parser();
+                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
+                        .with_storage(Rc::clone(&self.storage))
+                        .with_dialect(self.dialect())
+                        .with_udfs(session_udfs);
+                    let logical_plan = plan_builder.query_to_plan(query)?;
+                    let optimized = self.optimizer.optimize(logical_plan)?;
+                    let query_plan = optimized.root().clone();
+
+                    let explain_options = crate::explain::ExplainOptions {
+                        analyze: false,
+                        verbose: show_indexes,
+                        profiler_metrics: None,
+                    };
+                    crate::explain::explain_query(&query_plan, explain_options)
+                } else {
+                    let rows = vec![vec![Value::string(format!(
+                        "Statement: {}",
+                        inner_sql_stmt
+                    ))]];
+                    Table::from_values(schema, rows)
+                }
             }
         }
     }

@@ -3,8 +3,8 @@ mod custom_statements;
 mod helpers;
 mod types;
 
-pub use clickhouse_extensions::ClickHouseIndexType;
 use clickhouse_extensions::ClickHouseParser;
+pub use clickhouse_extensions::{ClickHouseExplainVariant, ClickHouseIndexType};
 pub use custom_statements::CustomStatementParser;
 use debug_print::debug_eprintln;
 pub use helpers::ParserHelpers;
