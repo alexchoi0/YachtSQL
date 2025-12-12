@@ -33,6 +33,7 @@ lazy_static! {
     static ref RE_NO_KEY_UPDATE: Regex = Regex::new(r"(?i)\bFOR\s+NO\s+KEY\s+UPDATE\b").unwrap();
     static ref RE_KEY_SHARE: Regex = Regex::new(r"(?i)\bFOR\s+KEY\s+SHARE\b").unwrap();
     static ref RE_SKIP_LOCKED: Regex = Regex::new(r"(?i)\bSKIP\s+LOCKED\b").unwrap();
+    static ref RE_OF_MULTIPLE_TABLES: Regex = Regex::new(r"(?i)\bOF\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*").unwrap();
     static ref RE_FK_MATCH: Regex = Regex::new(r"(?i)\bMATCH\s+(FULL|SIMPLE|PARTIAL)\b").unwrap();
     static ref RE_NO_INHERIT: Regex = Regex::new(r"(?i)\bNO\s+INHERIT\b").unwrap();
     static ref RE_VIEW_TABLE_FUNC: Regex =
@@ -1368,7 +1369,10 @@ impl Parser {
     fn rewrite_pg_lock_clauses(sql: &str) -> String {
         let result = RE_NO_KEY_UPDATE.replace_all(sql, "FOR UPDATE");
         let result = RE_KEY_SHARE.replace_all(&result, "FOR SHARE");
-        RE_SKIP_LOCKED.replace_all(&result, "").to_string()
+        let result = RE_SKIP_LOCKED.replace_all(&result, "");
+        RE_OF_MULTIPLE_TABLES
+            .replace_all(&result, "OF $1")
+            .to_string()
     }
 
     fn strip_fk_match(sql: &str) -> String {

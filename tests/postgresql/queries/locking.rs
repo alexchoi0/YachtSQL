@@ -32,7 +32,6 @@ fn test_select_for_share() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_select_for_no_key_update() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -44,7 +43,6 @@ fn test_select_for_no_key_update() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_select_for_key_share() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -163,7 +161,6 @@ fn test_select_for_share_with_join() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_select_for_update_of_specific_table() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -186,7 +183,6 @@ fn test_select_for_update_of_specific_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_select_for_share_of_multiple_tables() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
