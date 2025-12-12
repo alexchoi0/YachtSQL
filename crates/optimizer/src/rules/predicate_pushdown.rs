@@ -124,7 +124,9 @@ impl PredicatePushdown {
                 refs.extend(Self::get_column_references(high));
                 refs
             }
-            Expr::Wildcard | Expr::QualifiedWildcard { .. } => vec![],
+            Expr::Wildcard | Expr::QualifiedWildcard { .. } | Expr::ExpressionWildcard { .. } => {
+                vec![]
+            }
             Expr::Tuple(exprs) => exprs.iter().flat_map(Self::get_column_references).collect(),
             Expr::Cast { expr, .. } => Self::get_column_references(expr),
             Expr::TryCast { expr, .. } => Self::get_column_references(expr),

@@ -1346,6 +1346,7 @@ impl QueryExecutor {
             let udf_def = UdfDefinition {
                 parameters,
                 body: body_expr,
+                return_type: None,
             };
             self.session.register_udf(func_name, udf_def);
         }
@@ -2183,20 +2184,21 @@ impl QueryExecutor {
         Self::empty_result()
     }
 
-    fn execute_procedure(&mut self, name: &str, args: &[sqlparser::ast::Value]) -> Result<Table> {
+    fn execute_procedure(&mut self, name: &str, args: &[sqlparser::ast::Expr]) -> Result<Table> {
+        use sqlparser::ast::Expr as SqlExpr;
+
         match name.to_lowercase().as_str() {
             "enable_feature" => {
-                if args.is_empty() {
-                    return Err(Error::invalid_query(
-                        "enable_feature() requires at least one argument".to_string(),
-                    ));
-                }
-
                 let features: Vec<String> = args
                     .iter()
-                    .filter_map(|v| match v {
-                        sqlparser::ast::Value::SingleQuotedString(s)
-                        | sqlparser::ast::Value::DoubleQuotedString(s) => Some(s.clone()),
+                    .filter_map(|e| match e {
+                        SqlExpr::Value(sqlparser::ast::ValueWithSpan { value, .. }) => {
+                            match value {
+                                sqlparser::ast::Value::SingleQuotedString(s)
+                                | sqlparser::ast::Value::DoubleQuotedString(s) => Some(s.clone()),
+                                _ => None,
+                            }
+                        }
                         _ => None,
                     })
                     .collect();
@@ -2211,17 +2213,16 @@ impl QueryExecutor {
             }
 
             "disable_feature" => {
-                if args.is_empty() {
-                    return Err(Error::invalid_query(
-                        "disable_feature() requires at least one argument".to_string(),
-                    ));
-                }
-
                 let features: Vec<String> = args
                     .iter()
-                    .filter_map(|v| match v {
-                        sqlparser::ast::Value::SingleQuotedString(s)
-                        | sqlparser::ast::Value::DoubleQuotedString(s) => Some(s.clone()),
+                    .filter_map(|e| match e {
+                        SqlExpr::Value(sqlparser::ast::ValueWithSpan { value, .. }) => {
+                            match value {
+                                sqlparser::ast::Value::SingleQuotedString(s)
+                                | sqlparser::ast::Value::DoubleQuotedString(s) => Some(s.clone()),
+                                _ => None,
+                            }
+                        }
                         _ => None,
                     })
                     .collect();
@@ -2238,11 +2239,51 @@ impl QueryExecutor {
             _ => {
                 if let Some(proc_def) = self.session.get_procedure(name).cloned() {
                     debug_eprintln!("[procedure] Executing user-defined procedure: {}", name);
+
+                    let mut out_var_bindings: Vec<(String, String)> = Vec::new();
+
+                    for (i, param) in proc_def.parameters.iter().enumerate() {
+                        let value = if i < args.len() {
+                            self.expr_to_value(&args[i])?
+                        } else {
+                            Value::null()
+                        };
+
+                        if matches!(
+                            param.mode,
+                            ProcedureParameterMode::Out | ProcedureParameterMode::InOut
+                        ) {
+                            if let Some(var_name) = self.extract_variable_name(&args[i]) {
+                                out_var_bindings.push((param.name.clone(), var_name));
+                            }
+                        }
+
+                        self.session.declare_variable(
+                            param.name.clone(),
+                            param.data_type.clone(),
+                            Some(value),
+                        );
+                    }
+
                     let mut last_result = Self::empty_result()?;
                     for stmt in &proc_def.body {
                         let sql = stmt.to_string();
+                        debug_eprintln!("[procedure] Executing SQL: {}", sql);
                         last_result = self.execute_sql(&sql)?;
                     }
+
+                    for (proc_var, caller_var) in &out_var_bindings {
+                        if let Some(var) = self.session.get_variable(proc_var) {
+                            if let Some(val) = var.value.clone() {
+                                let _ = self.session.set_variable(caller_var, val);
+                            }
+                        }
+                    }
+
+                    for param in &proc_def.parameters {
+                        self.session.drop_variable(&param.name);
+                    }
+
                     Ok(last_result)
                 } else {
                     Err(Error::unsupported_feature(format!(
@@ -2251,6 +2292,59 @@ impl QueryExecutor {
                     )))
                 }
             }
+        }
+    }
+
+    fn extract_variable_name(&self, expr: &sqlparser::ast::Expr) -> Option<String> {
+        use sqlparser::ast::Expr as SqlExpr;
+        match expr {
+            SqlExpr::Identifier(ident) if ident.value.starts_with('@') => Some(ident.value.clone()),
+            _ => None,
+        }
+    }
+
+    fn expr_to_value(&mut self, expr: &sqlparser::ast::Expr) -> Result<Value> {
+        use sqlparser::ast::Expr as SqlExpr;
+        match expr {
+            SqlExpr::Value(v) => Ok(self.sql_value_to_value(&v.value)),
+            SqlExpr::Identifier(ident) if ident.value.starts_with('@') => {
+                if let Some(var) = self.session.get_variable(&ident.value) {
+                    Ok(var.value.clone().unwrap_or_else(Value::null))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            _ => {
+                let sql = format!("SELECT {}", expr);
+                let result = self.execute_sql(&sql)?;
+                if result.num_rows() > 0 {
+                    if let Some(col) = result.column(0) {
+                        return col.get(0);
+                    }
+                }
+                Ok(Value::null())
+            }
+        }
+    }
+
+    fn sql_value_to_value(&self, v: &sqlparser::ast::Value) -> Value {
+        use sqlparser::ast::Value as SqlValue;
+        match v {
+            SqlValue::Number(n, _) => {
+                if let Ok(i) = n.parse::<i64>() {
+                    Value::int64(i)
+                } else if let Ok(f) = n.parse::<f64>() {
+                    Value::float64(f)
+                } else {
+                    Value::string(n.clone())
+                }
+            }
+            SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s) => {
+                Value::string(s.clone())
+            }
+            SqlValue::Boolean(b) => Value::bool_val(*b),
+            SqlValue::Null => Value::null(),
+            _ => Value::string(v.to_string()),
         }
     }
 

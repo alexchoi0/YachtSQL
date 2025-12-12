@@ -185,7 +185,6 @@ fn test_hstore_concat_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_hstore_delete_key_operator() {
     let mut executor = create_executor();
     executor
@@ -203,7 +202,6 @@ fn test_hstore_delete_key_operator() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_hstore_delete_keys_operator() {
     let mut executor = create_executor();
     executor
@@ -289,7 +287,6 @@ fn test_hstore_svals_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_hstore_each_function() {
     let mut executor = create_executor();
     executor
@@ -301,8 +298,10 @@ fn test_hstore_each_function() {
         executor
             .execute_sql("INSERT INTO hs_each VALUES (1, 'a=>1, b=>2')")
             .unwrap();
-        let result = executor.execute_sql("SELECT (each(data)).* FROM hs_each");
-        assert!(result.is_ok());
+        let result = executor
+            .execute_sql("SELECT * FROM each('a=>1,b=>2'::hstore)")
+            .unwrap();
+        assert_eq!(result.num_rows(), 2);
     }
 }
 
@@ -654,7 +653,6 @@ fn test_hstore_null_column() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_hstore_coalesce() {
     let mut executor = create_executor();
     executor
@@ -666,8 +664,10 @@ fn test_hstore_coalesce() {
         executor
             .execute_sql("INSERT INTO hs_coal VALUES (1, NULL)")
             .unwrap();
-        let result = executor.execute_sql("SELECT COALESCE(data, 'default=>value') FROM hs_coal");
-        assert!(result.is_ok());
+        let result = executor
+            .execute_sql("SELECT COALESCE(data, 'default=>value'::hstore) FROM hs_coal")
+            .unwrap();
+        assert_eq!(result.num_rows(), 1);
     }
 }
 
@@ -710,7 +710,6 @@ fn test_hstore_cte() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_hstore_join() {
     let mut executor = create_executor();
     executor
@@ -726,9 +725,11 @@ fn test_hstore_join() {
         executor
             .execute_sql("INSERT INTO hs_right VALUES ('A', 'Alpha'), ('B', 'Beta')")
             .unwrap();
-        let result = executor.execute_sql(
-            "SELECT l.id, r.description FROM hs_left l JOIN hs_right r ON l.data -> 'code' = r.code"
-        );
-        assert!(result.is_ok());
+        let result = executor
+            .execute_sql(
+                "SELECT l.id, r.description FROM hs_left l JOIN hs_right r ON l.data -> 'code' = r.code",
+            )
+            .unwrap();
+        assert_eq!(result.num_rows(), 2);
     }
 }

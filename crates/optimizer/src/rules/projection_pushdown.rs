@@ -95,6 +95,7 @@ impl ProjectionPushdown {
             Expr::Literal(_)
             | Expr::Wildcard
             | Expr::QualifiedWildcard { .. }
+            | Expr::ExpressionWildcard { .. }
             | Expr::Excluded { .. } => {}
             Expr::Tuple(exprs) => {
                 for e in exprs {

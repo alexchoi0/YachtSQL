@@ -176,7 +176,6 @@ fn test_function_in_select() {
 }
 
 #[test]
-#[ignore = "BigQuery procedure syntax not supported by parser"]
 fn test_create_procedure() {
     let mut executor = create_executor();
 
@@ -194,7 +193,6 @@ fn test_create_procedure() {
 }
 
 #[test]
-#[ignore = "BigQuery procedure syntax not supported by parser"]
 fn test_create_or_replace_procedure() {
     let mut executor = create_executor();
 
@@ -221,7 +219,6 @@ fn test_create_or_replace_procedure() {
 }
 
 #[test]
-#[ignore = "BigQuery procedure syntax not supported by parser"]
 fn test_drop_procedure() {
     let mut executor = create_executor();
 
@@ -249,7 +246,6 @@ fn test_drop_procedure_if_exists() {
 }
 
 #[test]
-#[ignore = "Procedures not yet implemented"]
 fn test_procedure_with_out_param() {
     let mut executor = create_executor();
 
@@ -267,7 +263,6 @@ fn test_procedure_with_out_param() {
 }
 
 #[test]
-#[ignore = "Procedures not yet implemented"]
 fn test_procedure_with_inout_param() {
     let mut executor = create_executor();
 
@@ -288,7 +283,6 @@ fn test_procedure_with_inout_param() {
 }
 
 #[test]
-#[ignore = "Struct field access on UDF result needs type inference fix"]
 fn test_function_with_struct_return() {
     let mut executor = create_executor();
 

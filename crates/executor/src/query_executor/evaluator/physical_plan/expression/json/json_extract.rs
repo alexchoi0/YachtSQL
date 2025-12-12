@@ -21,13 +21,15 @@ impl ProjectionWithExprExec {
         let right_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
 
         if left_val.as_hstore().is_some() {
-            let key = right_val
+            let path = right_val
                 .as_str()
                 .ok_or_else(|| Error::invalid_query("hstore key must be a string"))?;
-            return yachtsql_functions::hstore::hstore_get(
-                &left_val,
-                &Value::string(key.to_string()),
-            );
+            let key = if let Some(stripped) = path.strip_prefix("$.") {
+                stripped.to_string()
+            } else {
+                path.to_string()
+            };
+            return yachtsql_functions::hstore::hstore_get(&left_val, &Value::string(key));
         }
 
         let path_str = right_val

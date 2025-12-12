@@ -146,7 +146,9 @@ impl CommonSubexpressionElimination {
                     table_name
                 )
             }
-            Expr::Wildcard | Expr::QualifiedWildcard { .. } => "wildcard".to_string(),
+            Expr::Wildcard | Expr::QualifiedWildcard { .. } | Expr::ExpressionWildcard { .. } => {
+                "wildcard".to_string()
+            }
             Expr::Tuple(exprs) => {
                 let elem_sigs: Vec<_> = exprs.iter().map(Self::expr_signature).collect();
                 format!("tuple:({})", elem_sigs.join(","))
@@ -397,6 +399,9 @@ impl CommonSubexpressionElimination {
             Expr::Lambda { body, .. } => {
                 Self::count_subexpressions(body, counts);
             }
+            Expr::ExpressionWildcard { expr } => {
+                Self::count_subexpressions(expr, counts);
+            }
             Expr::Column { .. }
             | Expr::Literal(_)
             | Expr::Wildcard
@@ -418,6 +423,7 @@ impl CommonSubexpressionElimination {
             | Expr::Literal(_)
             | Expr::Wildcard
             | Expr::QualifiedWildcard { .. }
+            | Expr::ExpressionWildcard { .. }
             | Expr::Grouping { .. }
             | Expr::GroupingId { .. }
             | Expr::Excluded { .. }

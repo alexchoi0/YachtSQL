@@ -74,6 +74,7 @@ impl FunctionExecutor for QueryExecutor {
                 let udf_def = UdfDefinition {
                     parameters,
                     body: body_expr,
+                    return_type: create_func.return_type.clone(),
                 };
                 self.session.register_udf(func_name, udf_def);
             }

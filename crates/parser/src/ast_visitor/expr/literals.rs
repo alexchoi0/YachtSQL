@@ -21,10 +21,13 @@ impl LogicalPlanBuilder {
                         Self::object_name_to_string(object_name)
                     }
                     ast::SelectItemQualifiedWildcardKind::Expr(expr) => {
-                        return Err(Error::unsupported_feature(format!(
-                            "Expression-qualified wildcard not supported: {}",
-                            expr
-                        )));
+                        let inner_expr = self.sql_expr_to_expr(expr)?;
+                        return Ok((
+                            Expr::ExpressionWildcard {
+                                expr: Box::new(inner_expr),
+                            },
+                            None,
+                        ));
                     }
                 };
 

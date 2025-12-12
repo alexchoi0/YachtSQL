@@ -44,7 +44,7 @@ pub enum StatementJob {
 
     Procedure {
         name: String,
-        args: Vec<SqlValue>,
+        args: Vec<sqlparser::ast::Expr>,
     },
 
     Copy {
@@ -563,9 +563,9 @@ impl Dispatcher {
                                 .args
                                 .iter()
                                 .filter_map(|arg| match arg {
-                                    FunctionArg::Unnamed(FunctionArgExpr::Expr(
-                                        sqlparser::ast::Expr::Value(v),
-                                    )) => Some(v.value.clone()),
+                                    FunctionArg::Unnamed(FunctionArgExpr::Expr(e)) => {
+                                        Some(e.clone())
+                                    }
                                     _ => None,
                                 })
                                 .collect(),

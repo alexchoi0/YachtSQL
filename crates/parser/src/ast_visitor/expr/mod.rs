@@ -953,7 +953,39 @@ impl LogicalPlanBuilder {
         let body_expr = self.sql_expr_to_expr(&udf.body)?;
 
         let expanded = Self::substitute_udf_params(body_expr, &param_map);
+        let expanded = Self::apply_struct_return_type_field_names(expanded, &udf.return_type);
         Ok(Some(expanded))
+    }
+
+    fn apply_struct_return_type_field_names(
+        expr: Expr,
+        return_type: &Option<sqlparser::ast::DataType>,
+    ) -> Expr {
+        use yachtsql_ir::expr::StructLiteralField;
+
+        let struct_fields = match return_type {
+            Some(sqlparser::ast::DataType::Struct(fields, _)) => fields,
+            _ => return expr,
+        };
+
+        match expr {
+            Expr::StructLiteral { fields } if fields.len() == struct_fields.len() => {
+                let renamed_fields: Vec<StructLiteralField> = fields
+                    .into_iter()
+                    .zip(struct_fields.iter())
+                    .map(|(mut field, type_field)| {
+                        if let Some(ref name_ident) = type_field.field_name {
+                            field.name = name_ident.value.clone();
+                        }
+                        field
+                    })
+                    .collect();
+                Expr::StructLiteral {
+                    fields: renamed_fields,
+                }
+            }
+            _ => expr,
+        }
     }
 
     fn substitute_udf_params(expr: Expr, params: &std::collections::HashMap<String, Expr>) -> Expr {
@@ -1008,6 +1040,20 @@ impl LogicalPlanBuilder {
                     .collect(),
                 else_expr: else_expr.map(|e| Box::new(Self::substitute_udf_params(*e, params))),
             },
+            Expr::StructLiteral { fields } => {
+                use yachtsql_ir::expr::StructLiteralField;
+                let substituted_fields: Vec<StructLiteralField> = fields
+                    .into_iter()
+                    .map(|f| StructLiteralField {
+                        name: f.name,
+                        expr: Self::substitute_udf_params(f.expr, params),
+                        declared_type: f.declared_type,
+                    })
+                    .collect();
+                Expr::StructLiteral {
+                    fields: substituted_fields,
+                }
+            }
             _ => expr,
         }
     }

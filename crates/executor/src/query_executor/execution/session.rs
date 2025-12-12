@@ -25,6 +25,7 @@ pub struct SessionVariable {
 pub struct UdfDefinition {
     pub parameters: Vec<String>,
     pub body: sqlparser::ast::Expr,
+    pub return_type: Option<sqlparser::ast::DataType>,
 }
 
 #[derive(Debug, Clone)]
@@ -222,6 +223,10 @@ impl SessionState {
         self.variables.get(name)
     }
 
+    pub fn drop_variable(&mut self, name: &str) {
+        self.variables.remove(name);
+    }
+
     pub fn variables(&self) -> &HashMap<String, SessionVariable> {
         &self.variables
     }
@@ -278,6 +283,7 @@ impl SessionState {
                     yachtsql_parser::UdfDefinition {
                         parameters: v.parameters.clone(),
                         body: v.body.clone(),
+                        return_type: v.return_type.clone(),
                     },
                 )
             })

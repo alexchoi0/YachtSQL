@@ -171,6 +171,7 @@ impl SortExec {
             Expr::Literal(_) => Ok(()),
             Expr::Wildcard => Ok(()),
             Expr::QualifiedWildcard { .. } => Ok(()),
+            Expr::ExpressionWildcard { expr } => Self::validate_expr_columns(expr, schema),
             Expr::Tuple(exprs) => {
                 for e in exprs {
                     Self::validate_expr_columns(e, schema)?;

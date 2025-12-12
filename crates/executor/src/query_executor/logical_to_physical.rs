@@ -999,6 +999,34 @@ impl LogicalToPhysicalPlanner {
                         }
                     }
                 }
+                Expr::ExpressionWildcard { expr: inner_expr } => {
+                    if let Expr::Function { name, args } = inner_expr.as_ref() {
+                        let func_name = name.as_str().to_uppercase();
+                        match func_name.as_str() {
+                            "EACH" | "JSON_EACH" | "JSONB_EACH" | "JSON_EACH_TEXT"
+                            | "JSONB_EACH_TEXT" => {
+                                result.push((
+                                    Expr::Function {
+                                        name: name.clone(),
+                                        args: args.clone(),
+                                    },
+                                    None,
+                                ));
+                            }
+                            _ => {
+                                result.push((
+                                    Expr::Function {
+                                        name: name.clone(),
+                                        args: args.clone(),
+                                    },
+                                    alias.clone(),
+                                ));
+                            }
+                        }
+                    } else {
+                        result.push((expr.clone(), alias.clone()));
+                    }
+                }
                 _ => result.push((expr.clone(), alias.clone())),
             }
         }
@@ -1313,6 +1341,9 @@ impl LogicalToPhysicalPlanner {
                     FunctionName::CurrentTimestamp
                     | FunctionName::Localtimestamp
                     | FunctionName::Now => DataType::Timestamp,
+                    FunctionName::JsonExtractJson
+                    | FunctionName::JsonExtract
+                    | FunctionName::HstoreGet => DataType::String,
                     _ => panic!("infer_expr_type: unhandled function: {:?}", name),
                 }
             }

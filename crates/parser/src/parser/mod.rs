@@ -46,9 +46,16 @@ lazy_static! {
     )
     .unwrap();
     static ref RE_PROC_LANGUAGE: Regex = Regex::new(r"(?i)^\s*(LANGUAGE\s+\w+)").unwrap();
+    static ref RE_BQ_PROC_BEGIN: Regex = Regex::new(
+        r"(?is)(CREATE\s+(?:OR\s+REPLACE\s+)?PROCEDURE\s+\S+\s*\([^)]*\)\s*)\bBEGIN\b"
+    )
+    .unwrap();
     static ref RE_COLUMNS_APPLY: Regex =
         Regex::new(r"(?i)COLUMNS\s*\(\s*'([^']+)'\s*\)((?:\s+APPLY\s+(?:\([^)]+\)|\S+))+)").unwrap();
     static ref RE_APPLY_PART: Regex = Regex::new(r"(?i)\bAPPLY\s+((?:\([^)]+\)|\S+))").unwrap();
+    static ref RE_BIGQUERY_PROC_BEGIN: Regex = Regex::new(
+        r"(?is)(CREATE\s+(?:OR\s+REPLACE\s+)?PROCEDURE\s+\S+\s*\([^)]*\)\s*)(BEGIN\b)"
+    ).unwrap();
 }
 
 pub struct Parser {
@@ -216,14 +223,18 @@ impl Parser {
             sql_without_no_inherit
         };
 
-        let sql_with_rewritten_procedures = if matches!(self.dialect_type, DialectType::PostgreSQL)
-        {
-            Self::rewrite_procedure_dollar_quotes(&sql_without_exclude)
-        } else {
-            sql_without_exclude
+        let (sql_with_rewritten_procedures, is_proc_or_replace) = match self.dialect_type {
+            DialectType::PostgreSQL => (
+                Self::rewrite_procedure_dollar_quotes(&sql_without_exclude),
+                false,
+            ),
+            DialectType::BigQuery => Self::rewrite_bigquery_procedure_begin(&sql_without_exclude),
+            DialectType::ClickHouse => (sql_without_exclude, false),
         };
 
-        let rewritten_sql = self.rewrite_json_item_methods(&sql_with_rewritten_procedures)?;
+        let sql_with_bq_procedures = sql_with_rewritten_procedures;
+
+        let rewritten_sql = self.rewrite_json_item_methods(&sql_with_bq_procedures)?;
         let parse_result = SqlParser::parse_sql(&*self.dialect, &rewritten_sql);
 
         let sql_statements = match parse_result {
@@ -253,6 +264,34 @@ impl Parser {
                     )));
                 }
             }
+        };
+
+        let sql_statements = if is_proc_or_replace {
+            sql_statements
+                .into_iter()
+                .map(|stmt| {
+                    if let SqlStatement::CreateProcedure {
+                        name,
+                        or_alter: _,
+                        params,
+                        body,
+                        language,
+                    } = stmt
+                    {
+                        SqlStatement::CreateProcedure {
+                            name,
+                            or_alter: true,
+                            params,
+                            body,
+                            language,
+                        }
+                    } else {
+                        stmt
+                    }
+                })
+                .collect::<Vec<_>>()
+        } else {
+            sql_statements
         };
 
         if sql_statements.len() == merge_returnings.len() {
@@ -644,6 +683,44 @@ impl Parser {
             }
             None => format!("{} AS {}{}", prefix.trim(), body_trimmed, after_language),
         }
+    }
+
+    fn rewrite_bigquery_procedure_begin(sql: &str) -> (String, bool) {
+        let upper = sql.to_uppercase();
+        if !upper.contains("CREATE PROCEDURE") && !upper.contains("CREATE OR REPLACE PROCEDURE") {
+            return (sql.to_string(), false);
+        }
+        let is_or_replace = upper.contains("CREATE OR REPLACE PROCEDURE");
+        let sql_without_or_replace = if is_or_replace {
+            lazy_static! {
+                static ref RE_OR_REPLACE: Regex =
+                    Regex::new(r"(?i)\bCREATE\s+OR\s+REPLACE\s+PROCEDURE\b").unwrap();
+            }
+            RE_OR_REPLACE.replace(sql, "CREATE PROCEDURE").to_string()
+        } else {
+            sql.to_string()
+        };
+        if upper.contains("AS BEGIN")
+            || upper.contains("AS\nBEGIN")
+            || upper.contains("AS\r\nBEGIN")
+        {
+            return (sql_without_or_replace, is_or_replace);
+        }
+        let Some(caps) = RE_BQ_PROC_BEGIN.captures(&sql_without_or_replace) else {
+            debug_eprintln!("[parser] BQ proc rewrite: regex didn't match");
+            return (sql_without_or_replace, is_or_replace);
+        };
+        let prefix = &caps[1];
+        let prefix_end = caps.get(1).unwrap().end();
+        let remaining = &sql_without_or_replace[prefix_end..];
+        let result = format!("{} AS {}", prefix.trim(), remaining);
+        debug_eprintln!(
+            "[parser] BQ proc rewrite: {} -> {} (or_replace={})",
+            sql.replace('\n', "\\n"),
+            result.replace('\n', "\\n"),
+            is_or_replace
+        );
+        (result, is_or_replace)
     }
 
     fn strip_codec_clauses(sql: &str) -> String {

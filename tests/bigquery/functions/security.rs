@@ -20,7 +20,6 @@ fn test_generate_uuid_uniqueness() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_session_user() {
     let mut executor = create_executor();
     let result = executor
@@ -30,7 +29,6 @@ fn test_session_user() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_current_user() {
     let mut executor = create_executor();
     let result = executor
@@ -58,7 +56,6 @@ fn test_format_float() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_format_date() {
     let mut executor = create_executor();
     let result = executor
@@ -68,7 +65,6 @@ fn test_format_date() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_safe_divide() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT SAFE_DIVIDE(10, 2)").unwrap();
@@ -119,7 +115,6 @@ fn test_safe_subtract() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_safe_convert_bytes_to_string() {
     let mut executor = create_executor();
     let result = executor
@@ -129,7 +124,6 @@ fn test_safe_convert_bytes_to_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_error_function() {
     let mut executor = create_executor();
     let result = executor

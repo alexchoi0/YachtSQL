@@ -43,6 +43,7 @@ pub struct SessionVariable {
 pub struct UdfDefinition {
     pub parameters: Vec<String>,
     pub body: ast::Expr,
+    pub return_type: Option<ast::DataType>,
 }
 
 pub struct LogicalPlanBuilder {

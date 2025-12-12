@@ -137,6 +137,8 @@ pub fn bigquery_scalar_functions() -> Vec<&'static str> {
         "SHA256",
         "SHA512",
         "GENERATE_UUID",
+        "SESSION_USER",
+        "CURRENT_USER",
         "CURRENT_DATETIME",
         "CURRENT_TIME",
         "CURRENT_TIMESTAMP",
