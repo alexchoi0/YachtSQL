@@ -585,6 +585,213 @@ fn strip_inline_projections(sql: &str) -> String {
     result
 }
 
+fn strip_column_ttl(sql: &str) -> String {
+    let mut result = sql.to_string();
+    let upper = result.to_uppercase();
+
+    if !upper.contains("CREATE TABLE") {
+        return result;
+    }
+
+    let paren_start = match result.find('(') {
+        Some(pos) => pos,
+        None => return result,
+    };
+
+    let mut depth = 0;
+    let mut paren_end = paren_start;
+    for (i, c) in result[paren_start..].chars().enumerate() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    paren_end = paren_start + i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if paren_end <= paren_start {
+        return result;
+    }
+
+    let column_section = &result[paren_start..=paren_end];
+    let column_section_upper = column_section.to_uppercase();
+
+    let mut positions_to_remove: Vec<(usize, usize)> = Vec::new();
+    let mut pos = 0;
+
+    while let Some(idx) = column_section_upper[pos..].find("TTL") {
+        let abs_idx = pos + idx;
+
+        let before_ok = abs_idx == 0
+            || (!column_section.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && column_section.as_bytes()[abs_idx - 1] != b'_');
+
+        let after_idx = abs_idx + "TTL".len();
+        let after_ok = after_idx >= column_section.len()
+            || (!column_section.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && column_section.as_bytes()[after_idx] != b'_');
+
+        if before_ok && after_ok {
+            let after_keyword = &column_section[after_idx..];
+            let first_non_ws = after_keyword.trim_start().chars().next();
+            let is_column_ttl = first_non_ws
+                .map(|c| c.is_ascii_alphabetic())
+                .unwrap_or(false);
+
+            if is_column_ttl {
+                let rest = &column_section[abs_idx + 3..];
+                let mut end_pos = rest.len();
+                let mut paren_depth = 0;
+                let mut in_string = false;
+                let mut prev_char = ' ';
+
+                for (i, c) in rest.chars().enumerate() {
+                    if c == '\'' && prev_char != '\\' {
+                        in_string = !in_string;
+                    }
+                    if !in_string {
+                        match c {
+                            '(' => paren_depth += 1,
+                            ')' => {
+                                if paren_depth == 0 {
+                                    end_pos = i;
+                                    break;
+                                }
+                                paren_depth -= 1;
+                            }
+                            ',' if paren_depth == 0 => {
+                                end_pos = i;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    prev_char = c;
+                }
+
+                let ttl_start = paren_start + abs_idx;
+                let ttl_expr_end = paren_start + abs_idx + 3 + end_pos;
+
+                let start_with_ws = {
+                    let mut start = ttl_start;
+                    while start > paren_start && result.as_bytes()[start - 1].is_ascii_whitespace()
+                    {
+                        start -= 1;
+                    }
+                    start
+                };
+
+                positions_to_remove.push((start_with_ws, ttl_expr_end));
+            }
+        }
+
+        pos = abs_idx + 1;
+    }
+
+    positions_to_remove.reverse();
+    for (start, end) in positions_to_remove {
+        result = format!("{}{}", &result[..start], &result[end..]);
+    }
+
+    result
+}
+
+fn has_column_ttl(sql: &str) -> bool {
+    let upper = sql.to_uppercase();
+
+    if !upper.contains("CREATE TABLE") {
+        return false;
+    }
+
+    let paren_start = match sql.find('(') {
+        Some(pos) => pos,
+        None => return false,
+    };
+
+    let mut depth = 0;
+    let mut paren_end = paren_start;
+    for (i, c) in sql[paren_start..].chars().enumerate() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    paren_end = paren_start + i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if paren_end <= paren_start {
+        return false;
+    }
+
+    let column_section = &sql[paren_start..=paren_end];
+    let column_section_upper = column_section.to_uppercase();
+
+    let mut pos = 0;
+    while let Some(idx) = column_section_upper[pos..].find("TTL") {
+        let abs_idx = pos + idx;
+
+        let before_ok = abs_idx == 0
+            || (!column_section.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && column_section.as_bytes()[abs_idx - 1] != b'_');
+
+        let after_idx = abs_idx + "TTL".len();
+        let after_ok = after_idx >= column_section.len()
+            || (!column_section.as_bytes()[after_idx].is_ascii_alphanumeric()
+                && column_section.as_bytes()[after_idx] != b'_');
+
+        if before_ok && after_ok {
+            let after_keyword = &column_section[after_idx..];
+            let first_non_ws = after_keyword.trim_start().chars().next();
+            let is_column_ttl = first_non_ws
+                .map(|c| c.is_ascii_alphabetic())
+                .unwrap_or(false);
+
+            if is_column_ttl {
+                return true;
+            }
+        }
+
+        pos = abs_idx + 1;
+    }
+
+    false
+}
+
+struct CreateTableWithColumnTtlParser;
+
+impl ClickHouseStatementParser for CreateTableWithColumnTtlParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "TTL",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if !has_column_ttl(sql) {
+            return Ok(None);
+        }
+        let stripped = strip_column_ttl(sql);
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_COLUMN_TTL_PARSER: CreateTableWithColumnTtlParser =
+    CreateTableWithColumnTtlParser;
+
 struct CreateTableWithProjectionParser;
 
 impl ClickHouseStatementParser for CreateTableWithProjectionParser {
@@ -824,6 +1031,95 @@ impl ClickHouseStatementParser for CreateTableWithSettingsParser {
 
 static CREATE_TABLE_WITH_SETTINGS_PARSER: CreateTableWithSettingsParser =
     CreateTableWithSettingsParser;
+
+fn find_keyword_sample_by(sql: &str) -> Option<usize> {
+    let upper = sql.to_uppercase();
+    let mut pos = 0;
+    while let Some(idx) = upper[pos..].find("SAMPLE") {
+        let abs_idx = pos + idx;
+        let before_ok = abs_idx == 0
+            || (!sql.as_bytes()[abs_idx - 1].is_ascii_alphanumeric()
+                && sql.as_bytes()[abs_idx - 1] != b'_');
+        let after_idx = abs_idx + "SAMPLE".len();
+        let after = &upper[after_idx..].trim_start();
+        let after_ok = after.starts_with("BY");
+        if before_ok && after_ok {
+            return Some(abs_idx);
+        }
+        pos = abs_idx + 1;
+    }
+    None
+}
+
+fn strip_sample_by(sql: &str) -> String {
+    if let Some(sample_start) = find_keyword_sample_by(sql) {
+        let after_sample = &sql[sample_start + "SAMPLE".len()..].trim_start();
+        if let Some(rest) = after_sample.strip_prefix("BY") {
+            let rest = rest.trim_start();
+            let mut paren_count = 0;
+            let mut actual_end = 0;
+            let mut found_closing = false;
+
+            for (i, c) in rest.chars().enumerate() {
+                match c {
+                    '(' => paren_count += 1,
+                    ')' => {
+                        paren_count -= 1;
+                        if paren_count == 0 {
+                            actual_end = i + 1;
+                            found_closing = true;
+                        }
+                    }
+                    c if paren_count == 0 && c.is_ascii_alphabetic() => {
+                        actual_end = i;
+                        break;
+                    }
+                    _ => {
+                        if paren_count == 0 && !c.is_whitespace() {
+                            actual_end = i + 1;
+                        }
+                    }
+                }
+            }
+
+            if !found_closing && paren_count == 0 {
+                actual_end = rest.len();
+            }
+
+            return format!(
+                "{} {}",
+                sql[..sample_start].trim_end(),
+                rest[actual_end..].trim_start()
+            );
+        }
+    }
+    sql.to_string()
+}
+
+struct CreateTableWithSampleByParser;
+
+impl ClickHouseStatementParser for CreateTableWithSampleByParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "SAMPLE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if find_keyword_sample_by(sql).is_none() {
+            return Ok(None);
+        }
+        let stripped = strip_sample_by(sql);
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_SAMPLE_BY_PARSER: CreateTableWithSampleByParser =
+    CreateTableWithSampleByParser;
 
 fn find_engine_clause(sql: &str) -> Option<usize> {
     let upper = sql.to_uppercase();
@@ -1359,8 +1655,10 @@ static PARSERS: &[&dyn ClickHouseStatementParser] = &[
     &FUNCTION_PARSER,
     &CREATE_TABLE_WITH_COMPLEX_ENGINE_PARSER,
     &CREATE_TABLE_WITH_PARTITION_PARSER,
+    &CREATE_TABLE_WITH_SAMPLE_BY_PARSER,
     &CREATE_TABLE_WITH_SETTINGS_PARSER,
     &CREATE_TABLE_WITH_PROJECTION_PARSER,
+    &CREATE_TABLE_WITH_COLUMN_TTL_PARSER,
     &CREATE_TABLE_WITH_INLINE_INDEX_PARSER,
     &ALTER_TABLE_MODIFY_PARSER,
     &ALTER_TABLE_MATERIALIZE_INDEX_PARSER,

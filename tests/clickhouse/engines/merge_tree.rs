@@ -67,7 +67,6 @@ fn test_merge_tree_primary_key() {
     assert_table_eq!(result, [[1, "A"], [2, "B"]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_tree_sample_by() {
     let mut executor = create_executor();
@@ -134,7 +133,6 @@ fn test_merge_tree_settings() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_tree_secondary_index() {
     let mut executor = create_executor();
@@ -158,7 +156,6 @@ fn test_merge_tree_secondary_index() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_tree_minmax_index() {
     let mut executor = create_executor();
@@ -182,7 +179,6 @@ fn test_merge_tree_minmax_index() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_tree_set_index() {
     let mut executor = create_executor();
@@ -259,7 +255,6 @@ fn test_merge_tree_projection() {
     assert_table_eq!(result, [["A", 300], ["B", 300]]);
 }
 
-#[ignore = "Implement me!"]
 #[test]
 fn test_merge_tree_column_ttl() {
     let mut executor = create_executor();
