@@ -24,6 +24,8 @@ impl ProjectionWithExprExec {
             "COALESCE" => Self::eval_coalesce(args, batch, row_idx),
             "IFNULL" => Self::eval_ifnull(args, batch, row_idx),
             "NULLIF" => Self::eval_nullif(args, batch, row_idx),
+            "NULLIFZERO" => Self::eval_nullifzero(args, batch, row_idx),
+            "ZEROIFNULL" => Self::eval_zeroifnull(args, batch, row_idx),
             "IF" | "IIF" => Self::eval_if(args, batch, row_idx),
             "DECODE" => Self::eval_decode(args, batch, row_idx),
             "GREATEST" => Self::eval_greatest(args, batch, row_idx),
@@ -98,5 +100,34 @@ impl ProjectionWithExprExec {
         let is_zero = val.as_i64().map(|v| v == 0).unwrap_or(false)
             || val.as_f64().map(|v| v == 0.0).unwrap_or(false);
         Ok(Value::bool_val(is_zero))
+    }
+
+    fn eval_nullifzero(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "NULLIFZERO requires exactly 1 argument".to_string(),
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        if val.is_null() {
+            return Ok(Value::null());
+        }
+        let is_zero = val.as_i64().map(|v| v == 0).unwrap_or(false)
+            || val.as_f64().map(|v| v == 0.0).unwrap_or(false);
+        if is_zero { Ok(Value::null()) } else { Ok(val) }
+    }
+
+    fn eval_zeroifnull(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::invalid_query(
+                "ZEROIFNULL requires exactly 1 argument".to_string(),
+            ));
+        }
+        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        if val.is_null() {
+            Ok(Value::int64(0))
+        } else {
+            Ok(val)
+        }
     }
 }

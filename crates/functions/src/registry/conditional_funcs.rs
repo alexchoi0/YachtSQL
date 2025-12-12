@@ -74,6 +74,58 @@ fn register_coalesce_variants(registry: &mut FunctionRegistry) {
             },
         }),
     );
+
+    registry.register_scalar(
+        "NULLIFZERO".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "NULLIFZERO".to_string(),
+            arg_types: vec![],
+            return_type: DataType::String,
+            variadic: false,
+            evaluator: |args| {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "NULLIFZERO requires exactly 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let is_zero = match &args[0] {
+                    v if v.as_i64().is_some() => v.as_i64().unwrap() == 0,
+                    v if v.as_f64().is_some() => v.as_f64().unwrap() == 0.0,
+                    _ => false,
+                };
+                if is_zero {
+                    Ok(Value::null())
+                } else {
+                    Ok(args[0].clone())
+                }
+            },
+        }),
+    );
+
+    registry.register_scalar(
+        "ZEROIFNULL".to_string(),
+        Rc::new(ScalarFunctionImpl {
+            name: "ZEROIFNULL".to_string(),
+            arg_types: vec![],
+            return_type: DataType::Int64,
+            variadic: false,
+            evaluator: |args| {
+                if args.len() != 1 {
+                    return Err(Error::invalid_query(
+                        "ZEROIFNULL requires exactly 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    Ok(Value::int64(0))
+                } else {
+                    Ok(args[0].clone())
+                }
+            },
+        }),
+    );
 }
 
 fn register_if_variants(registry: &mut FunctionRegistry) {

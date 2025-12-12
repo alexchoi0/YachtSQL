@@ -942,6 +942,8 @@ impl ProjectionWithExprExec {
                 | FunctionName::Nvl
                 | FunctionName::Isnull
                 | FunctionName::Nullif
+                | FunctionName::Nullifzero
+                | FunctionName::Zeroifnull
                 | FunctionName::If
                 | FunctionName::Iif
                 | FunctionName::Decode

@@ -1882,7 +1882,9 @@ impl ProjectionWithExprExec {
             | FunctionName::Ifnull
             | FunctionName::Nvl
             | FunctionName::Isnull => Self::infer_coalesce_type(args, schema),
-            FunctionName::Nullif => Self::infer_first_arg_type(args, schema),
+            FunctionName::Nullif | FunctionName::Nullifzero | FunctionName::Zeroifnull => {
+                Self::infer_first_arg_type(args, schema)
+            }
 
             FunctionName::If | FunctionName::Iif => args
                 .get(1)

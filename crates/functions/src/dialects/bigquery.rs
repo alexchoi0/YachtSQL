@@ -164,6 +164,21 @@ pub fn bigquery_scalar_functions() -> Vec<&'static str> {
         "RANGE_INTERSECT",
         "GENERATE_RANGE_ARRAY",
         "SAFE_CONVERT_BYTES_TO_STRING",
+        "NULLIFZERO",
+        "ZEROIFNULL",
+        "KEYS.NEW_KEYSET",
+        "KEYS.ADD_KEY_FROM_RAW_BYTES",
+        "KEYS.KEYSET_CHAIN",
+        "KEYS.KEYSET_FROM_JSON",
+        "KEYS.KEYSET_TO_JSON",
+        "KEYS.ROTATE_KEYSET",
+        "KEYS.KEYSET_LENGTH",
+        "AEAD.ENCRYPT",
+        "AEAD.DECRYPT_STRING",
+        "AEAD.DECRYPT_BYTES",
+        "DETERMINISTIC_ENCRYPT",
+        "DETERMINISTIC_DECRYPT_STRING",
+        "DETERMINISTIC_DECRYPT_BYTES",
     ]
 }
 
