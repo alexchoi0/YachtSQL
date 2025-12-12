@@ -592,6 +592,7 @@ impl ProjectionWithExprExec {
                 | FunctionName::ReplaceRegexpAll
                 | FunctionName::ReplaceRegexpOne
                 | FunctionName::RegexpExtract
+                | FunctionName::RegexpExtractAll
                 | FunctionName::Format
                 | FunctionName::QuoteIdent
                 | FunctionName::QuoteLiteral

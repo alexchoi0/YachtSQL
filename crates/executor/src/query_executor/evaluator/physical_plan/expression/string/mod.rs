@@ -72,6 +72,7 @@ impl ProjectionWithExprExec {
                 Self::evaluate_regexp_replace(args, batch, row_idx)
             }
             "REGEXP_EXTRACT" => Self::evaluate_regexp_extract(args, batch, row_idx),
+            "REGEXP_EXTRACT_ALL" => Self::evaluate_regexp_extract_all(args, batch, row_idx),
             "POSITION" => Self::evaluate_position(args, batch, row_idx),
             "STRPOS" | "LOCATE" => Self::evaluate_strpos(args, batch, row_idx),
             "LEFT" => Self::evaluate_left(args, batch, row_idx),
@@ -361,6 +362,40 @@ impl ProjectionWithExprExec {
         } else {
             Ok(Value::null())
         }
+    }
+
+    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_regexp_extract_all(
+        args: &[Expr],
+        batch: &Table,
+        row_idx: usize,
+    ) -> Result<Value> {
+        Self::validate_arg_count("REGEXP_EXTRACT_ALL", args, 2)?;
+        let string_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let pattern_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        if string_val.is_null() || pattern_val.is_null() {
+            return Ok(Value::null());
+        }
+        let string = string_val.as_str().ok_or_else(|| Error::TypeMismatch {
+            expected: "STRING".to_string(),
+            actual: string_val.data_type().to_string(),
+        })?;
+        let pattern = pattern_val.as_str().ok_or_else(|| Error::TypeMismatch {
+            expected: "STRING".to_string(),
+            actual: pattern_val.data_type().to_string(),
+        })?;
+        let re = regex::Regex::new(pattern)
+            .map_err(|e| Error::invalid_query(format!("Invalid regex pattern: {}", e)))?;
+        let results: Vec<Value> = re
+            .captures_iter(string)
+            .map(|caps| {
+                if caps.len() > 1 {
+                    Value::string(caps.get(1).unwrap().as_str().to_string())
+                } else {
+                    Value::string(caps.get(0).unwrap().as_str().to_string())
+                }
+            })
+            .collect();
+        Ok(Value::array(results))
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_parse_ident(

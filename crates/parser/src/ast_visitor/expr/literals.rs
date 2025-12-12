@@ -189,6 +189,8 @@ impl LogicalPlanBuilder {
                 }
                 Ok(LiteralValue::String(s.clone()))
             }
+            ast::Value::SingleQuotedRawStringLiteral(s)
+            | ast::Value::DoubleQuotedRawStringLiteral(s) => Ok(LiteralValue::String(s.clone())),
             ast::Value::Boolean(b) => Ok(LiteralValue::Boolean(*b)),
             ast::Value::Null => Ok(LiteralValue::Null),
 

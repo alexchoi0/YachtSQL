@@ -1630,7 +1630,8 @@ impl ProjectionWithExprExec {
             | FunctionName::AlphaTokens
             | FunctionName::ExtractAll
             | FunctionName::Ngrams
-            | FunctionName::Tokens => Some(DataType::Array(Box::new(DataType::String))),
+            | FunctionName::Tokens
+            | FunctionName::RegexpExtractAll => Some(DataType::Array(Box::new(DataType::String))),
             FunctionName::SplitPart => Some(DataType::String),
             FunctionName::ArrayStringConcat => Some(DataType::String),
             FunctionName::ExtractAllGroupsHorizontal | FunctionName::ExtractAllGroupsVertical => {
