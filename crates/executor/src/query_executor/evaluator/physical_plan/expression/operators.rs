@@ -277,6 +277,40 @@ impl ProjectionWithExprExec {
             };
         }
 
+        if let (Some(l), Some(r)) = (left.as_tsvector(), right.as_tsvector()) {
+            return match op {
+                BinaryOp::Concat => {
+                    let a = yachtsql_functions::fulltext::parse_tsvector(l)?;
+                    let b = yachtsql_functions::fulltext::parse_tsvector(r)?;
+                    let result = yachtsql_functions::fulltext::tsvector_concat(&a, &b);
+                    Ok(Value::tsvector(
+                        yachtsql_functions::fulltext::tsvector_to_string(&result),
+                    ))
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for TSVECTOR",
+                    op
+                ))),
+            };
+        }
+
+        if let (Some(l), Some(r)) = (left.as_tsquery(), right.as_tsquery()) {
+            return match op {
+                BinaryOp::Concat => {
+                    let result = yachtsql_functions::fulltext::tsquery_or(l, r)?;
+                    Ok(Value::tsquery(result))
+                }
+                BinaryOp::ArrayOverlap => {
+                    let result = yachtsql_functions::fulltext::tsquery_and(l, r)?;
+                    Ok(Value::tsquery(result))
+                }
+                _ => Err(crate::error::Error::unsupported_feature(format!(
+                    "Operator {:?} not supported for TSQUERY",
+                    op
+                ))),
+            };
+        }
+
         if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
             return match op {
                 BinaryOp::Equal => Ok(Value::bool_val(l.eq_ignore_ascii_case(r))),

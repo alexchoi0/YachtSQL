@@ -1065,6 +1065,12 @@ pub fn tsquery_and(left_str: &str, right_str: &str) -> Result<String> {
     Ok(tsquery_to_string(&left.and(right)))
 }
 
+pub fn tsquery_or(left_str: &str, right_str: &str) -> Result<String> {
+    let left = to_tsquery(left_str)?;
+    let right = to_tsquery(right_str)?;
+    Ok(tsquery_to_string(&left.or(right)))
+}
+
 pub fn tsquery_negate(query_str: &str) -> Result<String> {
     let query = to_tsquery(query_str)?;
     Ok(tsquery_to_string(&query.negate()))

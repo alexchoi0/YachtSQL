@@ -337,6 +337,7 @@ impl ProjectionWithExprExec {
 
             BinaryOp::ArrayOverlap => match (&left_type, &right_type) {
                 (Some(DataType::String), Some(DataType::String)) => Some(DataType::String),
+                (Some(DataType::TsQuery), Some(DataType::TsQuery)) => Some(DataType::TsQuery),
                 _ => Some(DataType::Bool),
             },
 
@@ -354,6 +355,8 @@ impl ProjectionWithExprExec {
             BinaryOp::Concat => match (&left_type, &right_type) {
                 (Some(DataType::Json), Some(DataType::Json)) => Some(DataType::Json),
                 (Some(DataType::Hstore), Some(DataType::Hstore)) => Some(DataType::Hstore),
+                (Some(DataType::TsVector), Some(DataType::TsVector)) => Some(DataType::TsVector),
+                (Some(DataType::TsQuery), Some(DataType::TsQuery)) => Some(DataType::TsQuery),
                 (Some(DataType::String), _) | (_, Some(DataType::String)) => Some(DataType::String),
                 (Some(DataType::Bytes), Some(DataType::Bytes)) => Some(DataType::Bytes),
                 _ => left_type.or(right_type),
@@ -2195,22 +2198,22 @@ impl ProjectionWithExprExec {
             FunctionName::SafeConvertBytesToString => Some(DataType::String),
 
             FunctionName::ToTsvector
-            | FunctionName::ToTsquery
-            | FunctionName::PlaintoTsquery
-            | FunctionName::PhrasetoTsquery
-            | FunctionName::WebsearchToTsquery
-            | FunctionName::TsHeadline
             | FunctionName::Strip
             | FunctionName::Setweight
             | FunctionName::TsvectorConcat
+            | FunctionName::TsDelete
+            | FunctionName::TsFilter
+            | FunctionName::ArrayToTsvector => Some(DataType::TsVector),
+            FunctionName::ToTsquery
+            | FunctionName::PlaintoTsquery
+            | FunctionName::PhrasetoTsquery
+            | FunctionName::WebsearchToTsquery
             | FunctionName::TsqueryAnd
             | FunctionName::TsqueryOr
             | FunctionName::TsqueryNot
+            | FunctionName::TsRewrite => Some(DataType::TsQuery),
+            FunctionName::TsHeadline
             | FunctionName::Querytree
-            | FunctionName::TsRewrite
-            | FunctionName::TsDelete
-            | FunctionName::TsFilter
-            | FunctionName::ArrayToTsvector
             | FunctionName::GetCurrentTsConfig => Some(DataType::String),
             FunctionName::TsRank | FunctionName::TsRankCd => Some(DataType::Float64),
             FunctionName::TsMatch => Some(DataType::Bool),

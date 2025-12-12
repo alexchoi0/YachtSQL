@@ -10550,6 +10550,8 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Tid => Some("tid"),
             DataType::Cid => Some("cid"),
             DataType::Oid => Some("oid"),
+            DataType::TsVector => Some("tsvector"),
+            DataType::TsQuery => Some("tsquery"),
         }
     }
 

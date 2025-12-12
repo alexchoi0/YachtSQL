@@ -50,6 +50,8 @@ fn data_type_to_oid(dt: &DataType) -> i64 {
         DataType::Enum { .. } => 3500,
         DataType::Xid | DataType::Xid8 | DataType::Tid | DataType::Cid => 28,
         DataType::Oid => 26,
+        DataType::TsVector => 3614,
+        DataType::TsQuery => 3615,
         DataType::Custom(_) => 705,
     }
 }
