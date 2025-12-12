@@ -1823,24 +1823,13 @@ impl LogicalToPhysicalPlanner {
                         );
                         input_schema.clone()
                     } else {
-                        eprintln!(
-                            "[logical_to_physical] Using final_input schema for validation: {:?}",
-                            final_input
-                                .schema()
-                                .fields()
-                                .iter()
-                                .map(|f| f.name.clone())
-                                .collect::<Vec<_>>()
-                        );
                         Rc::new(final_input.schema().clone())
                     };
-                eprintln!("[logical_to_physical] Calling infer_projection_schema...");
                 let output_schema = self.infer_projection_schema(
                     &resolved_expressions,
                     &validation_schema,
                     using_columns.as_deref(),
                 )?;
-                eprintln!("[logical_to_physical] infer_projection_schema succeeded");
 
                 Ok(Rc::new(
                     ProjectionWithExprExec::new(final_input, output_schema, resolved_expressions)
@@ -2491,7 +2480,28 @@ impl LogicalToPhysicalPlanner {
                 }
             }
 
-            Expr::Column { .. } => DataType::Unknown,
+            Expr::Column { name, table } => {
+                let storage = self.storage.borrow();
+                if let Some(table_name) = table {
+                    if let Some(table_ref) = storage.get_table(table_name) {
+                        if let Some(field) = table_ref.schema().field(name) {
+                            if let DataType::Array(inner) = &field.data_type {
+                                return inner.as_ref().clone();
+                            }
+                        }
+                    }
+                }
+                if let Some(dataset) = storage.get_dataset("default") {
+                    for (_, tbl) in dataset.tables() {
+                        if let Some(field) = tbl.schema().field(name) {
+                            if let DataType::Array(inner) = &field.data_type {
+                                return inner.as_ref().clone();
+                            }
+                        }
+                    }
+                }
+                DataType::Unknown
+            }
 
             Expr::Function { .. } => DataType::Unknown,
 
