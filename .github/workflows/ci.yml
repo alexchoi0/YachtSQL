@@ -205,6 +205,8 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: ""
     steps:
       - uses: actions/checkout@v4
 
