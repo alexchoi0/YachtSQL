@@ -7,7 +7,7 @@ use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Column, Field, Schema};
 
-use super::ExecutionPlan;
+use super::{CORRELATION_CONTEXT, ExecutionPlan, ProjectionWithExprExec};
 use crate::Table;
 
 #[derive(Debug)]
@@ -125,8 +125,23 @@ impl AggregateExec {
     }
 
     fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
-        use super::ProjectionWithExprExec;
         ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
+    }
+
+    fn extract_outer_table_aliases_from_aggregates(&self) -> Vec<String> {
+        let mut aliases = std::collections::HashSet::new();
+        for (expr, _) in &self.aggregates {
+            ProjectionWithExprExec::collect_table_aliases_from_expr(expr, &mut aliases);
+        }
+        for expr in &self.group_by {
+            ProjectionWithExprExec::collect_table_aliases_from_expr(expr, &mut aliases);
+        }
+        for field in self.input.schema().fields() {
+            if let Some(source_table) = &field.source_table {
+                aliases.insert(source_table.clone());
+            }
+        }
+        aliases.into_iter().collect()
     }
 
     fn evaluate_aggregate_arg(
@@ -776,10 +791,48 @@ impl ExecutionPlan for AggregateExec {
 
         let mut groups: HashMap<Vec<u8>, (Vec<Value>, Vec<Vec<Value>>)> = HashMap::new();
 
+        let outer_table_aliases = self.extract_outer_table_aliases_from_aggregates();
+
+        debug_print::debug_eprintln!(
+            "[executor::aggregate] outer_table_aliases: {:?}",
+            outer_table_aliases
+        );
+
         for input_batch in input_batches {
             let num_rows = input_batch.num_rows();
 
+            debug_print::debug_eprintln!(
+                "[executor::aggregate] input_batch schema source_tables: {:?}",
+                input_batch
+                    .schema()
+                    .fields()
+                    .iter()
+                    .map(|f| (&f.name, &f.source_table))
+                    .collect::<Vec<_>>()
+            );
+
             for row_idx in 0..num_rows {
+                let mut correlation_ctx =
+                    ProjectionWithExprExec::build_correlation_context_with_aliases(
+                        &input_batch,
+                        row_idx,
+                        &outer_table_aliases,
+                    )?;
+
+                debug_print::debug_eprintln!(
+                    "[executor::aggregate] built correlation_ctx keys: {:?}",
+                    correlation_ctx.bindings().keys().collect::<Vec<_>>()
+                );
+
+                let saved_ctx = CORRELATION_CONTEXT.with(|ctx| ctx.borrow().clone());
+                if let Some(ref prev) = saved_ctx {
+                    correlation_ctx.merge_from(prev);
+                }
+
+                CORRELATION_CONTEXT.with(|ctx| {
+                    *ctx.borrow_mut() = Some(correlation_ctx);
+                });
+
                 let group_key = self.compute_group_key(&input_batch, row_idx)?;
                 let key_bytes = serialize_key(&group_key);
 
@@ -788,6 +841,10 @@ impl ExecutionPlan for AggregateExec {
                     let value = self.evaluate_aggregate_arg(agg_expr, &input_batch, row_idx)?;
                     agg_input_values.push(value);
                 }
+
+                CORRELATION_CONTEXT.with(|ctx| {
+                    *ctx.borrow_mut() = saved_ctx.clone();
+                });
 
                 groups
                     .entry(key_bytes)
@@ -3052,7 +3109,10 @@ impl AggregateExec {
                     }
                     _ => Value::null(),
                 },
-                _ => Value::null(),
+                _ => values
+                    .first()
+                    .map(|v| (*v).clone())
+                    .unwrap_or(Value::null()),
             };
 
             result.push(agg_result);
@@ -3189,8 +3249,23 @@ impl SortAggregateExec {
     }
 
     fn evaluate_expr(&self, expr: &Expr, batch: &Table, row_idx: usize) -> Result<Value> {
-        use super::ProjectionWithExprExec;
         ProjectionWithExprExec::evaluate_expr(expr, batch, row_idx)
+    }
+
+    fn extract_outer_table_aliases_from_aggregates(&self) -> Vec<String> {
+        let mut aliases = std::collections::HashSet::new();
+        for (expr, _) in &self.aggregates {
+            ProjectionWithExprExec::collect_table_aliases_from_expr(expr, &mut aliases);
+        }
+        for expr in &self.group_by {
+            ProjectionWithExprExec::collect_table_aliases_from_expr(expr, &mut aliases);
+        }
+        for field in self.input.schema().fields() {
+            if let Some(source_table) = &field.source_table {
+                aliases.insert(source_table.clone());
+            }
+        }
+        aliases.into_iter().collect()
     }
 
     fn evaluate_aggregate_arg(
@@ -5162,7 +5237,10 @@ impl SortAggregateExec {
                     }
                     _ => Value::null(),
                 },
-                _ => Value::null(),
+                _ => values
+                    .first()
+                    .map(|v| (*v).clone())
+                    .unwrap_or(Value::null()),
             };
 
             result.push(agg_result);
@@ -5214,10 +5292,28 @@ impl ExecutionPlan for SortAggregateExec {
         let mut current_group_key: Option<Vec<Value>> = None;
         let mut current_group_agg_inputs: Vec<Vec<Value>> = Vec::new();
 
+        let outer_table_aliases = self.extract_outer_table_aliases_from_aggregates();
+
         for input_batch in &input_batches {
             let num_rows = input_batch.num_rows();
 
             for row_idx in 0..num_rows {
+                let mut correlation_ctx =
+                    ProjectionWithExprExec::build_correlation_context_with_aliases(
+                        input_batch,
+                        row_idx,
+                        &outer_table_aliases,
+                    )?;
+
+                let saved_ctx = CORRELATION_CONTEXT.with(|ctx| ctx.borrow().clone());
+                if let Some(ref prev) = saved_ctx {
+                    correlation_ctx.merge_from(prev);
+                }
+
+                CORRELATION_CONTEXT.with(|ctx| {
+                    *ctx.borrow_mut() = Some(correlation_ctx);
+                });
+
                 let group_key = self.compute_group_key(input_batch, row_idx)?;
 
                 let same_group = current_group_key
@@ -5244,6 +5340,11 @@ impl ExecutionPlan for SortAggregateExec {
                     let value = self.evaluate_aggregate_arg(agg_expr, input_batch, row_idx)?;
                     agg_input_values.push(value);
                 }
+
+                CORRELATION_CONTEXT.with(|ctx| {
+                    *ctx.borrow_mut() = saved_ctx.clone();
+                });
+
                 current_group_agg_inputs.push(agg_input_values);
             }
         }
