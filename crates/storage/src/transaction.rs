@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 
 use crate::{Row, Schema, Storage};
 
@@ -460,7 +460,7 @@ impl Transaction {
             .savepoints
             .iter()
             .rposition(|sp| sp.name == name)
-            .ok_or_else(|| yachtsql_core::error::Error::SavepointNotFound {
+            .ok_or_else(|| yachtsql_common::error::Error::SavepointNotFound {
                 name: name.to_string(),
             })?;
 
@@ -480,7 +480,7 @@ impl Transaction {
             .savepoints
             .iter()
             .rposition(|sp| sp.name == name)
-            .ok_or_else(|| yachtsql_core::error::Error::SavepointNotFound {
+            .ok_or_else(|| yachtsql_common::error::Error::SavepointNotFound {
                 name: name.to_string(),
             })?;
 
@@ -583,14 +583,14 @@ impl TransactionManager {
         self.default_isolation_level
     }
 
-    fn no_transaction_error(operation: &str) -> yachtsql_core::error::Error {
-        yachtsql_core::error::Error::NoActiveTransaction {
+    fn no_transaction_error(operation: &str) -> yachtsql_common::error::Error {
+        yachtsql_common::error::Error::NoActiveTransaction {
             operation: operation.to_string(),
         }
     }
 
-    fn aborted_transaction_error(operation: &str) -> yachtsql_core::error::Error {
-        yachtsql_core::error::Error::TransactionAborted {
+    fn aborted_transaction_error(operation: &str) -> yachtsql_common::error::Error {
+        yachtsql_common::error::Error::TransactionAborted {
             operation: operation.to_string(),
         }
     }
@@ -601,7 +601,7 @@ impl TransactionManager {
 
     pub fn begin_scoped(&mut self, storage: &mut Storage, scope: TransactionScope) -> Result<u64> {
         if self.active_transaction.is_some() {
-            return Err(yachtsql_core::error::Error::InvalidOperation(
+            return Err(yachtsql_common::error::Error::InvalidOperation(
                 "Cannot BEGIN TRANSACTION: a transaction is already active. \
                  Use COMMIT or ROLLBACK to end the current transaction first."
                     .to_string(),
@@ -639,7 +639,7 @@ impl TransactionManager {
         scope: TransactionScope,
     ) -> Result<u64> {
         if self.active_transaction.is_some() {
-            return Err(yachtsql_core::error::Error::InvalidOperation(
+            return Err(yachtsql_common::error::Error::InvalidOperation(
                 "Cannot BEGIN: transaction already active".to_string(),
             ));
         }
@@ -661,7 +661,7 @@ impl TransactionManager {
         scope: TransactionScope,
     ) -> Result<u64> {
         if self.active_transaction.is_some() {
-            return Err(yachtsql_core::error::Error::InvalidOperation(
+            return Err(yachtsql_common::error::Error::InvalidOperation(
                 "Cannot BEGIN: transaction already active".to_string(),
             ));
         }
@@ -722,7 +722,7 @@ impl TransactionManager {
                 }
 
                 let dataset = storage.get_dataset_mut(dataset_name).ok_or_else(|| {
-                    yachtsql_core::error::Error::InvalidOperation(format!(
+                    yachtsql_common::error::Error::InvalidOperation(format!(
                         "Dataset '{}' not found",
                         dataset_name
                     ))
@@ -757,13 +757,13 @@ impl TransactionManager {
 
         let current_rows = {
             let dataset = storage.get_dataset(dataset_name).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found",
                     dataset_name
                 ))
             })?;
             let table = dataset.get_table(table_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}' not found in dataset '{}'",
                     table_id, dataset_name
                 ))
@@ -788,13 +788,13 @@ impl TransactionManager {
         new_rows.extend(delta.inserted_rows.iter().cloned());
 
         let dataset = storage.get_dataset_mut(dataset_name).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Dataset '{}' not found",
                 dataset_name
             ))
         })?;
         let table = dataset.get_table_mut(table_id).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Table '{}' not found in dataset '{}'",
                 table_id, dataset_name
             ))
@@ -910,7 +910,7 @@ impl TransactionManager {
             .last()
             .map(|sp| sp.name.clone())
             .ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(
+                yachtsql_common::error::Error::InvalidOperation(
                     "No savepoints to rollback to".to_string(),
                 )
             })?;

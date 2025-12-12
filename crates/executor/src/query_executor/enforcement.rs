@@ -1,4 +1,4 @@
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_storage::{
     ConstraintTiming, DMLOperation, DeferredFKCheck, DeferredFKState, Row, TableConstraintOps,
 };
@@ -21,13 +21,13 @@ impl ForeignKeyEnforcer {
 
         let (child_schema, foreign_keys) = {
             let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found for FK validation",
                     dataset_id
                 ))
             })?;
             let table = dataset.get_table(&table_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}.{}' not found for FK validation",
                     dataset_id, table_id
                 ))
@@ -50,12 +50,14 @@ impl ForeignKeyEnforcer {
                 Self::parent_row_exists(&fk.parent_table, &fk.parent_columns, &fk_values, storage)?;
 
             if !parent_exists {
-                return Err(yachtsql_core::error::Error::constraint_violation(format!(
-                    "Foreign key constraint '{}' violated: no matching row in parent table '{}' for values {:?}",
-                    fk.name.as_deref().unwrap_or("unnamed"),
-                    fk.parent_table,
-                    fk_values
-                )));
+                return Err(yachtsql_common::error::Error::constraint_violation(
+                    format!(
+                        "Foreign key constraint '{}' violated: no matching row in parent table '{}' for values {:?}",
+                        fk.name.as_deref().unwrap_or("unnamed"),
+                        fk.parent_table,
+                        fk_values
+                    ),
+                ));
             }
         }
 
@@ -74,13 +76,13 @@ impl ForeignKeyEnforcer {
 
         let parent_schema = {
             let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found for RESTRICT check",
                     dataset_id
                 ))
             })?;
             let table = dataset.get_table(&table_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}.{}' not found for RESTRICT check",
                     dataset_id, table_id
                 ))
@@ -116,13 +118,15 @@ impl ForeignKeyEnforcer {
             )?;
 
             if has_child_references {
-                return Err(yachtsql_core::error::Error::constraint_violation(format!(
-                    "Foreign key constraint '{}' on table '{}.{}' violated: cannot delete row from '{}' because it is referenced by rows in child table",
-                    fk.name.as_deref().unwrap_or("unnamed"),
-                    child_dataset,
-                    child_table_name,
-                    table_name
-                )));
+                return Err(yachtsql_common::error::Error::constraint_violation(
+                    format!(
+                        "Foreign key constraint '{}' on table '{}.{}' violated: cannot delete row from '{}' because it is referenced by rows in child table",
+                        fk.name.as_deref().unwrap_or("unnamed"),
+                        child_dataset,
+                        child_table_name,
+                        table_name
+                    ),
+                ));
             }
         }
 
@@ -142,13 +146,13 @@ impl ForeignKeyEnforcer {
 
         let parent_schema = {
             let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found for RESTRICT check",
                     dataset_id
                 ))
             })?;
             let table = dataset.get_table(&table_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}.{}' not found for RESTRICT check",
                     dataset_id, table_id
                 ))
@@ -190,13 +194,15 @@ impl ForeignKeyEnforcer {
             )?;
 
             if has_child_references {
-                return Err(yachtsql_core::error::Error::constraint_violation(format!(
-                    "Foreign key constraint '{}' on table '{}.{}' violated: cannot update row in '{}' because it is referenced by rows in child table",
-                    fk.name.as_deref().unwrap_or("unnamed"),
-                    child_dataset,
-                    child_table_name,
-                    table_name
-                )));
+                return Err(yachtsql_common::error::Error::constraint_violation(
+                    format!(
+                        "Foreign key constraint '{}' on table '{}.{}' violated: cannot update row in '{}' because it is referenced by rows in child table",
+                        fk.name.as_deref().unwrap_or("unnamed"),
+                        child_dataset,
+                        child_table_name,
+                        table_name
+                    ),
+                ));
             }
         }
 
@@ -207,18 +213,18 @@ impl ForeignKeyEnforcer {
         child_dataset: &str,
         child_table_name: &str,
         fk: &yachtsql_storage::foreign_keys::ForeignKey,
-        parent_key_values: &[yachtsql_core::types::Value],
+        parent_key_values: &[yachtsql_common::types::Value],
         storage: &yachtsql_storage::Storage,
     ) -> Result<bool> {
         let (child_schema, all_rows) = {
             let dataset = storage.get_dataset(child_dataset).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found",
                     child_dataset
                 ))
             })?;
             let table = dataset.get_table(child_table_name).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}' not found",
                     child_table_name
                 ))
@@ -250,13 +256,13 @@ impl ForeignKeyEnforcer {
 
         let parent_schema = {
             let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found for CASCADE DELETE",
                     dataset_id
                 ))
             })?;
             let table = dataset.get_table(&table_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}.{}' not found for CASCADE DELETE",
                     dataset_id, table_id
                 ))
@@ -324,13 +330,13 @@ impl ForeignKeyEnforcer {
 
         let parent_schema = {
             let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found for CASCADE UPDATE",
                     dataset_id
                 ))
             })?;
             let table = dataset.get_table(&table_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}.{}' not found for CASCADE UPDATE",
                     dataset_id, table_id
                 ))
@@ -412,13 +418,13 @@ impl ForeignKeyEnforcer {
 
         let (child_schema, foreign_keys) = {
             let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found for FK validation",
                     dataset_id
                 ))
             })?;
             let table = dataset.get_table(&table_id).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}.{}' not found for FK validation",
                     dataset_id, table_id
                 ))
@@ -467,12 +473,14 @@ impl ForeignKeyEnforcer {
                 )?;
 
                 if !parent_exists {
-                    return Err(yachtsql_core::error::Error::constraint_violation(format!(
-                        "Foreign key constraint '{}' violated: no matching row in parent table '{}' for values {:?}",
-                        fk.name.as_deref().unwrap_or("unnamed"),
-                        fk.parent_table,
-                        fk_values
-                    )));
+                    return Err(yachtsql_common::error::Error::constraint_violation(
+                        format!(
+                            "Foreign key constraint '{}' violated: no matching row in parent table '{}' for values {:?}",
+                            fk.name.as_deref().unwrap_or("unnamed"),
+                            fk.parent_table,
+                            fk_values
+                        ),
+                    ));
                 }
             }
         }
@@ -497,7 +505,7 @@ impl ForeignKeyEnforcer {
 
         for dataset_name in storage.list_datasets() {
             let dataset = storage.get_dataset(dataset_name).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found while searching for FK references",
                     dataset_name
                 ))
@@ -505,7 +513,7 @@ impl ForeignKeyEnforcer {
 
             for table_name in dataset.list_tables() {
                 let table = dataset.get_table(table_name).ok_or_else(|| {
-                    yachtsql_core::error::Error::InvalidOperation(format!(
+                    yachtsql_common::error::Error::InvalidOperation(format!(
                         "Table '{}' not found while searching for FK references",
                         table_name
                     ))
@@ -544,12 +552,12 @@ impl ForeignKeyEnforcer {
         schema: &yachtsql_storage::Schema,
         row: &Row,
         columns: &[String],
-    ) -> Result<Vec<yachtsql_core::types::Value>> {
+    ) -> Result<Vec<yachtsql_common::types::Value>> {
         let mut values = Vec::new();
 
         for col in columns {
             let value = row.get_by_name(schema, col).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Column '{}' not found in row",
                     col
                 ))
@@ -569,19 +577,19 @@ impl ForeignKeyEnforcer {
         child_dataset: &str,
         child_table_name: &str,
         fk: &yachtsql_storage::foreign_keys::ForeignKey,
-        parent_key_values: &[yachtsql_core::types::Value],
+        parent_key_values: &[yachtsql_common::types::Value],
         storage: &mut yachtsql_storage::Storage,
         enforcer: &ForeignKeyEnforcer,
     ) -> Result<()> {
         let (child_schema, all_rows) = {
             let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found",
                     child_dataset
                 ))
             })?;
             let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}' not found",
                     child_table_name
                 ))
@@ -607,13 +615,13 @@ impl ForeignKeyEnforcer {
         }
 
         let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Dataset '{}' not found during CASCADE DELETE",
                 child_dataset
             ))
         })?;
         let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Table '{}' not found during CASCADE DELETE",
                 child_table_name
             ))
@@ -630,18 +638,18 @@ impl ForeignKeyEnforcer {
         child_dataset: &str,
         child_table_name: &str,
         fk: &yachtsql_storage::foreign_keys::ForeignKey,
-        parent_key_values: &[yachtsql_core::types::Value],
+        parent_key_values: &[yachtsql_common::types::Value],
         storage: &mut yachtsql_storage::Storage,
     ) -> Result<()> {
         let (child_schema, all_rows) = {
             let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found",
                     child_dataset
                 ))
             })?;
             let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}' not found",
                     child_table_name
                 ))
@@ -661,7 +669,7 @@ impl ForeignKeyEnforcer {
                         .iter()
                         .position(|f| f.name == *col_name)
                     {
-                        new_values[col_idx] = yachtsql_core::types::Value::null();
+                        new_values[col_idx] = yachtsql_common::types::Value::null();
                     }
                 }
                 updated_rows.push(Row::from_values(new_values));
@@ -671,13 +679,13 @@ impl ForeignKeyEnforcer {
         }
 
         let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Dataset '{}' not found during SET NULL",
                 child_dataset
             ))
         })?;
         let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Table '{}' not found during SET NULL",
                 child_table_name
             ))
@@ -694,18 +702,18 @@ impl ForeignKeyEnforcer {
         child_dataset: &str,
         child_table_name: &str,
         fk: &yachtsql_storage::foreign_keys::ForeignKey,
-        parent_key_values: &[yachtsql_core::types::Value],
+        parent_key_values: &[yachtsql_common::types::Value],
         storage: &mut yachtsql_storage::Storage,
     ) -> Result<()> {
         let (child_schema, all_rows) = {
             let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found",
                     child_dataset
                 ))
             })?;
             let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}' not found",
                     child_table_name
                 ))
@@ -729,19 +737,19 @@ impl ForeignKeyEnforcer {
                             new_values[col_idx] = match default {
                                 yachtsql_storage::DefaultValue::Literal(val) => val.clone(),
                                 yachtsql_storage::DefaultValue::CurrentTimestamp => {
-                                    yachtsql_core::types::Value::datetime(chrono::Utc::now())
+                                    yachtsql_common::types::Value::datetime(chrono::Utc::now())
                                 }
                                 yachtsql_storage::DefaultValue::CurrentDate => {
-                                    yachtsql_core::types::Value::date(
+                                    yachtsql_common::types::Value::date(
                                         chrono::Utc::now().date_naive(),
                                     )
                                 }
                                 yachtsql_storage::DefaultValue::GenRandomUuid => {
-                                    yachtsql_core::types::Value::uuid(uuid::Uuid::new_v4())
+                                    yachtsql_common::types::Value::uuid(uuid::Uuid::new_v4())
                                 }
                             };
                         } else {
-                            new_values[col_idx] = yachtsql_core::types::Value::null();
+                            new_values[col_idx] = yachtsql_common::types::Value::null();
                         }
                     }
                 }
@@ -752,13 +760,13 @@ impl ForeignKeyEnforcer {
         }
 
         let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Dataset '{}' not found during SET DEFAULT",
                 child_dataset
             ))
         })?;
         let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Table '{}' not found during SET DEFAULT",
                 child_table_name
             ))
@@ -774,20 +782,20 @@ impl ForeignKeyEnforcer {
     fn parent_row_exists(
         parent_table_name: &str,
         parent_columns: &[String],
-        fk_values: &[yachtsql_core::types::Value],
+        fk_values: &[yachtsql_common::types::Value],
         storage: &yachtsql_storage::Storage,
     ) -> Result<bool> {
         let (parent_dataset, parent_table) = Self::parse_table_name(parent_table_name);
 
         let dataset = storage.get_dataset(&parent_dataset).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Parent dataset '{}' not found",
                 parent_dataset
             ))
         })?;
 
         let table = dataset.get_table(&parent_table).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Parent table '{}' not found",
                 parent_table_name
             ))
@@ -809,20 +817,20 @@ impl ForeignKeyEnforcer {
         child_dataset: &str,
         child_table_name: &str,
         fk: &yachtsql_storage::foreign_keys::ForeignKey,
-        old_parent_values: &[yachtsql_core::types::Value],
-        new_parent_values: &[yachtsql_core::types::Value],
+        old_parent_values: &[yachtsql_common::types::Value],
+        new_parent_values: &[yachtsql_common::types::Value],
         storage: &mut yachtsql_storage::Storage,
         enforcer: &ForeignKeyEnforcer,
     ) -> Result<()> {
         let (child_schema, all_rows) = {
             let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Dataset '{}' not found",
                     child_dataset
                 ))
             })?;
             let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-                yachtsql_core::error::Error::InvalidOperation(format!(
+                yachtsql_common::error::Error::InvalidOperation(format!(
                     "Table '{}' not found",
                     child_table_name
                 ))
@@ -864,13 +872,13 @@ impl ForeignKeyEnforcer {
         }
 
         let dataset = storage.get_dataset_mut(child_dataset).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Dataset '{}' not found during CASCADE UPDATE",
                 child_dataset
             ))
         })?;
         let table = dataset.get_table_mut(child_table_name).ok_or_else(|| {
-            yachtsql_core::error::Error::InvalidOperation(format!(
+            yachtsql_common::error::Error::InvalidOperation(format!(
                 "Table '{}' not found during CASCADE UPDATE",
                 child_table_name
             ))
@@ -909,7 +917,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
         storage
             .get_dataset_mut("default")

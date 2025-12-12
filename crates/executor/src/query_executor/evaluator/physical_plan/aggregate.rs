@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use rust_decimal::prelude::ToPrimitive;
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Column, Field, Schema};
 
@@ -65,7 +65,7 @@ impl AggregateExec {
         aggregates: Vec<(Expr, Option<String>)>,
         having: Option<Expr>,
     ) -> Result<Self> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
 
         for (agg_expr, _) in &aggregates {
             if let Expr::Aggregate { filter, .. } = agg_expr {
@@ -92,7 +92,7 @@ impl AggregateExec {
             };
 
             let data_type = Self::infer_expr_type(group_expr, input_schema)
-                .unwrap_or(yachtsql_core::types::DataType::String);
+                .unwrap_or(yachtsql_common::types::DataType::String);
 
             fields.push(Field::nullable(field_name, data_type));
         }
@@ -103,7 +103,7 @@ impl AggregateExec {
             });
 
             let data_type = Self::infer_aggregate_type(agg_expr, input_schema)
-                .unwrap_or(yachtsql_core::types::DataType::Float64);
+                .unwrap_or(yachtsql_common::types::DataType::Float64);
             fields.push(Field::nullable(field_name, data_type));
         }
 
@@ -307,7 +307,7 @@ impl AggregateExec {
     pub(crate) fn infer_expr_type(
         expr: &Expr,
         schema: &Schema,
-    ) -> Option<yachtsql_core::types::DataType> {
+    ) -> Option<yachtsql_common::types::DataType> {
         match expr {
             Expr::Column { name, .. } => schema
                 .fields()
@@ -315,7 +315,7 @@ impl AggregateExec {
                 .find(|f| f.name.eq_ignore_ascii_case(name))
                 .map(|f| f.data_type.clone()),
             Expr::Literal(lit) => {
-                use yachtsql_core::types::DataType;
+                use yachtsql_common::types::DataType;
                 use yachtsql_ir::expr::LiteralValue;
                 Some(match lit {
                     LiteralValue::Int64(_) => DataType::Int64,
@@ -341,7 +341,7 @@ impl AggregateExec {
                     LiteralValue::Vector(v) => DataType::Vector(v.len()),
                     LiteralValue::Null => return None,
                     LiteralValue::Range(_) => {
-                        DataType::Range(yachtsql_core::types::RangeType::Int4Range)
+                        DataType::Range(yachtsql_common::types::RangeType::Int4Range)
                     }
                     LiteralValue::Point(_) => DataType::Point,
                     LiteralValue::PgBox(_) => DataType::PgBox,
@@ -355,7 +355,7 @@ impl AggregateExec {
                 })
             }
             Expr::Cast { data_type, .. } | Expr::TryCast { data_type, .. } => {
-                use yachtsql_core::types::DataType;
+                use yachtsql_common::types::DataType;
                 use yachtsql_ir::expr::CastDataType;
                 Some(match data_type {
                     CastDataType::Int64 => DataType::Int64,
@@ -380,40 +380,40 @@ impl AggregateExec {
                     CastDataType::Inet => DataType::Inet,
                     CastDataType::Cidr => DataType::Cidr,
                     CastDataType::Int4Range => {
-                        DataType::Range(yachtsql_core::types::RangeType::Int4Range)
+                        DataType::Range(yachtsql_common::types::RangeType::Int4Range)
                     }
                     CastDataType::Int8Range => {
-                        DataType::Range(yachtsql_core::types::RangeType::Int8Range)
+                        DataType::Range(yachtsql_common::types::RangeType::Int8Range)
                     }
                     CastDataType::NumRange => {
-                        DataType::Range(yachtsql_core::types::RangeType::NumRange)
+                        DataType::Range(yachtsql_common::types::RangeType::NumRange)
                     }
                     CastDataType::TsRange => {
-                        DataType::Range(yachtsql_core::types::RangeType::TsRange)
+                        DataType::Range(yachtsql_common::types::RangeType::TsRange)
                     }
                     CastDataType::TsTzRange => {
-                        DataType::Range(yachtsql_core::types::RangeType::TsTzRange)
+                        DataType::Range(yachtsql_common::types::RangeType::TsTzRange)
                     }
                     CastDataType::DateRange => {
-                        DataType::Range(yachtsql_core::types::RangeType::DateRange)
+                        DataType::Range(yachtsql_common::types::RangeType::DateRange)
                     }
                     CastDataType::Int4Multirange => {
-                        DataType::Multirange(yachtsql_core::types::MultirangeType::Int4Multirange)
+                        DataType::Multirange(yachtsql_common::types::MultirangeType::Int4Multirange)
                     }
                     CastDataType::Int8Multirange => {
-                        DataType::Multirange(yachtsql_core::types::MultirangeType::Int8Multirange)
+                        DataType::Multirange(yachtsql_common::types::MultirangeType::Int8Multirange)
                     }
                     CastDataType::NumMultirange => {
-                        DataType::Multirange(yachtsql_core::types::MultirangeType::NumMultirange)
+                        DataType::Multirange(yachtsql_common::types::MultirangeType::NumMultirange)
                     }
                     CastDataType::TsMultirange => {
-                        DataType::Multirange(yachtsql_core::types::MultirangeType::TsMultirange)
+                        DataType::Multirange(yachtsql_common::types::MultirangeType::TsMultirange)
                     }
                     CastDataType::TsTzMultirange => {
-                        DataType::Multirange(yachtsql_core::types::MultirangeType::TsTzMultirange)
+                        DataType::Multirange(yachtsql_common::types::MultirangeType::TsTzMultirange)
                     }
                     CastDataType::DateMultirange => {
-                        DataType::Multirange(yachtsql_core::types::MultirangeType::DateMultirange)
+                        DataType::Multirange(yachtsql_common::types::MultirangeType::DateMultirange)
                     }
                     CastDataType::Point => DataType::Point,
                     CastDataType::PgBox => DataType::PgBox,
@@ -436,7 +436,7 @@ impl AggregateExec {
                 })
             }
             Expr::BinaryOp { left, op, right } => {
-                use yachtsql_core::types::DataType;
+                use yachtsql_common::types::DataType;
                 use yachtsql_ir::expr::BinaryOp;
                 match op {
                     BinaryOp::Equal
@@ -467,7 +467,7 @@ impl AggregateExec {
                 }
             }
             Expr::Function { name, args } => {
-                use yachtsql_core::types::DataType;
+                use yachtsql_common::types::DataType;
                 use yachtsql_ir::FunctionName;
                 match name {
                     FunctionName::Count
@@ -573,8 +573,8 @@ impl AggregateExec {
     pub(crate) fn infer_aggregate_type(
         expr: &Expr,
         schema: &Schema,
-    ) -> Option<yachtsql_core::types::DataType> {
-        use yachtsql_core::types::DataType;
+    ) -> Option<yachtsql_common::types::DataType> {
+        use yachtsql_common::types::DataType;
         use yachtsql_ir::FunctionName;
 
         match expr {
@@ -623,7 +623,7 @@ impl AggregateExec {
                 FunctionName::ApproxQuantiles => Some(DataType::Array(Box::new(DataType::Float64))),
 
                 FunctionName::ApproxTopCount | FunctionName::ApproxTopSum => {
-                    use yachtsql_core::types::StructField;
+                    use yachtsql_common::types::StructField;
                     Some(DataType::Array(Box::new(DataType::Struct(vec![
                         StructField {
                             name: "value".to_string(),
@@ -982,7 +982,7 @@ impl AggregateExec {
         let first_type = values.iter().find(|v| !v.is_null())?;
 
         if first_type.as_i64().is_some() {
-            let mut column = Column::new(&yachtsql_core::types::DataType::Int64, values.len());
+            let mut column = Column::new(&yachtsql_common::types::DataType::Int64, values.len());
             for val in values {
                 if column.push((*val).clone()).is_err() {
                     return None;
@@ -992,7 +992,7 @@ impl AggregateExec {
         }
 
         if first_type.as_f64().is_some() {
-            let mut column = Column::new(&yachtsql_core::types::DataType::Float64, values.len());
+            let mut column = Column::new(&yachtsql_common::types::DataType::Float64, values.len());
             for val in values {
                 if column.push((*val).clone()).is_err() {
                     return None;
@@ -3271,7 +3271,7 @@ impl SortAggregateExec {
         aggregates: Vec<(Expr, Option<String>)>,
         having: Option<Expr>,
     ) -> Result<Self> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
 
         for (agg_expr, _) in &aggregates {
             if let Expr::Aggregate { filter, .. } = agg_expr {
@@ -3298,7 +3298,7 @@ impl SortAggregateExec {
             };
 
             let data_type = AggregateExec::infer_expr_type(group_expr, input_schema)
-                .unwrap_or(yachtsql_core::types::DataType::String);
+                .unwrap_or(yachtsql_common::types::DataType::String);
 
             fields.push(Field::nullable(field_name, data_type));
         }
@@ -3310,7 +3310,7 @@ impl SortAggregateExec {
             });
 
             let data_type = AggregateExec::infer_aggregate_type(agg_expr, input_schema)
-                .unwrap_or(yachtsql_core::types::DataType::Float64);
+                .unwrap_or(yachtsql_common::types::DataType::Float64);
             fields.push(Field::nullable(field_name, data_type));
         }
 
@@ -5653,20 +5653,20 @@ mod tests {
         let schema = yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
             yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
         ]);
 
-        let mut col1 = yachtsql_storage::Column::new(&yachtsql_core::types::DataType::Int64, 3);
+        let mut col1 = yachtsql_storage::Column::new(&yachtsql_common::types::DataType::Int64, 3);
         col1.push(Value::int64(1)).unwrap();
         col1.push(Value::int64(1)).unwrap();
         col1.push(Value::int64(2)).unwrap();
 
-        let mut col2 = yachtsql_storage::Column::new(&yachtsql_core::types::DataType::Int64, 3);
+        let mut col2 = yachtsql_storage::Column::new(&yachtsql_common::types::DataType::Int64, 3);
         col2.push(Value::int64(10)).unwrap();
         col2.push(Value::int64(20)).unwrap();
         col2.push(Value::int64(30)).unwrap();

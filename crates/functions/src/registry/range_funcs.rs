@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_core::types::{DataType, RangeType};
+use yachtsql_common::types::{DataType, RangeType};
 
 use super::FunctionRegistry;
 use crate::range;

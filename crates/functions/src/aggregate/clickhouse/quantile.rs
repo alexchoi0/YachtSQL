@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 
 use super::super::{Accumulator, AggregateFunction};
 use super::common::numeric_value_to_f64;

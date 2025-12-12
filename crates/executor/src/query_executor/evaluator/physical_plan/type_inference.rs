@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 use yachtsql_functions::json::JsonValueEvalOptions;
 use yachtsql_storage::Schema;
 
@@ -28,7 +28,7 @@ impl ProjectionWithExprExec {
         else_expr: Option<&crate::optimizer::expr::Expr>,
         schema: &Schema,
     ) -> crate::types::DataType {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         for (when_cond, then_expr) in when_then {
             let _ = Self::infer_expr_type_with_schema(when_cond, schema);
@@ -62,7 +62,7 @@ impl ProjectionWithExprExec {
         args: &[crate::optimizer::expr::Expr],
         schema: &Schema,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         args.first().and_then(|first_arg| {
             Self::infer_expr_type_with_schema(first_arg, schema).and_then(|data_type| {
@@ -80,7 +80,7 @@ impl ProjectionWithExprExec {
         args: &[crate::optimizer::expr::Expr],
         schema: &Schema,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         if args.len() <= array_arg_idx.max(element_arg_idx) {
             return None;
@@ -105,7 +105,7 @@ impl ProjectionWithExprExec {
         args: &[crate::optimizer::expr::Expr],
         schema: &Schema,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         for arg in args {
             if !Self::is_empty_array_literal(arg)
@@ -122,7 +122,7 @@ impl ProjectionWithExprExec {
     fn cast_type_to_data_type(
         cast_type: &crate::optimizer::expr::CastDataType,
     ) -> crate::types::DataType {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         use yachtsql_optimizer::expr::CastDataType;
 
         match cast_type {
@@ -150,29 +150,37 @@ impl ProjectionWithExprExec {
             CastDataType::MacAddr8 => DataType::MacAddr8,
             CastDataType::Inet => DataType::Inet,
             CastDataType::Cidr => DataType::Cidr,
-            CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
-            CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
-            CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
-            CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
-            CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
-            CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
+            CastDataType::Int4Range => {
+                DataType::Range(yachtsql_common::types::RangeType::Int4Range)
+            }
+            CastDataType::Int8Range => {
+                DataType::Range(yachtsql_common::types::RangeType::Int8Range)
+            }
+            CastDataType::NumRange => DataType::Range(yachtsql_common::types::RangeType::NumRange),
+            CastDataType::TsRange => DataType::Range(yachtsql_common::types::RangeType::TsRange),
+            CastDataType::TsTzRange => {
+                DataType::Range(yachtsql_common::types::RangeType::TsTzRange)
+            }
+            CastDataType::DateRange => {
+                DataType::Range(yachtsql_common::types::RangeType::DateRange)
+            }
             CastDataType::Int4Multirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::Int4Multirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::Int4Multirange)
             }
             CastDataType::Int8Multirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::Int8Multirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::Int8Multirange)
             }
             CastDataType::NumMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::NumMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::NumMultirange)
             }
             CastDataType::TsMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::TsMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::TsMultirange)
             }
             CastDataType::TsTzMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::TsTzMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::TsTzMultirange)
             }
             CastDataType::DateMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::DateMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::DateMultirange)
             }
             CastDataType::Point => DataType::Point,
             CastDataType::PgBox => DataType::PgBox,
@@ -197,7 +205,7 @@ impl ProjectionWithExprExec {
         left_type: Option<crate::types::DataType>,
         right_type: Option<crate::types::DataType>,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         use yachtsql_optimizer::expr::BinaryOp;
 
         match op {
@@ -397,7 +405,7 @@ impl ProjectionWithExprExec {
         op: &crate::optimizer::expr::UnaryOp,
         operand_type: Option<crate::types::DataType>,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         use yachtsql_optimizer::expr::UnaryOp;
 
         match op {
@@ -414,7 +422,7 @@ impl ProjectionWithExprExec {
     fn infer_literal_type(
         lit: &crate::optimizer::expr::LiteralValue,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         use yachtsql_optimizer::expr::LiteralValue;
 
         match lit {
@@ -440,9 +448,9 @@ impl ProjectionWithExprExec {
             LiteralValue::Uuid(_) => Some(DataType::Uuid),
             LiteralValue::Vector(vec) => Some(DataType::Vector(vec.len())),
             LiteralValue::Interval(_) => Some(DataType::Interval),
-            LiteralValue::Range(_) => {
-                Some(DataType::Range(yachtsql_core::types::RangeType::Int4Range))
-            }
+            LiteralValue::Range(_) => Some(DataType::Range(
+                yachtsql_common::types::RangeType::Int4Range,
+            )),
             LiteralValue::Point(_) => Some(DataType::Point),
             LiteralValue::PgBox(_) => Some(DataType::PgBox),
             LiteralValue::Circle(_) => Some(DataType::Circle),
@@ -477,7 +485,7 @@ impl ProjectionWithExprExec {
 
     #[inline]
     fn infer_comparison_operator_type() -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         Some(DataType::Bool)
     }
 
@@ -486,7 +494,7 @@ impl ProjectionWithExprExec {
         args: &[crate::optimizer::expr::Expr],
         schema: &Schema,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         use yachtsql_ir::FunctionName;
 
         match name {
@@ -543,11 +551,11 @@ impl ProjectionWithExprExec {
                 ) =>
             {
                 Some(DataType::Struct(vec![
-                    yachtsql_core::types::StructField {
+                    yachtsql_common::types::StructField {
                         name: "lat".to_string(),
                         data_type: DataType::Float64,
                     },
-                    yachtsql_core::types::StructField {
+                    yachtsql_common::types::StructField {
                         name: "lon".to_string(),
                         data_type: DataType::Float64,
                     },
@@ -569,11 +577,11 @@ impl ProjectionWithExprExec {
 
             FunctionName::Custom(s) if s == "H3TOGEOBOUNDARY" => {
                 Some(DataType::Array(Box::new(DataType::Struct(vec![
-                    yachtsql_core::types::StructField {
+                    yachtsql_common::types::StructField {
                         name: "lat".to_string(),
                         data_type: DataType::Float64,
                     },
-                    yachtsql_core::types::StructField {
+                    yachtsql_common::types::StructField {
                         name: "lon".to_string(),
                         data_type: DataType::Float64,
                     },
@@ -1408,12 +1416,12 @@ impl ProjectionWithExprExec {
                 if !args.is_empty() {
                     match Self::infer_expr_type_with_schema(&args[0], schema) {
                         Some(DataType::Range(range_type)) => match range_type {
-                            yachtsql_core::types::RangeType::Int4Range
-                            | yachtsql_core::types::RangeType::Int8Range => Some(DataType::Int64),
-                            yachtsql_core::types::RangeType::NumRange => Some(DataType::Float64),
-                            yachtsql_core::types::RangeType::DateRange => Some(DataType::Date),
-                            yachtsql_core::types::RangeType::TsRange
-                            | yachtsql_core::types::RangeType::TsTzRange => {
+                            yachtsql_common::types::RangeType::Int4Range
+                            | yachtsql_common::types::RangeType::Int8Range => Some(DataType::Int64),
+                            yachtsql_common::types::RangeType::NumRange => Some(DataType::Float64),
+                            yachtsql_common::types::RangeType::DateRange => Some(DataType::Date),
+                            yachtsql_common::types::RangeType::TsRange
+                            | yachtsql_common::types::RangeType::TsTzRange => {
                                 Some(DataType::Timestamp)
                             }
                         },
@@ -1440,22 +1448,26 @@ impl ProjectionWithExprExec {
             FunctionName::Range => {
                 if !args.is_empty() {
                     match Self::infer_expr_type_with_schema(&args[0], schema) {
-                        Some(DataType::Date) => {
-                            Some(DataType::Range(yachtsql_core::types::RangeType::DateRange))
-                        }
+                        Some(DataType::Date) => Some(DataType::Range(
+                            yachtsql_common::types::RangeType::DateRange,
+                        )),
                         Some(DataType::Timestamp) | Some(DataType::DateTime) => {
-                            Some(DataType::Range(yachtsql_core::types::RangeType::TsRange))
+                            Some(DataType::Range(yachtsql_common::types::RangeType::TsRange))
                         }
-                        Some(DataType::Int64) => {
-                            Some(DataType::Range(yachtsql_core::types::RangeType::Int8Range))
-                        }
+                        Some(DataType::Int64) => Some(DataType::Range(
+                            yachtsql_common::types::RangeType::Int8Range,
+                        )),
                         Some(DataType::Float64) => {
-                            Some(DataType::Range(yachtsql_core::types::RangeType::NumRange))
+                            Some(DataType::Range(yachtsql_common::types::RangeType::NumRange))
                         }
-                        _ => Some(DataType::Range(yachtsql_core::types::RangeType::DateRange)),
+                        _ => Some(DataType::Range(
+                            yachtsql_common::types::RangeType::DateRange,
+                        )),
                     }
                 } else {
-                    Some(DataType::Range(yachtsql_core::types::RangeType::DateRange))
+                    Some(DataType::Range(
+                        yachtsql_common::types::RangeType::DateRange,
+                    ))
                 }
             }
 
@@ -1474,12 +1486,12 @@ impl ProjectionWithExprExec {
                 if !args.is_empty() {
                     match Self::infer_expr_type_with_schema(&args[0], schema) {
                         Some(DataType::Range(range_type)) => match range_type {
-                            yachtsql_core::types::RangeType::Int4Range
-                            | yachtsql_core::types::RangeType::Int8Range => Some(DataType::Int64),
-                            yachtsql_core::types::RangeType::NumRange => Some(DataType::Float64),
-                            yachtsql_core::types::RangeType::DateRange => Some(DataType::Date),
-                            yachtsql_core::types::RangeType::TsRange
-                            | yachtsql_core::types::RangeType::TsTzRange => {
+                            yachtsql_common::types::RangeType::Int4Range
+                            | yachtsql_common::types::RangeType::Int8Range => Some(DataType::Int64),
+                            yachtsql_common::types::RangeType::NumRange => Some(DataType::Float64),
+                            yachtsql_common::types::RangeType::DateRange => Some(DataType::Date),
+                            yachtsql_common::types::RangeType::TsRange
+                            | yachtsql_common::types::RangeType::TsTzRange => {
                                 Some(DataType::Timestamp)
                             }
                         },
@@ -2489,8 +2501,8 @@ impl ProjectionWithExprExec {
                 let mut struct_fields = Vec::with_capacity(args.len());
                 for (i, arg) in args.iter().enumerate() {
                     let field_type = Self::infer_expr_type_with_schema(arg, schema)
-                        .unwrap_or(yachtsql_core::types::DataType::Unknown);
-                    struct_fields.push(yachtsql_core::types::StructField {
+                        .unwrap_or(yachtsql_common::types::DataType::Unknown);
+                    struct_fields.push(yachtsql_common::types::StructField {
                         name: (i + 1).to_string(),
                         data_type: field_type,
                     });
@@ -2511,8 +2523,8 @@ impl ProjectionWithExprExec {
                             continue;
                         };
                         let field_type = Self::infer_expr_type_with_schema(&pair[1], schema)
-                            .unwrap_or(yachtsql_core::types::DataType::Unknown);
-                        struct_fields.push(yachtsql_core::types::StructField {
+                            .unwrap_or(yachtsql_common::types::DataType::Unknown);
+                        struct_fields.push(yachtsql_common::types::StructField {
                             name,
                             data_type: field_type,
                         });
@@ -2583,7 +2595,7 @@ impl ProjectionWithExprExec {
         expr: &crate::optimizer::expr::Expr,
         schema: &Schema,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::{DataType, StructField};
+        use yachtsql_common::types::{DataType, StructField};
         use yachtsql_optimizer::expr::Expr;
 
         match expr {
@@ -2730,7 +2742,7 @@ impl ProjectionWithExprExec {
                 } else if types.len() == 1 {
                     Some(types[0].clone())
                 } else {
-                    yachtsql_core::types::coercion::CoercionRules::find_common_type(&types).ok()
+                    yachtsql_common::types::coercion::CoercionRules::find_common_type(&types).ok()
                 }
             }
             Expr::Tuple(exprs) => {
@@ -2752,7 +2764,7 @@ impl ProjectionWithExprExec {
     pub(super) fn infer_expr_type(
         expr: &crate::optimizer::expr::Expr,
     ) -> Option<crate::types::DataType> {
-        use yachtsql_core::types::{DataType, StructField};
+        use yachtsql_common::types::{DataType, StructField};
         use yachtsql_optimizer::expr::Expr;
 
         match expr {
@@ -2844,19 +2856,19 @@ impl ProjectionWithExprExec {
                 } else if types.len() == 1 {
                     Some(types[0].clone())
                 } else {
-                    yachtsql_core::types::coercion::CoercionRules::find_common_type(&types).ok()
+                    yachtsql_common::types::coercion::CoercionRules::find_common_type(&types).ok()
                 }
             }
             _ => None,
         }
     }
 
-    fn get_system_column_type(name: &str) -> Option<yachtsql_core::types::DataType> {
+    fn get_system_column_type(name: &str) -> Option<yachtsql_common::types::DataType> {
         match name {
-            "ctid" => Some(yachtsql_core::types::DataType::Tid),
-            "xmin" | "xmax" => Some(yachtsql_core::types::DataType::Xid),
-            "cmin" | "cmax" => Some(yachtsql_core::types::DataType::Cid),
-            "tableoid" => Some(yachtsql_core::types::DataType::Oid),
+            "ctid" => Some(yachtsql_common::types::DataType::Tid),
+            "xmin" | "xmax" => Some(yachtsql_common::types::DataType::Xid),
+            "cmin" | "cmax" => Some(yachtsql_common::types::DataType::Cid),
+            "tableoid" => Some(yachtsql_common::types::DataType::Oid),
             _ => None,
         }
     }

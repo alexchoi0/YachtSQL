@@ -1,5 +1,5 @@
 use sqlparser::ast::CteAsMaterialized;
-use yachtsql_core::types::DataType;
+use yachtsql_common::types::DataType;
 use yachtsql_storage::schema::GeneratedExpression;
 
 use crate::expr::Expr;
@@ -252,7 +252,7 @@ pub enum PlanNode {
         aggregate_expr: Expr,
         aggregate_function: String,
         pivot_column: String,
-        pivot_values: Vec<yachtsql_core::types::Value>,
+        pivot_values: Vec<yachtsql_common::types::Value>,
         group_by_columns: Vec<String>,
     },
 

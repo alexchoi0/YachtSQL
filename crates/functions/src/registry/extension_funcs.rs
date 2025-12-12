@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::Result;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Result;
+use yachtsql_common::types::{DataType, Value};
 
 use crate::scalar::{self, ScalarFunctionImpl};
 
@@ -249,7 +249,7 @@ fn eval_sha512(args: &[Value]) -> Result<Value> {
 
 fn eval_gen_random_bytes(args: &[Value]) -> Result<Value> {
     use rand::Rng;
-    use yachtsql_core::error::Error;
+    use yachtsql_common::error::Error;
 
     if args.is_empty() {
         return Err(Error::invalid_query(
@@ -281,7 +281,7 @@ fn eval_gen_random_bytes(args: &[Value]) -> Result<Value> {
 
 fn eval_digest(args: &[Value]) -> Result<Value> {
     use sha2::{Digest, Sha256, Sha512};
-    use yachtsql_core::error::Error;
+    use yachtsql_common::error::Error;
 
     if args.len() < 2 {
         return Err(Error::invalid_query(
@@ -341,7 +341,7 @@ fn eval_digest(args: &[Value]) -> Result<Value> {
 fn eval_encode(args: &[Value]) -> Result<Value> {
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD;
-    use yachtsql_core::error::Error;
+    use yachtsql_common::error::Error;
 
     if args.len() < 2 {
         return Err(Error::invalid_query(
@@ -391,7 +391,7 @@ fn eval_encode(args: &[Value]) -> Result<Value> {
 fn eval_decode(args: &[Value]) -> Result<Value> {
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD;
-    use yachtsql_core::error::Error;
+    use yachtsql_common::error::Error;
 
     if args.len() < 2 {
         return Err(Error::invalid_query(

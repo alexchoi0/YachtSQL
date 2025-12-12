@@ -10,7 +10,7 @@ default = []
 
 [dependencies]
 # Core types and errors
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 
 # Data structures
 indexmap = { version = "2.12", features = ["serde"] }

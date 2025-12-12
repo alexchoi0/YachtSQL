@@ -297,7 +297,7 @@ fn bench_export_data_rows(c: &mut Criterion) {
 }
 
 fn bench_parquet_write_only(c: &mut Criterion) {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_executor::Table;
     use yachtsql_executor::query_executor::execution::parquet_writer;
     use yachtsql_storage::{Field, Row, Schema};

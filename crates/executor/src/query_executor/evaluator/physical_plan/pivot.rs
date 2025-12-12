@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Column, Field, Schema};
 
@@ -175,7 +175,7 @@ impl PivotExec {
             let col_name = format!("{:?}", pivot_val).trim_matches('"').to_string();
             fields.push(Field::nullable(
                 col_name,
-                yachtsql_core::types::DataType::Float64,
+                yachtsql_common::types::DataType::Float64,
             ));
         }
 
@@ -377,12 +377,12 @@ impl UnpivotExec {
 
         fields.push(Field::nullable(
             name_column_name.clone(),
-            yachtsql_core::types::DataType::String,
+            yachtsql_common::types::DataType::String,
         ));
 
         fields.push(Field::nullable(
             value_column_name.clone(),
-            yachtsql_core::types::DataType::Int64,
+            yachtsql_common::types::DataType::Int64,
         ));
 
         let schema = Schema::from_fields(fields);
@@ -471,7 +471,8 @@ impl ExecutionPlan for UnpivotExec {
             output_columns.push(output_col);
         }
 
-        let mut name_column = Column::new(&yachtsql_core::types::DataType::String, output_num_rows);
+        let mut name_column =
+            Column::new(&yachtsql_common::types::DataType::String, output_num_rows);
         for _ in 0..input_num_rows {
             for col_name in &self.unpivot_columns {
                 name_column.push(Value::string(col_name.clone()))?;
@@ -479,7 +480,8 @@ impl ExecutionPlan for UnpivotExec {
         }
         output_columns.push(name_column);
 
-        let mut value_column = Column::new(&yachtsql_core::types::DataType::Int64, output_num_rows);
+        let mut value_column =
+            Column::new(&yachtsql_common::types::DataType::Int64, output_num_rows);
         for row_idx in 0..input_num_rows {
             for &col_idx in &unpivot_indices {
                 let value = merged_batch.expect_columns()[col_idx].get(row_idx)?;
@@ -507,7 +509,7 @@ impl ExecutionPlan for UnpivotExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
     use yachtsql_optimizer::expr::LiteralValue;
 
     use super::*;

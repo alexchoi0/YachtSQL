@@ -4,8 +4,8 @@ use std::str::FromStr;
 use chrono::{Datelike, Days, Months, NaiveDate};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Interval, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Interval, Value};
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_optimizer::plan::PlanNode;
 use yachtsql_storage::Schema;
@@ -193,7 +193,7 @@ fn literal_type(lit: &yachtsql_optimizer::expr::LiteralValue) -> DataType {
         yachtsql_optimizer::expr::LiteralValue::Vector(vec) => DataType::Vector(vec.len()),
         yachtsql_optimizer::expr::LiteralValue::Interval(_) => DataType::Interval,
         yachtsql_optimizer::expr::LiteralValue::Range(_) => {
-            DataType::Range(yachtsql_core::types::RangeType::Int4Range)
+            DataType::Range(yachtsql_common::types::RangeType::Int4Range)
         }
         yachtsql_optimizer::expr::LiteralValue::Point(_) => DataType::Point,
         yachtsql_optimizer::expr::LiteralValue::PgBox(_) => DataType::PgBox,
@@ -370,40 +370,40 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
         yachtsql_optimizer::expr::CastDataType::Inet => DataType::Inet,
         yachtsql_optimizer::expr::CastDataType::Cidr => DataType::Cidr,
         yachtsql_optimizer::expr::CastDataType::Int4Range => {
-            DataType::Range(yachtsql_core::types::RangeType::Int4Range)
+            DataType::Range(yachtsql_common::types::RangeType::Int4Range)
         }
         yachtsql_optimizer::expr::CastDataType::Int8Range => {
-            DataType::Range(yachtsql_core::types::RangeType::Int8Range)
+            DataType::Range(yachtsql_common::types::RangeType::Int8Range)
         }
         yachtsql_optimizer::expr::CastDataType::NumRange => {
-            DataType::Range(yachtsql_core::types::RangeType::NumRange)
+            DataType::Range(yachtsql_common::types::RangeType::NumRange)
         }
         yachtsql_optimizer::expr::CastDataType::TsRange => {
-            DataType::Range(yachtsql_core::types::RangeType::TsRange)
+            DataType::Range(yachtsql_common::types::RangeType::TsRange)
         }
         yachtsql_optimizer::expr::CastDataType::TsTzRange => {
-            DataType::Range(yachtsql_core::types::RangeType::TsTzRange)
+            DataType::Range(yachtsql_common::types::RangeType::TsTzRange)
         }
         yachtsql_optimizer::expr::CastDataType::DateRange => {
-            DataType::Range(yachtsql_core::types::RangeType::DateRange)
+            DataType::Range(yachtsql_common::types::RangeType::DateRange)
         }
         yachtsql_optimizer::expr::CastDataType::Int4Multirange => {
-            DataType::Multirange(yachtsql_core::types::MultirangeType::Int4Multirange)
+            DataType::Multirange(yachtsql_common::types::MultirangeType::Int4Multirange)
         }
         yachtsql_optimizer::expr::CastDataType::Int8Multirange => {
-            DataType::Multirange(yachtsql_core::types::MultirangeType::Int8Multirange)
+            DataType::Multirange(yachtsql_common::types::MultirangeType::Int8Multirange)
         }
         yachtsql_optimizer::expr::CastDataType::NumMultirange => {
-            DataType::Multirange(yachtsql_core::types::MultirangeType::NumMultirange)
+            DataType::Multirange(yachtsql_common::types::MultirangeType::NumMultirange)
         }
         yachtsql_optimizer::expr::CastDataType::TsMultirange => {
-            DataType::Multirange(yachtsql_core::types::MultirangeType::TsMultirange)
+            DataType::Multirange(yachtsql_common::types::MultirangeType::TsMultirange)
         }
         yachtsql_optimizer::expr::CastDataType::TsTzMultirange => {
-            DataType::Multirange(yachtsql_core::types::MultirangeType::TsTzMultirange)
+            DataType::Multirange(yachtsql_common::types::MultirangeType::TsTzMultirange)
         }
         yachtsql_optimizer::expr::CastDataType::DateMultirange => {
-            DataType::Multirange(yachtsql_core::types::MultirangeType::DateMultirange)
+            DataType::Multirange(yachtsql_common::types::MultirangeType::DateMultirange)
         }
         yachtsql_optimizer::expr::CastDataType::Point => DataType::Point,
         yachtsql_optimizer::expr::CastDataType::PgBox => DataType::PgBox,
@@ -412,7 +412,7 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
     }
 }
 
-pub fn format_interval(interval: &yachtsql_core::types::Interval) -> String {
+pub fn format_interval(interval: &yachtsql_common::types::Interval) -> String {
     let mut parts = Vec::new();
 
     if interval.months != 0 {
@@ -473,8 +473,8 @@ pub fn format_interval(interval: &yachtsql_core::types::Interval) -> String {
     parts.join(" ")
 }
 
-pub fn parse_interval_from_string(s: &str) -> Result<yachtsql_core::types::Interval> {
-    use yachtsql_core::types::Interval;
+pub fn parse_interval_from_string(s: &str) -> Result<yachtsql_common::types::Interval> {
+    use yachtsql_common::types::Interval;
 
     let s = s.trim().to_lowercase();
     let mut months = 0i32;
@@ -1009,7 +1009,7 @@ pub fn perform_cast(
             if let Some(ts) = value.as_timestamp() {
                 Ok(Value::timestamp(ts))
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::parse_timestamp_to_utc;
+                use yachtsql_common::types::parse_timestamp_to_utc;
                 parse_timestamp_to_utc(s.trim())
                     .map(Value::timestamp)
                     .ok_or_else(|| {
@@ -1048,7 +1048,7 @@ pub fn perform_cast(
                     ndt, Utc,
                 )))
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::parse_timestamp_to_utc;
+                use yachtsql_common::types::parse_timestamp_to_utc;
                 parse_timestamp_to_utc(s.trim())
                     .map(Value::datetime)
                     .ok_or_else(|| {
@@ -1085,7 +1085,7 @@ pub fn perform_cast(
             if let Some(ts) = value.as_timestamp() {
                 Ok(Value::timestamp(ts))
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::parse_timestamp_to_utc;
+                use yachtsql_common::types::parse_timestamp_to_utc;
                 parse_timestamp_to_utc(s.trim())
                     .map(Value::timestamp)
                     .ok_or_else(|| {
@@ -1167,7 +1167,7 @@ pub fn perform_cast(
             if let Some(mac) = value.as_macaddr() {
                 Ok(Value::macaddr(mac.clone()))
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::MacAddress;
+                use yachtsql_common::types::MacAddress;
                 match MacAddress::parse(s, false) {
                     Some(mac) => Ok(Value::macaddr(mac)),
                     None => Err(Error::InvalidOperation(format!(
@@ -1188,7 +1188,7 @@ pub fn perform_cast(
             } else if let Some(mac) = value.as_macaddr() {
                 Ok(Value::macaddr8(mac.to_eui64()))
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::MacAddress;
+                use yachtsql_common::types::MacAddress;
 
                 match MacAddress::parse(s, true) {
                     Some(mac) => Ok(Value::macaddr8(mac)),
@@ -1239,7 +1239,7 @@ pub fn perform_cast(
             if let Some(range) = value.as_range() {
                 Ok(Value::range(range.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_range_from_string(s, yachtsql_core::types::RangeType::Int4Range)
+                parse_range_from_string(s, yachtsql_common::types::RangeType::Int4Range)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "INT4RANGE".to_string(),
@@ -1251,7 +1251,7 @@ pub fn perform_cast(
             if let Some(range) = value.as_range() {
                 Ok(Value::range(range.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_range_from_string(s, yachtsql_core::types::RangeType::Int8Range)
+                parse_range_from_string(s, yachtsql_common::types::RangeType::Int8Range)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "INT8RANGE".to_string(),
@@ -1263,7 +1263,7 @@ pub fn perform_cast(
             if let Some(range) = value.as_range() {
                 Ok(Value::range(range.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_range_from_string(s, yachtsql_core::types::RangeType::NumRange)
+                parse_range_from_string(s, yachtsql_common::types::RangeType::NumRange)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "NUMRANGE".to_string(),
@@ -1275,7 +1275,7 @@ pub fn perform_cast(
             if let Some(range) = value.as_range() {
                 Ok(Value::range(range.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_range_from_string(s, yachtsql_core::types::RangeType::TsRange)
+                parse_range_from_string(s, yachtsql_common::types::RangeType::TsRange)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "TSRANGE".to_string(),
@@ -1287,7 +1287,7 @@ pub fn perform_cast(
             if let Some(range) = value.as_range() {
                 Ok(Value::range(range.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_range_from_string(s, yachtsql_core::types::RangeType::TsTzRange)
+                parse_range_from_string(s, yachtsql_common::types::RangeType::TsTzRange)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "TSTZRANGE".to_string(),
@@ -1299,7 +1299,7 @@ pub fn perform_cast(
             if let Some(range) = value.as_range() {
                 Ok(Value::range(range.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_range_from_string(s, yachtsql_core::types::RangeType::DateRange)
+                parse_range_from_string(s, yachtsql_common::types::RangeType::DateRange)
             } else {
                 Err(Error::TypeMismatch {
                     expected: "DATERANGE".to_string(),
@@ -1313,7 +1313,7 @@ pub fn perform_cast(
             } else if let Some(s) = value.as_str() {
                 parse_multirange_from_string(
                     s,
-                    yachtsql_core::types::MultirangeType::Int4Multirange,
+                    yachtsql_common::types::MultirangeType::Int4Multirange,
                 )
             } else {
                 Err(Error::TypeMismatch {
@@ -1328,7 +1328,7 @@ pub fn perform_cast(
             } else if let Some(s) = value.as_str() {
                 parse_multirange_from_string(
                     s,
-                    yachtsql_core::types::MultirangeType::Int8Multirange,
+                    yachtsql_common::types::MultirangeType::Int8Multirange,
                 )
             } else {
                 Err(Error::TypeMismatch {
@@ -1341,7 +1341,10 @@ pub fn perform_cast(
             if let Some(multirange) = value.as_multirange() {
                 Ok(Value::multirange(multirange.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_multirange_from_string(s, yachtsql_core::types::MultirangeType::NumMultirange)
+                parse_multirange_from_string(
+                    s,
+                    yachtsql_common::types::MultirangeType::NumMultirange,
+                )
             } else {
                 Err(Error::TypeMismatch {
                     expected: "NUMMULTIRANGE".to_string(),
@@ -1353,7 +1356,10 @@ pub fn perform_cast(
             if let Some(multirange) = value.as_multirange() {
                 Ok(Value::multirange(multirange.clone()))
             } else if let Some(s) = value.as_str() {
-                parse_multirange_from_string(s, yachtsql_core::types::MultirangeType::TsMultirange)
+                parse_multirange_from_string(
+                    s,
+                    yachtsql_common::types::MultirangeType::TsMultirange,
+                )
             } else {
                 Err(Error::TypeMismatch {
                     expected: "TSMULTIRANGE".to_string(),
@@ -1367,7 +1373,7 @@ pub fn perform_cast(
             } else if let Some(s) = value.as_str() {
                 parse_multirange_from_string(
                     s,
-                    yachtsql_core::types::MultirangeType::TsTzMultirange,
+                    yachtsql_common::types::MultirangeType::TsTzMultirange,
                 )
             } else {
                 Err(Error::TypeMismatch {
@@ -1382,7 +1388,7 @@ pub fn perform_cast(
             } else if let Some(s) = value.as_str() {
                 parse_multirange_from_string(
                     s,
-                    yachtsql_core::types::MultirangeType::DateMultirange,
+                    yachtsql_common::types::MultirangeType::DateMultirange,
                 )
             } else {
                 Err(Error::TypeMismatch {
@@ -1395,7 +1401,7 @@ pub fn perform_cast(
             if value.as_point().is_some() {
                 Ok(value.clone())
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::PgPoint;
+                use yachtsql_common::types::PgPoint;
                 PgPoint::parse(s)
                     .map(Value::point)
                     .ok_or_else(|| Error::InvalidOperation(format!("Invalid POINT '{}'", s)))
@@ -1410,7 +1416,7 @@ pub fn perform_cast(
             if value.as_pgbox().is_some() {
                 Ok(value.clone())
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::PgBox;
+                use yachtsql_common::types::PgBox;
                 PgBox::parse(s)
                     .map(Value::pgbox)
                     .ok_or_else(|| Error::InvalidOperation(format!("Invalid BOX '{}'", s)))
@@ -1425,7 +1431,7 @@ pub fn perform_cast(
             if value.as_circle().is_some() {
                 Ok(value.clone())
             } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::PgCircle;
+                use yachtsql_common::types::PgCircle;
                 PgCircle::parse(s)
                     .map(Value::circle)
                     .ok_or_else(|| Error::InvalidOperation(format!("Invalid CIRCLE '{}'", s)))
@@ -1564,8 +1570,11 @@ pub fn perform_cast(
     }
 }
 
-fn parse_range_from_string(s: &str, range_type: yachtsql_core::types::RangeType) -> Result<Value> {
-    use yachtsql_core::types::{Range, RangeType};
+fn parse_range_from_string(
+    s: &str,
+    range_type: yachtsql_common::types::RangeType,
+) -> Result<Value> {
+    use yachtsql_common::types::{Range, RangeType};
 
     let s = s.trim();
 
@@ -1618,8 +1627,8 @@ fn parse_range_from_string(s: &str, range_type: yachtsql_core::types::RangeType)
     }))
 }
 
-fn parse_range_bound(s: &str, range_type: &yachtsql_core::types::RangeType) -> Result<Value> {
-    use yachtsql_core::types::RangeType;
+fn parse_range_bound(s: &str, range_type: &yachtsql_common::types::RangeType) -> Result<Value> {
+    use yachtsql_common::types::RangeType;
 
     match range_type {
         RangeType::Int4Range | RangeType::Int8Range => {
@@ -1686,9 +1695,9 @@ fn parse_range_bound(s: &str, range_type: &yachtsql_core::types::RangeType) -> R
 
 fn parse_multirange_from_string(
     s: &str,
-    multirange_type: yachtsql_core::types::MultirangeType,
+    multirange_type: yachtsql_common::types::MultirangeType,
 ) -> Result<Value> {
-    use yachtsql_core::types::{Multirange, Range};
+    use yachtsql_common::types::{Multirange, Range};
 
     let s = s.trim();
 
@@ -1748,9 +1757,9 @@ fn parse_multirange_from_string(
 
 fn parse_single_range(
     s: &str,
-    range_type: yachtsql_core::types::RangeType,
-) -> Result<yachtsql_core::types::Range> {
-    use yachtsql_core::types::Range;
+    range_type: yachtsql_common::types::RangeType,
+) -> Result<yachtsql_common::types::Range> {
+    use yachtsql_common::types::Range;
 
     let s = s.trim();
 

@@ -1,6 +1,6 @@
 use chrono::NaiveTime;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -44,7 +44,7 @@ impl ProjectionWithExprExec {
 
 fn sub_interval_from_time(
     time: NaiveTime,
-    interval: &yachtsql_core::types::Interval,
+    interval: &yachtsql_common::types::Interval,
 ) -> Result<NaiveTime> {
     use chrono::Duration;
 

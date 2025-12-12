@@ -1,4 +1,4 @@
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use crate::{Column, simd};
 

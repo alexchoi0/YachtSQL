@@ -9,8 +9,8 @@ use sqlparser::ast::{
     OrderByKind, Select, SelectItem, SetExpr, SetOperator, SetQuantifier, Statement, TableFactor,
     TableWithJoins,
 };
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 
 fn is_system_column_type(dt: &DataType) -> bool {
     matches!(
@@ -96,7 +96,7 @@ impl QueryExecutorTrait for QueryExecutor {
         schema: &Schema,
         select_items: &[SelectItem],
     ) -> Result<(Schema, Vec<Row>)> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         use crate::query_executor::expression_evaluator::ExpressionEvaluator;
 
@@ -6145,7 +6145,7 @@ impl QueryExecutor {
             }
         }
         if let Some(fields) = value.as_struct() {
-            use yachtsql_core::types::StructField;
+            use yachtsql_common::types::StructField;
             let struct_fields: Vec<StructField> = fields
                 .iter()
                 .map(|(name, val)| StructField {

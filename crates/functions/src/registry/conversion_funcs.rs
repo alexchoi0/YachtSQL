@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use rust_decimal::prelude::ToPrimitive;
-use yachtsql_core::error::Error;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Error;
+use yachtsql_common::types::{DataType, Value};
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;
@@ -270,7 +270,7 @@ fn register_json_conversions(registry: &mut FunctionRegistry) {
     );
 }
 
-fn cast_value(value: &Value, target_type: &str) -> yachtsql_core::error::Result<Value> {
+fn cast_value(value: &Value, target_type: &str) -> yachtsql_common::error::Result<Value> {
     let target = target_type.to_uppercase();
 
     if value.is_null() {
@@ -292,7 +292,7 @@ fn cast_value(value: &Value, target_type: &str) -> yachtsql_core::error::Result<
     }
 }
 
-fn to_char(value: &Value, _format: Option<&str>) -> yachtsql_core::error::Result<Value> {
+fn to_char(value: &Value, _format: Option<&str>) -> yachtsql_common::error::Result<Value> {
     if value.is_null() {
         return Ok(Value::null());
     }
@@ -332,7 +332,7 @@ fn to_char(value: &Value, _format: Option<&str>) -> yachtsql_core::error::Result
     })
 }
 
-fn to_int64(value: &Value) -> yachtsql_core::error::Result<Value> {
+fn to_int64(value: &Value) -> yachtsql_common::error::Result<Value> {
     if value.is_null() {
         return Ok(Value::null());
     }
@@ -365,7 +365,7 @@ fn to_int64(value: &Value) -> yachtsql_core::error::Result<Value> {
     })
 }
 
-fn to_float64(value: &Value) -> yachtsql_core::error::Result<Value> {
+fn to_float64(value: &Value) -> yachtsql_common::error::Result<Value> {
     if value.is_null() {
         return Ok(Value::null());
     }
@@ -398,7 +398,7 @@ fn to_float64(value: &Value) -> yachtsql_core::error::Result<Value> {
     })
 }
 
-fn to_bool(value: &Value) -> yachtsql_core::error::Result<Value> {
+fn to_bool(value: &Value) -> yachtsql_common::error::Result<Value> {
     if value.is_null() {
         return Ok(Value::null());
     }
@@ -430,7 +430,7 @@ fn to_bool(value: &Value) -> yachtsql_core::error::Result<Value> {
     })
 }
 
-fn to_date(value: &Value) -> yachtsql_core::error::Result<Value> {
+fn to_date(value: &Value) -> yachtsql_common::error::Result<Value> {
     if value.is_null() {
         return Ok(Value::null());
     }
@@ -453,7 +453,7 @@ fn to_date(value: &Value) -> yachtsql_core::error::Result<Value> {
     })
 }
 
-fn to_timestamp(value: &Value) -> yachtsql_core::error::Result<Value> {
+fn to_timestamp(value: &Value) -> yachtsql_common::error::Result<Value> {
     if value.is_null() {
         return Ok(Value::null());
     }
@@ -489,7 +489,7 @@ fn to_timestamp(value: &Value) -> yachtsql_core::error::Result<Value> {
     })
 }
 
-fn to_json(value: &Value) -> yachtsql_core::error::Result<Value> {
+fn to_json(value: &Value) -> yachtsql_common::error::Result<Value> {
     if value.is_null() {
         return Ok(Value::null());
     }
@@ -507,7 +507,7 @@ fn to_json(value: &Value) -> yachtsql_core::error::Result<Value> {
     Ok(Value::json(json_val))
 }
 
-fn value_to_json(value: &Value) -> yachtsql_core::error::Result<serde_json::Value> {
+fn value_to_json(value: &Value) -> yachtsql_common::error::Result<serde_json::Value> {
     if value.is_null() {
         return Ok(serde_json::Value::Null);
     }

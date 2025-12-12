@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TriggerTiming {

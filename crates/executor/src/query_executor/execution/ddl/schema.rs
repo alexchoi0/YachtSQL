@@ -1,5 +1,5 @@
 use sqlparser::ast::Statement as SqlStatement;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_parser::validator::{AlterSchemaAction, CustomStatement};
 
 use crate::{QueryExecutor, Table};

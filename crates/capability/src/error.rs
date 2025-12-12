@@ -1,6 +1,6 @@
 use std::fmt;
 
-use yachtsql_core::diagnostics::{FEATURE_NOT_SUPPORTED, INTERNAL_ERROR, SqlState};
+use yachtsql_common::diagnostics::{FEATURE_NOT_SUPPORTED, INTERNAL_ERROR, SqlState};
 
 pub type Result<T> = std::result::Result<T, CapabilityError>;
 
@@ -165,11 +165,11 @@ impl fmt::Display for CapabilityError {
 
 impl std::error::Error for CapabilityError {}
 
-impl From<CapabilityError> for yachtsql_core::error::Error {
+impl From<CapabilityError> for yachtsql_common::error::Error {
     fn from(err: CapabilityError) -> Self {
         match err {
             CapabilityError::FeatureNotFound { feature_id } => {
-                yachtsql_core::error::Error::unsupported_feature(format!(
+                yachtsql_common::error::Error::unsupported_feature(format!(
                     "Unknown feature: {}",
                     feature_id
                 ))
@@ -177,7 +177,7 @@ impl From<CapabilityError> for yachtsql_core::error::Error {
             CapabilityError::UnsatisfiedDependency {
                 feature_id,
                 missing_dependencies,
-            } => yachtsql_core::error::Error::unsupported_feature(format!(
+            } => yachtsql_common::error::Error::unsupported_feature(format!(
                 "Cannot enable {} - missing dependencies: {}",
                 feature_id,
                 missing_dependencies.join(", ")
@@ -185,7 +185,7 @@ impl From<CapabilityError> for yachtsql_core::error::Error {
             CapabilityError::CircularDependency {
                 feature_id,
                 cycle_path,
-            } => yachtsql_core::error::Error::InternalError(format!(
+            } => yachtsql_common::error::Error::InternalError(format!(
                 "Circular dependency for {}: {}",
                 feature_id,
                 cycle_path.join(" -> ")
@@ -193,19 +193,19 @@ impl From<CapabilityError> for yachtsql_core::error::Error {
             CapabilityError::DependentFeaturesEnabled {
                 feature_id,
                 dependents,
-            } => yachtsql_core::error::Error::unsupported_feature(format!(
+            } => yachtsql_common::error::Error::unsupported_feature(format!(
                 "Cannot disable {} - required by: {}",
                 feature_id,
                 dependents.join(", ")
             )),
             CapabilityError::ManifestLoadError { path, reason } => {
-                yachtsql_core::error::Error::InternalError(format!(
+                yachtsql_common::error::Error::InternalError(format!(
                     "Failed to read manifest file {}: {}",
                     path, reason
                 ))
             }
             CapabilityError::InvalidManifest { path, reason } => {
-                yachtsql_core::error::Error::InternalError(format!(
+                yachtsql_common::error::Error::InternalError(format!(
                     "Failed to parse manifest file {}: {}",
                     path, reason
                 ))
@@ -214,7 +214,7 @@ impl From<CapabilityError> for yachtsql_core::error::Error {
                 feature_id,
                 section,
                 path,
-            } => yachtsql_core::error::Error::unsupported_feature(format!(
+            } => yachtsql_common::error::Error::unsupported_feature(format!(
                 "Unknown feature `{}` in [{}] of {}",
                 feature_id, section, path
             )),
@@ -222,24 +222,24 @@ impl From<CapabilityError> for yachtsql_core::error::Error {
                 feature_id,
                 dialect,
                 ..
-            } => yachtsql_core::error::Error::unsupported_feature(format!(
+            } => yachtsql_common::error::Error::unsupported_feature(format!(
                 "Feature {} not supported by dialect {}",
                 feature_id, dialect
             )),
             CapabilityError::UnsupportedDialect { dialect } => {
-                yachtsql_core::error::Error::unsupported_feature(format!(
+                yachtsql_common::error::Error::unsupported_feature(format!(
                     "Unsupported dialect: {}",
                     dialect
                 ))
             }
             CapabilityError::InvalidFeatureId { feature_id, reason } => {
-                yachtsql_core::error::Error::InternalError(format!(
+                yachtsql_common::error::Error::InternalError(format!(
                     "Invalid feature ID {}: {}",
                     feature_id, reason
                 ))
             }
             CapabilityError::Internal { message } => {
-                yachtsql_core::error::Error::InternalError(message)
+                yachtsql_common::error::Error::InternalError(message)
             }
         }
     }
@@ -325,10 +325,10 @@ mod tests {
         let cap_err = CapabilityError::FeatureNotFound {
             feature_id: "F999".to_string(),
         };
-        let core_err: yachtsql_core::error::Error = cap_err.into();
+        let core_err: yachtsql_common::error::Error = cap_err.into();
         assert!(matches!(
             core_err,
-            yachtsql_core::error::Error::UnsupportedFeature(_)
+            yachtsql_common::error::Error::UnsupportedFeature(_)
         ));
     }
 }

@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_optimizer::plan::JoinType;
 use yachtsql_storage::{Column, Schema};
@@ -499,7 +499,7 @@ impl LateralJoinExec {
                         expr,
                         &input_schema,
                     )
-                    .unwrap_or(yachtsql_core::types::DataType::String);
+                    .unwrap_or(yachtsql_common::types::DataType::String);
 
                     let field_name = if let Some(alias) = alias {
                         alias.clone()
@@ -572,7 +572,7 @@ impl LateralJoinExec {
                         expr,
                         &input_schema,
                     )
-                    .unwrap_or(yachtsql_core::types::DataType::String);
+                    .unwrap_or(yachtsql_common::types::DataType::String);
                     let name = match expr {
                         yachtsql_ir::expr::Expr::Column { name, .. } => name.clone(),
                         _ => format!("group_{}", idx),
@@ -589,18 +589,18 @@ impl LateralJoinExec {
                         } => {
                             use yachtsql_ir::function::FunctionName;
                             let dt = match agg_name {
-                                FunctionName::Count => yachtsql_core::types::DataType::Int64,
+                                FunctionName::Count => yachtsql_common::types::DataType::Int64,
                                 FunctionName::Avg | FunctionName::Sum => {
-                                    yachtsql_core::types::DataType::Float64
+                                    yachtsql_common::types::DataType::Float64
                                 }
                                 FunctionName::Min | FunctionName::Max => {
                                     super::ProjectionWithExprExec::infer_expr_type_with_schema(
                                         expr,
                                         &input_schema,
                                     )
-                                    .unwrap_or(yachtsql_core::types::DataType::Float64)
+                                    .unwrap_or(yachtsql_common::types::DataType::Float64)
                                 }
-                                _ => yachtsql_core::types::DataType::Float64,
+                                _ => yachtsql_common::types::DataType::Float64,
                             };
 
                             let arg_str = if args.is_empty() {
@@ -624,7 +624,7 @@ impl LateralJoinExec {
                                 expr,
                                 &input_schema,
                             )
-                            .unwrap_or(yachtsql_core::types::DataType::Float64);
+                            .unwrap_or(yachtsql_common::types::DataType::Float64);
                             (format!("agg_{}", idx), dt)
                         }
                     };
@@ -642,20 +642,20 @@ impl LateralJoinExec {
                 let fn_upper = function_name.to_uppercase();
                 let mut schema = match fn_upper.as_str() {
                     "JSON_EACH" | "JSONB_EACH" => Schema::from_fields(vec![
-                        Field::nullable("key", yachtsql_core::types::DataType::String),
-                        Field::nullable("value", yachtsql_core::types::DataType::Json),
+                        Field::nullable("key", yachtsql_common::types::DataType::String),
+                        Field::nullable("value", yachtsql_common::types::DataType::Json),
                     ]),
                     "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => Schema::from_fields(vec![
-                        Field::nullable("key", yachtsql_core::types::DataType::String),
-                        Field::nullable("value", yachtsql_core::types::DataType::String),
+                        Field::nullable("key", yachtsql_common::types::DataType::String),
+                        Field::nullable("value", yachtsql_common::types::DataType::String),
                     ]),
                     "UNNEST" => Schema::from_fields(vec![Field::nullable(
                         "unnest",
-                        yachtsql_core::types::DataType::String,
+                        yachtsql_common::types::DataType::String,
                     )]),
                     "GENERATE_SERIES" => Schema::from_fields(vec![Field::nullable(
                         "generate_series",
-                        yachtsql_core::types::DataType::Int64,
+                        yachtsql_common::types::DataType::Int64,
                     )]),
                     _ => Schema::from_fields(vec![]),
                 };
@@ -690,7 +690,7 @@ impl LateralJoinExec {
                 if *with_offset {
                     let offset_name = offset_alias.clone().unwrap_or_else(|| "offset".to_string());
                     let mut offset_field =
-                        Field::nullable(offset_name, yachtsql_core::types::DataType::Int64);
+                        Field::nullable(offset_name, yachtsql_common::types::DataType::Int64);
                     if let Some(table_alias) = alias {
                         offset_field = offset_field.with_source_table(table_alias.clone());
                     }
@@ -1126,8 +1126,8 @@ impl ExecutionPlan for LateralJoinExec {
 fn infer_unnest_element_type(
     expr: &yachtsql_ir::expr::Expr,
     storage: &Rc<RefCell<yachtsql_storage::Storage>>,
-) -> yachtsql_core::types::DataType {
-    use yachtsql_core::types::DataType;
+) -> yachtsql_common::types::DataType {
+    use yachtsql_common::types::DataType;
     use yachtsql_ir::expr::Expr;
 
     match expr {
@@ -2275,22 +2275,22 @@ mod tests {
         let left_schema = yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
             yachtsql_storage::Field::required(
                 "name".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             ),
         ]);
 
         let right_schema = yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
             yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
         ]);
 
@@ -2334,13 +2334,13 @@ mod tests {
         let left_schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "a".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let right_schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "b".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let left_exec = Rc::new(TableScanExec::new(
@@ -2372,7 +2372,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "x".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let left_exec = Rc::new(TableScanExec::new(

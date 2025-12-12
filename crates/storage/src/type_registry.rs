@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::StructField;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::StructField;
 
 pub use crate::custom_types::EnumType;
 
@@ -226,7 +226,7 @@ impl TypeRegistry {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
 
     use super::*;
 

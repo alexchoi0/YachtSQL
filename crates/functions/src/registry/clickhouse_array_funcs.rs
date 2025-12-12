@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use rust_decimal::prelude::ToPrimitive;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::types::{DataType, Value};
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;

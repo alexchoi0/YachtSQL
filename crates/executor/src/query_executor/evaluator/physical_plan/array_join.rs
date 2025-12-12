@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Column, Schema};
 
@@ -42,10 +42,10 @@ impl ArrayJoinExec {
         for field in input_schema.fields() {
             if array_col_names.contains(&field.name) {
                 let element_type =
-                    if let yachtsql_core::types::DataType::Array(inner) = &field.data_type {
+                    if let yachtsql_common::types::DataType::Array(inner) = &field.data_type {
                         inner.as_ref().clone()
                     } else {
-                        yachtsql_core::types::DataType::String
+                        yachtsql_common::types::DataType::String
                     };
                 fields.push(yachtsql_storage::Field::nullable(
                     field.name.clone(),
@@ -65,15 +65,15 @@ impl ArrayJoinExec {
                         .iter()
                         .find(|f| &f.name == name)
                         .map(|f| {
-                            if let yachtsql_core::types::DataType::Array(inner) = &f.data_type {
+                            if let yachtsql_common::types::DataType::Array(inner) = &f.data_type {
                                 inner.as_ref().clone()
                             } else {
-                                yachtsql_core::types::DataType::String
+                                yachtsql_common::types::DataType::String
                             }
                         })
-                        .unwrap_or(yachtsql_core::types::DataType::String)
+                        .unwrap_or(yachtsql_common::types::DataType::String)
                 } else {
-                    yachtsql_core::types::DataType::String
+                    yachtsql_common::types::DataType::String
                 };
 
                 fields.push(yachtsql_storage::Field::nullable(field_name, element_type));
@@ -408,11 +408,11 @@ mod tests {
     #[test]
     fn test_array_join_basic() {
         let schema = Schema::from_fields(vec![
-            Field::required("id".to_string(), yachtsql_core::types::DataType::Int64),
+            Field::required("id".to_string(), yachtsql_common::types::DataType::Int64),
             Field::nullable(
                 "hobbies".to_string(),
-                yachtsql_core::types::DataType::Array(Box::new(
-                    yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::Array(Box::new(
+                    yachtsql_common::types::DataType::String,
                 )),
             ),
         ]);
@@ -455,11 +455,11 @@ mod tests {
     #[test]
     fn test_left_array_join() {
         let schema = Schema::from_fields(vec![
-            Field::required("id".to_string(), yachtsql_core::types::DataType::Int64),
+            Field::required("id".to_string(), yachtsql_common::types::DataType::Int64),
             Field::nullable(
                 "hobbies".to_string(),
-                yachtsql_core::types::DataType::Array(Box::new(
-                    yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::Array(Box::new(
+                    yachtsql_common::types::DataType::String,
                 )),
             ),
         ]);

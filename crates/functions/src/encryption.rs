@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 const AEAD_VERSION: u8 = 1;
 const DETERMINISTIC_VERSION: u8 = 2;

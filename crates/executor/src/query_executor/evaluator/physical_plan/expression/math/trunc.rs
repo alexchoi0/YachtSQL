@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -51,7 +51,7 @@ impl ProjectionWithExprExec {
         } else if let Some(d) = val.as_numeric() {
             Ok(Value::numeric(d.trunc_with_scale(decimals.max(0) as u32)))
         } else if let Some(mac) = val.as_macaddr() {
-            let truncated = yachtsql_core::types::MacAddress::new_macaddr([
+            let truncated = yachtsql_common::types::MacAddress::new_macaddr([
                 mac.octets[0],
                 mac.octets[1],
                 mac.octets[2],
@@ -61,7 +61,7 @@ impl ProjectionWithExprExec {
             ]);
             Ok(Value::macaddr(truncated))
         } else if let Some(mac8) = val.as_macaddr8() {
-            let truncated = yachtsql_core::types::MacAddress::new_macaddr8([
+            let truncated = yachtsql_common::types::MacAddress::new_macaddr8([
                 mac8.octets[0],
                 mac8.octets[1],
                 mac8.octets[2],
@@ -83,7 +83,7 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_optimizer::expr::Expr;
     use yachtsql_storage::{Field, Schema};
 

@@ -4516,7 +4516,6 @@ dependencies = [
  "ahash 0.8.12",
  "aligned-vec",
  "anyhow",
- "arrow",
  "bloomfilter",
  "chrono",
  "criterion",
@@ -4531,7 +4530,6 @@ dependencies = [
  "md5",
  "natord",
  "ordered-float 4.6.0",
- "parquet",
  "pprof",
  "proptest",
  "publicsuffix",
@@ -4545,7 +4543,6 @@ dependencies = [
  "sha1",
  "sha2",
  "sqlparser",
- "tempfile",
  "thiserror 2.0.17",
  "tokio",
  "toml",
@@ -4553,14 +4550,13 @@ dependencies = [
  "url",
  "uuid",
  "yachtsql-capability",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-executor",
  "yachtsql-functions",
  "yachtsql-ir",
  "yachtsql-optimizer",
  "yachtsql-parser",
  "yachtsql-storage",
- "yachtsql-test-utils",
 ]
 
 [[package]]
@@ -4572,13 +4568,13 @@ dependencies = [
  "serde_json",
  "toml",
  "yachtsql",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-parser",
  "yachtsql-test-utils",
 ]
 
 [[package]]
-name = "yachtsql-core"
+name = "yachtsql-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4696,7 +4692,7 @@ dependencies = [
  "xxhash-rust",
  "yachtsql",
  "yachtsql-capability",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-functions",
  "yachtsql-ir",
  "yachtsql-optimizer",
@@ -4743,7 +4739,7 @@ dependencies = [
  "uuid",
  "xxhash-rust",
  "yachtsql",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-parser",
  "yachtsql-storage",
  "yachtsql-test-utils",
@@ -4761,7 +4757,7 @@ dependencies = [
  "serde_json",
  "sqlparser",
  "yachtsql",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-storage",
  "yachtsql-test-utils",
 ]
@@ -4779,7 +4775,7 @@ dependencies = [
  "serde_json",
  "sqlparser",
  "yachtsql",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-ir",
  "yachtsql-storage",
  "yachtsql-test-utils",
@@ -4799,7 +4795,7 @@ dependencies = [
  "serde_json",
  "sqlparser",
  "yachtsql",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-ir",
  "yachtsql-optimizer",
  "yachtsql-storage",
@@ -4822,7 +4818,7 @@ dependencies = [
  "serde_json",
  "sqlparser",
  "uuid",
- "yachtsql-core",
+ "yachtsql-common",
 ]
 
 [[package]]
@@ -4832,7 +4828,7 @@ dependencies = [
  "rust_decimal",
  "yachtsql",
  "yachtsql-capability",
- "yachtsql-core",
+ "yachtsql-common",
  "yachtsql-parser",
  "yachtsql-storage",
 ]

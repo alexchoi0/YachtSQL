@@ -20,7 +20,7 @@ use types::JsonValueRewriteResult;
 pub use types::{
     DialectType, JSON_VALUE_OPTIONS_PREFIX, JsonValueRewriteOptions, StandardStatement, Statement,
 };
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use crate::sql_context::{SqlContext, SqlWalker};
 use crate::validator::StatementValidator;

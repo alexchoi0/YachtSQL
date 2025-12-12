@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -46,7 +46,7 @@ impl ProjectionWithExprExec {
 #[cfg(test)]
 mod tests {
     use uuid::Uuid;
-    use yachtsql_core::types::Value;
+    use yachtsql_common::types::Value;
     use yachtsql_optimizer::expr::Expr;
 
     use super::*;

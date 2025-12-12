@@ -1,4 +1,4 @@
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 use yachtsql_storage::Schema;
 use yachtsql_storage::schema::Field;
 
@@ -9,7 +9,7 @@ pub(super) fn extract_source_row(
     batch: &Table,
     row_idx: usize,
     schema: &Schema,
-) -> yachtsql_core::error::Result<Row> {
+) -> yachtsql_common::error::Result<Row> {
     let mut row = Row::for_schema(schema);
     for (col_idx, field) in schema.fields().iter().enumerate() {
         let value = if let Some(column) = batch.column(col_idx) {
@@ -30,7 +30,7 @@ pub(super) fn build_join_row(
     source_alias: Option<&str>,
     target_alias: Option<&str>,
     target_table: &str,
-) -> yachtsql_core::error::Result<Row> {
+) -> yachtsql_common::error::Result<Row> {
     let source_prefix = source_alias.unwrap_or(target_table);
     let target_prefix = target_alias.unwrap_or(target_table);
 
@@ -98,7 +98,7 @@ fn add_row_columns_to_join(
     combined_schema: &Schema,
     prefix: &str,
     conflict_schema: Option<&Schema>,
-) -> yachtsql_core::error::Result<()> {
+) -> yachtsql_common::error::Result<()> {
     for field in row_schema.fields() {
         let value = source_row
             .get_by_name(row_schema, &field.name)

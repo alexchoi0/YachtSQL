@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 
 use super::super::super::ProjectionWithExprExec;
 
@@ -12,7 +12,7 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::Value;
+    use yachtsql_common::types::Value;
 
     use super::*;
 
@@ -20,7 +20,7 @@ mod tests {
     fn returns_date_value() {
         let result = ProjectionWithExprExec::eval_current_date().expect("success");
         assert!(
-            result.data_type() == yachtsql_core::types::DataType::Date,
+            result.data_type() == yachtsql_common::types::DataType::Date,
             "expected Date value"
         );
     }

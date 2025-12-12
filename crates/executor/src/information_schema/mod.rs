@@ -1,15 +1,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, MultirangeType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, MultirangeType, Value};
 use yachtsql_parser::DialectType;
 use yachtsql_storage::{Field, Row, Schema, Storage, TableIndexOps};
 
 use crate::table::Table;
 
 pub fn data_type_to_postgres_name(data_type: &DataType) -> String {
-    use yachtsql_core::types::RangeType;
+    use yachtsql_common::types::RangeType;
     match data_type {
         DataType::Int64 => "BIGINT".to_string(),
         DataType::Float32 => "REAL".to_string(),

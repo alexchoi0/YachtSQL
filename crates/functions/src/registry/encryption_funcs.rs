@@ -4,8 +4,8 @@ use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::{Aes128, Aes192, Aes256};
 use base64::Engine;
-use yachtsql_core::error::Error;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Error;
+use yachtsql_common::types::{DataType, Value};
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;

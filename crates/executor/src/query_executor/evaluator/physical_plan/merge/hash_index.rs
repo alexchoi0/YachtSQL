@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 use yachtsql_storage::Schema;
 
 use super::types::{EquijoinPredicate, JoinKey};

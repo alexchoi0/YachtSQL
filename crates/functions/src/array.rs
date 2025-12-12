@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 pub fn array_length(array: &Value) -> Result<Value> {
     if array.is_null() {
@@ -171,10 +171,10 @@ pub fn array_append(array: Value, element: Value) -> Result<Value> {
 }
 
 fn types_are_compatible(
-    type1: &yachtsql_core::types::DataType,
-    type2: &yachtsql_core::types::DataType,
+    type1: &yachtsql_common::types::DataType,
+    type2: &yachtsql_common::types::DataType,
 ) -> bool {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
 
     if type1 == type2 {
         return true;

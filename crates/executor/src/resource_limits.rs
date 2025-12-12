@@ -20,7 +20,7 @@ pub use memory_pool::{
 pub use monitoring::{ResourceMonitor, ResourceReport, SystemHealth};
 pub use priority::{PriorityConfig, QueryPriority};
 pub use query_registry::{QueryId, QueryInfo, QueryRegistry, QueryStatus, RegistryStats};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 #[derive(Debug, Clone)]
 pub struct ResourceLimitsConfig {

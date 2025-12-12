@@ -1,6 +1,6 @@
 use sqlparser::ast::{CreateFunctionBody, Statement as SqlStatement};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::DataType;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::DataType;
 
 use crate::QueryExecutor;
 use crate::query_executor::execution::session::{

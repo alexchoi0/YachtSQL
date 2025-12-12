@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, TimeZone, Utc};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 #[derive(Debug, Clone)]
 pub struct TemporalTableMetadata {
@@ -119,8 +119,8 @@ pub fn generate_temporal_predicate(
 
 pub fn handle_temporal_insert(
     metadata: &TemporalTableMetadata,
-    mut row: HashMap<String, yachtsql_core::types::Value>,
-) -> Result<HashMap<String, yachtsql_core::types::Value>> {
+    mut row: HashMap<String, yachtsql_common::types::Value>,
+) -> Result<HashMap<String, yachtsql_common::types::Value>> {
     if !metadata.is_system_versioned {
         return Ok(row);
     }
@@ -129,7 +129,7 @@ pub fn handle_temporal_insert(
 
     row.insert(
         metadata.row_start_column.clone(),
-        yachtsql_core::types::Value::timestamp(now),
+        yachtsql_common::types::Value::timestamp(now),
     );
 
     let max_timestamp =
@@ -137,7 +137,7 @@ pub fn handle_temporal_insert(
             .map_err(|e| Error::ExecutionError(e.to_string()))?;
     row.insert(
         metadata.row_end_column.clone(),
-        yachtsql_core::types::Value::timestamp(Utc.from_utc_datetime(&max_timestamp)),
+        yachtsql_common::types::Value::timestamp(Utc.from_utc_datetime(&max_timestamp)),
     );
 
     Ok(row)
@@ -145,11 +145,11 @@ pub fn handle_temporal_insert(
 
 pub fn handle_temporal_update(
     metadata: &TemporalTableMetadata,
-    old_row: HashMap<String, yachtsql_core::types::Value>,
-    mut new_row: HashMap<String, yachtsql_core::types::Value>,
+    old_row: HashMap<String, yachtsql_common::types::Value>,
+    mut new_row: HashMap<String, yachtsql_common::types::Value>,
 ) -> Result<(
-    HashMap<String, yachtsql_core::types::Value>,
-    HashMap<String, yachtsql_core::types::Value>,
+    HashMap<String, yachtsql_common::types::Value>,
+    HashMap<String, yachtsql_common::types::Value>,
 )> {
     if !metadata.is_system_versioned {
         return Ok((old_row, new_row));
@@ -160,12 +160,12 @@ pub fn handle_temporal_update(
     let mut history_row = old_row.clone();
     history_row.insert(
         metadata.row_end_column.clone(),
-        yachtsql_core::types::Value::timestamp(now),
+        yachtsql_common::types::Value::timestamp(now),
     );
 
     new_row.insert(
         metadata.row_start_column.clone(),
-        yachtsql_core::types::Value::timestamp(now),
+        yachtsql_common::types::Value::timestamp(now),
     );
 
     let max_timestamp =
@@ -173,7 +173,7 @@ pub fn handle_temporal_update(
             .map_err(|e| Error::ExecutionError(e.to_string()))?;
     new_row.insert(
         metadata.row_end_column.clone(),
-        yachtsql_core::types::Value::timestamp(Utc.from_utc_datetime(&max_timestamp)),
+        yachtsql_common::types::Value::timestamp(Utc.from_utc_datetime(&max_timestamp)),
     );
 
     Ok((history_row, new_row))
@@ -181,8 +181,8 @@ pub fn handle_temporal_update(
 
 pub fn handle_temporal_delete(
     metadata: &TemporalTableMetadata,
-    mut row: HashMap<String, yachtsql_core::types::Value>,
-) -> Result<HashMap<String, yachtsql_core::types::Value>> {
+    mut row: HashMap<String, yachtsql_common::types::Value>,
+) -> Result<HashMap<String, yachtsql_common::types::Value>> {
     if !metadata.is_system_versioned {
         return Ok(row);
     }
@@ -191,7 +191,7 @@ pub fn handle_temporal_delete(
 
     row.insert(
         metadata.row_end_column.clone(),
-        yachtsql_core::types::Value::timestamp(now),
+        yachtsql_common::types::Value::timestamp(now),
     );
 
     Ok(row)
@@ -266,10 +266,10 @@ mod tests {
         };
 
         let mut row = HashMap::new();
-        row.insert("id".to_string(), yachtsql_core::types::Value::int64(1));
+        row.insert("id".to_string(), yachtsql_common::types::Value::int64(1));
         row.insert(
             "name".to_string(),
-            yachtsql_core::types::Value::string("Alice".to_string()),
+            yachtsql_common::types::Value::string("Alice".to_string()),
         );
 
         let result = handle_temporal_insert(&metadata, row).unwrap();

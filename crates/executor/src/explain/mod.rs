@@ -8,7 +8,7 @@ pub use profiler::{
     ProfilingMode, QueryProfiler,
 };
 pub use timing::FastTimestamp;
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 
 use crate::Table;
 

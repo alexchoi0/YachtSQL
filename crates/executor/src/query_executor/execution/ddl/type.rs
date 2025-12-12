@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::StructField;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::StructField;
 use yachtsql_parser::validator::CustomStatement;
 use yachtsql_storage::TypeDefinition;
 use yachtsql_storage::custom_types::EnumType;
@@ -208,8 +208,8 @@ impl TypeExecutor for QueryExecutor {
 }
 
 impl QueryExecutor {
-    fn type_uses_composite(data_type: &yachtsql_core::types::DataType, type_name: &str) -> bool {
-        use yachtsql_core::types::DataType;
+    fn type_uses_composite(data_type: &yachtsql_common::types::DataType, type_name: &str) -> bool {
+        use yachtsql_common::types::DataType;
 
         match data_type {
             DataType::Custom(name) => name.eq_ignore_ascii_case(type_name),
@@ -221,8 +221,8 @@ impl QueryExecutor {
         }
     }
 
-    fn type_references_name(data_type: &yachtsql_core::types::DataType, type_name: &str) -> bool {
-        use yachtsql_core::types::DataType;
+    fn type_references_name(data_type: &yachtsql_common::types::DataType, type_name: &str) -> bool {
+        use yachtsql_common::types::DataType;
 
         match data_type {
             DataType::Custom(name) => name.eq_ignore_ascii_case(type_name),

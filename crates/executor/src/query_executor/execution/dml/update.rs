@@ -1,8 +1,8 @@
 use debug_print::debug_eprintln;
 use indexmap::IndexMap;
 use sqlparser::ast::{Assignment, Expr as SqlExpr, Statement, Value as SqlValue};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_storage::{Row, Schema, TableIndexOps, TableSchemaOps};
 
 use super::super::super::QueryExecutor;
@@ -323,7 +323,7 @@ impl DmlUpdateExecutor for QueryExecutor {
             }
 
             let value = self.evaluate_update_expression(&assignment.value)?;
-            use yachtsql_core::types::coercion::CoercionRules;
+            use yachtsql_common::types::coercion::CoercionRules;
             let coerced_value = CoercionRules::coerce_value(value, &field.data_type)?;
 
             parsed.push((col_name, coerced_value));
@@ -589,7 +589,7 @@ impl QueryExecutor {
 
                 updated_map.insert(col_name.clone(), Value::struct_val(new_struct));
             } else {
-                use yachtsql_core::types::coercion::CoercionRules;
+                use yachtsql_common::types::coercion::CoercionRules;
                 let coerced_value = CoercionRules::coerce_value(computed_value, target_type)?;
                 updated_map.insert(col_name.clone(), coerced_value);
             }
@@ -763,7 +763,7 @@ impl QueryExecutor {
                 }
             }
 
-            let original_rows: Vec<Vec<yachtsql_core::types::Value>> = changed_row_indices
+            let original_rows: Vec<Vec<yachtsql_common::types::Value>> = changed_row_indices
                 .iter()
                 .map(|&idx| table.get_row(idx).map(|row| row.values().to_vec()))
                 .collect::<Result<Vec<_>>>()?;
@@ -1030,7 +1030,7 @@ impl QueryExecutor {
             .collect();
 
         if let Some(pk_columns) = schema.primary_key() {
-            let new_pk_values: Vec<yachtsql_core::types::Value> = pk_columns
+            let new_pk_values: Vec<yachtsql_common::types::Value> = pk_columns
                 .iter()
                 .filter_map(|col| {
                     schema
@@ -1046,7 +1046,7 @@ impl QueryExecutor {
             }
 
             for other_row in &other_rows {
-                let other_pk_values: Vec<yachtsql_core::types::Value> = pk_columns
+                let other_pk_values: Vec<yachtsql_common::types::Value> = pk_columns
                     .iter()
                     .filter_map(|col| {
                         schema
@@ -1068,7 +1068,7 @@ impl QueryExecutor {
             if !constraint.enforced {
                 continue;
             }
-            let new_unique_values: Vec<yachtsql_core::types::Value> = constraint
+            let new_unique_values: Vec<yachtsql_common::types::Value> = constraint
                 .columns
                 .iter()
                 .filter_map(|col| {
@@ -1083,7 +1083,7 @@ impl QueryExecutor {
             }
 
             for other_row in &other_rows {
-                let other_unique_values: Vec<yachtsql_core::types::Value> = constraint
+                let other_unique_values: Vec<yachtsql_common::types::Value> = constraint
                     .columns
                     .iter()
                     .filter_map(|col| {

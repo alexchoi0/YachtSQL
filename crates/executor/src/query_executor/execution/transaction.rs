@@ -1,5 +1,5 @@
 use debug_print::debug_eprintln;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_storage::{IsolationLevel, TransactionCharacteristics, TransactionScope};
 
 use super::QueryExecutor;

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::Result;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Result;
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue, UnaryOp};
 use yachtsql_storage::{Column, Schema};
 
@@ -84,22 +84,22 @@ impl ValuesExec {
             LiteralValue::Vector(vec) => Value::vector(vec.clone()),
             LiteralValue::Interval(_s) => Value::null(),
             LiteralValue::Range(_s) => Value::null(),
-            LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
-            LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
-            LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
+            LiteralValue::Point(s) => yachtsql_common::types::parse_point_literal(s),
+            LiteralValue::PgBox(s) => yachtsql_common::types::parse_pgbox_literal(s),
+            LiteralValue::Circle(s) => yachtsql_common::types::parse_circle_literal(s),
             LiteralValue::Line(_s) => Value::null(),
             LiteralValue::Lseg(_s) => Value::null(),
             LiteralValue::Path(_s) => Value::null(),
             LiteralValue::Polygon(_s) => Value::null(),
             LiteralValue::MacAddr(s) => {
-                use yachtsql_core::types::MacAddress;
+                use yachtsql_common::types::MacAddress;
                 match MacAddress::parse(s, false) {
                     Some(mac) => Value::macaddr(mac),
                     None => Value::null(),
                 }
             }
             LiteralValue::MacAddr8(s) => {
-                use yachtsql_core::types::MacAddress;
+                use yachtsql_common::types::MacAddress;
                 match MacAddress::parse(s, true) {
                     Some(mac) => Value::macaddr8(mac),
                     None => match MacAddress::parse(s, false) {

@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
-use yachtsql_core::types::collation::CollationRegistry;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
+use yachtsql_common::types::collation::CollationRegistry;
 
 use crate::Table;
 

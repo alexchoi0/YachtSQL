@@ -1,6 +1,6 @@
 use std::fmt;
 
-use yachtsql_core::error::Error;
+use yachtsql_common::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JsonError {

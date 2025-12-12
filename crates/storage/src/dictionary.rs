@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use indexmap::IndexMap;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum DictionaryLayout {

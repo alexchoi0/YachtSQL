@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use debug_print::debug_eprintln;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_ir::expr::LiteralValue;
 use yachtsql_optimizer::expr::{Expr, OrderByExpr};
 use yachtsql_storage::{Column, Schema};
@@ -435,7 +435,7 @@ impl SortExec {
 
     fn add_step(&self, value: &Value, step: &Value) -> Result<Value> {
         use chrono::Duration;
-        use yachtsql_core::types::Date32Value;
+        use yachtsql_common::types::Date32Value;
 
         if value.is_null() {
             return Ok(Value::null());
@@ -772,11 +772,11 @@ mod tests {
         let schema = yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
             yachtsql_storage::Field::required(
                 "name".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             ),
         ]);
 
@@ -806,7 +806,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let input_exec = Rc::new(TableScanExec::new(

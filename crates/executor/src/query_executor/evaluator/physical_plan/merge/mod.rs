@@ -21,8 +21,8 @@ use types::{MatchResult, MergeContext, MergeReturningRow};
 use when_clauses::{
     apply_when_matched_row, apply_when_not_matched_by_source_row, apply_when_not_matched_row,
 };
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::Schema;
 use yachtsql_storage::schema::Field;
@@ -560,7 +560,7 @@ impl ExecutionPlan for MergeExec {
 mod tests {
     use std::rc::Rc;
 
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
     use yachtsql_storage::Field;
 
     use super::*;

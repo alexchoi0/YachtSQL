@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::DataType;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::DataType;
 use yachtsql_optimizer::expr::{Expr, OrderByExpr};
 use yachtsql_storage::Schema;
 
@@ -8,7 +8,7 @@ use crate::Table;
 
 impl WindowExec {
     pub(super) fn sort_by_order_by(indices: &mut [usize], order_by: &[OrderByExpr], batch: &Table) {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         if order_by.is_empty() {
             return;

@@ -7,7 +7,7 @@ description = "Test utilities for YachtSQL workspace crates"
 
 [dependencies]
 yachtsql = { path = "../.." }
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-capability = { path = "../capability" }
 yachtsql-parser = { path = "../parser" }
 yachtsql-storage = { path = "../storage" }

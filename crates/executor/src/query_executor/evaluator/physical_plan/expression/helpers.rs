@@ -1,4 +1,4 @@
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 
 use super::super::ProjectionWithExprExec;
 use crate::Table;
@@ -95,7 +95,7 @@ impl ProjectionWithExprExec {
     where
         F: FnOnce(&str) -> String,
     {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         let val = Self::evaluate_expr(arg, batch, row_idx)?;
         if val.is_null() {
@@ -149,7 +149,7 @@ impl ProjectionWithExprExec {
     where
         F: FnOnce(&str, i64) -> String,
     {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         Self::validate_arg_count(func_name, args, 2)?;
         let values = Self::evaluate_args(args, batch, row_idx)?;
@@ -246,7 +246,7 @@ impl ProjectionWithExprExec {
     }
 
     pub(super) fn calculate_natural_log(val: crate::types::Value) -> Result<crate::types::Value> {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         match Self::value_to_f64(&val)? {
             Some(f) => {
@@ -309,7 +309,7 @@ impl ProjectionWithExprExec {
         format_str: &str,
         args: &[crate::types::Value],
     ) -> Result<crate::types::Value> {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         let mut result = String::new();
         let mut chars = format_str.chars().peekable();

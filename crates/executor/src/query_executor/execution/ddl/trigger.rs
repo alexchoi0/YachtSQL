@@ -1,5 +1,5 @@
 use sqlparser::ast::{Statement, TriggerEvent as SqlTriggerEvent};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_storage::{TriggerEvent, TriggerLevel, TriggerMetadata, TriggerTiming};
 
 use super::super::QueryExecutor;

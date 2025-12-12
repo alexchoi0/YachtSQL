@@ -1,5 +1,5 @@
 use serde_json::Value as JsonValue;
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 
 use super::conversion::{sql_to_json_infallible, sql_value_to_json_key};
 

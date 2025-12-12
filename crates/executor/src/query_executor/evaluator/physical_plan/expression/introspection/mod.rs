@@ -1,8 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{DateTime, TimeZone, Utc};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_ir::FunctionName;
 use yachtsql_optimizer::expr::Expr;
 
@@ -404,10 +404,10 @@ impl ProjectionWithExprExec {
         }
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
         let size = match val.data_type() {
-            yachtsql_core::types::DataType::Int64 => 8,
-            yachtsql_core::types::DataType::Float64 => 8,
-            yachtsql_core::types::DataType::Bool => 1,
-            yachtsql_core::types::DataType::String => {
+            yachtsql_common::types::DataType::Int64 => 8,
+            yachtsql_common::types::DataType::Float64 => 8,
+            yachtsql_common::types::DataType::Bool => 1,
+            yachtsql_common::types::DataType::String => {
                 val.as_str().map(|s| s.len()).unwrap_or(0) + 4
             }
             _ => 0,

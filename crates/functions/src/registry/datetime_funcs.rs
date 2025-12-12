@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
-use yachtsql_core::error::Error;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Error;
+use yachtsql_common::types::{DataType, Value};
 
 use super::{FunctionRegistry, month_abbr, month_name, weekday_abbr, weekday_name};
 use crate::datetime;
@@ -180,7 +180,10 @@ fn register_extract(registry: &mut FunctionRegistry) {
     );
 }
 
-fn extract_from_date(part: &str, date: &chrono::NaiveDate) -> yachtsql_core::error::Result<Value> {
+fn extract_from_date(
+    part: &str,
+    date: &chrono::NaiveDate,
+) -> yachtsql_common::error::Result<Value> {
     match part.to_uppercase().as_str() {
         "YEAR" => Ok(Value::int64(date.year() as i64)),
         "MONTH" => Ok(Value::int64(date.month() as i64)),
@@ -209,7 +212,7 @@ fn extract_from_date(part: &str, date: &chrono::NaiveDate) -> yachtsql_core::err
 fn extract_from_timestamp(
     part: &str,
     ts: &chrono::DateTime<Utc>,
-) -> yachtsql_core::error::Result<Value> {
+) -> yachtsql_common::error::Result<Value> {
     match part.to_uppercase().as_str() {
         "YEAR" => Ok(Value::int64(ts.year() as i64)),
         "MONTH" => Ok(Value::int64(ts.month() as i64)),
@@ -378,7 +381,7 @@ fn register_date_formatters(registry: &mut FunctionRegistry) {
 fn truncate_date(
     precision: &str,
     date: chrono::NaiveDate,
-) -> yachtsql_core::error::Result<chrono::NaiveDate> {
+) -> yachtsql_common::error::Result<chrono::NaiveDate> {
     match precision.to_uppercase().as_str() {
         "YEAR" => date
             .with_month(1)

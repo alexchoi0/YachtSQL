@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 
 #[derive(Debug, Clone)]
 pub struct IndexKey {

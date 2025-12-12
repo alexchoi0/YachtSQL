@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{Interval, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{Interval, Value};
 use yachtsql_ir::expr::LiteralValue;
 use yachtsql_optimizer::expr::Expr;
 
@@ -287,7 +287,7 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{Interval, Value};
+    use yachtsql_common::types::{Interval, Value};
     use yachtsql_ir::expr::LiteralValue;
     use yachtsql_optimizer::expr::Expr;
     use yachtsql_storage::Schema;

@@ -1,6 +1,6 @@
 use sqlparser::ast::{Ident, ObjectName, ObjectNamePart};
 use sqlparser::tokenizer::{Span, Token, Word};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenPattern {
@@ -164,7 +164,7 @@ impl PatternMatcher {
 #[allow(clippy::useless_vec)]
 mod tests {
     use sqlparser::tokenizer::{Token, Word};
-    use yachtsql_core::error::Error;
+    use yachtsql_common::error::Error;
 
     use super::*;
 

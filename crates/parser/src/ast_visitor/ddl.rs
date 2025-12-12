@@ -1,6 +1,6 @@
 use sqlparser::ast;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::DataType;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::DataType;
 use yachtsql_ir::plan::{ReferentialAction, TableConstraint};
 
 use super::LogicalPlanBuilder;

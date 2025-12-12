@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use yachtsql_capability::FeatureRegistry;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 pub fn validate_function(function_name: &str, registry: &FeatureRegistry) -> Result<()> {
     validate_function_with_udfs(function_name, registry, None)

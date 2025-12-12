@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_functions::geography::{self, Geometry};
 use yachtsql_optimizer::expr::Expr;
 
@@ -3648,7 +3648,7 @@ impl ProjectionWithExprExec {
                 if let Some(inet) = value.as_inet() {
                     match inet.netmask() {
                         Some(mask) => Ok(Value::inet(
-                            yachtsql_core::types::network::InetAddr::new(mask),
+                            yachtsql_common::types::network::InetAddr::new(mask),
                         )),
                         None => {
                             let max_mask = if inet.is_ipv4() {
@@ -3658,7 +3658,7 @@ impl ProjectionWithExprExec {
                                     0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff,
                                 ))
                             };
-                            Ok(Value::inet(yachtsql_core::types::network::InetAddr::new(
+                            Ok(Value::inet(yachtsql_common::types::network::InetAddr::new(
                                 max_mask,
                             )))
                         }
@@ -3677,7 +3677,7 @@ impl ProjectionWithExprExec {
                         Some(cidr) => Ok(Value::cidr(cidr)),
                         None => {
                             let prefix = inet.max_prefix_len();
-                            Ok(Value::cidr(yachtsql_core::types::network::CidrAddr {
+                            Ok(Value::cidr(yachtsql_common::types::network::CidrAddr {
                                 network: inet.addr,
                                 prefix_len: prefix,
                             }))
@@ -3695,7 +3695,7 @@ impl ProjectionWithExprExec {
                 if let Some(inet) = value.as_inet() {
                     match inet.broadcast() {
                         Some(bcast) => {
-                            let inet_broadcast = yachtsql_core::types::network::InetAddr {
+                            let inet_broadcast = yachtsql_common::types::network::InetAddr {
                                 addr: bcast,
                                 prefix_len: inet.prefix_len,
                             };
@@ -3725,7 +3725,7 @@ impl ProjectionWithExprExec {
                         };
                         std::net::IpAddr::V6(std::net::Ipv6Addr::from(mask.to_be_bytes()))
                     };
-                    Ok(Value::inet(yachtsql_core::types::network::InetAddr::new(
+                    Ok(Value::inet(yachtsql_common::types::network::InetAddr::new(
                         hostmask,
                     )))
                 } else {
@@ -3779,7 +3779,7 @@ impl ProjectionWithExprExec {
                     .ok_or_else(|| Error::type_mismatch("INT64", &len.data_type().to_string()))?
                     as u8;
                 if let Some(inet) = value.as_inet() {
-                    Ok(Value::inet(yachtsql_core::types::network::InetAddr {
+                    Ok(Value::inet(yachtsql_common::types::network::InetAddr {
                         addr: inet.addr,
                         prefix_len: Some(new_len),
                     }))
@@ -3812,7 +3812,8 @@ impl ProjectionWithExprExec {
                             ))
                         }
                     };
-                    match yachtsql_core::types::network::CidrAddr::new(truncated_network, new_len) {
+                    match yachtsql_common::types::network::CidrAddr::new(truncated_network, new_len)
+                    {
                         Ok(new_cidr) => Ok(Value::cidr(new_cidr)),
                         Err(e) => Err(Error::invalid_operation(format!(
                             "Invalid prefix length: {}",
@@ -3879,7 +3880,7 @@ impl ProjectionWithExprExec {
                                 network.to_be_bytes(),
                             ));
                             Ok(Value::cidr(
-                                yachtsql_core::types::network::CidrAddr::new(
+                                yachtsql_common::types::network::CidrAddr::new(
                                     network_ip,
                                     common_bits,
                                 )
@@ -3912,7 +3913,7 @@ impl ProjectionWithExprExec {
                                 network.to_be_bytes(),
                             ));
                             Ok(Value::cidr(
-                                yachtsql_core::types::network::CidrAddr::new(
+                                yachtsql_common::types::network::CidrAddr::new(
                                     network_ip,
                                     common_bits,
                                 )
@@ -3948,7 +3949,7 @@ impl ProjectionWithExprExec {
                 if let Some(mac) = value.as_macaddr8() {
                     let mut octets = mac.octets;
                     octets[0] |= 0x02;
-                    let new_mac = yachtsql_core::types::MacAddress {
+                    let new_mac = yachtsql_common::types::MacAddress {
                         octets,
                         is_eui64: mac.is_eui64,
                     };
@@ -6028,17 +6029,17 @@ impl ProjectionWithExprExec {
             return "Null".to_string();
         }
         match val.data_type() {
-            yachtsql_core::types::DataType::Int64 => "Int64".to_string(),
-            yachtsql_core::types::DataType::Float64 => "Float64".to_string(),
-            yachtsql_core::types::DataType::String => "String".to_string(),
-            yachtsql_core::types::DataType::Bool => "Bool".to_string(),
-            yachtsql_core::types::DataType::Date => "Date".to_string(),
-            yachtsql_core::types::DataType::Timestamp => "DateTime".to_string(),
-            yachtsql_core::types::DataType::Numeric(_) => "Decimal".to_string(),
-            yachtsql_core::types::DataType::Bytes => "String".to_string(),
-            yachtsql_core::types::DataType::Array(_) => "Array".to_string(),
-            yachtsql_core::types::DataType::Struct(_) => "Tuple".to_string(),
-            yachtsql_core::types::DataType::Json => "JSON".to_string(),
+            yachtsql_common::types::DataType::Int64 => "Int64".to_string(),
+            yachtsql_common::types::DataType::Float64 => "Float64".to_string(),
+            yachtsql_common::types::DataType::String => "String".to_string(),
+            yachtsql_common::types::DataType::Bool => "Bool".to_string(),
+            yachtsql_common::types::DataType::Date => "Date".to_string(),
+            yachtsql_common::types::DataType::Timestamp => "DateTime".to_string(),
+            yachtsql_common::types::DataType::Numeric(_) => "Decimal".to_string(),
+            yachtsql_common::types::DataType::Bytes => "String".to_string(),
+            yachtsql_common::types::DataType::Array(_) => "Array".to_string(),
+            yachtsql_common::types::DataType::Struct(_) => "Tuple".to_string(),
+            yachtsql_common::types::DataType::Json => "JSON".to_string(),
             _ => "Unknown".to_string(),
         }
     }

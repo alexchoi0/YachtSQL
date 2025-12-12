@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 pub fn l2_distance(vec1: &Value, vec2: &Value) -> Result<Value> {
     if vec1.is_null() || vec2.is_null() {

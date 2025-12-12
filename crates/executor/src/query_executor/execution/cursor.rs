@@ -1,6 +1,6 @@
 use sqlparser::ast::{CloseCursor, FetchDirection, Statement as SqlStatement, Value as SqlValue};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_storage::{Field, Schema};
 
 use super::CursorOperation;
@@ -305,7 +305,7 @@ impl QueryExecutor {
 
         let schema = Schema::from_fields(vec![Field::required(
             "move".to_string(),
-            yachtsql_core::types::DataType::String,
+            yachtsql_common::types::DataType::String,
         )]);
         let rows_moved = (new_position - cursor.position).unsigned_abs() as i64;
         Table::from_values(

@@ -1,6 +1,6 @@
 use serde_json::{Map, Number, Value as JsonValue};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 type JsonObject = Map<String, JsonValue>;
 type JsonArray = Vec<JsonValue>;

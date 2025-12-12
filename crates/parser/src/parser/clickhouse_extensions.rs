@@ -1,6 +1,6 @@
 use sqlparser::ast::ObjectName;
 use sqlparser::tokenizer::Token;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use super::helpers::ParserHelpers;
 use crate::validator::{ClickHouseSystemCommand, ClickHouseTtlOperation, CustomStatement};

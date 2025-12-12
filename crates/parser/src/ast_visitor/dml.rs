@@ -1,7 +1,7 @@
 use sqlparser::ast::{self, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser as SqlParser;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_ir::expr::Expr;
 use yachtsql_ir::plan::{
     AlterTableOperation, ConflictAction, LogicalPlan, MergeWhenMatched, MergeWhenNotMatched,

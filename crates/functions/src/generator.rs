@@ -1,6 +1,6 @@
 use uuid::Uuid;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 const MAX_ARRAY_SIZE: i64 = 1_000_000;
 

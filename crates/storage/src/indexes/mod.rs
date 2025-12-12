@@ -5,8 +5,8 @@ pub mod index_key;
 pub use btree_index::BPlusTreeIndex;
 pub use hash_index::HashIndex;
 pub use index_key::{IndexKey, RangeBound, RangeQuery};
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 
 pub trait TableIndex: Send + Sync {
     fn insert(&mut self, key: IndexKey, row_index: usize) -> Result<()>;

@@ -5,7 +5,7 @@ use sqlparser::ast::{
     Statement as SqlStatement,
 };
 use yachtsql_capability::{FeatureId, FeatureRegistry};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_parser::Statement as ParserStatement;
 
 use super::function_validator::validate_function_with_udfs;

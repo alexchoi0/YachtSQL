@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use debug_print::debug_eprintln;
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_optimizer::plan::PlanNode;
 

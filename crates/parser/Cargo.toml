@@ -7,7 +7,7 @@ description = "SQL parser for YachtSQL"
 
 [dependencies]
 # Core types and errors
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-ir = { path = "../ir" }
 yachtsql-storage = { path = "../storage" }
 yachtsql-optimizer = { path = "../optimizer" }

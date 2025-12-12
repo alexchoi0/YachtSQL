@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use debug_print::debug_eprintln;
 use yachtsql_capability::FeatureId;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::DataType;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::DataType;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::{Schema, TableEngine};
 
@@ -82,28 +82,28 @@ thread_local! {
 
 #[derive(Clone, Debug)]
 pub enum CachedSubqueryResult {
-    Scalar(yachtsql_core::types::Value),
+    Scalar(yachtsql_common::types::Value),
     Exists(bool),
-    InList(Vec<yachtsql_core::types::Value>),
+    InList(Vec<yachtsql_common::types::Value>),
 }
 
 pub trait SubqueryExecutor {
     fn execute_scalar_subquery(
         &self,
         plan: &yachtsql_optimizer::plan::PlanNode,
-    ) -> Result<yachtsql_core::types::Value>;
+    ) -> Result<yachtsql_common::types::Value>;
 
     fn execute_exists_subquery(&self, plan: &yachtsql_optimizer::plan::PlanNode) -> Result<bool>;
 
     fn execute_in_subquery(
         &self,
         plan: &yachtsql_optimizer::plan::PlanNode,
-    ) -> Result<Vec<yachtsql_core::types::Value>>;
+    ) -> Result<Vec<yachtsql_common::types::Value>>;
 
     fn execute_tuple_in_subquery(
         &self,
         plan: &yachtsql_optimizer::plan::PlanNode,
-    ) -> Result<Vec<Vec<yachtsql_core::types::Value>>>;
+    ) -> Result<Vec<Vec<yachtsql_common::types::Value>>>;
 }
 
 pub trait SequenceValueExecutor {
@@ -472,7 +472,7 @@ impl TableScanExec {
     ) -> Result<Vec<yachtsql_storage::Row>> {
         use std::collections::HashMap;
 
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         match engine {
             TableEngine::SummingMergeTree {
@@ -704,7 +704,7 @@ impl TableScanExec {
         max_string_length: usize,
     ) -> Vec<yachtsql_storage::Row> {
         use rand::{Rng, SeedableRng};
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         let mut rng: rand::rngs::StdRng = match seed {
             Some(s) => rand::rngs::StdRng::seed_from_u64(s),
@@ -955,27 +955,27 @@ impl ExecutionPlan for TableScanExec {
 
             let is_system_column = matches!(
                 field.data_type,
-                yachtsql_core::types::DataType::Tid
-                    | yachtsql_core::types::DataType::Xid
-                    | yachtsql_core::types::DataType::Cid
-                    | yachtsql_core::types::DataType::Oid
+                yachtsql_common::types::DataType::Tid
+                    | yachtsql_common::types::DataType::Xid
+                    | yachtsql_common::types::DataType::Cid
+                    | yachtsql_common::types::DataType::Oid
             );
 
             for (row_idx, row) in all_rows.iter().enumerate() {
                 let value = if is_system_column {
                     match field.name.as_str() {
-                        "ctid" => yachtsql_core::types::Value::int64((row_idx + 1) as i64),
-                        "xmin" => yachtsql_core::types::Value::int64(1),
-                        "xmax" => yachtsql_core::types::Value::int64(0),
-                        "cmin" => yachtsql_core::types::Value::int64(0),
-                        "cmax" => yachtsql_core::types::Value::int64(0),
-                        "tableoid" => yachtsql_core::types::Value::int64(table_oid),
-                        _ => yachtsql_core::types::Value::null(),
+                        "ctid" => yachtsql_common::types::Value::int64((row_idx + 1) as i64),
+                        "xmin" => yachtsql_common::types::Value::int64(1),
+                        "xmax" => yachtsql_common::types::Value::int64(0),
+                        "cmin" => yachtsql_common::types::Value::int64(0),
+                        "cmax" => yachtsql_common::types::Value::int64(0),
+                        "tableoid" => yachtsql_common::types::Value::int64(table_oid),
+                        _ => yachtsql_common::types::Value::null(),
                     }
                 } else {
                     match row.get(col_idx) {
                         Some(v) => v.clone(),
-                        None => yachtsql_core::types::Value::null(),
+                        None => yachtsql_common::types::Value::null(),
                     }
                 };
                 column.push(value)?;
@@ -1154,7 +1154,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
                 let output_batch = Table::new(self.schema.clone(), output_columns)?;
                 output_batches.push(output_batch);
             } else {
-                let mut all_rows: Vec<Vec<yachtsql_core::types::Value>> = Vec::new();
+                let mut all_rows: Vec<Vec<yachtsql_common::types::Value>> = Vec::new();
 
                 for row_idx in 0..num_rows {
                     let correlation_ctx = Self::build_correlation_context_with_aliases(
@@ -1167,7 +1167,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
                         *ctx.borrow_mut() = Some(correlation_ctx);
                     });
 
-                    let mut row_values: Vec<yachtsql_core::types::Value> =
+                    let mut row_values: Vec<yachtsql_common::types::Value> =
                         Vec::with_capacity(self.expressions.len());
                     let mut srf_expansion_count = 1usize;
 
@@ -1194,7 +1194,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
                     });
 
                     for expansion_idx in 0..srf_expansion_count {
-                        let mut expanded_row: Vec<yachtsql_core::types::Value> =
+                        let mut expanded_row: Vec<yachtsql_common::types::Value> =
                             Vec::with_capacity(self.expressions.len());
                         for (expr_idx, value) in row_values.iter().enumerate() {
                             if srf_indices.contains(&expr_idx) {
@@ -1202,7 +1202,7 @@ impl ExecutionPlan for ProjectionWithExprExec {
                                     if expansion_idx < arr.len() {
                                         expanded_row.push(arr[expansion_idx].clone());
                                     } else {
-                                        expanded_row.push(yachtsql_core::types::Value::null());
+                                        expanded_row.push(yachtsql_common::types::Value::null());
                                     }
                                 } else {
                                     expanded_row.push(value.clone());
@@ -1491,7 +1491,7 @@ impl UnnestExec {
     }
 
     fn evaluate_generate_array(&self, args: &[Expr]) -> Result<Vec<crate::types::Value>> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
 
         if args.len() < 2 || args.len() > 3 {
             return Err(Error::invalid_query(
@@ -1523,7 +1523,7 @@ impl UnnestExec {
     }
 
     fn evaluate_array_expr(&self) -> Result<Vec<crate::types::Value>> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         use yachtsql_optimizer::expr::LiteralValue;
 
         match &self.array_expr {
@@ -1628,14 +1628,14 @@ impl UnnestExec {
     }
 
     fn parse_timestamp(timestamp_str: &str) -> Result<chrono::DateTime<chrono::Utc>> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
 
         crate::types::parse_timestamp_to_utc(timestamp_str)
             .ok_or_else(|| Error::invalid_query(format!("Invalid timestamp '{}'", timestamp_str)))
     }
 
     fn infer_element_type(&self, elements: &[crate::types::Value]) -> crate::types::DataType {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         if let Some(field) = self.schema.fields().first() {
             return field.data_type.clone();
@@ -1650,8 +1650,8 @@ impl UnnestExec {
 
     #[allow(clippy::only_used_in_recursion)]
     fn evaluate_constant_expr(&self, expr: &Expr) -> Result<crate::types::Value> {
-        use yachtsql_core::error::Error;
-        use yachtsql_core::types::Value;
+        use yachtsql_common::error::Error;
+        use yachtsql_common::types::Value;
         use yachtsql_optimizer::expr::LiteralValue;
 
         match expr {
@@ -1697,22 +1697,22 @@ impl UnnestExec {
                 LiteralValue::Vector(vec) => Value::vector(vec.clone()),
                 LiteralValue::Interval(_s) => Value::null(),
                 LiteralValue::Range(_s) => Value::null(),
-                LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
-                LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
-                LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
+                LiteralValue::Point(s) => yachtsql_common::types::parse_point_literal(s),
+                LiteralValue::PgBox(s) => yachtsql_common::types::parse_pgbox_literal(s),
+                LiteralValue::Circle(s) => yachtsql_common::types::parse_circle_literal(s),
                 LiteralValue::Line(_s) => Value::null(),
                 LiteralValue::Lseg(_s) => Value::null(),
                 LiteralValue::Path(_s) => Value::null(),
                 LiteralValue::Polygon(_s) => Value::null(),
                 LiteralValue::MacAddr(s) => {
-                    use yachtsql_core::types::MacAddress;
+                    use yachtsql_common::types::MacAddress;
                     match MacAddress::parse(s, false) {
                         Some(mac) => Value::macaddr(mac),
                         None => Value::null(),
                     }
                 }
                 LiteralValue::MacAddr8(s) => {
-                    use yachtsql_core::types::MacAddress;
+                    use yachtsql_common::types::MacAddress;
                     match MacAddress::parse(s, true) {
                         Some(mac) => Value::macaddr8(mac),
                         None => match MacAddress::parse(s, false) {
@@ -1752,7 +1752,7 @@ impl UnnestExec {
     }
 
     fn build_ordinality_column(num_rows: usize) -> Result<crate::storage::Column> {
-        use yachtsql_core::types::{DataType, Value};
+        use yachtsql_common::types::{DataType, Value};
         use yachtsql_storage::Column;
 
         let mut column = Column::new(&DataType::Int64, num_rows);
@@ -2130,7 +2130,7 @@ impl TableValuedFunctionExec {
     }
 
     fn execute_each(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         use yachtsql_storage::Column;
 
         use crate::types::Value;
@@ -2163,7 +2163,7 @@ impl TableValuedFunctionExec {
     }
 
     fn execute_skeys(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         use yachtsql_storage::Column;
 
         use crate::types::Value;
@@ -2190,7 +2190,7 @@ impl TableValuedFunctionExec {
     }
 
     fn execute_svals(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         use yachtsql_storage::Column;
 
         use crate::types::Value;
@@ -2221,7 +2221,7 @@ impl TableValuedFunctionExec {
     }
 
     fn execute_populate_record(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         use yachtsql_storage::Column;
 
         use crate::types::Value;
@@ -2253,7 +2253,7 @@ impl TableValuedFunctionExec {
     }
 
     fn execute_json_each(&self, args: &[crate::types::Value], as_text: bool) -> Result<Table> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         use yachtsql_storage::Column;
 
         use crate::types::Value;
@@ -2362,7 +2362,7 @@ impl TableValuedFunctionExec {
     }
 
     fn execute_generate_series(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         use yachtsql_storage::Column;
 
         use crate::types::Value;
@@ -2591,7 +2591,7 @@ impl ExecutionPlan for TableValuedFunctionExec {
     }
 
     fn execute(&self) -> Result<Vec<Table>> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
 
         let args = self.evaluate_args()?;
 

@@ -26,13 +26,13 @@ impl<'a> MergeContext<'a> {
         target_table: &crate::storage::table::Table,
         source_schema: &'a Schema,
         equijoin_predicates: Option<Vec<EquijoinPredicate>>,
-    ) -> yachtsql_core::error::Result<Self> {
+    ) -> yachtsql_common::error::Result<Self> {
         let target_schema = target_table.schema().clone();
         let target_row_count = target_table.row_count();
 
         let target_snapshot = (0..target_row_count)
             .map(|idx| target_table.get_row(idx))
-            .collect::<yachtsql_core::error::Result<Vec<_>>>()?;
+            .collect::<yachtsql_common::error::Result<Vec<_>>>()?;
 
         let hash_index = equijoin_predicates.map(|preds| {
             super::hash_index::MergeHashIndex::build(

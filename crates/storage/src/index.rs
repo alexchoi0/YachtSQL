@@ -3,7 +3,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use sqlparser::ast::Expr;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use crate::table::Table;
 
@@ -276,7 +276,7 @@ impl fmt::Display for NullsOrder {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
 
     use super::*;
 

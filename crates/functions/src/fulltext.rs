@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 
 pub type Position = u16;
 

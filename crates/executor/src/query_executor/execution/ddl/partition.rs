@@ -1,5 +1,5 @@
 use sqlparser::ast::ObjectName;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_parser::validator::{PostgresPartitionBoundDef, PostgresPartitionStrategyDef};
 use yachtsql_storage::{
     PostgresPartitionBound, PostgresPartitionInfo, PostgresPartitionStrategy, Schema,

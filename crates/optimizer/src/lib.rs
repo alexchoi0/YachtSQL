@@ -32,7 +32,7 @@ pub use rule::{OptimizationRule, RuleApplication};
 pub use statistics::{ColumnStatistics, Histogram, StatisticsRegistry, TableStatistics};
 pub use telemetry::{OptimizerTelemetry, RuleStats};
 pub use visitor::{PlanRewriter, PlanVisitor};
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 pub use yachtsql_ir::expr::{BinaryOp, Expr, OrderByExpr, UnaryOp};
 pub use yachtsql_ir::plan::{LogicalPlan, PlanNode};
 pub use yachtsql_ir::{expr, plan};

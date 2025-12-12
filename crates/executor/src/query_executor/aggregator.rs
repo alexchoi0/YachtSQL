@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use debug_print::debug_eprintln;
 use sqlparser::ast::{Expr as SqlExpr, Function, FunctionArguments};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_storage::{Row, Schema};
 
 use crate::functions::{Accumulator, FunctionRegistry};

@@ -2,8 +2,8 @@ use debug_print::debug_eprintln;
 use sqlparser::ast::{
     Expr as SqlExpr, JoinConstraint, JoinOperator, Statement, TableFactor, Value as SqlValue,
 };
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_storage::{Row, Schema, TableIndexOps};
 
 use super::super::super::QueryExecutor;
@@ -1027,7 +1027,7 @@ impl QueryExecutor {
             if join_type == JoinType::Left && !matched {
                 let mut combined_values = left_row.values().to_vec();
                 for _ in right_schema.fields() {
-                    combined_values.push(yachtsql_core::types::Value::null());
+                    combined_values.push(yachtsql_common::types::Value::null());
                 }
                 result_rows.push(Row::from_values(combined_values));
             }

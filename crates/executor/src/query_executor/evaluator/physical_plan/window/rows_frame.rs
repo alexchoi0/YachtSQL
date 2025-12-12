@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::{ExcludeMode, Expr, OrderByExpr};
 
 use super::WindowExec;
