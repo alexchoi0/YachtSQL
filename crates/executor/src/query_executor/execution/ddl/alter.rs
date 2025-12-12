@@ -30,6 +30,12 @@ impl AlterTableExecutor for QueryExecutor {
             .get_dataset_mut(&dataset_id)
             .ok_or_else(|| Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id)))?;
 
+        if dataset.views().exists(&table_id) {
+            drop(storage);
+            self.plan_cache.borrow_mut().invalidate_all();
+            return Ok(());
+        }
+
         for operation in operations {
             match operation {
                 AlterTableOperation::RenameTable { table_name } => {

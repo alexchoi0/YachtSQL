@@ -457,7 +457,7 @@ impl DdlExecutor for QueryExecutor {
     fn execute_create_view(
         &mut self,
         stmt: &sqlparser::ast::Statement,
-        _original_sql: &str,
+        original_sql: &str,
     ) -> Result<()> {
         use sqlparser::ast::Statement;
 
@@ -466,6 +466,7 @@ impl DdlExecutor for QueryExecutor {
             query,
             or_replace,
             materialized,
+            to,
             ..
         } = stmt
         else {
@@ -488,10 +489,15 @@ impl DdlExecutor for QueryExecutor {
             where_clause
         );
 
+        let is_clickhouse = matches!(self.dialect(), crate::DialectType::ClickHouse);
+        let has_populate = original_sql.to_uppercase().contains("POPULATE");
+        let should_populate = !is_clickhouse || has_populate;
+
         let mut view_def = if *materialized {
             debug_eprintln!(
-                "[executor::ddl::create] Creating materialized view '{}'",
-                view_id
+                "[executor::ddl::create] Creating materialized view '{}', has_populate: {}",
+                view_id,
+                has_populate
             );
             yachtsql_storage::ViewDefinition::new_materialized(
                 view_id.clone(),
@@ -538,33 +544,73 @@ impl DdlExecutor for QueryExecutor {
             .map_err(|e| Error::InvalidQuery(e.to_string()))?;
 
         if *materialized {
-            debug_eprintln!(
-                "[executor::ddl::create] Populating materialized view '{}'",
-                view_id
-            );
             drop(storage);
 
             let result = self.execute_sql(&query_sql)?;
             let result_schema = result.schema().clone();
-            let result_rows: Vec<yachtsql_storage::Row> =
-                result.rows().map(|rows| rows.to_vec()).unwrap_or_default();
-
-            debug_eprintln!(
-                "[executor::ddl::create] Materialized view '{}' populated with {} rows",
-                view_id,
-                result_rows.len()
-            );
 
             let mut storage = self.storage.borrow_mut();
             let dataset = storage.get_dataset_mut(&dataset_id).ok_or_else(|| {
                 Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
             })?;
 
-            let view = dataset.views_mut().get_view_mut(&view_id).ok_or_else(|| {
-                Error::InvalidQuery(format!("View '{}.{}' not found", dataset_id, view_id))
-            })?;
+            let target_table_name = if let Some(to_table) = to {
+                to_table.to_string()
+            } else {
+                view_id.clone()
+            };
 
-            view.refresh_materialized_data(result_rows, result_schema);
+            if to.is_none() {
+                dataset.create_table(view_id.clone(), result_schema.clone())?;
+            }
+
+            if should_populate {
+                let result_rows: Vec<yachtsql_storage::Row> =
+                    result.rows().map(|rows| rows.to_vec()).unwrap_or_default();
+
+                debug_eprintln!(
+                    "[executor::ddl::create] Populating materialized view '{}' with {} rows",
+                    view_id,
+                    result_rows.len()
+                );
+
+                let view = dataset.views_mut().get_view_mut(&view_id).ok_or_else(|| {
+                    Error::InvalidQuery(format!("View '{}.{}' not found", dataset_id, view_id))
+                })?;
+
+                view.refresh_materialized_data(result_rows.clone(), result_schema.clone());
+
+                if let Some(table) = dataset.get_table_mut(&target_table_name) {
+                    for row in result_rows {
+                        table.insert_row(row)?;
+                    }
+                }
+            } else {
+                let view = dataset.views_mut().get_view_mut(&view_id).ok_or_else(|| {
+                    Error::InvalidQuery(format!("View '{}.{}' not found", dataset_id, view_id))
+                })?;
+                view.refresh_materialized_data(Vec::new(), result_schema.clone());
+            }
+
+            let source_tables = Self::extract_source_tables(query);
+            debug_eprintln!(
+                "[executor::ddl::create] Extracted source tables for MV '{}': {:?}",
+                view_id,
+                source_tables
+            );
+            for source_table in &source_tables {
+                let (_, source_table_id) = self.parse_ddl_table_name(source_table)?;
+                dataset.register_materialized_view_trigger(
+                    &source_table_id,
+                    &target_table_name,
+                    query_sql.clone(),
+                );
+                debug_eprintln!(
+                    "[executor::ddl::create] Registered MV trigger: {} -> {}",
+                    source_table_id,
+                    target_table_name
+                );
+            }
         }
 
         self.plan_cache.borrow_mut().invalidate_all();
@@ -1570,6 +1616,31 @@ impl QueryExecutor {
             SetExpr::Select(select) => select.selection.as_ref().map(|expr| expr.to_string()),
             _ => None,
         }
+    }
+
+    fn extract_source_tables(query: &sqlparser::ast::Query) -> Vec<String> {
+        use sqlparser::ast::{SetExpr, TableFactor};
+
+        let mut tables = Vec::new();
+
+        if let SetExpr::Select(select) = query.body.as_ref() {
+            for table_with_joins in &select.from {
+                match &table_with_joins.relation {
+                    TableFactor::Table { name, .. } => {
+                        tables.push(name.to_string());
+                    }
+                    _ => {}
+                }
+
+                for join in &table_with_joins.joins {
+                    if let TableFactor::Table { name, .. } = &join.relation {
+                        tables.push(name.to_string());
+                    }
+                }
+            }
+        }
+
+        tables
     }
 
     fn extract_domain_name(&self, sql_type: &SqlDataType) -> Result<Option<String>> {

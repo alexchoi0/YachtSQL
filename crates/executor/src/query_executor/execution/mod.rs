@@ -1111,6 +1111,25 @@ impl QueryExecutor {
         let dataset = storage
             .get_dataset(&dataset_id)
             .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
+
+        if let Some(view) = dataset.views().get_view(&table_id) {
+            let create_stmt = if view.is_materialized() {
+                format!(
+                    "CREATE MATERIALIZED VIEW {} ENGINE = MergeTree AS {}",
+                    table_id, view.sql
+                )
+            } else {
+                format!("CREATE VIEW {} AS {}", table_id, view.sql)
+            };
+
+            let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
+                "statement".to_string(),
+                DataType::String,
+            )]);
+            let rows = vec![vec![Value::string(create_stmt)]];
+            return Table::from_values(schema, rows);
+        }
+
         let table = dataset
             .get_table(&table_id)
             .ok_or_else(|| Error::invalid_query(format!("Table '{}' does not exist", table_str)))?;
@@ -1568,6 +1587,16 @@ impl QueryExecutor {
             })?;
 
             dataset.create_table_with_engine(table_id.clone(), schema.clone(), engine)?;
+
+            let view_def = yachtsql_storage::ViewDefinition::new_materialized(
+                table_id.clone(),
+                as_query.clone(),
+                vec![source_table.clone()],
+            );
+            dataset
+                .views_mut()
+                .create_or_replace_view(view_def)
+                .map_err(|e| Error::InvalidQuery(e.to_string()))?;
 
             dataset.register_materialized_view_trigger(&source_table, &table_id, as_query.clone());
         }
