@@ -1965,9 +1965,7 @@ impl QueryExecutor {
                 if let Some(alias) = alias {
                     Ok(alias.name.value.clone())
                 } else {
-                    Err(Error::InvalidQuery(
-                        "Subquery in FROM clause must have an alias".to_string(),
-                    ))
+                    Ok("__subquery__".to_string())
                 }
             }
             _ => Err(Error::UnsupportedFeature(
@@ -2001,15 +1999,7 @@ impl QueryExecutor {
                 let rows = self.scan_table(&dataset, &table)?;
                 Ok((schema, rows))
             }
-            TableFactor::Derived {
-                subquery, alias, ..
-            } => {
-                if alias.is_none() {
-                    return Err(Error::InvalidQuery(
-                        "Subquery in FROM clause must have an alias".to_string(),
-                    ));
-                }
-
+            TableFactor::Derived { subquery, .. } => {
                 let result_batch = self.execute_set_expr(&subquery.body)?;
                 let schema = result_batch.schema().clone();
                 let rows: Vec<Row> = (0..result_batch.num_rows())
@@ -3998,9 +3988,26 @@ impl QueryExecutor {
             match item {
                 SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
                     if let Expr::Function(func) = expr {
-                        eprintln!("[has_aggregate_functions] found function: {:?}", func.name);
+                        let func_name = func.name.to_string().to_uppercase();
+                        if func_name == "__COLUMNS_APPLY__" {
+                            if let sqlparser::ast::FunctionArguments::List(arg_list) = &func.args {
+                                for arg in &arg_list.args {
+                                    if let sqlparser::ast::FunctionArg::Unnamed(
+                                        sqlparser::ast::FunctionArgExpr::Expr(Expr::Value(val)),
+                                    ) = arg
+                                    {
+                                        if let sqlparser::ast::Value::SingleQuotedString(s) =
+                                            &val.value
+                                        {
+                                            if self.is_aggregate_function_name(&s.to_uppercase()) {
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         if self.is_aggregate_function_expr(expr) && func.over.is_none() {
-                            eprintln!("[has_aggregate_functions] -> is aggregate!");
                             return true;
                         }
                     }
@@ -4297,6 +4304,271 @@ impl QueryExecutor {
             }
             _ => false,
         }
+    }
+
+    fn is_aggregate_function_name(&self, func_name: &str) -> bool {
+        matches!(
+            func_name,
+            "COUNT"
+                | "SUM"
+                | "AVG"
+                | "MIN"
+                | "MAX"
+                | "STRING_AGG"
+                | "ARRAY_AGG"
+                | "STDDEV"
+                | "STDDEV_POP"
+                | "STDDEV_SAMP"
+                | "VARIANCE"
+                | "VAR_POP"
+                | "VAR_SAMP"
+                | "CORR"
+                | "COVAR_POP"
+                | "COVAR_SAMP"
+                | "MEDIAN"
+                | "MODE"
+                | "PERCENTILE_CONT"
+                | "PERCENTILE_DISC"
+                | "REGR_SLOPE"
+                | "REGR_INTERCEPT"
+                | "REGR_R2"
+                | "REGR_AVGX"
+                | "REGR_AVGY"
+                | "REGR_COUNT"
+                | "REGR_SXX"
+                | "REGR_SYY"
+                | "REGR_SXY"
+                | "BOOL_AND"
+                | "BOOL_OR"
+                | "EVERY"
+                | "BIT_AND"
+                | "BIT_OR"
+                | "BIT_XOR"
+                | "APPROX_COUNT_DISTINCT"
+                | "APPROX_QUANTILES"
+                | "APPROX_TOP_COUNT"
+                | "APPROX_TOP_SUM"
+                | "LISTAGG"
+                | "COUNTIF"
+                | "LOGICAL_AND"
+                | "LOGICAL_OR"
+                | "ANY_VALUE"
+                | "ARRAY_AGG_DISTINCT"
+                | "ARRAY_CONCAT_AGG"
+                | "STRING_AGG_DISTINCT"
+                | "HLL_COUNT_INIT"
+                | "HLL_COUNT.INIT"
+                | "HLL_COUNT_MERGE"
+                | "HLL_COUNT.MERGE"
+                | "HLL_COUNT_MERGE_PARTIAL"
+                | "HLL_COUNT.MERGE_PARTIAL"
+                | "HLL_COUNT_EXTRACT"
+                | "HLL_COUNT.EXTRACT"
+                | "JSON_AGG"
+                | "JSONB_AGG"
+                | "JSON_OBJECT_AGG"
+                | "JSONB_OBJECT_AGG"
+                | "UNIQ"
+                | "UNIQ_EXACT"
+                | "UNIQ_COMBINED"
+                | "UNIQ_COMBINED_64"
+                | "UNIQ_HLL12"
+                | "UNIQ_THETA_SKETCH"
+                | "UNIQ_UPTO"
+                | "TOP_K"
+                | "TOP_K_WEIGHTED"
+                | "QUANTILE"
+                | "QUANTILE_EXACT"
+                | "QUANTILE_EXACT_WEIGHTED"
+                | "QUANTILE_TIMING"
+                | "QUANTILE_TIMING_WEIGHTED"
+                | "QUANTILE_TDIGEST"
+                | "QUANTILE_TDIGEST_WEIGHTED"
+                | "QUANTILES"
+                | "QUANTILES_EXACT"
+                | "QUANTILES_TIMING"
+                | "QUANTILES_TDIGEST"
+                | "QUANTILE_DETERMINISTIC"
+                | "QUANTILE_BFLOAT16"
+                | "QUANTILE_EXACT_LOW"
+                | "QUANTILEEXACTLOW"
+                | "QUANTILE_EXACT_HIGH"
+                | "QUANTILEEXACTHIGH"
+                | "QUANTILE_DD"
+                | "QUANTILEDD"
+                | "QUANTILE_GK"
+                | "QUANTILEGK"
+                | "QUANTILE_INTERPOLATED_WEIGHTED"
+                | "QUANTILEINTERPOLATEDWEIGHTED"
+                | "QUANTILE_BFLOAT16_WEIGHTED"
+                | "QUANTILEBFLOAT16WEIGHTED"
+                | "QUANTILE_IF"
+                | "QUANTILEIF"
+                | "QUANTILES_IF"
+                | "QUANTILESIF"
+                | "QUANTILESEXACT"
+                | "QUANTILETIMINGWEIGHTED"
+                | "QUANTILETDIGESTWEIGHTED"
+                | "QUANTILEDETERMINISTIC"
+                | "QUANTILEBFLOAT16"
+                | "QUANTILEEXACTWEIGHTED"
+                | "GROUP_ARRAY"
+                | "GROUP_ARRAY_INSERTAT"
+                | "GROUP_ARRAY_MOVING_AVG"
+                | "GROUP_ARRAY_MOVING_SUM"
+                | "GROUP_ARRAY_SAMPLE"
+                | "GROUP_UNIQ_ARRAY"
+                | "GROUP_BIT_AND"
+                | "GROUP_BIT_OR"
+                | "GROUP_BIT_XOR"
+                | "GROUP_BITMAP"
+                | "GROUP_BITMAP_AND"
+                | "GROUP_BITMAP_OR"
+                | "GROUP_BITMAP_XOR"
+                | "GROUP_CONCAT"
+                | "SUM_WITH_OVERFLOW"
+                | "SUM_MAP"
+                | "MIN_MAP"
+                | "MAX_MAP"
+                | "ARG_MIN"
+                | "ARG_MAX"
+                | "SUM_IF"
+                | "AVG_IF"
+                | "MIN_IF"
+                | "MAX_IF"
+                | "COUNT_EQUAL"
+                | "RANK_CORR"
+                | "EXPONENTIAL_MOVING_AVERAGE"
+                | "SIMPLE_LINEAR_REGRESSION"
+                | "BOUNDING_RATIO"
+                | "CONTINGENCY"
+                | "CRAMERS_V"
+                | "ENTROPY"
+                | "THEIL_U"
+                | "CATEGORICAL_INFORMATION_VALUE"
+                | "MANN_WHITNEY_U_TEST"
+                | "STUDENT_T_TEST"
+                | "WELCH_T_TEST"
+                | "RETENTION"
+                | "WINDOW_FUNNEL"
+                | "INTERVAL_LENGTH_SUM"
+                | "SEQUENCE_MATCH"
+                | "SEQUENCE_COUNT"
+                | "DELTA_SUM"
+                | "DELTA_SUM_TIMESTAMP"
+                | "ANY"
+                | "ANY_HEAVY"
+                | "ANY_LAST"
+                | "ARRAY_FLATTEN"
+                | "ARRAY_REDUCE"
+                | "ARRAY_MAP"
+                | "ARRAY_FILTER"
+                | "SUM_ARRAY"
+                | "AVG_ARRAY"
+                | "MIN_ARRAY"
+                | "MAX_ARRAY"
+                | "BITMAP_CARDINALITY"
+                | "BITMAP_AND_CARDINALITY"
+                | "BITMAP_OR_CARDINALITY"
+                | "GROUPARRAY"
+                | "GROUPARRAYSAMPLE"
+                | "GROUPARRAYSORTED"
+                | "GROUPARRAYINSERTAT"
+                | "GROUPARRAYMOVINGAVG"
+                | "GROUPARRAYMOVINGSUM"
+                | "GROUPUNIQARRAY"
+                | "GROUPARRAYLAST"
+                | "GROUPARRAYINTERSECT"
+                | "GROUPBITAND"
+                | "GROUPBITOR"
+                | "GROUPBITXOR"
+                | "GROUPBITMAP"
+                | "GROUPCONCAT"
+                | "SUMMAP"
+                | "MINMAP"
+                | "MAXMAP"
+                | "AVGMAP"
+                | "AVG_MAP"
+                | "GROUP_ARRAY_LAST"
+                | "GROUP_ARRAY_SORTED"
+                | "GROUP_ARRAY_INTERSECT"
+                | "HISTOGRAM"
+                | "SUMDISTINCT"
+                | "AVGDISTINCT"
+                | "SKEW_POP"
+                | "SKEWPOP"
+                | "SKEW_SAMP"
+                | "SKEWSAMP"
+                | "KURT_POP"
+                | "KURTPOP"
+                | "KURT_SAMP"
+                | "KURTSAMP"
+                | "AVG_WEIGHTED"
+                | "AVGWEIGHTED"
+                | "ANY_IF"
+                | "ANYIF"
+                | "SUMIF"
+                | "AVGIF"
+                | "MINIF"
+                | "MAXIF"
+                | "ARGMIN"
+                | "ARGMAX"
+                | "RANKCORR"
+                | "EXPONENTIALMOVINGAVERAGE"
+                | "SIMPLELINEARREGRESSION"
+                | "MANNWHITNEYUTEST"
+                | "STUDENTTTEST"
+                | "WELCHTTEST"
+                | "DELTASUM"
+                | "DELTASUMTIMESTAMP"
+                | "WINDOWFUNNEL"
+                | "INTERVALLENGTHSUM"
+                | "SEQUENCEMATCH"
+                | "SEQUENCECOUNT"
+                | "ANYHEAVY"
+                | "ANYLAST"
+                | "CRAMERSV"
+                | "THEILSU"
+                | "CATEGORICALINFORMATIONVALUE"
+                | "SUMWITHOVERFLOW"
+                | "SUMARRAY"
+                | "AVGARRAY"
+                | "MINARRAY"
+                | "MAXARRAY"
+                | "COUNTEQUAL"
+                | "BOUNDINGRATIO"
+                | "UNIQEXACT"
+                | "UNIQCOMBINED"
+                | "UNIQCOMBINED64"
+                | "UNIQHLL12"
+                | "UNIQTHETASKETCH"
+                | "UNIQUPTO"
+                | "TOPK"
+                | "TOPKWEIGHTED"
+                | "NOTHING"
+                | "SUMKAHAN"
+                | "SINGLEVALUEORNULL"
+                | "BOUNDEDSAMPLE"
+                | "LARGESTTRIANGLETHREEBUCKETS"
+                | "SPARKBAR"
+                | "MAXINTERSECTIONS"
+                | "MAXINTERSECTIONSPOSITION"
+                | "SUMORNULL"
+                | "SUMORDEFAULT"
+                | "SUMRESAMPLE"
+                | "SUMSTATE"
+                | "SUMMERGE"
+                | "AVGSTATE"
+                | "AVGMERGE"
+                | "COUNTSTATE"
+                | "COUNTMERGE"
+                | "MINSTATE"
+                | "MINMERGE"
+                | "MAXSTATE"
+                | "MAXMERGE"
+                | "UNIQSTATE"
+                | "UNIQMERGE"
+        )
     }
 
     fn contains_window_function(&self, expr: &Expr) -> bool {

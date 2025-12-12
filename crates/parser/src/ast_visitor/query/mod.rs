@@ -2679,12 +2679,6 @@ impl LogicalPlanBuilder {
                 alias,
                 ..
             } => {
-                if alias.is_none() {
-                    return Err(Error::invalid_query(
-                        "Subquery in FROM clause must have an alias".to_string(),
-                    ));
-                }
-
                 let subquery_plan = self.query_to_plan(subquery)?;
                 let alias_name =
                     alias

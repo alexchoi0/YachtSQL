@@ -986,37 +986,145 @@ impl LogicalToPhysicalPlanner {
                 };
 
                 for fn_name in wrapper_fns {
-                    let fn_upper = fn_name.to_uppercase();
+                    if fn_name.starts_with('(') && fn_name.contains("->") {
+                        let inner = fn_name.trim_start_matches('(').trim_end_matches(')');
+                        if let Some(arrow_idx) = inner.find("->") {
+                            let param = inner[..arrow_idx].trim();
+                            let body = inner[arrow_idx + 2..].trim();
+                            expr = Self::parse_lambda_body(body, param, &expr);
+                        }
+                        continue;
+                    }
+
+                    let (actual_fn_name, extra_args) = if let Some(paren_idx) = fn_name.find('(') {
+                        let name_part = &fn_name[..paren_idx];
+                        let args_str =
+                            fn_name[paren_idx + 1..fn_name.len().saturating_sub(1)].trim();
+                        let extra = if args_str.is_empty() {
+                            vec![]
+                        } else if let Ok(val) = args_str.parse::<i64>() {
+                            vec![Expr::Literal(LiteralValue::Int64(val))]
+                        } else if let Ok(val) = args_str.parse::<f64>() {
+                            vec![Expr::Literal(LiteralValue::Float64(val))]
+                        } else {
+                            vec![Expr::Literal(LiteralValue::String(args_str.to_string()))]
+                        };
+                        (name_part.to_string(), extra)
+                    } else {
+                        (fn_name.clone(), vec![])
+                    };
+
+                    let fn_upper = actual_fn_name.to_uppercase();
+                    let parsed_name = FunctionName::from(fn_upper.as_str());
+                    let mut args = vec![expr];
+                    args.extend(extra_args);
+
                     if aggregate_fns.contains(fn_upper.as_str()) {
                         expr = Expr::Aggregate {
-                            name: FunctionName::Custom(fn_name.clone()),
-                            args: vec![expr],
+                            name: parsed_name,
+                            args,
                             distinct: false,
                             order_by: None,
                             filter: None,
                         };
                     } else {
                         expr = Expr::Function {
-                            name: FunctionName::Custom(fn_name.clone()),
-                            args: vec![expr],
+                            name: parsed_name,
+                            args,
                         };
                     }
                 }
 
-                let alias = if wrapper_fns.is_empty() {
-                    None
-                } else {
-                    Some(format!(
-                        "{}({})",
-                        wrapper_fns.last().unwrap_or(&String::new()),
-                        field_name
-                    ))
-                };
+                let alias = wrapper_fns.last().map(|last_fn| {
+                    if last_fn.starts_with('(') && last_fn.contains("->") {
+                        field_name.to_string()
+                    } else {
+                        let fn_name = if let Some(paren_idx) = last_fn.find('(') {
+                            &last_fn[..paren_idx]
+                        } else {
+                            last_fn.as_str()
+                        };
+                        format!("{}({})", fn_name.to_uppercase(), field_name)
+                    }
+                });
 
                 result.push((expr, alias));
             }
         }
         result
+    }
+
+    fn parse_lambda_body(body: &str, param: &str, column_expr: &Expr) -> Expr {
+        use yachtsql_ir::expr::BinaryOp;
+
+        let body = body.trim();
+
+        if let Some(idx) = body.find('*') {
+            let left = body[..idx].trim();
+            let right = body[idx + 1..].trim();
+            return Self::build_binary_op(left, BinaryOp::Multiply, right, param, column_expr);
+        }
+        if let Some(idx) = body.find('/') {
+            let left = body[..idx].trim();
+            let right = body[idx + 1..].trim();
+            return Self::build_binary_op(left, BinaryOp::Divide, right, param, column_expr);
+        }
+        if let Some(idx) = body.find('+') {
+            let left = body[..idx].trim();
+            let right = body[idx + 1..].trim();
+            return Self::build_binary_op(left, BinaryOp::Add, right, param, column_expr);
+        }
+        if let Some(idx) = body.find('-') {
+            if idx > 0 {
+                let left = body[..idx].trim();
+                let right = body[idx + 1..].trim();
+                return Self::build_binary_op(left, BinaryOp::Subtract, right, param, column_expr);
+            }
+        }
+
+        if body == param {
+            return column_expr.clone();
+        }
+
+        if let Ok(val) = body.parse::<i64>() {
+            return Expr::Literal(LiteralValue::Int64(val));
+        }
+
+        column_expr.clone()
+    }
+
+    fn build_binary_op(
+        left_str: &str,
+        op: yachtsql_ir::expr::BinaryOp,
+        right_str: &str,
+        param: &str,
+        column_expr: &Expr,
+    ) -> Expr {
+        let left = if left_str == param {
+            column_expr.clone()
+        } else if let Ok(val) = left_str.parse::<i64>() {
+            Expr::Literal(LiteralValue::Int64(val))
+        } else if let Ok(val) = left_str.parse::<f64>() {
+            Expr::Literal(LiteralValue::Float64(val))
+        } else {
+            column_expr.clone()
+        };
+
+        let right = if right_str == param {
+            column_expr.clone()
+        } else if let Ok(val) = right_str.parse::<i64>() {
+            Expr::Literal(LiteralValue::Int64(val))
+        } else if let Ok(val) = right_str.parse::<f64>() {
+            Expr::Literal(LiteralValue::Float64(val))
+        } else {
+            column_expr.clone()
+        };
+
+        Expr::BinaryOp {
+            left: Box::new(left),
+            op,
+            right: Box::new(right),
+        }
     }
 
     fn resolve_custom_type_in_expressions(
@@ -1540,16 +1648,22 @@ impl LogicalToPhysicalPlanner {
             PlanNode::Projection { input, expressions } => {
                 let using_columns = Self::extract_using_columns(input);
                 let input_exec = self.plan_node_to_exec(input)?;
-                let input_schema = input_exec.schema();
+                let input_schema = Rc::new(input_exec.schema().clone());
 
+                eprintln!("[logical_to_physical] Input expressions: {:?}", expressions);
                 let expanded_expressions =
-                    Self::expand_columns_in_expressions(expressions, input_schema);
+                    Self::expand_columns_in_expressions(expressions, &input_schema);
+                eprintln!(
+                    "[logical_to_physical] Expanded expressions: {:?}",
+                    expanded_expressions
+                );
                 let resolved_expressions =
                     self.resolve_custom_type_in_expressions(&expanded_expressions);
 
                 let has_aggregates = resolved_expressions
                     .iter()
                     .any(|(e, _)| matches!(e, Expr::Aggregate { .. }));
+                eprintln!("[logical_to_physical] has_aggregates: {}", has_aggregates);
 
                 let final_input =
                     if has_aggregates && !matches!(input.as_ref(), PlanNode::Aggregate { .. }) {
@@ -1568,11 +1682,36 @@ impl LogicalToPhysicalPlanner {
                         input_exec
                     };
 
+                let validation_schema: Rc<yachtsql_storage::Schema> =
+                    if has_aggregates && !matches!(input.as_ref(), PlanNode::Aggregate { .. }) {
+                        eprintln!(
+                            "[logical_to_physical] Using input_schema for validation: {:?}",
+                            input_schema
+                                .fields()
+                                .iter()
+                                .map(|f| f.name.clone())
+                                .collect::<Vec<_>>()
+                        );
+                        input_schema.clone()
+                    } else {
+                        eprintln!(
+                            "[logical_to_physical] Using final_input schema for validation: {:?}",
+                            final_input
+                                .schema()
+                                .fields()
+                                .iter()
+                                .map(|f| f.name.clone())
+                                .collect::<Vec<_>>()
+                        );
+                        Rc::new(final_input.schema().clone())
+                    };
+                eprintln!("[logical_to_physical] Calling infer_projection_schema...");
                 let output_schema = self.infer_projection_schema(
                     &resolved_expressions,
-                    final_input.schema(),
+                    &validation_schema,
                     using_columns.as_deref(),
                 )?;
+                eprintln!("[logical_to_physical] infer_projection_schema succeeded");
 
                 Ok(Rc::new(
                     ProjectionWithExprExec::new(final_input, output_schema, resolved_expressions)

@@ -47,8 +47,8 @@ lazy_static! {
     .unwrap();
     static ref RE_PROC_LANGUAGE: Regex = Regex::new(r"(?i)^\s*(LANGUAGE\s+\w+)").unwrap();
     static ref RE_COLUMNS_APPLY: Regex =
-        Regex::new(r"(?i)COLUMNS\s*\(\s*'([^']+)'\s*\)((?:\s+APPLY\s+\S+)+)").unwrap();
-    static ref RE_APPLY_PART: Regex = Regex::new(r"(?i)\bAPPLY\s+(\S+)").unwrap();
+        Regex::new(r"(?i)COLUMNS\s*\(\s*'([^']+)'\s*\)((?:\s+APPLY\s+(?:\([^)]+\)|\S+))+)").unwrap();
+    static ref RE_APPLY_PART: Regex = Regex::new(r"(?i)\bAPPLY\s+((?:\([^)]+\)|\S+))").unwrap();
 }
 
 pub struct Parser {

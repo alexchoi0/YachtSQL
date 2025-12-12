@@ -291,10 +291,15 @@ fn test_select_from_subquery_without_alias() {
     executor
         .execute_sql("CREATE TABLE data (value INT64)")
         .unwrap();
+    executor
+        .execute_sql("INSERT INTO data VALUES (42)")
+        .unwrap();
 
-    let result = executor.execute_sql("SELECT * FROM (SELECT * FROM data)");
+    let result = executor
+        .execute_sql("SELECT * FROM (SELECT * FROM data)")
+        .unwrap();
 
-    assert!(result.is_err(), "Should error when subquery lacks alias");
+    assert_eq!(result.num_rows(), 1);
 }
 
 #[test]
