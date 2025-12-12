@@ -7,7 +7,7 @@ description = "YachtSQL execution engine"
 
 [dependencies]
 # YachtSQL crates
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-storage = { path = "../storage" }
 yachtsql-optimizer = { path = "../optimizer" }
 yachtsql-parser = { path = "../parser" }

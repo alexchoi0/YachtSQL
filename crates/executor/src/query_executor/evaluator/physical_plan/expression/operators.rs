@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::{BinaryOp, Expr};
 
 use super::super::ProjectionWithExprExec;
@@ -640,7 +640,7 @@ impl ProjectionWithExprExec {
                 BinaryOp::Subtract => {
                     let duration = l.signed_duration_since(r);
                     let micros = duration.num_microseconds().unwrap_or(0);
-                    Ok(Value::interval(yachtsql_core::types::Interval::new(
+                    Ok(Value::interval(yachtsql_common::types::Interval::new(
                         0, 0, micros,
                     )))
                 }
@@ -1024,7 +1024,7 @@ impl ProjectionWithExprExec {
 
         if left.as_date32().is_some() && right.as_str().is_some() {
             if let (Some(l), Some(r_str)) = (left.as_date32(), right.as_str()) {
-                if let Some(r) = yachtsql_core::types::Date32Value::parse(r_str) {
+                if let Some(r) = yachtsql_common::types::Date32Value::parse(r_str) {
                     return match op {
                         BinaryOp::Equal => Ok(Value::bool_val(l.0 == r.0)),
                         BinaryOp::NotEqual => Ok(Value::bool_val(l.0 != r.0)),
@@ -1043,7 +1043,7 @@ impl ProjectionWithExprExec {
 
         if left.as_str().is_some() && right.as_date32().is_some() {
             if let (Some(l_str), Some(r)) = (left.as_str(), right.as_date32()) {
-                if let Some(l) = yachtsql_core::types::Date32Value::parse(l_str) {
+                if let Some(l) = yachtsql_common::types::Date32Value::parse(l_str) {
                     return match op {
                         BinaryOp::Equal => Ok(Value::bool_val(l.0 == r.0)),
                         BinaryOp::NotEqual => Ok(Value::bool_val(l.0 != r.0)),
@@ -1063,10 +1063,10 @@ impl ProjectionWithExprExec {
         if left.as_date32().is_some() && right.as_i64().is_some() {
             if let (Some(l), Some(r)) = (left.as_date32(), right.as_i64()) {
                 return match op {
-                    BinaryOp::Add => Ok(Value::date32(yachtsql_core::types::Date32Value(
+                    BinaryOp::Add => Ok(Value::date32(yachtsql_common::types::Date32Value(
                         l.0 + r as i32,
                     ))),
-                    BinaryOp::Subtract => Ok(Value::date32(yachtsql_core::types::Date32Value(
+                    BinaryOp::Subtract => Ok(Value::date32(yachtsql_common::types::Date32Value(
                         l.0 - r as i32,
                     ))),
                     _ => Err(crate::error::Error::unsupported_feature(format!(
@@ -1213,13 +1213,13 @@ impl ProjectionWithExprExec {
             || left.as_line().is_some()
             || left.as_path().is_some()
             || left.as_polygon().is_some()
-            || matches!(left.data_type(), yachtsql_core::types::DataType::PgBox)
-            || matches!(left.data_type(), yachtsql_core::types::DataType::Point)
-            || matches!(left.data_type(), yachtsql_core::types::DataType::Circle)
-            || matches!(left.data_type(), yachtsql_core::types::DataType::Lseg)
-            || matches!(left.data_type(), yachtsql_core::types::DataType::Line)
-            || matches!(left.data_type(), yachtsql_core::types::DataType::Path)
-            || matches!(left.data_type(), yachtsql_core::types::DataType::Polygon);
+            || matches!(left.data_type(), yachtsql_common::types::DataType::PgBox)
+            || matches!(left.data_type(), yachtsql_common::types::DataType::Point)
+            || matches!(left.data_type(), yachtsql_common::types::DataType::Circle)
+            || matches!(left.data_type(), yachtsql_common::types::DataType::Lseg)
+            || matches!(left.data_type(), yachtsql_common::types::DataType::Line)
+            || matches!(left.data_type(), yachtsql_common::types::DataType::Path)
+            || matches!(left.data_type(), yachtsql_common::types::DataType::Polygon);
 
         let is_geometric_right = right.as_point().is_some()
             || right.as_circle().is_some()
@@ -1227,13 +1227,13 @@ impl ProjectionWithExprExec {
             || right.as_line().is_some()
             || right.as_path().is_some()
             || right.as_polygon().is_some()
-            || matches!(right.data_type(), yachtsql_core::types::DataType::PgBox)
-            || matches!(right.data_type(), yachtsql_core::types::DataType::Point)
-            || matches!(right.data_type(), yachtsql_core::types::DataType::Circle)
-            || matches!(right.data_type(), yachtsql_core::types::DataType::Lseg)
-            || matches!(right.data_type(), yachtsql_core::types::DataType::Line)
-            || matches!(right.data_type(), yachtsql_core::types::DataType::Path)
-            || matches!(right.data_type(), yachtsql_core::types::DataType::Polygon);
+            || matches!(right.data_type(), yachtsql_common::types::DataType::PgBox)
+            || matches!(right.data_type(), yachtsql_common::types::DataType::Point)
+            || matches!(right.data_type(), yachtsql_common::types::DataType::Circle)
+            || matches!(right.data_type(), yachtsql_common::types::DataType::Lseg)
+            || matches!(right.data_type(), yachtsql_common::types::DataType::Line)
+            || matches!(right.data_type(), yachtsql_common::types::DataType::Path)
+            || matches!(right.data_type(), yachtsql_common::types::DataType::Polygon);
 
         if is_geometric_left || is_geometric_right {
             return match op {
@@ -1404,7 +1404,7 @@ impl ProjectionWithExprExec {
         }
     }
 
-    fn interval_to_total_micros(interval: &yachtsql_core::types::Interval) -> i128 {
+    fn interval_to_total_micros(interval: &yachtsql_common::types::Interval) -> i128 {
         const MICROS_PER_DAY: i128 = 24 * 60 * 60 * 1_000_000;
         const MICROS_PER_MONTH: i128 = 30 * MICROS_PER_DAY;
 
@@ -1415,7 +1415,7 @@ impl ProjectionWithExprExec {
 
     fn add_interval_to_timestamp(
         ts: chrono::DateTime<chrono::Utc>,
-        interval: &yachtsql_core::types::Interval,
+        interval: &yachtsql_common::types::Interval,
     ) -> Result<Value> {
         use chrono::{Datelike, Duration, Months, TimeZone, Utc};
 
@@ -1466,9 +1466,9 @@ impl ProjectionWithExprExec {
 
     fn subtract_interval_from_timestamp(
         ts: chrono::DateTime<chrono::Utc>,
-        interval: &yachtsql_core::types::Interval,
+        interval: &yachtsql_common::types::Interval,
     ) -> Result<Value> {
-        let negated = yachtsql_core::types::Interval {
+        let negated = yachtsql_common::types::Interval {
             months: -interval.months,
             days: -interval.days,
             micros: -interval.micros,
@@ -1478,7 +1478,7 @@ impl ProjectionWithExprExec {
 
     fn add_interval_to_date(
         date: chrono::NaiveDate,
-        interval: &yachtsql_core::types::Interval,
+        interval: &yachtsql_common::types::Interval,
     ) -> Result<Value> {
         use chrono::{Datelike, Duration, Months, TimeZone, Utc};
 
@@ -1531,9 +1531,9 @@ impl ProjectionWithExprExec {
 
     fn subtract_interval_from_date(
         date: chrono::NaiveDate,
-        interval: &yachtsql_core::types::Interval,
+        interval: &yachtsql_common::types::Interval,
     ) -> Result<Value> {
-        let negated = yachtsql_core::types::Interval {
+        let negated = yachtsql_common::types::Interval {
             months: -interval.months,
             days: -interval.days,
             micros: -interval.micros,
@@ -1570,8 +1570,8 @@ impl ProjectionWithExprExec {
     }
 
     fn inet_compare(
-        l: &yachtsql_core::types::network::InetAddr,
-        r: &yachtsql_core::types::network::InetAddr,
+        l: &yachtsql_common::types::network::InetAddr,
+        r: &yachtsql_common::types::network::InetAddr,
     ) -> std::cmp::Ordering {
         use std::cmp::Ordering;
         use std::net::IpAddr;
@@ -1607,8 +1607,8 @@ impl ProjectionWithExprExec {
     }
 
     fn inet_is_contained_by(
-        inner: &yachtsql_core::types::network::InetAddr,
-        outer: &yachtsql_core::types::network::InetAddr,
+        inner: &yachtsql_common::types::network::InetAddr,
+        outer: &yachtsql_common::types::network::InetAddr,
     ) -> bool {
         use std::net::IpAddr;
 
@@ -1649,8 +1649,8 @@ impl ProjectionWithExprExec {
     }
 
     fn inet_is_contained_by_or_equal(
-        inner: &yachtsql_core::types::network::InetAddr,
-        outer: &yachtsql_core::types::network::InetAddr,
+        inner: &yachtsql_common::types::network::InetAddr,
+        outer: &yachtsql_common::types::network::InetAddr,
     ) -> bool {
         use std::net::IpAddr;
 
@@ -1691,16 +1691,16 @@ impl ProjectionWithExprExec {
     }
 
     fn inet_overlaps(
-        a: &yachtsql_core::types::network::InetAddr,
-        b: &yachtsql_core::types::network::InetAddr,
+        a: &yachtsql_common::types::network::InetAddr,
+        b: &yachtsql_common::types::network::InetAddr,
     ) -> bool {
         Self::inet_is_contained_by_or_equal(a, b) || Self::inet_is_contained_by_or_equal(b, a)
     }
 
-    fn inet_bitwise_not(inet: &yachtsql_core::types::network::InetAddr) -> Result<Value> {
+    fn inet_bitwise_not(inet: &yachtsql_common::types::network::InetAddr) -> Result<Value> {
         use std::net::IpAddr;
 
-        use yachtsql_core::types::network::InetAddr;
+        use yachtsql_common::types::network::InetAddr;
 
         let result_addr = match &inet.addr {
             IpAddr::V4(ip) => {
@@ -1717,12 +1717,12 @@ impl ProjectionWithExprExec {
     }
 
     fn inet_bitwise_and(
-        l: &yachtsql_core::types::network::InetAddr,
-        r: &yachtsql_core::types::network::InetAddr,
+        l: &yachtsql_common::types::network::InetAddr,
+        r: &yachtsql_common::types::network::InetAddr,
     ) -> Result<Value> {
         use std::net::IpAddr;
 
-        use yachtsql_core::types::network::InetAddr;
+        use yachtsql_common::types::network::InetAddr;
 
         if l.is_ipv4() != r.is_ipv4() {
             return Err(Error::InvalidOperation(
@@ -1748,12 +1748,12 @@ impl ProjectionWithExprExec {
     }
 
     fn inet_bitwise_or(
-        l: &yachtsql_core::types::network::InetAddr,
-        r: &yachtsql_core::types::network::InetAddr,
+        l: &yachtsql_common::types::network::InetAddr,
+        r: &yachtsql_common::types::network::InetAddr,
     ) -> Result<Value> {
         use std::net::IpAddr;
 
-        use yachtsql_core::types::network::InetAddr;
+        use yachtsql_common::types::network::InetAddr;
 
         if l.is_ipv4() != r.is_ipv4() {
             return Err(Error::InvalidOperation(
@@ -1778,10 +1778,13 @@ impl ProjectionWithExprExec {
         Ok(Value::inet(InetAddr::new(result_addr)))
     }
 
-    fn inet_add_int(inet: &yachtsql_core::types::network::InetAddr, offset: &i64) -> Result<Value> {
+    fn inet_add_int(
+        inet: &yachtsql_common::types::network::InetAddr,
+        offset: &i64,
+    ) -> Result<Value> {
         use std::net::IpAddr;
 
-        use yachtsql_core::types::network::InetAddr;
+        use yachtsql_common::types::network::InetAddr;
 
         let result_addr = match &inet.addr {
             IpAddr::V4(ip) => {
@@ -1817,8 +1820,8 @@ impl ProjectionWithExprExec {
     }
 
     fn inet_subtract_inet(
-        l: &yachtsql_core::types::network::InetAddr,
-        r: &yachtsql_core::types::network::InetAddr,
+        l: &yachtsql_common::types::network::InetAddr,
+        r: &yachtsql_common::types::network::InetAddr,
     ) -> Result<Value> {
         use std::net::IpAddr;
 

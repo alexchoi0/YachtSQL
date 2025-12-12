@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 const EARTH_RADIUS_M: f64 = 6_371_008.8;
 const WGS84_A: f64 = 6_378_137.0;

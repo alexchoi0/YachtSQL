@@ -1,4 +1,4 @@
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use super::Table;
 use super::schema_ops::copy_constraints_to_schema;

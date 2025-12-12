@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::Error;
-use yachtsql_core::types::network::{CidrAddr, InetAddr};
-use yachtsql_core::types::{DataType, IPv4Addr, IPv6Addr, Value};
+use yachtsql_common::error::Error;
+use yachtsql_common::types::network::{CidrAddr, InetAddr};
+use yachtsql_common::types::{DataType, IPv4Addr, IPv6Addr, Value};
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;
@@ -665,7 +665,7 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
                 if let Some(mac) = args[0].as_macaddr8() {
                     let mut octets = mac.octets;
                     octets[0] |= 0x02;
-                    let new_mac = yachtsql_core::types::MacAddress {
+                    let new_mac = yachtsql_common::types::MacAddress {
                         octets,
                         is_eui64: mac.is_eui64,
                     };

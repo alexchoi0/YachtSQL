@@ -275,7 +275,7 @@ impl VersionStore {
 #[cfg(test)]
 mod tests {
     use indexmap::IndexMap;
-    use yachtsql_core::types::Value;
+    use yachtsql_common::types::Value;
 
     use super::*;
 

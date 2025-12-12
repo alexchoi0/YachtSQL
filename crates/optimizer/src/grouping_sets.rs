@@ -1,4 +1,4 @@
-use yachtsql_core::error::Error;
+use yachtsql_common::error::Error;
 use yachtsql_ir::expr::Expr;
 use yachtsql_ir::plan::GroupingMetadata;
 

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::Error;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Error;
+use yachtsql_common::types::{DataType, Value};
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;
@@ -68,7 +68,7 @@ fn register_extrema(registry: &mut FunctionRegistry) {
     );
 }
 
-fn extrema(args: &[Value], pick_max: bool) -> yachtsql_core::error::Result<Value> {
+fn extrema(args: &[Value], pick_max: bool) -> yachtsql_common::error::Result<Value> {
     if args.is_empty() {
         return Err(Error::invalid_query(
             "LEAST/GREATEST require at least one argument".to_string(),
@@ -99,7 +99,7 @@ fn extrema(args: &[Value], pick_max: bool) -> yachtsql_core::error::Result<Value
 fn compare_values<'a>(
     lhs: &'a Value,
     rhs: &'a Value,
-) -> yachtsql_core::error::Result<std::cmp::Ordering> {
+) -> yachtsql_common::error::Result<std::cmp::Ordering> {
     if let (Some(a), Some(b)) = (lhs.as_i64(), rhs.as_i64()) {
         return Ok(a.cmp(&b));
     }

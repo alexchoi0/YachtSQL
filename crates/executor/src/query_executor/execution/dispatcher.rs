@@ -3,7 +3,7 @@ use sqlparser::ast::{
     ValueWithSpan as SqlValueWithSpan,
 };
 use yachtsql_capability::CapabilitySnapshot;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_parser::{Parser, Statement};
 
 const AUTOCOMMIT_EXPECTED_VALUES: &str =

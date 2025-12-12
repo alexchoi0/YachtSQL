@@ -1,4 +1,4 @@
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 
 use super::super::ProjectionWithExprExec;
 
@@ -7,8 +7,8 @@ impl ProjectionWithExprExec {
         value: crate::types::Value,
         target_type: &crate::optimizer::expr::CastDataType,
     ) -> Result<crate::types::Value> {
-        use yachtsql_core::error::Error;
-        use yachtsql_core::types::Value;
+        use yachtsql_common::error::Error;
+        use yachtsql_common::types::Value;
         use yachtsql_optimizer::expr::CastDataType;
 
         let is_basic_type = value.as_i64().is_some()
@@ -255,7 +255,7 @@ impl ProjectionWithExprExec {
         value: crate::types::Value,
         target_type: &crate::optimizer::expr::CastDataType,
     ) -> crate::types::Value {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         match Self::cast_value(value, target_type) {
             Ok(v) => v,

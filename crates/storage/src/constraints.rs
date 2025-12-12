@@ -1,8 +1,8 @@
 #![allow(clippy::wildcard_enum_match_arm)]
 
 use chrono::Utc;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 use crate::{DefaultValue, Row, Schema};
 
@@ -361,7 +361,7 @@ fn values_equal_with_collation(v1: &Value, v2: &Value, collation: Option<&str>) 
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
 
     use super::*;
     use crate::{CheckConstraint, CheckEvaluator, Field, Schema};

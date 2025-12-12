@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct EnumType {

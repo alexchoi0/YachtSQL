@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 use sqlparser::ast::{Assignment, Expr as SqlExpr, Ident, MergeClause, Statement};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_storage::{Field, Row, Schema};
 
 use super::super::super::QueryExecutor;
@@ -276,7 +276,7 @@ impl QueryExecutor {
             total_affected += 1;
         }
 
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         use yachtsql_storage::{Column, Field};
 
         let schema = Schema::from_fields(vec![Field::nullable("rows_affected", DataType::Int64)]);

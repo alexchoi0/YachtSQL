@@ -4,8 +4,8 @@ use std::hash::{Hash, Hasher};
 
 use indexmap::IndexMap;
 use rust_decimal::prelude::ToPrimitive;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 use super::hyperloglog::HyperLogLogPlusPlus;
 use super::tdigest::TDigest;

@@ -86,7 +86,7 @@ impl IndexCatalog for SnapshotCatalog {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
     use yachtsql_storage::index::IndexColumn;
     use yachtsql_storage::{Dataset, Field, Schema};
 

@@ -4,8 +4,8 @@ use md5;
 use rust_decimal::prelude::ToPrimitive;
 use sha1::Sha1;
 use sha2::{Digest, Sha224, Sha256, Sha384, Sha512};
-use yachtsql_core::error::Result;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Result;
+use yachtsql_common::types::{DataType, Value};
 
 pub trait ScalarFunction: Debug + Send + Sync {
     fn name(&self) -> &str;
@@ -79,7 +79,7 @@ pub fn eval_to_number(value: &Value) -> Result<Value> {
         let trimmed = s.trim();
 
         if trimmed.is_empty() {
-            return Err(yachtsql_core::error::Error::invalid_query(
+            return Err(yachtsql_common::error::Error::invalid_query(
                 "TO_NUMBER: empty string cannot be converted to number".to_string(),
             ));
         }
@@ -87,20 +87,20 @@ pub fn eval_to_number(value: &Value) -> Result<Value> {
         match trimmed.parse::<f64>() {
             Ok(num) => {
                 if num.is_infinite() || num.is_nan() {
-                    return Err(yachtsql_core::error::Error::invalid_query(format!(
+                    return Err(yachtsql_common::error::Error::invalid_query(format!(
                         "TO_NUMBER: invalid numeric value: {}",
                         trimmed
                     )));
                 }
                 Ok(Value::float64(num))
             }
-            Err(_) => Err(yachtsql_core::error::Error::invalid_query(format!(
+            Err(_) => Err(yachtsql_common::error::Error::invalid_query(format!(
                 "TO_NUMBER: invalid numeric string: '{}'",
                 s
             ))),
         }
     } else {
-        Err(yachtsql_core::error::Error::TypeMismatch {
+        Err(yachtsql_common::error::Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: value.data_type().to_string(),
         })
@@ -120,7 +120,7 @@ pub fn eval_to_char(value: &Value) -> Result<Value> {
         return Ok(Value::string(format_float(f)));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "INT64 or FLOAT64".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -166,7 +166,7 @@ pub fn eval_length(value: &Value) -> Result<Value> {
         return Ok(Value::int64(map.len() as i64));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "STRING, BYTES, ARRAY, or MAP".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -185,7 +185,7 @@ pub fn eval_octet_length(value: &Value) -> Result<Value> {
         return Ok(Value::int64(b.len() as i64));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "STRING or BYTES".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -205,7 +205,7 @@ pub fn eval_bit_count(value: &Value) -> Result<Value> {
         return Ok(Value::int64(count as i64));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "INTEGER or BYTES".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -219,7 +219,7 @@ pub fn eval_get_bit(value: &Value, position: i64) -> Result<Value> {
     if let Some(b) = value.as_bytes() {
         let bit_len = b.len() * 8;
         if position < 0 || position >= bit_len as i64 {
-            return Err(yachtsql_core::error::Error::invalid_query(format!(
+            return Err(yachtsql_common::error::Error::invalid_query(format!(
                 "GET_BIT: bit index {} out of range (0..{})",
                 position, bit_len
             )));
@@ -230,7 +230,7 @@ pub fn eval_get_bit(value: &Value, position: i64) -> Result<Value> {
         return Ok(Value::int64(bit as i64));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "BYTES".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -242,7 +242,7 @@ pub fn eval_set_bit(value: &Value, position: i64, new_value: i64) -> Result<Valu
     }
 
     if new_value != 0 && new_value != 1 {
-        return Err(yachtsql_core::error::Error::invalid_query(format!(
+        return Err(yachtsql_common::error::Error::invalid_query(format!(
             "SET_BIT: new value must be 0 or 1, got {}",
             new_value
         )));
@@ -251,7 +251,7 @@ pub fn eval_set_bit(value: &Value, position: i64, new_value: i64) -> Result<Valu
     if let Some(b) = value.as_bytes() {
         let bit_len = b.len() * 8;
         if position < 0 || position >= bit_len as i64 {
-            return Err(yachtsql_core::error::Error::invalid_query(format!(
+            return Err(yachtsql_common::error::Error::invalid_query(format!(
                 "SET_BIT: bit index {} out of range (0..{})",
                 position, bit_len
             )));
@@ -267,7 +267,7 @@ pub fn eval_set_bit(value: &Value, position: i64, new_value: i64) -> Result<Valu
         return Ok(Value::bytes(result));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "BYTES".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -304,19 +304,19 @@ fn value_to_string_for_hashing(value: &Value) -> Result<String> {
     }
 
     if value.as_array().is_some() {
-        return Err(yachtsql_core::error::Error::invalid_query(
+        return Err(yachtsql_common::error::Error::invalid_query(
             "Cannot hash ARRAY type directly. Use ARRAY_TO_STRING or hash individual elements"
                 .to_string(),
         ));
     }
 
     if value.as_struct().is_some() {
-        return Err(yachtsql_core::error::Error::invalid_query(
+        return Err(yachtsql_common::error::Error::invalid_query(
             "Cannot hash STRUCT type directly. Hash individual fields instead".to_string(),
         ));
     }
 
-    Err(yachtsql_core::error::Error::invalid_query(format!(
+    Err(yachtsql_common::error::Error::invalid_query(format!(
         "Cannot hash type {:?}",
         value.data_type()
     )))
@@ -475,7 +475,7 @@ pub fn eval_to_hex(value: &Value) -> Result<Value> {
         return Ok(Value::string(format!("{:x}", i)));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "TO_HEX requires BYTES or INT64".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -488,7 +488,7 @@ pub fn eval_from_hex(value: &Value) -> Result<Value> {
 
     if let Some(s) = value.as_str() {
         let bytes = hex::decode(s).map_err(|e| {
-            yachtsql_core::error::Error::invalid_query(format!(
+            yachtsql_common::error::Error::invalid_query(format!(
                 "FROM_HEX: invalid hex string: {}",
                 e
             ))
@@ -496,7 +496,7 @@ pub fn eval_from_hex(value: &Value) -> Result<Value> {
         return Ok(Value::bytes(bytes));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "FROM_HEX requires STRING".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -513,7 +513,7 @@ pub fn eval_to_base64(value: &Value) -> Result<Value> {
         return Ok(Value::string(STANDARD.encode(b)));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "TO_BASE64 requires BYTES".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -528,7 +528,7 @@ pub fn eval_from_base64(value: &Value) -> Result<Value> {
         use base64::Engine as _;
         use base64::engine::general_purpose::STANDARD;
         let bytes = STANDARD.decode(s).map_err(|e| {
-            yachtsql_core::error::Error::invalid_query(format!(
+            yachtsql_common::error::Error::invalid_query(format!(
                 "FROM_BASE64: invalid base64 string: {}",
                 e
             ))
@@ -536,7 +536,7 @@ pub fn eval_from_base64(value: &Value) -> Result<Value> {
         return Ok(Value::bytes(bytes));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "FROM_BASE64 requires STRING".to_string(),
         actual: value.data_type().to_string(),
     })
@@ -663,7 +663,7 @@ where
         );
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: format!(
             "{} requires numeric types (INT64, FLOAT64, NUMERIC)",
             op_name
@@ -764,7 +764,7 @@ pub fn eval_safe_divide(left: &Value, right: &Value) -> Result<Value> {
         return eval_safe_divide(&Value::numeric(a), &Value::numeric(b_numeric));
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "SAFE_DIVIDE requires numeric types".to_string(),
         actual: format!("{} / {}", left.data_type(), right.data_type()),
     })
@@ -791,7 +791,7 @@ pub fn eval_safe_negate(value: &Value) -> Result<Value> {
         };
     }
 
-    Err(yachtsql_core::error::Error::TypeMismatch {
+    Err(yachtsql_common::error::Error::TypeMismatch {
         expected: "SAFE_NEGATE requires numeric type".to_string(),
         actual: value.data_type().to_string(),
     })

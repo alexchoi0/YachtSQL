@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 pub struct AutoIncrementManager {
     counter: Option<Rc<RefCell<i64>>>,

@@ -1,4 +1,4 @@
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_ir::FunctionName;
 use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue};
 use yachtsql_ir::plan::{JoinType, PlanNode};

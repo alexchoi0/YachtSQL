@@ -70,10 +70,10 @@ pub(crate) mod functions {
 }
 
 pub(crate) mod types {
-    pub use ::yachtsql_core::types::*;
+    pub use ::yachtsql_common::types::*;
 }
 pub(crate) mod error {
-    pub use ::yachtsql_core::error::*;
+    pub use ::yachtsql_common::error::*;
 }
 pub(crate) mod storage {
     pub use ::yachtsql_storage::*;
@@ -82,8 +82,8 @@ pub(crate) mod optimizer {
     pub use ::yachtsql_optimizer::*;
 }
 
-pub(crate) use ::yachtsql_core::error::Error;
-pub(crate) use ::yachtsql_core::types::Value;
+pub(crate) use ::yachtsql_common::error::Error;
+pub(crate) use ::yachtsql_common::types::Value;
 pub(crate) use ::yachtsql_parser::DialectType;
 pub use correlation::CorrelationContext;
 pub use match_recognize::{

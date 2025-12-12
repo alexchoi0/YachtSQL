@@ -1,6 +1,6 @@
 use sqlparser::ast::{AlterTableOperation, Statement as SqlStatement};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_storage::{CheckConstraint, Field, ForeignKey, TableConstraintOps, TableSchemaOps};
 
 use super::super::QueryExecutor;

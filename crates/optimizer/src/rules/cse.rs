@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 
 use crate::optimizer::expr::Expr;
 use crate::optimizer::plan::{LogicalPlan, PlanNode};

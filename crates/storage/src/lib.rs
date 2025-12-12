@@ -71,7 +71,7 @@ pub use transaction::{
 pub use trigger::{TriggerEvent, TriggerLevel, TriggerMetadata, TriggerRegistry, TriggerTiming};
 pub use type_registry::{TypeDefinition, TypeRegistry, UserDefinedType};
 pub use view::{ViewDefinition, ViewRegistry, WithCheckOption};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 #[derive(Debug, Clone, Default)]
 pub struct QuotaMetadata {
@@ -446,7 +446,7 @@ impl Dataset {
             self.tables.insert(new_table_id.to_string(), table);
             Ok(())
         } else {
-            Err(yachtsql_core::error::Error::table_not_found(
+            Err(yachtsql_common::error::Error::table_not_found(
                 old_table_id.to_string(),
             ))
         }
@@ -541,7 +541,7 @@ impl Dataset {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
 
     use super::*;
     use crate::storage_backend::StorageLayout;

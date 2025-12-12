@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_executor::Table;
 use yachtsql_executor::query_executor::evaluator::physical_plan::{
     AggregateStrategy, ExecutionPlan, ExecutionStatistics, JoinStrategy, MergeJoinExec,
@@ -47,7 +47,7 @@ impl ExecutionPlan for MockDataExec {
         &self.schema
     }
 
-    fn execute(&self) -> yachtsql_core::error::Result<Vec<Table>> {
+    fn execute(&self) -> yachtsql_common::error::Result<Vec<Table>> {
         Ok(self.data.clone())
     }
 

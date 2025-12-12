@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 
 use sqlparser::ast;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue};
 use yachtsql_ir::plan::{LogicalPlan, PlanNode};
 
@@ -31,7 +31,7 @@ impl Drop for AliasScopeGuard<'_> {
     }
 }
 
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::types::{DataType, Value};
 
 #[derive(Debug, Clone)]
 pub struct SessionVariable {

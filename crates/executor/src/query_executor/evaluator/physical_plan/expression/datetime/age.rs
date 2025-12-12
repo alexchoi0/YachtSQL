@@ -1,6 +1,6 @@
 use chrono::{Datelike, Timelike};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{Interval, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{Interval, Value};
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -106,7 +106,7 @@ fn days_in_month(year: i32, month: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_optimizer::expr::Expr;
     use yachtsql_storage::{Field, Schema};
 

@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 use super::super::super::ProjectionWithExprExec;
 use crate::Table;
@@ -27,7 +27,7 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
 
     use super::*;
     use crate::query_executor::evaluator::physical_plan::expression::test_utils::*;

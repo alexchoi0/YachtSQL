@@ -7,7 +7,7 @@ description = "YachtSQL SQL:2023 feature capability tracking and registry"
 
 [dependencies]
 # YachtSQL crates
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-parser = { path = "../parser" }
 
 # Serialization

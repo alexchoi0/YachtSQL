@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sqlparser::ast::{self, CteAsMaterialized};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_ir::expr::{BinaryOp, Expr, LiteralValue};
 use yachtsql_ir::plan::{JoinType, LogicalPlan, PlanNode, SampleSize, SamplingMethod};
 
@@ -2229,7 +2229,7 @@ impl LogicalPlanBuilder {
                         .unwrap_or(&coll_name_str)
                         .to_string();
 
-                    use yachtsql_core::types::collation::CollationRegistry;
+                    use yachtsql_common::types::collation::CollationRegistry;
                     if CollationRegistry::global().get(&normalized_name).is_none() {
                         return Err(Error::undefined_collation(&normalized_name));
                     }

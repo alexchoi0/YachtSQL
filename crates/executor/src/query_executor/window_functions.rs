@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 
 use rust_decimal::prelude::ToPrimitive;
 use sqlparser::ast::Expr as SqlExpr;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_storage::{Row, Schema};
 
 #[derive(Debug, Clone)]

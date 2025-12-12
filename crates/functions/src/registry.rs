@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 
 use crate::aggregate::AggregateFunction;
 use crate::scalar::ScalarFunction;
@@ -97,8 +97,8 @@ fn weekday_abbr(weekday: chrono::Weekday) -> &'static str {
     }
 }
 
-fn eval_boolean_condition(value: &Value) -> yachtsql_core::error::Result<bool> {
-    use yachtsql_core::error::Error;
+fn eval_boolean_condition(value: &Value) -> yachtsql_common::error::Result<bool> {
+    use yachtsql_common::error::Error;
 
     if value.is_null() {
         return Ok(false);

@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
-use yachtsql_core::error::Error;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Error;
+use yachtsql_common::types::{DataType, Value};
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;
@@ -1119,7 +1119,7 @@ fn register_todate_function(registry: &mut FunctionRegistry) {
 fn add_months_to_timestamp(
     ts: &DateTime<Utc>,
     months: i64,
-) -> yachtsql_core::error::Result<DateTime<Utc>> {
+) -> yachtsql_common::error::Result<DateTime<Utc>> {
     let total_months = ts.year() as i64 * 12 + ts.month() as i64 - 1 + months;
     let new_year = (total_months / 12) as i32;
     let new_month = (total_months % 12 + 1) as u32;
@@ -1129,7 +1129,7 @@ fn add_months_to_timestamp(
         .ok_or_else(|| Error::invalid_query("Date overflow in ADDMONTHS"))
 }
 
-fn add_months_to_date(d: &NaiveDate, months: i64) -> yachtsql_core::error::Result<NaiveDate> {
+fn add_months_to_date(d: &NaiveDate, months: i64) -> yachtsql_common::error::Result<NaiveDate> {
     let total_months = d.year() as i64 * 12 + d.month() as i64 - 1 + months;
     let new_year = (total_months / 12) as i32;
     let new_month = (total_months % 12 + 1) as u32;

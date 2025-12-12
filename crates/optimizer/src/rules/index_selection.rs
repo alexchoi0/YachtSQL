@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use debug_print::debug_eprintln;
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_ir::expr::{BinaryOp, Expr};
 use yachtsql_ir::plan::{LogicalPlan, PlanNode};
 

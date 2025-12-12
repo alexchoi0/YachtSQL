@@ -1,4 +1,4 @@
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 
 use crate::optimizer::plan::{LogicalPlan, PlanNode};
 use crate::optimizer::rule::OptimizationRule;
@@ -332,7 +332,7 @@ impl OptimizationRule for LimitPushdown {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::error::Result;
+    use yachtsql_common::error::Result;
 
     use super::*;
     use crate::optimizer::expr::{BinaryOp, Expr, LiteralValue};

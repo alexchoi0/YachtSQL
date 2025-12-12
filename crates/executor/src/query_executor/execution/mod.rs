@@ -48,8 +48,8 @@ use yachtsql_capability::feature_ids::{
     F781_SELF_REFERENCING_OPERATIONS, F782_COMMIT_STATEMENT, F783_ROLLBACK_STATEMENT,
     F784_SAVEPOINT_STATEMENT, F785_ROLLBACK_TO_SAVEPOINT_STATEMENT, F786_SAVEPOINTS,
 };
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_optimizer::rules::{
     IndexSelectionRule, SubqueryFlattening, UnionOptimization, WindowOptimization,
 };
@@ -1843,7 +1843,7 @@ impl QueryExecutor {
         Ok(())
     }
     fn execute_show_users(&mut self) -> Result<Table> {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
             "name".to_string(),
@@ -1858,7 +1858,7 @@ impl QueryExecutor {
     }
 
     fn execute_show_roles(&mut self) -> Result<Table> {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
             "name".to_string(),
@@ -1873,7 +1873,7 @@ impl QueryExecutor {
     }
 
     fn execute_show_grants(&mut self, user_name: Option<&str>) -> Result<Table> {
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
 
         let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
             "grants".to_string(),
@@ -2031,7 +2031,7 @@ impl QueryExecutor {
     fn execute_optimize_table(&mut self, table_name: &sqlparser::ast::ObjectName) -> Result<Table> {
         use std::collections::HashMap;
 
-        use yachtsql_core::types::Value;
+        use yachtsql_common::types::Value;
         use yachtsql_storage::TableEngine;
 
         let name = table_name.to_string();

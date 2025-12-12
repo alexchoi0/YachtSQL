@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{PgBox, PgCircle, PgLseg, PgPoint, PgPolygon, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{PgBox, PgCircle, PgLseg, PgPoint, PgPolygon, Value};
 
 pub fn point_constructor(x: &Value, y: &Value) -> Result<Value> {
     if x.is_null() || y.is_null() {

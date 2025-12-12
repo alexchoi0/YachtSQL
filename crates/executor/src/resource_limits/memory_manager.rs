@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use debug_print::debug_eprintln;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use super::memory_pool::MemoryPool;
 use super::priority::QueryPriority;

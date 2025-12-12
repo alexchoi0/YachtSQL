@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -27,7 +27,7 @@ impl ProjectionWithExprExec {
         let interval = if let Some(iv) = interval_val.as_interval() {
             iv.clone()
         } else if let Some(days) = interval_val.as_i64() {
-            yachtsql_core::types::Interval::new(0, days as i32, 0)
+            yachtsql_common::types::Interval::new(0, days as i32, 0)
         } else {
             return Err(Error::TypeMismatch {
                 expected: "INTERVAL or INT64".to_string(),
@@ -55,7 +55,7 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_optimizer::expr::Expr;
     use yachtsql_storage::{Field, Schema};
 

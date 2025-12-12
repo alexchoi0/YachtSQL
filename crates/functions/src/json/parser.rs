@@ -1,5 +1,5 @@
 use serde_json::Value as JsonValue;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 pub const DEFAULT_MAX_DEPTH: usize = 100;
 

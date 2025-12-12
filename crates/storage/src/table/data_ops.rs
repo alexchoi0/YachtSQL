@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use indexmap::IndexMap;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
-use yachtsql_core::types::coercion::CoercionRules;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
+use yachtsql_common::types::coercion::CoercionRules;
 
 use super::Table;
 use super::indexes::TableIndexOps;

@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -32,7 +32,7 @@ impl ProjectionWithExprExec {
 
         if let (Some(base), Some(exp)) = (values[0].as_f64(), values[1].as_f64()) {
             if base < 0.0 && exp.fract() != 0.0 {
-                return Err(yachtsql_core::error::Error::InvalidQuery(
+                return Err(yachtsql_common::error::Error::InvalidQuery(
                     "POWER: negative base with fractional exponent produces complex result"
                         .to_string(),
                 ));
@@ -80,7 +80,7 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_optimizer::expr::Expr;
     use yachtsql_storage::{Field, Schema};
 

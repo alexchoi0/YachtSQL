@@ -1,5 +1,5 @@
 use sqlparser::ast::{Expr as SqlExpr, Value as SqlValue};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_storage::{Field, Row, Schema};
 
 use super::*;

@@ -1,4 +1,4 @@
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_ir::plan::{LogicalPlan, PlanNode};
 
 pub trait PlanVisitor {

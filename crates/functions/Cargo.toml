@@ -16,7 +16,7 @@ all = ["core", "json", "network", "encryption", "approximate"]
 
 [dependencies]
 # Core types and errors
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-parser = { path = "../parser" }
 
 # SQL parsing (needed for JSON functions)
@@ -89,6 +89,6 @@ hostname = "0.4"
 
 [dev-dependencies]
 yachtsql = { path = "../.." }
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-storage = { path = "../storage" }
 yachtsql-test-utils = { path = "../test-utils" }

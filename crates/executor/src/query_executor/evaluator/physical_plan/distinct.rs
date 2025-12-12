@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::Schema;
 
@@ -179,7 +179,7 @@ impl ExecutionPlan for DistinctOnExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_optimizer::BinaryOp;
     use yachtsql_optimizer::expr::{Expr, LiteralValue};
     use yachtsql_storage::Field;

@@ -23,7 +23,7 @@ impl ExecutionPlan for MockDataExec {
         &self.schema
     }
 
-    fn execute(&self) -> yachtsql_core::error::Result<Vec<Table>> {
+    fn execute(&self) -> yachtsql_common::error::Result<Vec<Table>> {
         Ok(self.data.clone())
     }
 
@@ -36,7 +36,7 @@ impl ExecutionPlan for MockDataExec {
     }
 }
 
-fn create_test_batch(schema: Schema, values: Vec<Vec<yachtsql_core::types::Value>>) -> Table {
+fn create_test_batch(schema: Schema, values: Vec<Vec<yachtsql_common::types::Value>>) -> Table {
     let num_rows = values.len();
     let num_cols = schema.fields().len();
 
@@ -59,24 +59,24 @@ fn create_test_batch(schema: Schema, values: Vec<Vec<yachtsql_core::types::Value
 fn test_union_all_with_data() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "id".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let left_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(3)],
         ],
     );
 
     let right_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(3)],
-            vec![yachtsql_core::types::Value::int64(4)],
-            vec![yachtsql_core::types::Value::int64(5)],
+            vec![yachtsql_common::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(4)],
+            vec![yachtsql_common::types::Value::int64(5)],
         ],
     );
 
@@ -94,24 +94,24 @@ fn test_union_all_with_data() {
 fn test_union_distinct_removes_duplicates() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "value".to_string(),
-        yachtsql_core::types::DataType::String,
+        yachtsql_common::types::DataType::String,
     )]);
 
     let left_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::string("a".to_string())],
-            vec![yachtsql_core::types::Value::string("b".to_string())],
-            vec![yachtsql_core::types::Value::string("c".to_string())],
+            vec![yachtsql_common::types::Value::string("a".to_string())],
+            vec![yachtsql_common::types::Value::string("b".to_string())],
+            vec![yachtsql_common::types::Value::string("c".to_string())],
         ],
     );
 
     let right_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::string("b".to_string())],
-            vec![yachtsql_core::types::Value::string("c".to_string())],
-            vec![yachtsql_core::types::Value::string("d".to_string())],
+            vec![yachtsql_common::types::Value::string("b".to_string())],
+            vec![yachtsql_common::types::Value::string("c".to_string())],
+            vec![yachtsql_common::types::Value::string("d".to_string())],
         ],
     );
 
@@ -129,25 +129,25 @@ fn test_union_distinct_removes_duplicates() {
 fn test_intersect_all_with_data() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "id".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let left_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(3)],
-            vec![yachtsql_core::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(3)],
         ],
     );
 
     let right_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(3)],
-            vec![yachtsql_core::types::Value::int64(4)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(4)],
         ],
     );
 
@@ -165,25 +165,25 @@ fn test_intersect_all_with_data() {
 fn test_intersect_distinct() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "id".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let left_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(3)],
         ],
     );
 
     let right_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(3)],
-            vec![yachtsql_core::types::Value::int64(4)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(4)],
         ],
     );
 
@@ -201,25 +201,25 @@ fn test_intersect_distinct() {
 fn test_except_all_with_data() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "id".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let left_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(3)],
-            vec![yachtsql_core::types::Value::int64(4)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(4)],
         ],
     );
 
     let right_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(3)],
-            vec![yachtsql_core::types::Value::int64(4)],
-            vec![yachtsql_core::types::Value::int64(5)],
+            vec![yachtsql_common::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(4)],
+            vec![yachtsql_common::types::Value::int64(5)],
         ],
     );
 
@@ -234,8 +234,8 @@ fn test_except_all_with_data() {
 
     if let Some(batch) = result.first() {
         let col = &batch.columns().unwrap()[0];
-        assert_eq!(col.get(0).unwrap(), yachtsql_core::types::Value::int64(1));
-        assert_eq!(col.get(1).unwrap(), yachtsql_core::types::Value::int64(2));
+        assert_eq!(col.get(0).unwrap(), yachtsql_common::types::Value::int64(1));
+        assert_eq!(col.get(1).unwrap(), yachtsql_common::types::Value::int64(2));
     }
 }
 
@@ -243,22 +243,22 @@ fn test_except_all_with_data() {
 fn test_except_distinct() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "id".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let left_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::int64(2)],
-            vec![yachtsql_core::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(3)],
         ],
     );
 
     let right_data = create_test_batch(
         schema.clone(),
-        vec![vec![yachtsql_core::types::Value::int64(2)]],
+        vec![vec![yachtsql_common::types::Value::int64(2)]],
     );
 
     let left = Rc::new(MockDataExec::new(schema.clone(), vec![left_data]));
@@ -275,13 +275,13 @@ fn test_except_distinct() {
 fn test_empty_left_side() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "id".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let empty_data = Table::empty(schema.clone());
     let right_data = create_test_batch(
         schema.clone(),
-        vec![vec![yachtsql_core::types::Value::int64(1)]],
+        vec![vec![yachtsql_common::types::Value::int64(1)]],
     );
 
     let left = Rc::new(MockDataExec::new(schema.clone(), vec![empty_data]));
@@ -307,20 +307,20 @@ fn test_empty_left_side() {
 fn test_cte_execution() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "id".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let cte_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::int64(2)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::int64(2)],
         ],
     );
 
     let main_data = create_test_batch(
         schema.clone(),
-        vec![vec![yachtsql_core::types::Value::int64(99)]],
+        vec![vec![yachtsql_common::types::Value::int64(99)]],
     );
 
     let cte_plan = Rc::new(MockDataExec::new(schema.clone(), vec![cte_data]));
@@ -334,7 +334,10 @@ fn test_cte_execution() {
 
     if let Some(batch) = result.first() {
         let col = &batch.columns().unwrap()[0];
-        assert_eq!(col.get(0).unwrap(), yachtsql_core::types::Value::int64(99));
+        assert_eq!(
+            col.get(0).unwrap(),
+            yachtsql_common::types::Value::int64(99)
+        );
     }
 }
 
@@ -342,19 +345,19 @@ fn test_cte_execution() {
 fn test_cte_materialization() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
         "value".to_string(),
-        yachtsql_core::types::DataType::String,
+        yachtsql_common::types::DataType::String,
     )]);
 
     let cte_data = create_test_batch(
         schema.clone(),
-        vec![vec![yachtsql_core::types::Value::string(
+        vec![vec![yachtsql_common::types::Value::string(
             "cached".to_string(),
         )]],
     );
 
     let main_data = create_test_batch(
         schema.clone(),
-        vec![vec![yachtsql_core::types::Value::string(
+        vec![vec![yachtsql_common::types::Value::string(
             "result".to_string(),
         )]],
     );
@@ -376,7 +379,7 @@ fn test_cte_materialization() {
         assert_eq!(val1, val2);
         assert_eq!(
             val1,
-            yachtsql_core::types::Value::string("cached".to_string())
+            yachtsql_common::types::Value::string("cached".to_string())
         );
     }
 }
@@ -384,10 +387,13 @@ fn test_cte_materialization() {
 #[test]
 fn test_subquery_scan() {
     let schema = yachtsql_storage::Schema::from_fields(vec![
-        yachtsql_storage::Field::required("id".to_string(), yachtsql_core::types::DataType::Int64),
+        yachtsql_storage::Field::required(
+            "id".to_string(),
+            yachtsql_common::types::DataType::Int64,
+        ),
         yachtsql_storage::Field::required(
             "name".to_string(),
-            yachtsql_core::types::DataType::String,
+            yachtsql_common::types::DataType::String,
         ),
     ]);
 
@@ -395,12 +401,12 @@ fn test_subquery_scan() {
         schema.clone(),
         vec![
             vec![
-                yachtsql_core::types::Value::int64(1),
-                yachtsql_core::types::Value::string("Alice".to_string()),
+                yachtsql_common::types::Value::int64(1),
+                yachtsql_common::types::Value::string("Alice".to_string()),
             ],
             vec![
-                yachtsql_core::types::Value::int64(2),
-                yachtsql_core::types::Value::string("Bob".to_string()),
+                yachtsql_common::types::Value::int64(2),
+                yachtsql_common::types::Value::string("Bob".to_string()),
             ],
         ],
     );
@@ -420,10 +426,13 @@ fn test_subquery_scan() {
 #[test]
 fn test_multi_column_set_operations() {
     let schema = yachtsql_storage::Schema::from_fields(vec![
-        yachtsql_storage::Field::required("id".to_string(), yachtsql_core::types::DataType::Int64),
+        yachtsql_storage::Field::required(
+            "id".to_string(),
+            yachtsql_common::types::DataType::Int64,
+        ),
         yachtsql_storage::Field::required(
             "value".to_string(),
-            yachtsql_core::types::DataType::String,
+            yachtsql_common::types::DataType::String,
         ),
     ]);
 
@@ -431,12 +440,12 @@ fn test_multi_column_set_operations() {
         schema.clone(),
         vec![
             vec![
-                yachtsql_core::types::Value::int64(1),
-                yachtsql_core::types::Value::string("a".to_string()),
+                yachtsql_common::types::Value::int64(1),
+                yachtsql_common::types::Value::string("a".to_string()),
             ],
             vec![
-                yachtsql_core::types::Value::int64(2),
-                yachtsql_core::types::Value::string("b".to_string()),
+                yachtsql_common::types::Value::int64(2),
+                yachtsql_common::types::Value::string("b".to_string()),
             ],
         ],
     );
@@ -445,12 +454,12 @@ fn test_multi_column_set_operations() {
         schema.clone(),
         vec![
             vec![
-                yachtsql_core::types::Value::int64(2),
-                yachtsql_core::types::Value::string("b".to_string()),
+                yachtsql_common::types::Value::int64(2),
+                yachtsql_common::types::Value::string("b".to_string()),
             ],
             vec![
-                yachtsql_core::types::Value::int64(3),
-                yachtsql_core::types::Value::string("c".to_string()),
+                yachtsql_common::types::Value::int64(3),
+                yachtsql_common::types::Value::string("c".to_string()),
             ],
         ],
     );
@@ -478,24 +487,24 @@ fn test_multi_column_set_operations() {
 fn test_null_handling_in_set_operations() {
     let schema = yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::nullable(
         "value".to_string(),
-        yachtsql_core::types::DataType::Int64,
+        yachtsql_common::types::DataType::Int64,
     )]);
 
     let left_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::int64(1)],
-            vec![yachtsql_core::types::Value::null()],
-            vec![yachtsql_core::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(1)],
+            vec![yachtsql_common::types::Value::null()],
+            vec![yachtsql_common::types::Value::int64(3)],
         ],
     );
 
     let right_data = create_test_batch(
         schema.clone(),
         vec![
-            vec![yachtsql_core::types::Value::null()],
-            vec![yachtsql_core::types::Value::int64(3)],
-            vec![yachtsql_core::types::Value::int64(4)],
+            vec![yachtsql_common::types::Value::null()],
+            vec![yachtsql_common::types::Value::int64(3)],
+            vec![yachtsql_common::types::Value::int64(4)],
         ],
     );
 

@@ -2,8 +2,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 use indexmap::IndexMap;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, StructField, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, StructField, Value};
 use yachtsql_storage::{Field, FieldMode, Row, Schema};
 
 pub fn read_json_file(path: &str) -> Result<(Schema, Vec<Row>)> {

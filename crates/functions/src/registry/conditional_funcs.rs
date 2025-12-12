@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::Error;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::Error;
+use yachtsql_common::types::{DataType, Value};
 
 use super::{FunctionRegistry, eval_boolean_condition};
 use crate::scalar::ScalarFunctionImpl;
@@ -240,7 +240,7 @@ fn register_extrema_ignore_nulls(registry: &mut FunctionRegistry) {
 fn compare_values<'a>(
     lhs: &'a Value,
     rhs: &'a Value,
-) -> yachtsql_core::error::Result<std::cmp::Ordering> {
+) -> yachtsql_common::error::Result<std::cmp::Ordering> {
     if let (Some(a), Some(b)) = (lhs.as_i64(), rhs.as_i64()) {
         return Ok(a.cmp(&b));
     }

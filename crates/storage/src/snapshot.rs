@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use crate::storage_backend::StorageLayout;
 use crate::{Row, Schema, Table};

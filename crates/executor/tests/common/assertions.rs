@@ -1,5 +1,5 @@
 use yachtsql::Table;
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 use yachtsql_storage::{Row, Schema};
 
 pub fn assert_batch_eq(actual: &Table, expected: &Table) {
@@ -308,7 +308,7 @@ pub fn assert_batch_value(batch: &Table, row: usize, col: usize, expected: &Valu
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
     use yachtsql_storage::Field;
 
     use super::*;

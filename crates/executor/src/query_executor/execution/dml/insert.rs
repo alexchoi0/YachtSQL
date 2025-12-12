@@ -1,8 +1,8 @@
 use debug_print::debug_eprintln;
 use indexmap::IndexMap;
 use yachtsql_capability::feature_ids::F311_SCHEMA_DEFINITION;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_storage::{Row, Schema, TableEngine, TableSchemaOps};
 
 use super::super::super::QueryExecutor;
@@ -794,7 +794,7 @@ impl QueryExecutor {
     }
 
     fn coerce_value_to_data_type(&self, value: Value, target_type: &DataType) -> Result<Value> {
-        use yachtsql_core::types::coercion::CoercionRules;
+        use yachtsql_common::types::coercion::CoercionRules;
         CoercionRules::coerce_value(value, target_type)
     }
 

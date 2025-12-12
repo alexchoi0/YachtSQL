@@ -4,8 +4,8 @@ use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 #[allow(unused_imports)]
 use rust_decimal::prelude::FromPrimitive;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -972,7 +972,7 @@ impl ProjectionWithExprExec {
             return Ok(Value::null());
         }
         if let Some(s) = val.as_str() {
-            return yachtsql_core::types::parse_uuid_strict(s);
+            return yachtsql_common::types::parse_uuid_strict(s);
         }
         Err(Error::TypeMismatch {
             expected: "STRING".to_string(),

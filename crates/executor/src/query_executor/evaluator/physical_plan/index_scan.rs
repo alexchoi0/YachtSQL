@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::{BinaryOp, Expr, LiteralValue};
 use yachtsql_storage::indexes::IndexKey;
 use yachtsql_storage::{Column, Schema, TableIndexOps};
@@ -178,7 +178,7 @@ impl ExecutionPlan for IndexScanExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
     use yachtsql_optimizer::expr::LiteralValue;
     use yachtsql_storage::Field;
 

@@ -1,5 +1,5 @@
 use sqlparser::ast;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_ir::expr::{Expr, LiteralValue};
 
 use super::super::LogicalPlanBuilder;
@@ -64,7 +64,7 @@ impl LogicalPlanBuilder {
                 Ok(Expr::Literal(LiteralValue::Time(value.to_string())))
             }
             ast::DataType::Datetime(_) => {
-                if yachtsql_core::types::parse_timestamp_to_utc(value).is_none() {
+                if yachtsql_common::types::parse_timestamp_to_utc(value).is_none() {
                     return Err(Error::invalid_query(format!(
                         "Invalid datetime format: '{}'",
                         value
@@ -73,7 +73,7 @@ impl LogicalPlanBuilder {
                 Ok(Expr::Literal(LiteralValue::DateTime(value.to_string())))
             }
             ast::DataType::Timestamp(_, _) => {
-                if yachtsql_core::types::parse_timestamp_to_utc(value).is_none() {
+                if yachtsql_common::types::parse_timestamp_to_utc(value).is_none() {
                     return Err(Error::invalid_query(format!(
                         "Invalid timestamp format: '{}'",
                         value
@@ -401,9 +401,9 @@ impl LogicalPlanBuilder {
 
     pub(super) fn value_to_literal(
         &self,
-        value: &yachtsql_core::types::Value,
+        value: &yachtsql_common::types::Value,
     ) -> Result<LiteralValue> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         if value.is_null() {
             return Ok(LiteralValue::Null);

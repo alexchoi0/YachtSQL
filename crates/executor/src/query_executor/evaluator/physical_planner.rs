@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_optimizer::LogicalPlan;
 use yachtsql_optimizer::plan::PlanNode;
 use yachtsql_storage::{Field, Schema};
@@ -304,7 +304,7 @@ impl PhysicalPlanner {
         array_expr: &yachtsql_optimizer::expr::Expr,
         with_offset: bool,
     ) -> Result<Rc<dyn ExecutionPlan>> {
-        use yachtsql_core::types::{DataType, RangeType};
+        use yachtsql_common::types::{DataType, RangeType};
         use yachtsql_optimizer::expr::{CastDataType, Expr};
 
         let element_type = if let Expr::Cast { data_type, .. } = array_expr {
@@ -347,7 +347,7 @@ impl PhysicalPlanner {
         if with_offset {
             fields.push(Field::required(
                 "offset".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ));
         }
 
@@ -664,7 +664,7 @@ impl PhysicalPlanner {
         aggregate_expr: &yachtsql_optimizer::expr::Expr,
         aggregate_function: &str,
         pivot_column: &str,
-        pivot_values: &[yachtsql_core::types::Value],
+        pivot_values: &[yachtsql_common::types::Value],
         group_by_columns: &[String],
     ) -> Result<Rc<dyn ExecutionPlan>> {
         let input_exec = self.create_exec_node(input)?;

@@ -1,6 +1,6 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::coercion::CoercionRules;
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::coercion::CoercionRules;
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_storage::{Column, Row, Schema};
 
 #[inline]
@@ -521,7 +521,7 @@ impl Table {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
     use yachtsql_storage::Field;
 
     use super::*;

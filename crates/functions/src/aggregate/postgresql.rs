@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, RangeType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, RangeType, Value};
 
 use crate::aggregate::{Accumulator, AggregateFunction};
 

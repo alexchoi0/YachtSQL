@@ -1,8 +1,8 @@
 use rust_decimal::prelude::ToPrimitive;
 use serde::Serialize;
 use serde_json::{Map, Value as JsonValue};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 use super::conversion::sql_to_json_infallible;
 use crate::json::extract::json_extract;

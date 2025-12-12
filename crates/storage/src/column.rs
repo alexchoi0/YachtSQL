@@ -4,8 +4,8 @@ use aligned_vec::AVec;
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, FixedStringData, Interval, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, FixedStringData, Interval, Value};
 
 use crate::NullBitmap;
 
@@ -92,19 +92,19 @@ pub enum Column {
         nulls: NullBitmap,
     },
     MacAddr {
-        data: Vec<yachtsql_core::types::MacAddress>,
+        data: Vec<yachtsql_common::types::MacAddress>,
         nulls: NullBitmap,
     },
     MacAddr8 {
-        data: Vec<yachtsql_core::types::MacAddress>,
+        data: Vec<yachtsql_common::types::MacAddress>,
         nulls: NullBitmap,
     },
     Inet {
-        data: Vec<yachtsql_core::types::network::InetAddr>,
+        data: Vec<yachtsql_common::types::network::InetAddr>,
         nulls: NullBitmap,
     },
     Cidr {
-        data: Vec<yachtsql_core::types::network::CidrAddr>,
+        data: Vec<yachtsql_common::types::network::CidrAddr>,
         nulls: NullBitmap,
     },
     Enum {
@@ -115,37 +115,37 @@ pub enum Column {
     },
 
     Point {
-        data: Vec<yachtsql_core::types::PgPoint>,
+        data: Vec<yachtsql_common::types::PgPoint>,
         nulls: NullBitmap,
     },
 
     PgBox {
-        data: Vec<yachtsql_core::types::PgBox>,
+        data: Vec<yachtsql_common::types::PgBox>,
         nulls: NullBitmap,
     },
 
     Circle {
-        data: Vec<yachtsql_core::types::PgCircle>,
+        data: Vec<yachtsql_common::types::PgCircle>,
         nulls: NullBitmap,
     },
 
     Line {
-        data: Vec<yachtsql_core::types::PgLine>,
+        data: Vec<yachtsql_common::types::PgLine>,
         nulls: NullBitmap,
     },
 
     Lseg {
-        data: Vec<yachtsql_core::types::PgLseg>,
+        data: Vec<yachtsql_common::types::PgLseg>,
         nulls: NullBitmap,
     },
 
     Path {
-        data: Vec<yachtsql_core::types::PgPath>,
+        data: Vec<yachtsql_common::types::PgPath>,
         nulls: NullBitmap,
     },
 
     Polygon {
-        data: Vec<yachtsql_core::types::PgPolygon>,
+        data: Vec<yachtsql_common::types::PgPolygon>,
         nulls: NullBitmap,
     },
 
@@ -157,49 +157,49 @@ pub enum Column {
     },
 
     Range {
-        data: Vec<yachtsql_core::types::Range>,
+        data: Vec<yachtsql_common::types::Range>,
         nulls: NullBitmap,
-        range_type: yachtsql_core::types::RangeType,
+        range_type: yachtsql_common::types::RangeType,
     },
 
     Multirange {
-        data: Vec<yachtsql_core::types::Multirange>,
+        data: Vec<yachtsql_common::types::Multirange>,
         nulls: NullBitmap,
-        multirange_type: yachtsql_core::types::MultirangeType,
+        multirange_type: yachtsql_common::types::MultirangeType,
     },
 
     IPv4 {
-        data: Vec<yachtsql_core::types::IPv4Addr>,
+        data: Vec<yachtsql_common::types::IPv4Addr>,
         nulls: NullBitmap,
     },
 
     IPv6 {
-        data: Vec<yachtsql_core::types::IPv6Addr>,
+        data: Vec<yachtsql_common::types::IPv6Addr>,
         nulls: NullBitmap,
     },
 
     Date32 {
-        data: Vec<yachtsql_core::types::Date32Value>,
+        data: Vec<yachtsql_common::types::Date32Value>,
         nulls: NullBitmap,
     },
 
     GeoPoint {
-        data: Vec<yachtsql_core::types::GeoPointValue>,
+        data: Vec<yachtsql_common::types::GeoPointValue>,
         nulls: NullBitmap,
     },
 
     GeoRing {
-        data: Vec<yachtsql_core::types::GeoRingValue>,
+        data: Vec<yachtsql_common::types::GeoRingValue>,
         nulls: NullBitmap,
     },
 
     GeoPolygon {
-        data: Vec<yachtsql_core::types::GeoPolygonValue>,
+        data: Vec<yachtsql_common::types::GeoPolygonValue>,
         nulls: NullBitmap,
     },
 
     GeoMultiPolygon {
-        data: Vec<yachtsql_core::types::GeoMultiPolygonValue>,
+        data: Vec<yachtsql_common::types::GeoMultiPolygonValue>,
         nulls: NullBitmap,
     },
 
@@ -451,7 +451,7 @@ impl Column {
                 if let Some(first_struct) = data.first() {
                     let fields = first_struct
                         .iter()
-                        .map(|(name, value)| yachtsql_core::types::StructField {
+                        .map(|(name, value)| yachtsql_common::types::StructField {
                             name: name.clone(),
                             data_type: value.data_type(),
                         })
@@ -987,7 +987,7 @@ impl Column {
                     nulls.push(true);
                     Ok(())
                 } else if let Some(s) = value.as_str() {
-                    match yachtsql_core::types::network::InetAddr::from_str(s) {
+                    match yachtsql_common::types::network::InetAddr::from_str(s) {
                         Ok(inet) => {
                             data.push(inet);
                             nulls.push(true);
@@ -1012,7 +1012,7 @@ impl Column {
                     nulls.push(true);
                     Ok(())
                 } else if let Some(s) = value.as_str() {
-                    match yachtsql_core::types::network::CidrAddr::from_str(s) {
+                    match yachtsql_common::types::network::CidrAddr::from_str(s) {
                         Ok(cidr) => {
                             data.push(cidr);
                             nulls.push(true);
@@ -1397,26 +1397,26 @@ impl Column {
                 nulls.push(false);
             }
             Column::MacAddr { data, nulls } => {
-                data.push(yachtsql_core::types::MacAddress::new_macaddr([
+                data.push(yachtsql_common::types::MacAddress::new_macaddr([
                     0, 0, 0, 0, 0, 0,
                 ]));
                 nulls.push(false);
             }
             Column::MacAddr8 { data, nulls } => {
-                data.push(yachtsql_core::types::MacAddress::new_macaddr8([
+                data.push(yachtsql_common::types::MacAddress::new_macaddr8([
                     0, 0, 0, 0, 0, 0, 0, 0,
                 ]));
                 nulls.push(false);
             }
             Column::Inet { data, nulls } => {
-                data.push(yachtsql_core::types::network::InetAddr::new(
+                data.push(yachtsql_common::types::network::InetAddr::new(
                     std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
                 ));
                 nulls.push(false);
             }
             Column::Cidr { data, nulls } => {
                 data.push(
-                    yachtsql_core::types::network::CidrAddr::new(
+                    yachtsql_common::types::network::CidrAddr::new(
                         std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
                         0,
                     )
@@ -1429,40 +1429,40 @@ impl Column {
                 nulls.push(false);
             }
             Column::Point { data, nulls } => {
-                data.push(yachtsql_core::types::PgPoint::new(0.0, 0.0));
+                data.push(yachtsql_common::types::PgPoint::new(0.0, 0.0));
                 nulls.push(false);
             }
             Column::PgBox { data, nulls } => {
-                data.push(yachtsql_core::types::PgBox::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                data.push(yachtsql_common::types::PgBox::new(
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
                 ));
                 nulls.push(false);
             }
             Column::Circle { data, nulls } => {
-                data.push(yachtsql_core::types::PgCircle::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                data.push(yachtsql_common::types::PgCircle::new(
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
                     0.0,
                 ));
                 nulls.push(false);
             }
             Column::Line { data, nulls } => {
-                data.push(yachtsql_core::types::PgLine::new(0.0, 0.0, 0.0));
+                data.push(yachtsql_common::types::PgLine::new(0.0, 0.0, 0.0));
                 nulls.push(false);
             }
             Column::Lseg { data, nulls } => {
-                data.push(yachtsql_core::types::PgLseg::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                data.push(yachtsql_common::types::PgLseg::new(
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
                 ));
                 nulls.push(false);
             }
             Column::Path { data, nulls } => {
-                data.push(yachtsql_core::types::PgPath::new(Vec::new(), false));
+                data.push(yachtsql_common::types::PgPath::new(Vec::new(), false));
                 nulls.push(false);
             }
             Column::Polygon { data, nulls } => {
-                data.push(yachtsql_core::types::PgPolygon::new(Vec::new()));
+                data.push(yachtsql_common::types::PgPolygon::new(Vec::new()));
                 nulls.push(false);
             }
             Column::Map { data, nulls, .. } => {
@@ -1474,7 +1474,7 @@ impl Column {
                 nulls,
                 range_type,
             } => {
-                data.push(yachtsql_core::types::Range {
+                data.push(yachtsql_common::types::Range {
                     range_type: range_type.clone(),
                     lower: None,
                     upper: None,
@@ -1484,19 +1484,19 @@ impl Column {
                 nulls.push(false);
             }
             Column::IPv4 { data, nulls } => {
-                data.push(yachtsql_core::types::IPv4Addr(0));
+                data.push(yachtsql_common::types::IPv4Addr(0));
                 nulls.push(false);
             }
             Column::IPv6 { data, nulls } => {
-                data.push(yachtsql_core::types::IPv6Addr(0));
+                data.push(yachtsql_common::types::IPv6Addr(0));
                 nulls.push(false);
             }
             Column::Date32 { data, nulls } => {
-                data.push(yachtsql_core::types::Date32Value(0));
+                data.push(yachtsql_common::types::Date32Value(0));
                 nulls.push(false);
             }
             Column::GeoPoint { data, nulls } => {
-                data.push(yachtsql_core::types::GeoPointValue { x: 0.0, y: 0.0 });
+                data.push(yachtsql_common::types::GeoPointValue { x: 0.0, y: 0.0 });
                 nulls.push(false);
             }
             Column::GeoRing { data, nulls } => {
@@ -1524,7 +1524,7 @@ impl Column {
                 nulls,
                 multirange_type,
             } => {
-                data.push(yachtsql_core::types::Multirange {
+                data.push(yachtsql_common::types::Multirange {
                     multirange_type: multirange_type.clone(),
                     ranges: Vec::new(),
                 });
@@ -2262,22 +2262,22 @@ impl Column {
                 nulls.set(index, false);
             }
             Column::MacAddr { data, nulls } => {
-                data[index] = yachtsql_core::types::MacAddress::new_macaddr([0, 0, 0, 0, 0, 0]);
+                data[index] = yachtsql_common::types::MacAddress::new_macaddr([0, 0, 0, 0, 0, 0]);
                 nulls.set(index, false);
             }
             Column::MacAddr8 { data, nulls } => {
                 data[index] =
-                    yachtsql_core::types::MacAddress::new_macaddr8([0, 0, 0, 0, 0, 0, 0, 0]);
+                    yachtsql_common::types::MacAddress::new_macaddr8([0, 0, 0, 0, 0, 0, 0, 0]);
                 nulls.set(index, false);
             }
             Column::Inet { data, nulls } => {
-                data[index] = yachtsql_core::types::network::InetAddr::new(std::net::IpAddr::V4(
+                data[index] = yachtsql_common::types::network::InetAddr::new(std::net::IpAddr::V4(
                     std::net::Ipv4Addr::new(0, 0, 0, 0),
                 ));
                 nulls.set(index, false);
             }
             Column::Cidr { data, nulls } => {
-                data[index] = yachtsql_core::types::network::CidrAddr::new(
+                data[index] = yachtsql_common::types::network::CidrAddr::new(
                     std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
                     0,
                 )
@@ -2289,40 +2289,40 @@ impl Column {
                 nulls.set(index, false);
             }
             Column::Point { data, nulls } => {
-                data[index] = yachtsql_core::types::PgPoint::new(0.0, 0.0);
+                data[index] = yachtsql_common::types::PgPoint::new(0.0, 0.0);
                 nulls.set(index, false);
             }
             Column::PgBox { data, nulls } => {
-                data[index] = yachtsql_core::types::PgBox::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                data[index] = yachtsql_common::types::PgBox::new(
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
                 );
                 nulls.set(index, false);
             }
             Column::Circle { data, nulls } => {
-                data[index] = yachtsql_core::types::PgCircle::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                data[index] = yachtsql_common::types::PgCircle::new(
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
                     0.0,
                 );
                 nulls.set(index, false);
             }
             Column::Line { data, nulls } => {
-                data[index] = yachtsql_core::types::PgLine::new(0.0, 0.0, 0.0);
+                data[index] = yachtsql_common::types::PgLine::new(0.0, 0.0, 0.0);
                 nulls.set(index, false);
             }
             Column::Lseg { data, nulls } => {
-                data[index] = yachtsql_core::types::PgLseg::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
+                data[index] = yachtsql_common::types::PgLseg::new(
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
+                    yachtsql_common::types::PgPoint::new(0.0, 0.0),
                 );
                 nulls.set(index, false);
             }
             Column::Path { data, nulls } => {
-                data[index] = yachtsql_core::types::PgPath::new(Vec::new(), false);
+                data[index] = yachtsql_common::types::PgPath::new(Vec::new(), false);
                 nulls.set(index, false);
             }
             Column::Polygon { data, nulls } => {
-                data[index] = yachtsql_core::types::PgPolygon::new(Vec::new());
+                data[index] = yachtsql_common::types::PgPolygon::new(Vec::new());
                 nulls.set(index, false);
             }
             Column::Map { data, nulls, .. } => {
@@ -2334,7 +2334,7 @@ impl Column {
                 nulls,
                 range_type,
             } => {
-                data[index] = yachtsql_core::types::Range {
+                data[index] = yachtsql_common::types::Range {
                     range_type: range_type.clone(),
                     lower: None,
                     upper: None,
@@ -2344,19 +2344,19 @@ impl Column {
                 nulls.set(index, false);
             }
             Column::IPv4 { data, nulls } => {
-                data[index] = yachtsql_core::types::IPv4Addr(0);
+                data[index] = yachtsql_common::types::IPv4Addr(0);
                 nulls.set(index, false);
             }
             Column::IPv6 { data, nulls } => {
-                data[index] = yachtsql_core::types::IPv6Addr(0);
+                data[index] = yachtsql_common::types::IPv6Addr(0);
                 nulls.set(index, false);
             }
             Column::Date32 { data, nulls } => {
-                data[index] = yachtsql_core::types::Date32Value(0);
+                data[index] = yachtsql_common::types::Date32Value(0);
                 nulls.set(index, false);
             }
             Column::GeoPoint { data, nulls } => {
-                data[index] = yachtsql_core::types::GeoPointValue { x: 0.0, y: 0.0 };
+                data[index] = yachtsql_common::types::GeoPointValue { x: 0.0, y: 0.0 };
                 nulls.set(index, false);
             }
             Column::GeoRing { data, nulls } => {
@@ -2384,7 +2384,7 @@ impl Column {
                 nulls,
                 multirange_type,
             } => {
-                data[index] = yachtsql_core::types::Multirange {
+                data[index] = yachtsql_common::types::Multirange {
                     multirange_type: multirange_type.clone(),
                     ranges: Vec::new(),
                 };

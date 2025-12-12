@@ -39,8 +39,8 @@ mod unix_micros;
 mod unix_millis;
 mod unix_seconds;
 
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::ProjectionWithExprExec;

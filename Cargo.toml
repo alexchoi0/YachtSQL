@@ -7,7 +7,7 @@ description = "YachtSQL - Lightweight in-memory SQL test database with columnar 
 
 [dependencies]
 # Internal crates
-yachtsql-core = { path = "crates/core" }
+yachtsql-common = { path = "crates/common" }
 yachtsql-storage = { path = "crates/storage" }
 yachtsql-ir = { path = "crates/ir" }
 yachtsql-parser = { path = "crates/parser" }
@@ -87,10 +87,6 @@ criterion = { version = "0.5", features = ["html_reports"] }
 tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "time"] }
 pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
 sqlparser = "0.59"
-arrow = { version = "54", default-features = false }
-parquet = { version = "54", default-features = false, features = ["arrow"] }
-tempfile = "3.14"
-yachtsql-test-utils = { path = "crates/test-utils" }
 
 [features]
 # Benchmark configuration features
@@ -130,7 +126,7 @@ wildcard-enum-match-arm = "warn"     # Discourage wildcards in match (prefer exh
 members = [
     ".",
     "crates/capability",
-    "crates/core",
+    "crates/common",
     "crates/dialects/bigquery",
     "crates/dialects/clickhouse",
     "crates/dialects/core",

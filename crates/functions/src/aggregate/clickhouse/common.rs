@@ -2,8 +2,8 @@ use std::hash::{Hash, Hasher};
 use std::sync::LazyLock;
 
 use rust_decimal::prelude::ToPrimitive;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 
 pub(crate) static ARRAY_OF_UNKNOWN: LazyLock<Vec<DataType>> =
     LazyLock::new(|| vec![DataType::Array(Box::new(DataType::Unknown))]);

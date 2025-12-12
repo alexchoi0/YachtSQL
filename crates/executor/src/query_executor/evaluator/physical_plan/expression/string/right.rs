@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -11,7 +11,7 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
 
         if args.len() != 2 {
             return Err(Error::invalid_query("RIGHT requires exactly 2 arguments"));
@@ -54,7 +54,7 @@ impl ProjectionWithExprExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_optimizer::expr::Expr;
     use yachtsql_storage::{Field, Schema};
 

@@ -1,4 +1,4 @@
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_storage::{Field, Schema};
 
 use crate::Table;

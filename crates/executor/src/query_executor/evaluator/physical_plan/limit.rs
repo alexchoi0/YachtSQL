@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_storage::Schema;
 
 use super::ExecutionPlan;
@@ -195,7 +195,7 @@ impl ExecutionPlan for LimitPercentExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_storage::{Column, Field};
 
     use super::*;

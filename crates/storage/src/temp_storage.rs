@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 use crate::storage_backend::StorageLayout;
 use crate::{Schema, Table};
@@ -173,7 +173,7 @@ impl Drop for TempStorage {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
 
     use super::*;
     use crate::schema::Field;
@@ -293,12 +293,12 @@ mod tests {
         let table = storage.get_table_mut("data").unwrap();
         let schema = table.schema().clone();
         let mut row = crate::table::Row::for_schema(&schema);
-        row.set_by_name(&schema, "id", yachtsql_core::types::Value::int64(1))
+        row.set_by_name(&schema, "id", yachtsql_common::types::Value::int64(1))
             .unwrap();
         row.set_by_name(
             &schema,
             "name",
-            yachtsql_core::types::Value::string("test".to_string()),
+            yachtsql_common::types::Value::string("test".to_string()),
         )
         .unwrap();
         table.insert_rows(vec![row]).unwrap();

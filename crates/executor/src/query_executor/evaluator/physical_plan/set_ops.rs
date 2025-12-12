@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_storage::{Column, Schema};
 
 use super::ExecutionPlan;
@@ -65,10 +65,10 @@ impl UnionExec {
     }
 
     fn types_compatible(
-        left: &yachtsql_core::types::DataType,
-        right: &yachtsql_core::types::DataType,
+        left: &yachtsql_common::types::DataType,
+        right: &yachtsql_common::types::DataType,
     ) -> bool {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         if left == right {
             return true;
@@ -90,10 +90,10 @@ impl UnionExec {
     }
 
     fn pick_more_specific_type(
-        left: &yachtsql_core::types::DataType,
-        right: &yachtsql_core::types::DataType,
-    ) -> yachtsql_core::types::DataType {
-        use yachtsql_core::types::DataType;
+        left: &yachtsql_common::types::DataType,
+        right: &yachtsql_common::types::DataType,
+    ) -> yachtsql_common::types::DataType {
+        use yachtsql_common::types::DataType;
 
         if left == right {
             return left.clone();
@@ -438,7 +438,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let left = Rc::new(TableScanExec::new(
@@ -465,7 +465,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             )]);
 
         let left = Rc::new(TableScanExec::new(
@@ -491,7 +491,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let left = Rc::new(TableScanExec::new(
@@ -517,7 +517,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             )]);
 
         let left = Rc::new(TableScanExec::new(
@@ -543,7 +543,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let left = Rc::new(TableScanExec::new(
@@ -569,7 +569,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             )]);
 
         let left = Rc::new(TableScanExec::new(
@@ -595,17 +595,17 @@ mod tests {
         let schema1 =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let schema2 = yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
             yachtsql_storage::Field::required(
                 "name".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             ),
         ]);
 

@@ -1,7 +1,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 pub fn hex_encode(input: &str) -> Result<Value> {
     let hex_string = input

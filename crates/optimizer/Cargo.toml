@@ -7,7 +7,7 @@ description = "YachtSQL query optimizer with multi-phase rule-based transformati
 
 [dependencies]
 # Core types and errors
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-storage = { path = "../storage" }
 yachtsql-ir = { path = "../ir" }
 

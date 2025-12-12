@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_functions::fulltext::{
     self, HeadlineOptions, Weight, parse_tsvector, tsquery_to_string, tsvector_to_string,
 };

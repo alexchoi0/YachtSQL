@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_storage::Schema;
 
 use super::ExecutionPlan;
@@ -284,7 +284,7 @@ impl ExecutionPlan for TableSampleExec {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_storage::{Column, Field};
 
     use super::*;

@@ -15,7 +15,7 @@ use sqlparser::parser::Parser;
 use sqlparser::tokenizer::Tokenizer;
 pub use truncate::DmlTruncateExecutor;
 pub use update::DmlUpdateExecutor;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_storage::{CheckEvaluator, Row, Schema};
 
 use crate::query_executor::expression_evaluator::ExpressionEvaluator;

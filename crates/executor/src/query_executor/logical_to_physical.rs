@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use regex::Regex;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::DataType;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::DataType;
 use yachtsql_functions::dialects::clickhouse::clickhouse_aggregate_functions;
 use yachtsql_functions::dialects::core_aggregate_functions;
 use yachtsql_ir::FunctionName;
@@ -128,18 +128,18 @@ fn is_system_column(name: &str) -> bool {
     )
 }
 
-fn system_column_type(name: &str) -> Option<yachtsql_core::types::DataType> {
+fn system_column_type(name: &str) -> Option<yachtsql_common::types::DataType> {
     match name.to_lowercase().as_str() {
-        "ctid" => Some(yachtsql_core::types::DataType::Tid),
-        "xmin" | "xmax" => Some(yachtsql_core::types::DataType::Xid),
-        "cmin" | "cmax" => Some(yachtsql_core::types::DataType::Cid),
-        "tableoid" => Some(yachtsql_core::types::DataType::Oid),
+        "ctid" => Some(yachtsql_common::types::DataType::Tid),
+        "xmin" | "xmax" => Some(yachtsql_common::types::DataType::Xid),
+        "cmin" | "cmax" => Some(yachtsql_common::types::DataType::Cid),
+        "tableoid" => Some(yachtsql_common::types::DataType::Oid),
         _ => None,
     }
 }
 
 fn create_system_columns(source_table: &str) -> Vec<yachtsql_storage::schema::Field> {
-    use yachtsql_core::types::DataType;
+    use yachtsql_common::types::DataType;
     use yachtsql_storage::schema::{Field, FieldMode};
     vec![
         Field {
@@ -331,7 +331,7 @@ impl LogicalToPhysicalPlanner {
             Self::validate_column_references(expr, input_schema, using_columns)?;
 
             let data_type = ProjectionWithExprExec::infer_expr_type_with_schema(expr, input_schema)
-                .unwrap_or(yachtsql_core::types::DataType::Unknown);
+                .unwrap_or(yachtsql_common::types::DataType::Unknown);
 
             let field_name = if let Some(alias) = alias {
                 alias.clone()
@@ -410,10 +410,10 @@ impl LogicalToPhysicalPlanner {
                     }
                     if let Some(field) = schema.field(table_name) {
                         match &field.data_type {
-                            yachtsql_core::types::DataType::Json => {
+                            yachtsql_common::types::DataType::Json => {
                                 return Ok(());
                             }
-                            yachtsql_core::types::DataType::Struct(fields) => {
+                            yachtsql_common::types::DataType::Struct(fields) => {
                                 if fields.iter().any(|f| f.name.eq_ignore_ascii_case(name)) {
                                     return Ok(());
                                 }
@@ -666,9 +666,9 @@ impl LogicalToPhysicalPlanner {
 
     fn expand_nested_custom_types(
         &self,
-        fields: &[yachtsql_core::types::StructField],
-    ) -> Vec<yachtsql_core::types::StructField> {
-        use yachtsql_core::types::StructField;
+        fields: &[yachtsql_common::types::StructField],
+    ) -> Vec<yachtsql_common::types::StructField> {
+        use yachtsql_common::types::StructField;
 
         fields
             .iter()
@@ -703,9 +703,9 @@ impl LogicalToPhysicalPlanner {
 
     fn expand_custom_data_type(
         &self,
-        data_type: &yachtsql_core::types::DataType,
-    ) -> yachtsql_core::types::DataType {
-        use yachtsql_core::types::DataType;
+        data_type: &yachtsql_common::types::DataType,
+    ) -> yachtsql_common::types::DataType {
+        use yachtsql_common::types::DataType;
 
         match data_type {
             DataType::Custom(type_name) => {
@@ -905,8 +905,8 @@ impl LogicalToPhysicalPlanner {
         }
     }
 
-    fn is_system_column(dt: &yachtsql_core::types::DataType) -> bool {
-        use yachtsql_core::types::DataType;
+    fn is_system_column(dt: &yachtsql_common::types::DataType) -> bool {
+        use yachtsql_common::types::DataType;
         matches!(
             dt,
             DataType::Tid | DataType::Xid | DataType::Cid | DataType::Oid
@@ -1308,8 +1308,8 @@ impl LogicalToPhysicalPlanner {
         &self,
         expr: &yachtsql_ir::expr::Expr,
         schema: &yachtsql_storage::Schema,
-    ) -> yachtsql_core::types::DataType {
-        use yachtsql_core::types::DataType;
+    ) -> yachtsql_common::types::DataType {
+        use yachtsql_common::types::DataType;
         use yachtsql_ir::expr::Expr;
 
         match expr {
@@ -1346,7 +1346,7 @@ impl LogicalToPhysicalPlanner {
                 let fields: Vec<_> = exprs
                     .iter()
                     .enumerate()
-                    .map(|(i, e)| yachtsql_core::types::StructField {
+                    .map(|(i, e)| yachtsql_common::types::StructField {
                         name: format!("f{}", i + 1),
                         data_type: self.infer_expr_type(e, schema),
                     })
@@ -1356,7 +1356,7 @@ impl LogicalToPhysicalPlanner {
             Expr::StructLiteral { fields } => {
                 let struct_fields: Vec<_> = fields
                     .iter()
-                    .map(|f| yachtsql_core::types::StructField {
+                    .map(|f| yachtsql_common::types::StructField {
                         name: f.name.clone(),
                         data_type: self.infer_expr_type(&f.expr, schema),
                     })
@@ -1413,10 +1413,10 @@ impl LogicalToPhysicalPlanner {
 
     fn types_are_compatible(
         &self,
-        left: &yachtsql_core::types::DataType,
-        right: &yachtsql_core::types::DataType,
+        left: &yachtsql_common::types::DataType,
+        right: &yachtsql_common::types::DataType,
     ) -> bool {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
 
         if left == right {
             return true;
@@ -2122,7 +2122,7 @@ impl LogicalToPhysicalPlanner {
                         .clone()
                         .unwrap_or_else(|| "ordinality".to_string());
                     let mut offset_field =
-                        Field::nullable(offset_name, yachtsql_core::types::DataType::Int64);
+                        Field::nullable(offset_name, yachtsql_common::types::DataType::Int64);
                     if let Some(table_alias) = alias {
                         offset_field = offset_field.with_source_table(table_alias.clone());
                     }
@@ -2287,24 +2287,24 @@ impl LogicalToPhysicalPlanner {
 
                 let schema = match function_name.to_uppercase().as_str() {
                     "EACH" => Schema::from_fields(vec![
-                        Field::nullable("key", yachtsql_core::types::DataType::String),
-                        Field::nullable("value", yachtsql_core::types::DataType::String),
+                        Field::nullable("key", yachtsql_common::types::DataType::String),
+                        Field::nullable("value", yachtsql_common::types::DataType::String),
                     ]),
                     "JSON_EACH" | "JSONB_EACH" => Schema::from_fields(vec![
-                        Field::nullable("key", yachtsql_core::types::DataType::String),
-                        Field::nullable("value", yachtsql_core::types::DataType::Json),
+                        Field::nullable("key", yachtsql_common::types::DataType::String),
+                        Field::nullable("value", yachtsql_common::types::DataType::Json),
                     ]),
                     "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => Schema::from_fields(vec![
-                        Field::nullable("key", yachtsql_core::types::DataType::String),
-                        Field::nullable("value", yachtsql_core::types::DataType::String),
+                        Field::nullable("key", yachtsql_common::types::DataType::String),
+                        Field::nullable("value", yachtsql_common::types::DataType::String),
                     ]),
                     "SKEYS" => Schema::from_fields(vec![Field::nullable(
                         "key",
-                        yachtsql_core::types::DataType::String,
+                        yachtsql_common::types::DataType::String,
                     )]),
                     "SVALS" => Schema::from_fields(vec![Field::nullable(
                         "value",
-                        yachtsql_core::types::DataType::String,
+                        yachtsql_common::types::DataType::String,
                     )]),
                     "POPULATE_RECORD" => {
                         if args.is_empty() {
@@ -2316,20 +2316,20 @@ impl LogicalToPhysicalPlanner {
                     }
                     "NUMBERS" | "NUMBERS_MT" => Schema::from_fields(vec![Field::nullable(
                         "number",
-                        yachtsql_core::types::DataType::Int64,
+                        yachtsql_common::types::DataType::Int64,
                     )]),
                     "ZEROS" | "ZEROS_MT" => Schema::from_fields(vec![Field::nullable(
                         "zero",
-                        yachtsql_core::types::DataType::Int64,
+                        yachtsql_common::types::DataType::Int64,
                     )]),
                     "ONE" => Schema::from_fields(vec![Field::nullable(
                         "dummy",
-                        yachtsql_core::types::DataType::Int64,
+                        yachtsql_common::types::DataType::Int64,
                     )]),
                     "GENERATESERIES" | "GENERATE_SERIES" => {
                         Schema::from_fields(vec![Field::nullable(
                             "generate_series",
-                            yachtsql_core::types::DataType::Int64,
+                            yachtsql_common::types::DataType::Int64,
                         )])
                     }
                     "GENERATERANDOM" | "GENERATE_RANDOM" => {
@@ -2366,15 +2366,15 @@ impl LogicalToPhysicalPlanner {
     fn infer_returning_expr_type(
         &self,
         expr: &yachtsql_ir::expr::Expr,
-    ) -> Result<yachtsql_core::types::DataType> {
+    ) -> Result<yachtsql_common::types::DataType> {
         use yachtsql_ir::expr::Expr;
         match expr {
-            Expr::Column { .. } => Ok(yachtsql_core::types::DataType::String),
+            Expr::Column { .. } => Ok(yachtsql_common::types::DataType::String),
 
             Expr::Function { name, args, .. }
                 if matches!(name, yachtsql_ir::FunctionName::MergeAction) && args.is_empty() =>
             {
-                Ok(yachtsql_core::types::DataType::String)
+                Ok(yachtsql_common::types::DataType::String)
             }
 
             _ => panic!(
@@ -2452,8 +2452,8 @@ impl LogicalToPhysicalPlanner {
     fn infer_unnest_element_type(
         &self,
         expr: &yachtsql_ir::expr::Expr,
-    ) -> yachtsql_core::types::DataType {
-        use yachtsql_core::types::DataType;
+    ) -> yachtsql_common::types::DataType {
+        use yachtsql_common::types::DataType;
         use yachtsql_ir::expr::Expr;
 
         match expr {
@@ -2468,7 +2468,7 @@ impl LogicalToPhysicalPlanner {
             Expr::Literal(yachtsql_ir::expr::LiteralValue::Null) => DataType::Unknown,
 
             Expr::Cast { data_type, .. } => {
-                use yachtsql_core::types::RangeType;
+                use yachtsql_common::types::RangeType;
                 use yachtsql_ir::expr::CastDataType;
 
                 match data_type {
@@ -2525,8 +2525,8 @@ impl LogicalToPhysicalPlanner {
     fn cast_data_type_to_data_type(
         &self,
         cast_type: &yachtsql_ir::expr::CastDataType,
-    ) -> yachtsql_core::types::DataType {
-        use yachtsql_core::types::DataType;
+    ) -> yachtsql_common::types::DataType {
+        use yachtsql_common::types::DataType;
         use yachtsql_ir::expr::CastDataType;
 
         match cast_type {
@@ -2554,12 +2554,20 @@ impl LogicalToPhysicalPlanner {
             CastDataType::MacAddr8 => DataType::MacAddr8,
             CastDataType::Inet => DataType::Inet,
             CastDataType::Cidr => DataType::Cidr,
-            CastDataType::Int4Range => DataType::Range(yachtsql_core::types::RangeType::Int4Range),
-            CastDataType::Int8Range => DataType::Range(yachtsql_core::types::RangeType::Int8Range),
-            CastDataType::NumRange => DataType::Range(yachtsql_core::types::RangeType::NumRange),
-            CastDataType::TsRange => DataType::Range(yachtsql_core::types::RangeType::TsRange),
-            CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
-            CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
+            CastDataType::Int4Range => {
+                DataType::Range(yachtsql_common::types::RangeType::Int4Range)
+            }
+            CastDataType::Int8Range => {
+                DataType::Range(yachtsql_common::types::RangeType::Int8Range)
+            }
+            CastDataType::NumRange => DataType::Range(yachtsql_common::types::RangeType::NumRange),
+            CastDataType::TsRange => DataType::Range(yachtsql_common::types::RangeType::TsRange),
+            CastDataType::TsTzRange => {
+                DataType::Range(yachtsql_common::types::RangeType::TsTzRange)
+            }
+            CastDataType::DateRange => {
+                DataType::Range(yachtsql_common::types::RangeType::DateRange)
+            }
             CastDataType::Point => DataType::Point,
             CastDataType::PgBox => DataType::PgBox,
             CastDataType::Circle => DataType::Circle,
@@ -2570,28 +2578,31 @@ impl LogicalToPhysicalPlanner {
             CastDataType::Oid => DataType::Oid,
             CastDataType::Custom(_, fields) => DataType::Struct(fields.clone()),
             CastDataType::Int4Multirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::Int4Multirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::Int4Multirange)
             }
             CastDataType::Int8Multirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::Int8Multirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::Int8Multirange)
             }
             CastDataType::NumMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::NumMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::NumMultirange)
             }
             CastDataType::TsMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::TsMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::TsMultirange)
             }
             CastDataType::TsTzMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::TsTzMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::TsTzMultirange)
             }
             CastDataType::DateMultirange => {
-                DataType::Multirange(yachtsql_core::types::MultirangeType::DateMultirange)
+                DataType::Multirange(yachtsql_common::types::MultirangeType::DateMultirange)
             }
         }
     }
 
-    fn infer_literal_type(&self, expr: &yachtsql_ir::expr::Expr) -> yachtsql_core::types::DataType {
-        use yachtsql_core::types::DataType;
+    fn infer_literal_type(
+        &self,
+        expr: &yachtsql_ir::expr::Expr,
+    ) -> yachtsql_common::types::DataType {
+        use yachtsql_common::types::DataType;
         use yachtsql_ir::expr::{Expr, LiteralValue};
 
         match expr {
@@ -2612,7 +2623,7 @@ impl LogicalToPhysicalPlanner {
                 LiteralValue::Vector(v) => DataType::Vector(v.len()),
                 LiteralValue::Interval(_) => DataType::Interval,
                 LiteralValue::Range(_) => {
-                    DataType::Range(yachtsql_core::types::RangeType::Int8Range)
+                    DataType::Range(yachtsql_common::types::RangeType::Int8Range)
                 }
                 LiteralValue::Point(_) => DataType::Point,
                 LiteralValue::PgBox(_) => DataType::PgBox,
@@ -2633,7 +2644,7 @@ impl LogicalToPhysicalPlanner {
                             .declared_type
                             .clone()
                             .unwrap_or_else(|| self.infer_literal_type(&f.expr));
-                        yachtsql_core::types::StructField {
+                        yachtsql_common::types::StructField {
                             name: f.name.clone(),
                             data_type: field_type,
                         }
@@ -2691,7 +2702,7 @@ impl LogicalToPhysicalPlanner {
     }
 
     fn parse_schema_string(&self, schema_str: &str) -> Result<yachtsql_storage::Schema> {
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         use yachtsql_storage::{Field, Schema};
 
         let mut fields = Vec::new();
@@ -2715,8 +2726,8 @@ impl LogicalToPhysicalPlanner {
         Ok(Schema::from_fields(fields))
     }
 
-    fn parse_clickhouse_type(&self, type_str: &str) -> Result<yachtsql_core::types::DataType> {
-        use yachtsql_core::types::DataType;
+    fn parse_clickhouse_type(&self, type_str: &str) -> Result<yachtsql_common::types::DataType> {
+        use yachtsql_common::types::DataType;
         let upper = type_str.to_uppercase();
         let dt = match upper.as_str() {
             "UINT8" | "UINT16" | "UINT32" | "UINT64" => DataType::Int64,
@@ -2853,7 +2864,7 @@ impl LogicalToPhysicalPlanner {
         Ok(yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::schema::Field::nullable(
                 "dummy",
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
         ]))
     }
@@ -2870,7 +2881,7 @@ impl LogicalToPhysicalPlanner {
             return Ok(yachtsql_storage::Schema::from_fields(vec![
                 yachtsql_storage::schema::Field::nullable(
                     "dummy",
-                    yachtsql_core::types::DataType::Int64,
+                    yachtsql_common::types::DataType::Int64,
                 ),
             ]));
         }
@@ -2882,7 +2893,7 @@ impl LogicalToPhysicalPlanner {
                 return Ok(yachtsql_storage::Schema::from_fields(vec![
                     yachtsql_storage::schema::Field::nullable(
                         "dummy",
-                        yachtsql_core::types::DataType::Int64,
+                        yachtsql_common::types::DataType::Int64,
                     ),
                 ]));
             }
@@ -2916,7 +2927,7 @@ impl LogicalToPhysicalPlanner {
         Ok(yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::schema::Field::nullable(
                 "dummy",
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
         ]))
     }

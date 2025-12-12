@@ -1,4 +1,4 @@
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_ir::expr::{BinaryOp, Expr};
 use yachtsql_ir::plan::{JoinType, LogicalPlan, PlanNode};
 
@@ -589,7 +589,7 @@ impl OptimizationRule for PredicatePushdown {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::error::Result;
+    use yachtsql_common::error::Result;
 
     use super::*;
     use crate::optimizer::expr::{BinaryOp, Expr, LiteralValue};

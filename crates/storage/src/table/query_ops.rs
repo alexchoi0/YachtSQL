@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 use super::Table;
 use super::iterator::TableIterator;

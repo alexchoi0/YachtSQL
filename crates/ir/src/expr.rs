@@ -1,4 +1,4 @@
-use yachtsql_core::types::DataType;
+use yachtsql_common::types::DataType;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -237,7 +237,7 @@ pub enum CastDataType {
     Tid,
     Cid,
     Oid,
-    Custom(String, Vec<yachtsql_core::types::StructField>),
+    Custom(String, Vec<yachtsql_common::types::StructField>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -341,8 +341,8 @@ pub enum LiteralValue {
 }
 
 impl LiteralValue {
-    pub fn to_value(&self) -> yachtsql_core::types::Value {
-        use yachtsql_core::types::Value;
+    pub fn to_value(&self) -> yachtsql_common::types::Value {
+        use yachtsql_common::types::Value;
 
         match self {
             LiteralValue::Null => Value::null(),
@@ -370,10 +370,10 @@ impl LiteralValue {
                     Value::null()
                 }
             }
-            LiteralValue::DateTime(s) => yachtsql_core::types::parse_timestamp_to_utc(s)
+            LiteralValue::DateTime(s) => yachtsql_common::types::parse_timestamp_to_utc(s)
                 .map(Value::datetime)
                 .unwrap_or(Value::null()),
-            LiteralValue::Timestamp(s) => yachtsql_core::types::parse_timestamp_to_utc(s)
+            LiteralValue::Timestamp(s) => yachtsql_common::types::parse_timestamp_to_utc(s)
                 .map(Value::timestamp)
                 .unwrap_or(Value::null()),
             LiteralValue::Json(s) => match serde_json::from_str(s) {
@@ -394,24 +394,24 @@ impl LiteralValue {
                 }
                 Value::array(values)
             }
-            LiteralValue::Uuid(s) => yachtsql_core::types::parse_uuid_literal(s),
+            LiteralValue::Uuid(s) => yachtsql_common::types::parse_uuid_literal(s),
             LiteralValue::Vector(values) => Value::vector(values.clone()),
             LiteralValue::Interval(_s) => Value::null(),
             LiteralValue::Range(_s) => Value::null(),
-            LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
-            LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
-            LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
-            LiteralValue::Line(s) => yachtsql_core::types::parse_line_literal(s),
-            LiteralValue::Lseg(s) => yachtsql_core::types::parse_lseg_literal(s),
-            LiteralValue::Path(s) => yachtsql_core::types::parse_path_literal(s),
-            LiteralValue::Polygon(s) => yachtsql_core::types::parse_polygon_literal(s),
-            LiteralValue::MacAddr(s) => match yachtsql_core::types::MacAddress::parse(s, false) {
+            LiteralValue::Point(s) => yachtsql_common::types::parse_point_literal(s),
+            LiteralValue::PgBox(s) => yachtsql_common::types::parse_pgbox_literal(s),
+            LiteralValue::Circle(s) => yachtsql_common::types::parse_circle_literal(s),
+            LiteralValue::Line(s) => yachtsql_common::types::parse_line_literal(s),
+            LiteralValue::Lseg(s) => yachtsql_common::types::parse_lseg_literal(s),
+            LiteralValue::Path(s) => yachtsql_common::types::parse_path_literal(s),
+            LiteralValue::Polygon(s) => yachtsql_common::types::parse_polygon_literal(s),
+            LiteralValue::MacAddr(s) => match yachtsql_common::types::MacAddress::parse(s, false) {
                 Some(mac) => Value::macaddr(mac),
                 None => Value::null(),
             },
-            LiteralValue::MacAddr8(s) => match yachtsql_core::types::MacAddress::parse(s, true) {
+            LiteralValue::MacAddr8(s) => match yachtsql_common::types::MacAddress::parse(s, true) {
                 Some(mac) => Value::macaddr8(mac),
-                None => match yachtsql_core::types::MacAddress::parse(s, false) {
+                None => match yachtsql_common::types::MacAddress::parse(s, false) {
                     Some(mac) => Value::macaddr8(mac.to_eui64()),
                     None => Value::null(),
                 },
@@ -419,7 +419,7 @@ impl LiteralValue {
         }
     }
 
-    pub fn from_value(val: &yachtsql_core::types::Value) -> Self {
+    pub fn from_value(val: &yachtsql_common::types::Value) -> Self {
         if val.is_null() {
             LiteralValue::Null
         } else if let Some(b) = val.as_bool() {

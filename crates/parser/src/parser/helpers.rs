@@ -2,7 +2,7 @@ use sqlparser::ast::{
     ArrayElemTypeDef, DataType, ExactNumberInfo, Ident, ObjectName, ObjectNamePart,
 };
 use sqlparser::tokenizer::{Span, Token};
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 
 pub struct ParserHelpers;
 

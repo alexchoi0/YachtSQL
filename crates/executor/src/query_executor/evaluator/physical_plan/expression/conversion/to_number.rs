@@ -1,5 +1,5 @@
-use yachtsql_core::error::Result;
-use yachtsql_core::types::Value;
+use yachtsql_common::error::Result;
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::expr::Expr;
 
 use super::super::super::ProjectionWithExprExec;
@@ -76,7 +76,7 @@ fn parse_roman_numeral(s: &str) -> Result<i64> {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_core::types::{DataType, Value};
+    use yachtsql_common::types::{DataType, Value};
     use yachtsql_optimizer::expr::Expr;
     use yachtsql_storage::{Field, Schema};
 

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use yachtsql_core::types::DataType;
+use yachtsql_common::types::DataType;
 
 use super::FunctionRegistry;
 use crate::scalar::ScalarFunctionImpl;

@@ -1,6 +1,6 @@
 use serde_json::Value as JsonValue;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 use super::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_SIZE, JsonPath, parse_json_with_limits};
 

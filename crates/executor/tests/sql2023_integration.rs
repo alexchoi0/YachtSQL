@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::{TimeZone, Utc};
-use yachtsql_core::types::Value;
+use yachtsql_common::types::Value;
 use yachtsql_executor::match_recognize::{
     AfterMatchSkip, MatchMode, MatchRecognizeClause, PatternElement, PatternExpression,
     PatternMatcher, PatternQuantifier, PatternVariable, RowPattern,

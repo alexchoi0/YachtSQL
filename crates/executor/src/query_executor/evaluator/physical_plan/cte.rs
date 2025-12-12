@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use debug_print::debug_eprintln;
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 use yachtsql_storage::{Column, Schema};
 
 use super::ExecutionPlan;
@@ -292,7 +292,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let cte_plan = Rc::new(TableScanExec::new(
@@ -316,7 +316,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             )]);
 
         let cte_plan = Rc::new(TableScanExec::new(
@@ -339,7 +339,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let mut storage1 = yachtsql_storage::Storage::new();
@@ -379,11 +379,11 @@ mod tests {
         let schema = yachtsql_storage::Schema::from_fields(vec![
             yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             ),
             yachtsql_storage::Field::required(
                 "name".to_string(),
-                yachtsql_core::types::DataType::String,
+                yachtsql_common::types::DataType::String,
             ),
         ]);
 
@@ -403,7 +403,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "value".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let mut storage = yachtsql_storage::Storage::new();
@@ -428,7 +428,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let cte_plan = Rc::new(TableScanExec::new(
@@ -453,7 +453,7 @@ mod tests {
         let schema =
             yachtsql_storage::Schema::from_fields(vec![yachtsql_storage::Field::required(
                 "id".to_string(),
-                yachtsql_core::types::DataType::Int64,
+                yachtsql_common::types::DataType::Int64,
             )]);
 
         let subquery = Rc::new(TableScanExec::new(

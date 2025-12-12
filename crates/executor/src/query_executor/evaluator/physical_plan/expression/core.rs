@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 use yachtsql_optimizer::BinaryOp;
 use yachtsql_optimizer::expr::Expr;
 use yachtsql_storage::Schema;
@@ -93,7 +93,8 @@ impl ProjectionWithExprExec {
         let field = &schema.fields()[col_idx];
         let is_struct = matches!(
             field.data_type,
-            yachtsql_core::types::DataType::Struct(_) | yachtsql_core::types::DataType::Custom(_)
+            yachtsql_common::types::DataType::Struct(_)
+                | yachtsql_common::types::DataType::Custom(_)
         );
         if !is_struct {
             return Err(Error::column_not_found(name.clone()));
@@ -188,11 +189,11 @@ impl ProjectionWithExprExec {
                 };
 
                 let field = &schema.fields()[col_idx];
-                let is_json = matches!(field.data_type, yachtsql_core::types::DataType::Json);
+                let is_json = matches!(field.data_type, yachtsql_common::types::DataType::Json);
                 let is_struct = matches!(
                     field.data_type,
-                    yachtsql_core::types::DataType::Struct(_)
-                        | yachtsql_core::types::DataType::Custom(_)
+                    yachtsql_common::types::DataType::Struct(_)
+                        | yachtsql_common::types::DataType::Custom(_)
                 );
                 if !is_struct && !is_json {
                     return Err(Error::column_not_found(name.clone()));
@@ -1625,7 +1626,7 @@ impl ProjectionWithExprExec {
             Expr::Column { name, .. } => {
                 for field in schema.fields() {
                     if field.name == *name {
-                        if let yachtsql_core::types::DataType::Enum { labels, .. } =
+                        if let yachtsql_common::types::DataType::Enum { labels, .. } =
                             &field.data_type
                         {
                             return Some(labels.clone());
@@ -1684,14 +1685,14 @@ impl ProjectionWithExprExec {
             let l_val = if let Some(d32) = low.as_date32() {
                 Some(d32.0)
             } else if let Some(s) = low.as_str() {
-                yachtsql_core::types::Date32Value::parse(s).map(|d| d.0)
+                yachtsql_common::types::Date32Value::parse(s).map(|d| d.0)
             } else {
                 None
             };
             let h_val = if let Some(d32) = high.as_date32() {
                 Some(d32.0)
             } else if let Some(s) = high.as_str() {
-                yachtsql_core::types::Date32Value::parse(s).map(|d| d.0)
+                yachtsql_common::types::Date32Value::parse(s).map(|d| d.0)
             } else {
                 None
             };

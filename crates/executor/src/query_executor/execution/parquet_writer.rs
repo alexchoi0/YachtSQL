@@ -13,8 +13,8 @@ use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_storage::Schema;
 
 use crate::Table;
@@ -451,7 +451,7 @@ fn build_list_array(
 fn build_struct_array(
     table: &Table,
     col_idx: usize,
-    fields: &[yachtsql_core::types::StructField],
+    fields: &[yachtsql_common::types::StructField],
     num_rows: usize,
 ) -> Result<ArrayRef> {
     let arrow_fields: Vec<ArrowField> = fields

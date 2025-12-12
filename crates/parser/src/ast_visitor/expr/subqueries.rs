@@ -1,5 +1,5 @@
 use sqlparser::ast;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_ir::expr::Expr;
 
 use super::super::LogicalPlanBuilder;

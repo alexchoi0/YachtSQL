@@ -1,7 +1,7 @@
 use debug_print::debug_eprintln;
 use sqlparser::ast::{ColumnDef, ColumnOption, DataType as SqlDataType};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_parser::Sql2023Types;
 use yachtsql_storage::{
     DefaultValue, Field, PostgresPartitionInfo, PostgresPartitionStrategy, Schema, TableEngine,
@@ -1039,13 +1039,13 @@ impl DdlExecutor for QueryExecutor {
             SqlDataType::Nullable(inner) => self.sql_type_to_data_type(dataset_id, inner),
             SqlDataType::LowCardinality(inner) => self.sql_type_to_data_type(dataset_id, inner),
             SqlDataType::Nested(fields) => {
-                let struct_fields: Vec<yachtsql_core::types::StructField> = fields
+                let struct_fields: Vec<yachtsql_common::types::StructField> = fields
                     .iter()
                     .map(|col| {
                         let dt = self
                             .sql_type_to_data_type(dataset_id, &col.data_type)
                             .unwrap_or(DataType::String);
-                        yachtsql_core::types::StructField {
+                        yachtsql_common::types::StructField {
                             name: col.name.value.clone(),
                             data_type: DataType::Array(Box::new(dt)),
                         }
@@ -1054,7 +1054,7 @@ impl DdlExecutor for QueryExecutor {
                 Ok(DataType::Struct(struct_fields))
             }
             SqlDataType::Tuple(fields) => {
-                let struct_fields: Vec<yachtsql_core::types::StructField> = fields
+                let struct_fields: Vec<yachtsql_common::types::StructField> = fields
                     .iter()
                     .enumerate()
                     .map(|(idx, field)| {
@@ -1066,7 +1066,7 @@ impl DdlExecutor for QueryExecutor {
                             .as_ref()
                             .map(|ident| ident.value.clone())
                             .unwrap_or_else(|| (idx + 1).to_string());
-                        yachtsql_core::types::StructField {
+                        yachtsql_common::types::StructField {
                             name,
                             data_type: dt,
                         }
@@ -1075,7 +1075,7 @@ impl DdlExecutor for QueryExecutor {
                 Ok(DataType::Struct(struct_fields))
             }
             SqlDataType::Struct(fields, _bracket_style) => {
-                let struct_fields: Vec<yachtsql_core::types::StructField> = fields
+                let struct_fields: Vec<yachtsql_common::types::StructField> = fields
                     .iter()
                     .enumerate()
                     .map(|(idx, field)| {
@@ -1087,7 +1087,7 @@ impl DdlExecutor for QueryExecutor {
                             .as_ref()
                             .map(|ident| ident.value.clone())
                             .unwrap_or_else(|| (idx + 1).to_string());
-                        yachtsql_core::types::StructField {
+                        yachtsql_common::types::StructField {
                             name,
                             data_type: dt,
                         }
@@ -1240,29 +1240,37 @@ impl DdlExecutor for QueryExecutor {
                     "RING" => Ok(DataType::GeoRing),
                     "POLYGON" => Ok(DataType::GeoPolygon),
                     "MULTIPOLYGON" => Ok(DataType::GeoMultiPolygon),
-                    "INT4RANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::Int4Range)),
-                    "INT8RANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::Int8Range)),
-                    "NUMRANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::NumRange)),
-                    "TSRANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::TsRange)),
-                    "TSTZRANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::TsTzRange)),
-                    "DATERANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::DateRange)),
+                    "INT4RANGE" => Ok(DataType::Range(
+                        yachtsql_common::types::RangeType::Int4Range,
+                    )),
+                    "INT8RANGE" => Ok(DataType::Range(
+                        yachtsql_common::types::RangeType::Int8Range,
+                    )),
+                    "NUMRANGE" => Ok(DataType::Range(yachtsql_common::types::RangeType::NumRange)),
+                    "TSRANGE" => Ok(DataType::Range(yachtsql_common::types::RangeType::TsRange)),
+                    "TSTZRANGE" => Ok(DataType::Range(
+                        yachtsql_common::types::RangeType::TsTzRange,
+                    )),
+                    "DATERANGE" => Ok(DataType::Range(
+                        yachtsql_common::types::RangeType::DateRange,
+                    )),
                     "INT4MULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::Int4Multirange,
+                        yachtsql_common::types::MultirangeType::Int4Multirange,
                     )),
                     "INT8MULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::Int8Multirange,
+                        yachtsql_common::types::MultirangeType::Int8Multirange,
                     )),
                     "NUMMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::NumMultirange,
+                        yachtsql_common::types::MultirangeType::NumMultirange,
                     )),
                     "TSMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::TsMultirange,
+                        yachtsql_common::types::MultirangeType::TsMultirange,
                     )),
                     "TSTZMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::TsTzMultirange,
+                        yachtsql_common::types::MultirangeType::TsTzMultirange,
                     )),
                     "DATEMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::DateMultirange,
+                        yachtsql_common::types::MultirangeType::DateMultirange,
                     )),
 
                     _ => Ok(DataType::Custom(type_name)),

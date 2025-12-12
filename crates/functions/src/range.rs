@@ -1,5 +1,5 @@
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{Range, RangeType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{Range, RangeType, Value};
 
 pub fn make_range(
     range_type: RangeType,

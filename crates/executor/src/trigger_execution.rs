@@ -1,5 +1,5 @@
 use debug_print::debug_eprintln;
-use yachtsql_core::error::{Error, Result};
+use yachtsql_common::error::{Error, Result};
 use yachtsql_storage::{Row, TriggerEvent, TriggerMetadata, TriggerTiming};
 
 use crate::QueryExecutor;
@@ -44,7 +44,10 @@ impl TriggerContext {
         }
     }
 
-    pub fn get_old_value(&self, column_name: &str) -> Result<Option<yachtsql_core::types::Value>> {
+    pub fn get_old_value(
+        &self,
+        column_name: &str,
+    ) -> Result<Option<yachtsql_common::types::Value>> {
         let Some(ref old_row) = self.old_row else {
             return Ok(None);
         };
@@ -66,7 +69,10 @@ impl TriggerContext {
         Ok(Some(old_row.values()[col_idx].clone()))
     }
 
-    pub fn get_new_value(&self, column_name: &str) -> Result<Option<yachtsql_core::types::Value>> {
+    pub fn get_new_value(
+        &self,
+        column_name: &str,
+    ) -> Result<Option<yachtsql_common::types::Value>> {
         let Some(ref new_row) = self.new_row else {
             return Ok(None);
         };
@@ -241,7 +247,7 @@ impl QueryExecutor {
         Ok(result)
     }
 
-    fn value_to_sql_literal(value: &yachtsql_core::types::Value) -> String {
+    fn value_to_sql_literal(value: &yachtsql_common::types::Value) -> String {
         if value.is_null() {
             return "NULL".to_string();
         }

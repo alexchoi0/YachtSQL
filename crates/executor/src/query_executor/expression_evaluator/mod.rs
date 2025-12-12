@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
 use regex::Regex;
 use sqlparser::ast::{BinaryOperator, Expr as SqlExpr, UnaryOperator};
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, Value};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, Value};
 use yachtsql_storage::{Row, Schema, TypeRegistry};
 
 const CRC32_TABLE: [u32; 256] = [
@@ -1082,7 +1082,7 @@ impl<'a> ExpressionEvaluator<'a> {
                     }
                     SqlDataType::Timestamp(_, tz_info) => {
                         use sqlparser::ast::TimezoneInfo;
-                        use yachtsql_core::types::parse_timestamp_to_utc;
+                        use yachtsql_common::types::parse_timestamp_to_utc;
 
                         let is_with_tz =
                             matches!(tz_info, TimezoneInfo::WithTimeZone | TimezoneInfo::Tz);
@@ -1117,7 +1117,7 @@ impl<'a> ExpressionEvaluator<'a> {
                         }
                     }
                     SqlDataType::Uuid => {
-                        use yachtsql_core::types::parse_uuid_strict;
+                        use yachtsql_common::types::parse_uuid_strict;
                         parse_uuid_strict(&literal).map_err(|e| {
                             Error::InvalidQuery(format!(
                                 "Invalid UUID literal '{}': {}",
@@ -1129,7 +1129,7 @@ impl<'a> ExpressionEvaluator<'a> {
                         let type_name = name.to_string().to_uppercase();
                         match type_name.as_str() {
                             "MACADDR" => {
-                                use yachtsql_core::types::MacAddress;
+                                use yachtsql_common::types::MacAddress;
                                 MacAddress::parse(&literal, false)
                                     .map(Value::macaddr)
                                     .ok_or_else(|| {
@@ -1140,7 +1140,7 @@ impl<'a> ExpressionEvaluator<'a> {
                                     })
                             }
                             "MACADDR8" => {
-                                use yachtsql_core::types::MacAddress;
+                                use yachtsql_common::types::MacAddress;
                                 MacAddress::parse(&literal, true)
                                     .or_else(|| {
                                         MacAddress::parse(&literal, false).map(|mac| mac.to_eui64())
@@ -1188,7 +1188,7 @@ impl<'a> ExpressionEvaluator<'a> {
                     }
                     SqlDataType::GeometricType(kind) => {
                         use sqlparser::ast::GeometricTypeKind;
-                        use yachtsql_core::types::{PgBox, PgCircle, PgPoint};
+                        use yachtsql_common::types::{PgBox, PgCircle, PgPoint};
                         match kind {
                             GeometricTypeKind::Point => {
 
@@ -2349,27 +2349,27 @@ impl<'a> ExpressionEvaluator<'a> {
         }
 
         if let (Some(a), Some(b)) = (left.as_f64(), right.as_f64()) {
-            return Ok(yachtsql_core::float_utils::float_cmp(&a, &b));
+            return Ok(yachtsql_common::float_utils::float_cmp(&a, &b));
         }
 
         if let (Some(a), Some(b)) = (left.as_i64(), right.as_f64()) {
-            return Ok(yachtsql_core::float_utils::float_cmp(&(a as f64), &b));
+            return Ok(yachtsql_common::float_utils::float_cmp(&(a as f64), &b));
         }
 
         if let (Some(a), Some(b)) = (left.as_f64(), right.as_i64()) {
-            return Ok(yachtsql_core::float_utils::float_cmp(&a, &(b as f64)));
+            return Ok(yachtsql_common::float_utils::float_cmp(&a, &(b as f64)));
         }
 
         if let (Some(a), Some(b)) = (left.as_f64(), right.as_numeric()) {
             use rust_decimal::prelude::ToPrimitive;
             let b_f64 = b.to_f64().unwrap_or(0.0);
-            return Ok(yachtsql_core::float_utils::float_cmp(&a, &b_f64));
+            return Ok(yachtsql_common::float_utils::float_cmp(&a, &b_f64));
         }
 
         if let (Some(a), Some(b)) = (left.as_numeric(), right.as_f64()) {
             use rust_decimal::prelude::ToPrimitive;
             let a_f64 = a.to_f64().unwrap_or(0.0);
-            return Ok(yachtsql_core::float_utils::float_cmp(&a_f64, &b));
+            return Ok(yachtsql_common::float_utils::float_cmp(&a_f64, &b));
         }
 
         if let (Some(a), Some(b)) = (left.as_numeric(), right.as_numeric()) {
@@ -2700,7 +2700,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
 
                 if let (Some(date), Some(interval)) = (left.as_date(), right.as_interval()) {
-                    let negated = yachtsql_core::types::Interval {
+                    let negated = yachtsql_common::types::Interval {
                         months: -interval.months,
                         days: -interval.days,
                         micros: -interval.micros,
@@ -3460,7 +3460,7 @@ impl<'a> ExpressionEvaluator<'a> {
                         } else if let Some(mac) = value.as_macaddr() {
                             Ok(Value::macaddr(mac.clone()))
                         } else if let Some(s) = value.as_str() {
-                            use yachtsql_core::types::MacAddress;
+                            use yachtsql_common::types::MacAddress;
                             MacAddress::parse(s, false)
                                 .map(Value::macaddr)
                                 .ok_or_else(|| {
@@ -3479,7 +3479,7 @@ impl<'a> ExpressionEvaluator<'a> {
                         } else if let Some(mac) = value.as_macaddr8() {
                             Ok(Value::macaddr8(mac.clone()))
                         } else if let Some(s) = value.as_str() {
-                            use yachtsql_core::types::MacAddress;
+                            use yachtsql_common::types::MacAddress;
 
                             MacAddress::parse(s, true)
                                 .or_else(|| MacAddress::parse(s, false).map(|mac| mac.to_eui64()))
@@ -3577,10 +3577,11 @@ impl<'a> ExpressionEvaluator<'a> {
                                     })?.clone()
                                 };
 
-                                let coerced_value = yachtsql_core::types::conversion::coerce_value(
-                                    source_value,
-                                    &field_def.data_type,
-                                )?;
+                                let coerced_value =
+                                    yachtsql_common::types::conversion::coerce_value(
+                                        source_value,
+                                        &field_def.data_type,
+                                    )?;
 
                                 result_map.insert(field_def.name.clone(), coerced_value);
                             }
@@ -10168,7 +10169,7 @@ impl<'a> ExpressionEvaluator<'a> {
 
     fn evaluate_interval(&self, interval: &sqlparser::ast::Interval) -> Result<Value> {
         use sqlparser::ast::DateTimeField;
-        use yachtsql_core::types::Interval;
+        use yachtsql_common::types::Interval;
 
         let value_str = match interval.value.as_ref() {
             sqlparser::ast::Expr::Value(v) => match &v.value {
@@ -10280,7 +10281,7 @@ impl<'a> ExpressionEvaluator<'a> {
     }
 
     fn parse_interval_string(s: &str) -> Result<Value> {
-        use yachtsql_core::types::Interval;
+        use yachtsql_common::types::Interval;
 
         let mut months: i32 = 0;
         let mut days: i32 = 0;
@@ -10500,7 +10501,7 @@ impl<'a> ExpressionEvaluator<'a> {
             return None;
         }
 
-        use yachtsql_core::types::DataType;
+        use yachtsql_common::types::DataType;
         match value.data_type() {
             DataType::Int64 => Some("integer"),
             DataType::Float32 | DataType::Float64 => Some("numeric"),
@@ -10558,7 +10559,7 @@ impl<'a> ExpressionEvaluator<'a> {
     fn add_interval_to_timestamp(
         &self,
         ts: DateTime<Utc>,
-        interval: &yachtsql_core::types::Interval,
+        interval: &yachtsql_common::types::Interval,
     ) -> Result<Value> {
         use chrono::{Datelike, Duration, Timelike};
 
@@ -10601,9 +10602,9 @@ impl<'a> ExpressionEvaluator<'a> {
     fn subtract_interval_from_timestamp(
         &self,
         ts: DateTime<Utc>,
-        interval: &yachtsql_core::types::Interval,
+        interval: &yachtsql_common::types::Interval,
     ) -> Result<Value> {
-        let negated = yachtsql_core::types::Interval {
+        let negated = yachtsql_common::types::Interval {
             months: -interval.months,
             days: -interval.days,
             micros: -interval.micros,
@@ -10615,7 +10616,7 @@ impl<'a> ExpressionEvaluator<'a> {
         let diff = ts1.signed_duration_since(ts2);
         let total_micros = diff.num_microseconds().unwrap_or(0);
 
-        Ok(Value::interval(yachtsql_core::types::Interval {
+        Ok(Value::interval(yachtsql_common::types::Interval {
             months: 0,
             days: 0,
             micros: total_micros,
@@ -10625,7 +10626,7 @@ impl<'a> ExpressionEvaluator<'a> {
     fn add_interval_to_date(
         &self,
         date: chrono::NaiveDate,
-        interval: &yachtsql_core::types::Interval,
+        interval: &yachtsql_common::types::Interval,
     ) -> Result<Value> {
         use chrono::{Datelike, Duration};
 

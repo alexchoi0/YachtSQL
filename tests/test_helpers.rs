@@ -1,7 +1,7 @@
 #![allow(clippy::approx_constant)]
 
 use yachtsql::{DataType, Table, Value};
-use yachtsql_core::types::{IPv4Addr, IPv6Addr};
+use yachtsql_common::types::{IPv4Addr, IPv6Addr};
 use yachtsql_storage::{Field, Schema};
 
 pub trait IntoValue {
@@ -252,7 +252,7 @@ pub fn n(val: &str) -> Value {
 }
 
 pub fn macaddr(addr: &str) -> Value {
-    use yachtsql_core::types::MacAddress;
+    use yachtsql_common::types::MacAddress;
     let parts: Vec<u8> = addr
         .split(':')
         .map(|s| u8::from_str_radix(s, 16).expect("Invalid hex in MAC address"))
@@ -262,7 +262,7 @@ pub fn macaddr(addr: &str) -> Value {
 }
 
 pub fn macaddr8(addr: &str) -> Value {
-    use yachtsql_core::types::MacAddress;
+    use yachtsql_common::types::MacAddress;
     let parts: Vec<u8> = addr
         .split(':')
         .map(|s| u8::from_str_radix(s, 16).expect("Invalid hex in MAC8 address"))
@@ -272,13 +272,13 @@ pub fn macaddr8(addr: &str) -> Value {
 }
 
 pub fn inet(addr: &str) -> Value {
-    use yachtsql_core::types::network::InetAddr;
+    use yachtsql_common::types::network::InetAddr;
     let parsed: InetAddr = addr.parse().expect("Invalid INET address");
     Value::inet(parsed)
 }
 
 pub fn cidr(addr: &str) -> Value {
-    use yachtsql_core::types::network::CidrAddr;
+    use yachtsql_common::types::network::CidrAddr;
     let parsed: CidrAddr = addr.parse().expect("Invalid CIDR address");
     Value::cidr(parsed)
 }

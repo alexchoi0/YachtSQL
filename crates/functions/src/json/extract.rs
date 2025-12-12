@@ -1,6 +1,6 @@
 use serde_json::Value as JsonValue;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::Value;
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::Value;
 
 use super::conversion::{json_to_sql_scalar_only, json_to_sql_value};
 use super::{JsonOnBehavior, JsonValueEvalOptions};

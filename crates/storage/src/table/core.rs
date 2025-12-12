@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
-use yachtsql_core::error::Result;
+use yachtsql_common::error::Result;
 
 use super::partition::PartitionSpec;
 use crate::foreign_keys::ForeignKey;
@@ -211,7 +211,7 @@ impl Table {
     }
 
     pub fn next_auto_increment(&self) -> Result<i64> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         match &self.auto_increment_counter {
             Some(counter) => {
                 let mut val = counter.borrow_mut();
@@ -253,7 +253,7 @@ impl Table {
     }
 
     pub fn init_auto_increment(&mut self, column_name: String, start_value: i64) -> Result<()> {
-        use yachtsql_core::error::Error;
+        use yachtsql_common::error::Error;
         if self.auto_increment_counter.is_some() {
             return Err(Error::InvalidOperation(
                 "Table already has an AUTO_INCREMENT column".to_string(),
