@@ -1700,7 +1700,16 @@ impl QueryExecutor {
             DataType::String,
         )]);
 
-        let rows = Vec::new();
+        let mut rows = Vec::new();
+        let storage = self.storage.borrow();
+
+        for dataset_id in storage.list_datasets() {
+            if let Some(dataset) = storage.get_dataset(&dataset_id) {
+                for dict_name in dataset.dictionaries().list() {
+                    rows.push(vec![Value::string(dict_name)]);
+                }
+            }
+        }
 
         Table::from_values(schema, rows)
     }

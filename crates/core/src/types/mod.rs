@@ -72,6 +72,8 @@ pub enum DataType {
     Tid,
     Cid,
     Oid,
+    TsVector,
+    TsQuery,
     Custom(String),
 }
 
@@ -198,6 +200,8 @@ impl fmt::Display for DataType {
             DataType::Tid => write!(f, "TID"),
             DataType::Cid => write!(f, "CID"),
             DataType::Oid => write!(f, "OID"),
+            DataType::TsVector => write!(f, "TSVECTOR"),
+            DataType::TsQuery => write!(f, "TSQUERY"),
             DataType::Custom(name) => write!(f, "{}", name),
         }
     }
@@ -234,6 +238,8 @@ const TAG_GEO_RING: u8 = 157;
 const TAG_GEO_POLYGON: u8 = 158;
 const TAG_GEO_MULTIPOLYGON: u8 = 159;
 const TAG_FIXED_STRING: u8 = 160;
+const TAG_TSVECTOR: u8 = 150;
+const TAG_TSQUERY: u8 = 151;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FixedStringData {
@@ -1917,6 +1923,36 @@ impl Value {
     }
 
     #[inline]
+    pub fn tsvector(text: String) -> Self {
+        let rc = Rc::new(text);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_TSVECTOR,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
+    pub fn tsquery(text: String) -> Self {
+        let rc = Rc::new(text);
+        let ptr = Rc::into_raw(rc) as *mut u8;
+        Self {
+            inner: ValueInner {
+                heap: std::mem::ManuallyDrop::new(HeapValue {
+                    tag: TAG_TSQUERY,
+                    _pad: [0; 7],
+                    ptr,
+                }),
+            },
+        }
+    }
+
+    #[inline]
     pub fn struct_val(map: IndexMap<String, Value>) -> Self {
         let rc = Rc::new(map);
         let ptr = Rc::into_raw(rc) as *mut u8;
@@ -2452,6 +2488,8 @@ impl Value {
                     TAG_NUMERIC => DataType::Numeric(None),
                     TAG_BYTES => DataType::Bytes,
                     TAG_GEOGRAPHY => DataType::Geography,
+                    TAG_TSVECTOR => DataType::TsVector,
+                    TAG_TSQUERY => DataType::TsQuery,
                     TAG_STRUCT => {
                         let heap = self.as_heap();
                         let map_ptr = heap.ptr as *const IndexMap<String, Value>;
@@ -2643,7 +2681,7 @@ impl Value {
             } else {
                 let heap = self.as_heap();
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
                         let s_ptr = heap.ptr as *const String;
                         Some((*s_ptr).as_str())
                     }
@@ -2814,6 +2852,30 @@ impl Value {
                 let heap = self.as_heap();
                 let wkt_ptr = heap.ptr as *const String;
                 Some((*wkt_ptr).as_str())
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_tsvector(&self) -> Option<&str> {
+        unsafe {
+            if self.tag() == TAG_TSVECTOR {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const String;
+                Some((*ptr).as_str())
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn as_tsquery(&self) -> Option<&str> {
+        unsafe {
+            if self.tag() == TAG_TSQUERY {
+                let heap = self.as_heap();
+                let ptr = heap.ptr as *const String;
+                Some((*ptr).as_str())
             } else {
                 None
             }
@@ -3147,7 +3209,7 @@ impl Drop for Value {
                 let heap = &*self.inner.heap;
 
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
                         let _ = Rc::from_raw(heap.ptr as *const String);
                     }
                     TAG_NUMERIC => {
@@ -3261,7 +3323,7 @@ impl Clone for Value {
             } else {
                 let heap = self.as_heap();
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
                         let arc_ptr = heap.ptr as *const String;
                         let rc = Rc::from_raw(arc_ptr);
                         let cloned_arc = Rc::clone(&rc);
@@ -3784,7 +3846,7 @@ impl PartialEq for Value {
                 let other_heap = other.as_heap();
 
                 match self_tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
                         let self_s = &*(self_heap.ptr as *const String);
                         let other_s = &*(other_heap.ptr as *const String);
                         self_s == other_s
@@ -4007,7 +4069,7 @@ impl std::hash::Hash for Value {
             } else {
                 let _heap = self.as_heap();
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
                         if let Some(s) = self.as_str() {
                             s.hash(state);
                         }
@@ -4230,6 +4292,14 @@ impl std::fmt::Debug for Value {
                     TAG_GEOGRAPHY => {
                         let wkt = &*(heap.ptr as *const String);
                         write!(f, "Value::geography({:?})", wkt)
+                    }
+                    TAG_TSVECTOR => {
+                        let text = &*(heap.ptr as *const String);
+                        write!(f, "Value::tsvector({:?})", text)
+                    }
+                    TAG_TSQUERY => {
+                        let text = &*(heap.ptr as *const String);
+                        write!(f, "Value::tsquery({:?})", text)
                     }
                     TAG_STRUCT => {
                         let map = &*(heap.ptr as *const IndexMap<String, Value>);
@@ -4707,6 +4777,10 @@ impl fmt::Display for Value {
                     TAG_GEOGRAPHY => {
                         let wkt = &*(heap.ptr as *const String);
                         write!(f, "{}", wkt)
+                    }
+                    TAG_TSVECTOR | TAG_TSQUERY => {
+                        let text = &*(heap.ptr as *const String);
+                        write!(f, "{}", text)
                     }
                     TAG_STRUCT => write!(f, "<STRUCT>"),
                     TAG_ARRAY => {

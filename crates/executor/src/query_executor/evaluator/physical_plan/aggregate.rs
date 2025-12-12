@@ -280,6 +280,9 @@ impl AggregateExec {
                                     | FunctionName::ApproxCountDistinct
                                     | FunctionName::ApproxDistinct
                                     | FunctionName::Ndv
+                                    | FunctionName::HllCountInit
+                                    | FunctionName::HllCountMerge
+                                    | FunctionName::HllCountMergePartial
                             );
                             if needs_array {
                                 let mut values = Vec::with_capacity(args.len());
@@ -610,7 +613,12 @@ impl AggregateExec {
 
                 FunctionName::ApproxCountDistinct
                 | FunctionName::ApproxDistinct
-                | FunctionName::Ndv => Some(DataType::Int64),
+                | FunctionName::Ndv
+                | FunctionName::HllCountExtract => Some(DataType::Int64),
+
+                FunctionName::HllCountInit
+                | FunctionName::HllCountMerge
+                | FunctionName::HllCountMergePartial => Some(DataType::String),
 
                 FunctionName::ApproxQuantiles => Some(DataType::Array(Box::new(DataType::Float64))),
 
@@ -1796,6 +1804,44 @@ impl AggregateExec {
                             }
                         }
                         Value::int64(unique_values.len() as i64)
+                    }
+                    FunctionName::HllCountInit => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                unique_values.insert(key);
+                            }
+                        }
+                        let sketch = format!("HLL_SKETCH:p15:n{}", unique_values.len());
+                        Value::string(sketch)
+                    }
+                    FunctionName::HllCountMerge | FunctionName::HllCountMergePartial => {
+                        let mut total_count = 0i64;
+                        for val in &values {
+                            if let Some(s) = val.as_str() {
+                                if let Some(n_str) = s.strip_prefix("HLL_SKETCH:p15:n") {
+                                    if let Ok(n) = n_str.parse::<i64>() {
+                                        total_count += n;
+                                    }
+                                }
+                            }
+                        }
+                        let sketch = format!("HLL_SKETCH:p15:n{}", total_count);
+                        Value::string(sketch)
+                    }
+                    FunctionName::HllCountExtract => {
+                        let mut total_count = 0i64;
+                        for val in &values {
+                            if let Some(s) = val.as_str() {
+                                if let Some(n_str) = s.strip_prefix("HLL_SKETCH:p15:n") {
+                                    if let Ok(n) = n_str.parse::<i64>() {
+                                        total_count += n;
+                                    }
+                                }
+                            }
+                        }
+                        Value::int64(total_count)
                     }
                     FunctionName::UniqUpTo => {
                         let threshold = if !args.is_empty() {
@@ -3431,6 +3477,9 @@ impl SortAggregateExec {
                                     | FunctionName::ApproxCountDistinct
                                     | FunctionName::ApproxDistinct
                                     | FunctionName::Ndv
+                                    | FunctionName::HllCountInit
+                                    | FunctionName::HllCountMerge
+                                    | FunctionName::HllCountMergePartial
                             );
                             if needs_array {
                                 let mut values = Vec::with_capacity(args.len());
@@ -3953,6 +4002,44 @@ impl SortAggregateExec {
                             }
                         }
                         Value::int64(unique_values.len() as i64)
+                    }
+                    FunctionName::HllCountInit => {
+                        let mut unique_values = std::collections::HashSet::new();
+                        for val in &values {
+                            if !val.is_null() {
+                                let key = format!("{:?}", val);
+                                unique_values.insert(key);
+                            }
+                        }
+                        let sketch = format!("HLL_SKETCH:p15:n{}", unique_values.len());
+                        Value::string(sketch)
+                    }
+                    FunctionName::HllCountMerge | FunctionName::HllCountMergePartial => {
+                        let mut total_count = 0i64;
+                        for val in &values {
+                            if let Some(s) = val.as_str() {
+                                if let Some(n_str) = s.strip_prefix("HLL_SKETCH:p15:n") {
+                                    if let Ok(n) = n_str.parse::<i64>() {
+                                        total_count += n;
+                                    }
+                                }
+                            }
+                        }
+                        let sketch = format!("HLL_SKETCH:p15:n{}", total_count);
+                        Value::string(sketch)
+                    }
+                    FunctionName::HllCountExtract => {
+                        let mut total_count = 0i64;
+                        for val in &values {
+                            if let Some(s) = val.as_str() {
+                                if let Some(n_str) = s.strip_prefix("HLL_SKETCH:p15:n") {
+                                    if let Ok(n) = n_str.parse::<i64>() {
+                                        total_count += n;
+                                    }
+                                }
+                            }
+                        }
+                        Value::int64(total_count)
                     }
                     FunctionName::UniqUpTo => {
                         let threshold = if !args.is_empty() {

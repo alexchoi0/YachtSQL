@@ -469,6 +469,72 @@ static PASSTHROUGH_PROJECTION: PassthroughParser = PassthroughParser::new(
     },
 );
 
+fn strip_column_ttl(sql: &str) -> String {
+    let result = sql.to_string();
+    let upper = result.to_uppercase();
+
+    let Some(paren_start) = upper.find('(') else {
+        return result;
+    };
+    let Some(paren_end) = upper.rfind(')') else {
+        return result;
+    };
+    let Some(engine_pos) = upper.find("ENGINE") else {
+        return result;
+    };
+    if engine_pos <= paren_end {
+        return result;
+    }
+
+    let columns_part = &result[paren_start + 1..paren_end];
+    let mut new_columns = String::new();
+    let mut current_col = String::new();
+    let mut paren_depth = 0;
+
+    for c in columns_part.chars() {
+        match c {
+            '(' => {
+                paren_depth += 1;
+                current_col.push(c);
+            }
+            ')' => {
+                paren_depth -= 1;
+                current_col.push(c);
+            }
+            ',' if paren_depth == 0 => {
+                let stripped = strip_ttl_from_column(&current_col);
+                if !new_columns.is_empty() {
+                    new_columns.push_str(", ");
+                }
+                new_columns.push_str(&stripped);
+                current_col.clear();
+            }
+            _ => current_col.push(c),
+        }
+    }
+
+    if !current_col.is_empty() {
+        let stripped = strip_ttl_from_column(&current_col);
+        if !new_columns.is_empty() {
+            new_columns.push_str(", ");
+        }
+        new_columns.push_str(&stripped);
+    }
+
+    let before = &result[..paren_start + 1];
+    let after = &result[paren_end..];
+    format!("{}{}{}", before, new_columns, after)
+}
+
+fn strip_ttl_from_column(col: &str) -> String {
+    let upper = col.to_uppercase();
+    if let Some(ttl_pos) = upper.find(" TTL ") {
+        col[..ttl_pos].trim().to_string()
+    } else {
+        col.trim().to_string()
+    }
+}
+
 fn strip_inline_indexes(sql: &str) -> String {
     let mut result = sql.to_string();
     let upper = result.to_uppercase();
@@ -897,6 +963,34 @@ fn add_dummy_column_if_needed(sql: &str) -> String {
     sql.to_string()
 }
 
+fn strip_clickhouse_clauses(rest: &str) -> String {
+    let upper = rest.to_uppercase();
+    let clauses_to_strip = [
+        "SAMPLE BY",
+        "ORDER BY",
+        "PARTITION BY",
+        "PRIMARY KEY",
+        "TTL ",
+        "SETTINGS ",
+    ];
+    let mut result = rest.to_string();
+    for clause in clauses_to_strip {
+        if let Some(pos) = upper.find(clause) {
+            let before = &result[..pos];
+            let after = &result[pos + clause.len()..];
+            let after_upper = after.to_uppercase();
+            let end_pos = clauses_to_strip
+                .iter()
+                .filter_map(|c| after_upper.find(c))
+                .min()
+                .unwrap_or(after.len());
+            let remaining = &after[end_pos..];
+            result = format!("{}{}", before.trim_end(), remaining);
+        }
+    }
+    result
+}
+
 fn strip_engine_params(sql: &str) -> String {
     if let Some(engine_pos) = find_engine_clause(sql) {
         let after_engine = &sql[engine_pos + "ENGINE".len()..].trim_start();
@@ -936,13 +1030,19 @@ fn strip_engine_params(sql: &str) -> String {
                     ""
                 };
 
+                let cleaned = strip_clickhouse_clauses(after_params.trim_start());
                 return format!(
                     "{} ENGINE = Memory {}",
                     before_engine.trim_end(),
-                    after_params.trim_start()
+                    cleaned.trim()
                 );
             } else {
-                return format!("{} ENGINE = Memory {}", before_engine.trim_end(), rest);
+                let cleaned = strip_clickhouse_clauses(rest);
+                return format!(
+                    "{} ENGINE = Memory {}",
+                    before_engine.trim_end(),
+                    cleaned.trim()
+                );
             }
         }
     }
@@ -974,6 +1074,78 @@ impl ClickHouseStatementParser for CreateTableWithComplexEngineParser {
 
 static CREATE_TABLE_WITH_COMPLEX_ENGINE_PARSER: CreateTableWithComplexEngineParser =
     CreateTableWithComplexEngineParser;
+
+struct CreateTableWithSampleByParser;
+
+impl ClickHouseStatementParser for CreateTableWithSampleByParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "SAMPLE",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        let upper = sql.to_uppercase();
+        if !upper.contains("SAMPLE BY") {
+            return Ok(None);
+        }
+        let with_dummy = add_dummy_column_if_needed(sql);
+        let stripped = strip_engine_params(&with_dummy);
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+static CREATE_TABLE_WITH_SAMPLE_BY_PARSER: CreateTableWithSampleByParser =
+    CreateTableWithSampleByParser;
+
+struct CreateTableWithColumnTtlParser;
+
+impl ClickHouseStatementParser for CreateTableWithColumnTtlParser {
+    fn pattern(&self) -> KeywordPattern {
+        KeywordPattern::StartsWithAndContains {
+            prefix: &["CREATE", "TABLE"],
+            contains: "TTL",
+        }
+    }
+
+    fn parse(&self, _tokens: &[&Token], sql: &str) -> Result<Option<CustomStatement>> {
+        if !has_column_ttl(sql) {
+            return Ok(None);
+        }
+        let with_dummy = add_dummy_column_if_needed(sql);
+        let stripped = strip_column_ttl(&with_dummy);
+        let stripped = strip_engine_params(&stripped);
+        Ok(Some(CustomStatement::ClickHouseCreateTablePassthrough {
+            original: sql.to_string(),
+            stripped,
+        }))
+    }
+}
+
+fn has_column_ttl(sql: &str) -> bool {
+    let upper = sql.to_uppercase();
+    let Some(paren_start) = upper.find('(') else {
+        return false;
+    };
+    let Some(paren_end) = upper.rfind(')') else {
+        return false;
+    };
+    let Some(engine_pos) = upper.find("ENGINE") else {
+        return false;
+    };
+    if engine_pos <= paren_end {
+        return false;
+    }
+    let columns_part = &upper[paren_start + 1..paren_end];
+    columns_part.contains(" TTL ")
+}
+
+static CREATE_TABLE_WITH_COLUMN_TTL_PARSER: CreateTableWithColumnTtlParser =
+    CreateTableWithColumnTtlParser;
 
 struct AlterTableModifyParser;
 
@@ -1358,6 +1530,8 @@ static PARSERS: &[&dyn ClickHouseStatementParser] = &[
     &PASSTHROUGH_SHOW,
     &FUNCTION_PARSER,
     &CREATE_TABLE_WITH_COMPLEX_ENGINE_PARSER,
+    &CREATE_TABLE_WITH_SAMPLE_BY_PARSER,
+    &CREATE_TABLE_WITH_COLUMN_TTL_PARSER,
     &CREATE_TABLE_WITH_PARTITION_PARSER,
     &CREATE_TABLE_WITH_SETTINGS_PARSER,
     &CREATE_TABLE_WITH_PROJECTION_PARSER,

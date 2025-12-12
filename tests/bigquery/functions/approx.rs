@@ -142,7 +142,6 @@ fn test_approx_quantiles_respect_nulls() {
 }
 
 #[test]
-#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
 fn test_hll_count_init() {
     let mut executor = create_executor();
     executor
@@ -159,7 +158,6 @@ fn test_hll_count_init() {
 }
 
 #[test]
-#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
 fn test_hll_count_merge() {
     let mut executor = create_executor();
     executor
@@ -176,7 +174,6 @@ fn test_hll_count_merge() {
 }
 
 #[test]
-#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
 fn test_hll_count_merge_partial() {
     let mut executor = create_executor();
     executor
@@ -193,7 +190,6 @@ fn test_hll_count_merge_partial() {
 }
 
 #[test]
-#[ignore = "HLL_COUNT functions need FunctionName enum variants in ir/src/function.rs"]
 fn test_hll_count_extract() {
     let mut executor = create_executor();
     executor
@@ -212,7 +208,6 @@ fn test_hll_count_extract() {
 }
 
 #[test]
-#[ignore = "GENERATE_ARRAY type inference issue in UNNEST"]
 fn test_approx_count_distinct_large_dataset() {
     let mut executor = create_executor();
     executor

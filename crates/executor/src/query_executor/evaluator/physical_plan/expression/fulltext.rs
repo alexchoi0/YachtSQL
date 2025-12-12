@@ -64,7 +64,7 @@ impl ProjectionWithExprExec {
                 actual: val.data_type().to_string(),
             })?;
         let vector = fulltext::to_tsvector(text);
-        Ok(Value::string(tsvector_to_string(&vector)))
+        Ok(Value::tsvector(tsvector_to_string(&vector)))
     }
 
     fn eval_to_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -84,7 +84,7 @@ impl ProjectionWithExprExec {
                 actual: val.data_type().to_string(),
             })?;
         let query = fulltext::to_tsquery(text)?;
-        Ok(Value::string(tsquery_to_string(&query)))
+        Ok(Value::tsquery(tsquery_to_string(&query)))
     }
 
     fn eval_plainto_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -104,7 +104,7 @@ impl ProjectionWithExprExec {
                 actual: val.data_type().to_string(),
             })?;
         let query = fulltext::plainto_tsquery(text);
-        Ok(Value::string(tsquery_to_string(&query)))
+        Ok(Value::tsquery(tsquery_to_string(&query)))
     }
 
     fn eval_phraseto_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -124,7 +124,7 @@ impl ProjectionWithExprExec {
                 actual: val.data_type().to_string(),
             })?;
         let query = fulltext::phraseto_tsquery(text);
-        Ok(Value::string(tsquery_to_string(&query)))
+        Ok(Value::tsquery(tsquery_to_string(&query)))
     }
 
     fn eval_websearch_to_tsquery(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -144,7 +144,7 @@ impl ProjectionWithExprExec {
                 actual: val.data_type().to_string(),
             })?;
         let query = fulltext::websearch_to_tsquery(text);
-        Ok(Value::string(tsquery_to_string(&query)))
+        Ok(Value::tsquery(tsquery_to_string(&query)))
     }
 
     fn eval_ts_match(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -259,7 +259,7 @@ impl ProjectionWithExprExec {
         let a = parse_tsvector(a_str)?;
         let b = parse_tsvector(b_str)?;
         let result = fulltext::tsvector_concat(&a, &b);
-        Ok(Value::string(tsvector_to_string(&result)))
+        Ok(Value::tsvector(tsvector_to_string(&result)))
     }
 
     fn eval_ts_headline(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -326,7 +326,7 @@ impl ProjectionWithExprExec {
             })?;
         let vector = parse_tsvector(vector_str)?;
         let weighted = fulltext::tsvector_setweight(&vector, weight);
-        Ok(Value::string(tsvector_to_string(&weighted)))
+        Ok(Value::tsvector(tsvector_to_string(&weighted)))
     }
 
     fn eval_strip(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -347,7 +347,7 @@ impl ProjectionWithExprExec {
             })?;
         let vector = parse_tsvector(vector_str)?;
         let stripped = fulltext::tsvector_strip(&vector);
-        Ok(Value::string(tsvector_to_string(&stripped)))
+        Ok(Value::tsvector(tsvector_to_string(&stripped)))
     }
 
     fn eval_tsvector_length(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -436,7 +436,7 @@ impl ProjectionWithExprExec {
         let a = fulltext::to_tsquery(a_str)?;
         let b = fulltext::to_tsquery(b_str)?;
         let result = a.and(b);
-        Ok(Value::string(tsquery_to_string(&result)))
+        Ok(Value::tsquery(tsquery_to_string(&result)))
     }
 
     fn eval_tsquery_or(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -465,7 +465,7 @@ impl ProjectionWithExprExec {
         let a = fulltext::to_tsquery(a_str)?;
         let b = fulltext::to_tsquery(b_str)?;
         let result = a.or(b);
-        Ok(Value::string(tsquery_to_string(&result)))
+        Ok(Value::tsquery(tsquery_to_string(&result)))
     }
 
     fn eval_tsquery_not(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -486,7 +486,7 @@ impl ProjectionWithExprExec {
             })?;
         let query = fulltext::to_tsquery(query_str)?;
         let result = query.negate();
-        Ok(Value::string(tsquery_to_string(&result)))
+        Ok(Value::tsquery(tsquery_to_string(&result)))
     }
 
     fn eval_ts_rewrite(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -523,7 +523,7 @@ impl ProjectionWithExprExec {
         let old_query = fulltext::to_tsquery(old_str)?;
         let new_query = fulltext::to_tsquery(new_str)?;
         let result = fulltext::ts_rewrite(&query, &old_query, &new_query);
-        Ok(Value::string(tsquery_to_string(&result)))
+        Ok(Value::tsquery(tsquery_to_string(&result)))
     }
 
     fn eval_ts_delete(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -559,7 +559,7 @@ impl ProjectionWithExprExec {
         }
 
         let result = fulltext::ts_delete(&vector, &lexemes_to_delete);
-        Ok(Value::string(tsvector_to_string(&result)))
+        Ok(Value::tsvector(tsvector_to_string(&result)))
     }
 
     fn eval_ts_filter(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -607,7 +607,7 @@ impl ProjectionWithExprExec {
         }
 
         let result = fulltext::ts_filter(&vector, &weights);
-        Ok(Value::string(tsvector_to_string(&result)))
+        Ok(Value::tsvector(tsvector_to_string(&result)))
     }
 
     fn eval_array_to_tsvector(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -633,7 +633,7 @@ impl ProjectionWithExprExec {
             .collect();
 
         let result = fulltext::array_to_tsvector(&lexeme_strings);
-        Ok(Value::string(tsvector_to_string(&result)))
+        Ok(Value::tsvector(tsvector_to_string(&result)))
     }
 
     fn eval_tsvector_to_array(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {

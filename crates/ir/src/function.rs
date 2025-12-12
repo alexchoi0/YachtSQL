@@ -84,6 +84,10 @@ pub enum FunctionName {
     ApproxTopCount,
     ApproxTopSum,
     Ndv,
+    HllCountInit,
+    HllCountMerge,
+    HllCountMergePartial,
+    HllCountExtract,
 
     Upper,
     Ucase,
@@ -1183,6 +1187,10 @@ impl FunctionName {
             "APPROX_TOP_COUNT" => Self::ApproxTopCount,
             "APPROX_TOP_SUM" => Self::ApproxTopSum,
             "NDV" => Self::Ndv,
+            "HLL_COUNT_INIT" | "HLL_COUNT.INIT" => Self::HllCountInit,
+            "HLL_COUNT_MERGE" | "HLL_COUNT.MERGE" => Self::HllCountMerge,
+            "HLL_COUNT_MERGE_PARTIAL" | "HLL_COUNT.MERGE_PARTIAL" => Self::HllCountMergePartial,
+            "HLL_COUNT_EXTRACT" | "HLL_COUNT.EXTRACT" => Self::HllCountExtract,
 
             "UPPER" => Self::Upper,
             "UCASE" => Self::Ucase,
@@ -2393,6 +2401,10 @@ impl FunctionName {
             Self::ApproxTopCount => "APPROX_TOP_COUNT",
             Self::ApproxTopSum => "APPROX_TOP_SUM",
             Self::Ndv => "NDV",
+            Self::HllCountInit => "HLL_COUNT_INIT",
+            Self::HllCountMerge => "HLL_COUNT_MERGE",
+            Self::HllCountMergePartial => "HLL_COUNT_MERGE_PARTIAL",
+            Self::HllCountExtract => "HLL_COUNT_EXTRACT",
 
             Self::Upper => "UPPER",
             Self::Ucase => "UCASE",
@@ -3577,6 +3589,10 @@ impl FunctionName {
                 | Self::Entropy
                 | Self::MeanZscore
                 | Self::UniqUpdown
+                | Self::HllCountInit
+                | Self::HllCountMerge
+                | Self::HllCountMergePartial
+                | Self::HllCountExtract
         ) || self.is_state_merge_aggregate()
     }
 

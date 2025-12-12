@@ -115,7 +115,6 @@ fn test_drop_dictionary_if_exists() {
         .unwrap();
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_dictionary_get() {
     let mut executor = create_executor();
@@ -144,7 +143,6 @@ fn test_dictionary_get() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_dictionary_get_or_default() {
     let mut executor = create_executor();
@@ -173,7 +171,6 @@ fn test_dictionary_get_or_default() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_dictionary_has() {
     let mut executor = create_executor();
@@ -202,7 +199,6 @@ fn test_dictionary_has() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Fix me!"]
 #[test]
 fn test_dictionary_hierarchy() {
     let mut executor = create_executor();
@@ -234,7 +230,6 @@ fn test_dictionary_hierarchy() {
     assert!(result.num_rows() == 1); // TODO: use table![[expected_values]]
 }
 
-#[ignore = "Requires dictionary storage implementation"]
 #[test]
 fn test_show_dictionaries() {
     let mut executor = create_executor();

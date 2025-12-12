@@ -1,110 +1,94 @@
 # YachtSQL
 
-A lightweight, in-memory SQL database with columnar storage for Rust programs. YachtSQL currently supports PostgreSQL,
-Bigquery, and Clickhouse SQL features
+An in-memory test database for Rust programs. YachtSQL emulates SQL features for PostgreSQL, BigQuery, and ClickHouse—handy for unit tests and prototyping without spinning up real database servers.
 
-## Features
-
-- **SQL:2023 Compliance** - Modern SQL standard support
-- **Multi-Dialect** - PostgreSQL, BigQuery, and ClickHouse dialects
-- **Columnar Storage** - SIMD-optimized columnar engine with optional row storage
-- **MVCC Transactions** - Full transaction support with multiple isolation levels
-- **Query Optimization** - Multi-phase rule-based optimizer with cost model
-- **Advanced SQL** - CTEs, window functions, lateral joins, MATCH RECOGNIZE, temporal queries
-
-## Requirements
-
-- Rust nightly (1.91.0+)
-
-## Getting Started
-
-Add YachtSQL to your `Cargo.toml`:
-
-```toml
-[dependencies]
-yachtsql = { path = "path/to/yachtsql" }
-```
-
-### Basic Usage
+## Quick Start
 
 ```rust
-use yachtsql::{QueryExecutor, Result};
+use yachtsql::{QueryExecutor, DialectType};
 
-fn main() -> Result<()> {
-    let mut executor = QueryExecutor::new();
+fn main() -> yachtsql::Result<()> {
+    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
 
-    executor.execute_sql("CREATE TABLE users (id INT, name TEXT)")?;
-    executor.execute_sql("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')")?;
+    executor.execute_sql("
+        CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT
+        )
+    ")?;
 
-    let results = executor.execute_sql("SELECT * FROM users WHERE id = 1")?;
+    executor.execute_sql("
+        INSERT INTO users (name, email) VALUES
+            ('Alice', 'alice@example.com'),
+            ('Bob', 'bob@example.com')
+    ")?;
+
+    let results = executor.execute_sql("SELECT * FROM users")?;
     println!("{:?}", results);
-
     Ok(())
 }
 ```
 
-## Building
+Switch dialects as needed:
 
-```bash
-# Build all crates
-cargo build
+```rust
+// BigQuery
+let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
-# Build release
-cargo build --release
+// ClickHouse
+let mut executor = QueryExecutor::with_dialect(DialectType::ClickHouse);
 ```
 
-## Testing
+## Installation
 
-```bash
-# Run all tests
-cargo test
-
-# Run tests for a specific crate
-cargo test -p yachtsql-executor
-
-# Run with output
-cargo test -- --nocapture
+```toml
+[dependencies]
+yachtsql = { git = "https://github.com/alexchoi0/yachtSQL" }
 ```
 
-## Benchmarks
+Requires Rust nightly (edition 2024).
 
-```bash
-# Run all benchmarks
-cargo bench
+## What's Supported
 
-# Run specific benchmark
-cargo bench --bench basic_operations
-```
+YachtSQL covers a good chunk of SQL:
+
+- **Queries**: Joins (inner, left, right, full, cross, lateral), subqueries, CTEs, window functions, aggregations, set operations
+- **DDL**: CREATE/DROP/ALTER for tables, views, indexes
+- **DML**: INSERT, UPDATE, DELETE, MERGE, TRUNCATE
+- **Types**: The usual suspects (integers, floats, strings, dates) plus arrays, structs, JSON, and more
+
+Each dialect has its own quirks implemented—ClickHouse gets MergeTree engines and functions like `toStartOfMonth()`, BigQuery gets `STRUCT()` and `ARRAY_AGG()`, PostgreSQL gets range types and `SERIAL`.
 
 ## Project Structure
 
 ```
 yachtsql/
 ├── crates/
-│   ├── core/           # Core types and error handling
-│   ├── parser/         # SQL parsing (multi-dialect)
-│   ├── ir/             # Intermediate representation
-│   ├── storage/        # Columnar/row storage, MVCC, indexes
-│   ├── executor/       # Query execution engine
-│   ├── optimizer/      # Query optimization
+│   ├── core/           # Types, errors, values
+│   ├── storage/        # Columnar storage, schemas, indexes, MVCC
+│   ├── parser/         # Multi-dialect SQL parsing
+│   ├── ir/             # Intermediate representation (logical plan)
+│   ├── optimizer/      # Query optimization rules
+│   ├── executor/       # Physical execution engine
 │   ├── functions/      # SQL function implementations
-│   ├── capability/     # SQL:2023 feature registry
-│   ├── dialects/       # Dialect-specific implementations
-│   └── test-utils/     # Testing utilities
+│   ├── capability/     # SQL feature registry
+│   ├── dialects/       # Dialect-specific behavior
+│   └── test-utils/     # Testing utilities and macros
 ├── tests/              # Integration tests
+│   ├── bigquery/
+│   ├── clickhouse/
+│   └── postgresql/
 └── benches/            # Performance benchmarks
 ```
 
-## Supported Data Types
+## Building & Testing
 
-| Category | Types                           |
-|----------|---------------------------------|
-| Numeric  | INT64, FLOAT64, DECIMAL         |
-| Text     | STRING, TEXT                    |
-| Boolean  | BOOLEAN                         |
-| Temporal | DATE, TIME, TIMESTAMP, INTERVAL |
-| Complex  | ARRAY, JSON                     |
-| Other    | UUID, ENUM, composite types     |
+```bash
+cargo build
+cargo nextest run
+cargo bench
+```
 
 ## License
 

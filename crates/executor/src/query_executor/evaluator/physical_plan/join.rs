@@ -668,19 +668,20 @@ impl LateralJoinExec {
             }
 
             PlanNode::Unnest {
+                array_expr,
                 alias,
                 column_alias,
                 with_offset,
                 offset_alias,
-                ..
             } => {
                 let element_name = column_alias
                     .clone()
                     .or_else(|| alias.clone())
                     .unwrap_or_else(|| "value".to_string());
 
-                let mut field =
-                    Field::nullable(element_name, yachtsql_core::types::DataType::Unknown);
+                let element_type = infer_unnest_element_type(array_expr, storage);
+
+                let mut field = Field::nullable(element_name, element_type);
                 if let Some(table_alias) = alias {
                     field = field.with_source_table(table_alias.clone());
                 }
@@ -1119,6 +1120,40 @@ impl ExecutionPlan for LateralJoinExec {
 
     fn describe(&self) -> String {
         format!("LateralJoin [{:?}]", self.join_type)
+    }
+}
+
+fn infer_unnest_element_type(
+    expr: &yachtsql_ir::expr::Expr,
+    storage: &Rc<RefCell<yachtsql_storage::Storage>>,
+) -> yachtsql_core::types::DataType {
+    use yachtsql_core::types::DataType;
+    use yachtsql_ir::expr::Expr;
+
+    match expr {
+        Expr::Column { name, table } => {
+            let storage = storage.borrow();
+            if let Some(table_name) = table {
+                if let Some(table_ref) = storage.get_table(table_name) {
+                    if let Some(field) = table_ref.schema().field(name) {
+                        if let DataType::Array(inner) = &field.data_type {
+                            return inner.as_ref().clone();
+                        }
+                    }
+                }
+            }
+            if let Some(dataset) = storage.get_dataset("default") {
+                for (_, tbl) in dataset.tables() {
+                    if let Some(field) = tbl.schema().field(name) {
+                        if let DataType::Array(inner) = &field.data_type {
+                            return inner.as_ref().clone();
+                        }
+                    }
+                }
+            }
+            DataType::Unknown
+        }
+        _ => DataType::Unknown,
     }
 }
 

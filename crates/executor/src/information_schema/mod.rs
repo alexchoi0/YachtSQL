@@ -85,6 +85,8 @@ pub fn data_type_to_postgres_name(data_type: &DataType) -> String {
         DataType::Tid => "TID".to_string(),
         DataType::Cid => "CID".to_string(),
         DataType::Oid => "OID".to_string(),
+        DataType::TsVector => "TSVECTOR".to_string(),
+        DataType::TsQuery => "TSQUERY".to_string(),
     }
 }
 

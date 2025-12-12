@@ -208,6 +208,16 @@ pub enum Column {
         nulls: NullBitmap,
         length: usize,
     },
+
+    TsVector {
+        data: Vec<String>,
+        nulls: NullBitmap,
+    },
+
+    TsQuery {
+        data: Vec<String>,
+        nulls: NullBitmap,
+    },
 }
 
 impl Column {
@@ -406,6 +416,14 @@ impl Column {
                     nulls: NullBitmap::new_valid(0),
                 }
             }
+            DataType::TsVector => Column::TsVector {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
+            DataType::TsQuery => Column::TsQuery {
+                data: Vec::with_capacity(capacity),
+                nulls: NullBitmap::new_valid(0),
+            },
             _ => unimplemented!("Complex types not yet supported: {:?}", data_type),
         }
     }
@@ -480,6 +498,8 @@ impl Column {
             Column::GeoPolygon { .. } => DataType::GeoPolygon,
             Column::GeoMultiPolygon { .. } => DataType::GeoMultiPolygon,
             Column::FixedString { length, .. } => DataType::FixedString(*length),
+            Column::TsVector { .. } => DataType::TsVector,
+            Column::TsQuery { .. } => DataType::TsQuery,
         }
     }
 
@@ -527,6 +547,8 @@ impl Column {
             Column::GeoMultiPolygon { nulls, .. } => nulls.len(),
             Column::FixedString { nulls, .. } => nulls.len(),
             Column::Multirange { nulls, .. } => nulls.len(),
+            Column::TsVector { nulls, .. } => nulls.len(),
+            Column::TsQuery { nulls, .. } => nulls.len(),
         }
     }
 
@@ -578,6 +600,8 @@ impl Column {
             Column::GeoMultiPolygon { nulls, .. } => nulls,
             Column::FixedString { nulls, .. } => nulls,
             Column::Multirange { nulls, .. } => nulls,
+            Column::TsVector { nulls, .. } => nulls,
+            Column::TsQuery { nulls, .. } => nulls,
         }
     }
 
@@ -1262,6 +1286,32 @@ impl Column {
                     )))
                 }
             }
+            Column::TsVector { data, nulls } => {
+                if let Some(v) = value.as_tsvector() {
+                    data.push(v.to_string());
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::TsQuery { data, nulls } => {
+                if let Some(v) = value.as_tsquery() {
+                    data.push(v.to_string());
+                    nulls.push(true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -1478,6 +1528,14 @@ impl Column {
                     multirange_type: multirange_type.clone(),
                     ranges: Vec::new(),
                 });
+                nulls.push(false);
+            }
+            Column::TsVector { data, nulls } => {
+                data.push(String::new());
+                nulls.push(false);
+            }
+            Column::TsQuery { data, nulls } => {
+                data.push(String::new());
                 nulls.push(false);
             }
         }
@@ -2093,6 +2151,32 @@ impl Column {
                     )))
                 }
             }
+            Column::TsVector { data, nulls } => {
+                if let Some(v) = value.as_tsvector() {
+                    data[index] = v.to_string();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
+            Column::TsQuery { data, nulls } => {
+                if let Some(v) = value.as_tsquery() {
+                    data[index] = v.to_string();
+                    nulls.set(index, true);
+                    Ok(())
+                } else {
+                    Err(Error::invalid_query(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.data_type(),
+                        value.data_type()
+                    )))
+                }
+            }
         }
     }
 
@@ -2306,6 +2390,14 @@ impl Column {
                 };
                 nulls.set(index, false);
             }
+            Column::TsVector { data, nulls } => {
+                data[index] = String::new();
+                nulls.set(index, false);
+            }
+            Column::TsQuery { data, nulls } => {
+                data[index] = String::new();
+                nulls.set(index, false);
+            }
         }
         Ok(())
     }
@@ -2479,6 +2571,14 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
+            Column::TsVector { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
+            Column::TsQuery { data, nulls } => {
+                data.clear();
+                *nulls = NullBitmap::new_valid(0);
+            }
         }
     }
 
@@ -2541,6 +2641,8 @@ impl Column {
             }
             Column::FixedString { data, .. } => Ok(Value::fixed_string(data[index].clone())),
             Column::Multirange { data, .. } => Ok(Value::multirange(data[index].clone())),
+            Column::TsVector { data, .. } => Ok(Value::tsvector(data[index].clone())),
+            Column::TsQuery { data, .. } => Ok(Value::tsquery(data[index].clone())),
         }
     }
 
@@ -2763,6 +2865,14 @@ impl Column {
                 nulls,
                 multirange_type: multirange_type.clone(),
             }),
+            Column::TsVector { data, .. } => Ok(Column::TsVector {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
+            Column::TsQuery { data, .. } => Ok(Column::TsQuery {
+                data: data[start..start + len].to_vec(),
+                nulls,
+            }),
         }
     }
 
@@ -2933,6 +3043,8 @@ impl Column {
                     multirange_type: multirange_type.clone(),
                 })
             }
+            Column::TsVector { data, .. } => gather_clone!(data, TsVector),
+            Column::TsQuery { data, .. } => gather_clone!(data, TsQuery),
         }
     }
 

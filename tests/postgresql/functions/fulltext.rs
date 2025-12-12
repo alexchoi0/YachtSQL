@@ -220,7 +220,6 @@ fn test_strip() {
 }
 
 #[test]
-#[ignore = "TsVector data type not supported for columns"]
 fn test_tsvector_column() {
     let mut executor = create_executor();
     executor
@@ -235,7 +234,6 @@ fn test_tsvector_column() {
 }
 
 #[test]
-#[ignore = "TsVector data type not supported for columns"]
 fn test_tsvector_index() {
     let mut executor = create_executor();
     executor
@@ -257,7 +255,6 @@ fn test_tsvector_index() {
 }
 
 #[test]
-#[ignore = "TS_STAT function not implemented"]
 fn test_ts_stat() {
     let mut executor = create_executor();
     executor
@@ -298,7 +295,6 @@ fn test_get_current_ts_config() {
 }
 
 #[test]
-#[ignore = "TsVector data type not supported for columns"]
 fn test_tsvector_update_trigger() {
     let mut executor = create_executor();
     executor
