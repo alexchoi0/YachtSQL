@@ -6,7 +6,7 @@ use yachtsql_core::types::{DataType, Value};
 use yachtsql_parser::DialectType;
 use yachtsql_storage::{Field, Row, Schema, Storage, TableIndexOps};
 
-use crate::record_batch::Table;
+use crate::table::Table;
 
 pub fn data_type_to_postgres_name(data_type: &DataType) -> String {
     use yachtsql_core::types::RangeType;

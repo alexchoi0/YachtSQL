@@ -41,7 +41,7 @@
 #![allow(clippy::unnecessary_unwrap)]
 
 pub mod correlation;
-pub mod record_batch;
+pub mod table;
 
 pub mod ast_cache;
 pub mod catalog_adapter;
@@ -92,11 +92,11 @@ pub use match_recognize::{
 pub use materialized_view_registry::{MaterializedViewMetadata, MaterializedViewRegistry};
 pub use multiset_operations::Multiset;
 pub use query_executor::{ExecutionContext, QueryExecutor};
-pub use record_batch::Table;
 pub use resource_limits::{
     CancellationToken, ResourceLimitsConfig, ResourceStats, ResourceTracker,
 };
 pub use sql_normalizer::{hash_sql, normalize_sql};
+pub use table::Table;
 pub use temporal_queries::{TemporalClause, TemporalQueryBuilder, TemporalTableRef};
 pub use temporal_tables::{TemporalQueryType, TemporalTableMetadata, TemporalTableRegistry};
 pub use trigger_execution::{TriggerContext, TriggerExecutionResult};
