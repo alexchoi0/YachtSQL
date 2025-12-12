@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use debug_print::debug_eprintln;
 use yachtsql_core::error::Result;
 use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
@@ -31,6 +32,14 @@ impl CorrelationContext {
 
     pub fn bindings(&self) -> &HashMap<String, Value> {
         &self.bindings
+    }
+
+    pub fn merge_from(&mut self, other: &CorrelationContext) {
+        for (k, v) in &other.bindings {
+            if !self.bindings.contains_key(k) {
+                self.bindings.insert(k.clone(), v.clone());
+            }
+        }
     }
 }
 
@@ -323,14 +332,38 @@ fn bind_column_reference(
     context: &CorrelationContext,
     local_tables: &std::collections::HashSet<String>,
 ) -> Result<Expr> {
+    debug_eprintln!(
+        "[correlation::bind_column_reference] name={}, table={:?}, local_tables={:?}, context_keys={:?}",
+        name,
+        table,
+        local_tables,
+        context.bindings.keys().collect::<Vec<_>>()
+    );
     if let Some(ref t) = table {
         if local_tables.contains(t) {
+            debug_eprintln!(
+                "[correlation::bind_column_reference] table '{}' is local, returning column as-is",
+                t
+            );
             return Ok(Expr::Column { name, table });
         }
         let qualified = format!("{}.{}", t, name);
         match context.get(&qualified) {
-            Some(v) => Ok(Expr::Literal(value_to_literal(v))),
-            None => Ok(Expr::Column { name, table }),
+            Some(v) => {
+                debug_eprintln!(
+                    "[correlation::bind_column_reference] found '{}' in context, binding to {:?}",
+                    qualified,
+                    v
+                );
+                Ok(Expr::Literal(value_to_literal(v)))
+            }
+            None => {
+                debug_eprintln!(
+                    "[correlation::bind_column_reference] '{}' NOT found in context",
+                    qualified
+                );
+                Ok(Expr::Column { name, table })
+            }
         }
     } else if local_tables.is_empty() {
         match context.get(&name) {

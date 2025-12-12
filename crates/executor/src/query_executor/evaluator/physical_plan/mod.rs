@@ -1253,7 +1253,7 @@ impl ProjectionWithExprExec {
         Self::build_correlation_context_with_aliases(batch, row_idx, &[])
     }
 
-    fn build_correlation_context_with_aliases(
+    pub(super) fn build_correlation_context_with_aliases(
         batch: &Table,
         row_idx: usize,
         outer_table_aliases: &[String],
@@ -1323,7 +1323,7 @@ impl ProjectionWithExprExec {
         }
     }
 
-    fn collect_table_aliases_from_expr(
+    pub(super) fn collect_table_aliases_from_expr(
         expr: &Expr,
         aliases: &mut std::collections::HashSet<String>,
     ) {

@@ -1373,16 +1373,18 @@ impl LogicalToPhysicalPlanner {
                     let cte_plans = self.cte_plans.borrow();
                     if let Some((cte_plan, column_aliases)) = cte_plans.get(table_name) {
                         let exec = Rc::clone(cte_plan);
-                        if let Some(aliases) = column_aliases {
+                        let source_table = alias.as_ref().unwrap_or(table_name);
+                        if let Some(col_aliases) = column_aliases {
                             let original_schema = exec.schema();
                             let renamed_fields: Vec<yachtsql_storage::schema::Field> =
                                 original_schema
                                     .fields()
                                     .iter()
-                                    .zip(aliases.iter())
-                                    .map(|(field, alias)| {
+                                    .zip(col_aliases.iter())
+                                    .map(|(field, col_alias)| {
                                         let mut new_field = field.clone();
-                                        new_field.name = alias.clone();
+                                        new_field.name = col_alias.clone();
+                                        new_field.source_table = Some(source_table.clone());
                                         new_field
                                     })
                                     .collect();
@@ -1391,13 +1393,22 @@ impl LogicalToPhysicalPlanner {
                                 exec, new_schema,
                             )));
                         }
-                        return Ok(Rc::new(SubqueryScanExec::new(exec)));
+                        let schema_with_source = exec.schema().with_source_table(source_table);
+                        return Ok(Rc::new(SubqueryScanExec::new_with_schema(
+                            exec,
+                            schema_with_source,
+                        )));
                     }
                 }
 
                 if let Some(cte_plan_node) = CtePlanRegistryGuard::get(table_name) {
                     let exec = self.plan_node_to_exec(&cte_plan_node)?;
-                    return Ok(Rc::new(SubqueryScanExec::new(exec)));
+                    let source_table = alias.as_ref().unwrap_or(table_name);
+                    let schema_with_source = exec.schema().with_source_table(source_table);
+                    return Ok(Rc::new(SubqueryScanExec::new_with_schema(
+                        exec,
+                        schema_with_source,
+                    )));
                 }
 
                 let (dataset_name, table_id) = if let Some(dot_pos) = table_name.find('.') {
