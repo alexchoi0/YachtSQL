@@ -27,6 +27,7 @@ use sqlparser::ast::{
 };
 use sqlparser::dialect::BigQueryDialect;
 use sqlparser::parser::Parser;
+use sqlparser::tokenizer::Span;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField, Value};
 use yachtsql_storage::{Column, Field, Record, Schema, Table, TableSchemaOps};
@@ -291,14 +292,245 @@ struct WindowFunctionInfo {
     order_by: Vec<ast::OrderByExpr>,
 }
 
+#[derive(Debug, Clone)]
+struct ScriptVariable {
+    data_type: DataType,
+    value: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LoopControl {
+    Continue,
+    Break,
+    Return,
+}
+
 pub struct QueryExecutor {
     catalog: Catalog,
+    variables: Vec<HashMap<String, ScriptVariable>>,
+    system_variables: HashMap<String, Value>,
 }
 
 impl QueryExecutor {
     pub fn new() -> Self {
+        let mut system_variables = HashMap::new();
+        system_variables.insert("time_zone".to_string(), Value::string("UTC"));
         Self {
             catalog: Catalog::new(),
+            variables: vec![HashMap::new()],
+            system_variables,
+        }
+    }
+
+    fn push_scope(&mut self) {
+        self.variables.push(HashMap::new());
+    }
+
+    fn pop_scope(&mut self) {
+        if self.variables.len() > 1 {
+            self.variables.pop();
+        }
+    }
+
+    fn get_variable(&self, name: &str) -> Option<&ScriptVariable> {
+        let name_upper = name.to_uppercase();
+        for scope in self.variables.iter().rev() {
+            if let Some(var) = scope.get(&name_upper) {
+                return Some(var);
+            }
+        }
+        None
+    }
+
+    fn set_variable(&mut self, name: &str, value: Value) -> Result<()> {
+        let name_upper = name.to_uppercase();
+        for scope in self.variables.iter_mut().rev() {
+            if scope.contains_key(&name_upper) {
+                if let Some(var) = scope.get_mut(&name_upper) {
+                    var.value = value;
+                }
+                return Ok(());
+            }
+        }
+        Err(Error::ColumnNotFound(format!(
+            "Variable '{}' not declared",
+            name
+        )))
+    }
+
+    fn declare_variable(&mut self, name: &str, data_type: DataType, default_value: Option<Value>) {
+        let name_upper = name.to_uppercase();
+        let value = default_value.unwrap_or(Value::null());
+        if let Some(scope) = self.variables.last_mut() {
+            scope.insert(name_upper, ScriptVariable { data_type, value });
+        }
+    }
+
+    fn get_system_variable(&self, name: &str) -> Option<&Value> {
+        self.system_variables.get(&name.to_lowercase())
+    }
+
+    fn set_system_variable(&mut self, name: &str, value: Value) {
+        self.system_variables.insert(name.to_lowercase(), value);
+    }
+
+    fn value_to_sql_value(value: &Value) -> SqlValue {
+        match value {
+            Value::Null => SqlValue::Null,
+            Value::Int64(n) => SqlValue::Number(n.to_string(), false),
+            Value::Float64(f) => SqlValue::Number(f.to_string(), false),
+            Value::String(s) => SqlValue::SingleQuotedString(s.clone()),
+            Value::Bool(b) => SqlValue::Boolean(*b),
+            Value::Numeric(d) => SqlValue::Number(d.to_string(), false),
+            Value::Date(d) => SqlValue::SingleQuotedString(d.to_string()),
+            Value::Timestamp(ts) => SqlValue::SingleQuotedString(ts.to_string()),
+            Value::DateTime(dt) => SqlValue::SingleQuotedString(dt.to_string()),
+            Value::Time(t) => SqlValue::SingleQuotedString(t.to_string()),
+            Value::Bytes(b) => SqlValue::SingleQuotedByteStringLiteral(
+                b.iter().map(|byte| format!("{:02x}", byte)).collect(),
+            ),
+            Value::Interval(_) => SqlValue::Null,
+            Value::Array(_) => SqlValue::Null,
+            Value::Struct(_) => SqlValue::Null,
+            Value::Json(j) => SqlValue::SingleQuotedString(j.to_string()),
+            Value::Geography(g) => SqlValue::SingleQuotedString(g.to_string()),
+        }
+    }
+
+    fn substitute_variables(&self, expr: &Expr) -> Expr {
+        match expr {
+            Expr::Identifier(ident) => {
+                let name = &ident.value;
+                if let Some(var) = self.get_variable(name) {
+                    Expr::Value(ast::ValueWithSpan {
+                        value: Self::value_to_sql_value(&var.value),
+                        span: Span::empty(),
+                    })
+                } else {
+                    expr.clone()
+                }
+            }
+            Expr::CompoundIdentifier(parts) => {
+                if parts.len() == 1 {
+                    let name = &parts[0].value;
+                    if let Some(var) = self.get_variable(name) {
+                        return Expr::Value(ast::ValueWithSpan {
+                            value: Self::value_to_sql_value(&var.value),
+                            span: Span::empty(),
+                        });
+                    }
+                }
+                expr.clone()
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(self.substitute_variables(left)),
+                op: op.clone(),
+                right: Box::new(self.substitute_variables(right)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: *op,
+                expr: Box::new(self.substitute_variables(inner)),
+            },
+            Expr::Nested(inner) => Expr::Nested(Box::new(self.substitute_variables(inner))),
+            Expr::IsNull(inner) => Expr::IsNull(Box::new(self.substitute_variables(inner))),
+            Expr::IsNotNull(inner) => Expr::IsNotNull(Box::new(self.substitute_variables(inner))),
+            Expr::Between {
+                expr: inner,
+                negated,
+                low,
+                high,
+            } => Expr::Between {
+                expr: Box::new(self.substitute_variables(inner)),
+                negated: *negated,
+                low: Box::new(self.substitute_variables(low)),
+                high: Box::new(self.substitute_variables(high)),
+            },
+            Expr::InList {
+                expr: inner,
+                list,
+                negated,
+            } => Expr::InList {
+                expr: Box::new(self.substitute_variables(inner)),
+                list: list.iter().map(|e| self.substitute_variables(e)).collect(),
+                negated: *negated,
+            },
+            Expr::Case {
+                case_token,
+                end_token,
+                operand,
+                conditions,
+                else_result,
+            } => Expr::Case {
+                case_token: case_token.clone(),
+                end_token: end_token.clone(),
+                operand: operand
+                    .as_ref()
+                    .map(|o| Box::new(self.substitute_variables(o))),
+                conditions: conditions
+                    .iter()
+                    .map(|cw| ast::CaseWhen {
+                        condition: self.substitute_variables(&cw.condition),
+                        result: self.substitute_variables(&cw.result),
+                    })
+                    .collect(),
+                else_result: else_result
+                    .as_ref()
+                    .map(|e| Box::new(self.substitute_variables(e))),
+            },
+            Expr::Function(func) => {
+                let mut new_func = func.clone();
+                new_func.args = ast::FunctionArguments::List(ast::FunctionArgumentList {
+                    duplicate_treatment: None,
+                    args: match &func.args {
+                        ast::FunctionArguments::None => vec![],
+                        ast::FunctionArguments::Subquery(_) => return expr.clone(),
+                        ast::FunctionArguments::List(list) => list
+                            .args
+                            .iter()
+                            .map(|func_arg| match func_arg {
+                                ast::FunctionArg::Unnamed(arg_expr) => match arg_expr {
+                                    ast::FunctionArgExpr::Expr(e) => ast::FunctionArg::Unnamed(
+                                        ast::FunctionArgExpr::Expr(self.substitute_variables(e)),
+                                    ),
+                                    _ => func_arg.clone(),
+                                },
+                                ast::FunctionArg::Named {
+                                    name,
+                                    arg: arg_expr,
+                                    operator,
+                                } => match arg_expr {
+                                    ast::FunctionArgExpr::Expr(e) => ast::FunctionArg::Named {
+                                        name: name.clone(),
+                                        arg: ast::FunctionArgExpr::Expr(
+                                            self.substitute_variables(e),
+                                        ),
+                                        operator: operator.clone(),
+                                    },
+                                    _ => func_arg.clone(),
+                                },
+                                _ => func_arg.clone(),
+                            })
+                            .collect(),
+                    },
+                    clauses: match &func.args {
+                        ast::FunctionArguments::List(list) => list.clauses.clone(),
+                        _ => vec![],
+                    },
+                });
+                Expr::Function(new_func)
+            }
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                format,
+                kind,
+            } => Expr::Cast {
+                expr: Box::new(self.substitute_variables(inner)),
+                data_type: data_type.clone(),
+                format: format.clone(),
+                kind: kind.clone(),
+            },
+            _ => expr.clone(),
         }
     }
 
@@ -319,9 +551,19 @@ impl QueryExecutor {
     }
 
     fn execute_statement(&mut self, stmt: &Statement) -> Result<Table> {
+        match self.execute_statement_internal(stmt) {
+            Ok((table, _control)) => Ok(table),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn execute_statement_internal(
+        &mut self,
+        stmt: &Statement,
+    ) -> Result<(Table, Option<LoopControl>)> {
         match stmt {
-            Statement::Query(query) => self.execute_query(query),
-            Statement::CreateTable(create) => self.execute_create_table(create),
+            Statement::Query(query) => self.execute_query(query).map(|t| (t, None)),
+            Statement::CreateTable(create) => self.execute_create_table(create).map(|t| (t, None)),
             Statement::CreateView {
                 name,
                 columns,
@@ -330,62 +572,102 @@ impl QueryExecutor {
                 if_not_exists,
                 materialized,
                 ..
-            } => self.execute_create_view(
-                name,
-                columns,
-                query,
-                *or_replace,
-                *if_not_exists,
-                *materialized,
-            ),
+            } => self
+                .execute_create_view(
+                    name,
+                    columns,
+                    query,
+                    *or_replace,
+                    *if_not_exists,
+                    *materialized,
+                )
+                .map(|t| (t, None)),
             Statement::Drop {
                 object_type,
                 names,
                 if_exists,
                 cascade,
                 ..
-            } => self.execute_drop(object_type, names, *if_exists, *cascade),
-            Statement::Insert(insert) => self.execute_insert(insert),
+            } => self
+                .execute_drop(object_type, names, *if_exists, *cascade)
+                .map(|t| (t, None)),
+            Statement::Insert(insert) => self.execute_insert(insert).map(|t| (t, None)),
             Statement::Update {
                 table,
                 assignments,
                 selection,
                 ..
-            } => self.execute_update(table, assignments, selection.as_ref()),
-            Statement::Delete(delete) => self.execute_delete(delete),
-            Statement::Truncate { table_names, .. } => self.execute_truncate(table_names),
+            } => self
+                .execute_update(table, assignments, selection.as_ref())
+                .map(|t| (t, None)),
+            Statement::Delete(delete) => self.execute_delete(delete).map(|t| (t, None)),
+            Statement::Truncate { table_names, .. } => {
+                self.execute_truncate(table_names).map(|t| (t, None))
+            }
             Statement::AlterTable {
                 name, operations, ..
-            } => self.execute_alter_table(name, operations),
-            Statement::CreateFunction(create_func) => self.execute_create_function(create_func),
+            } => self
+                .execute_alter_table(name, operations)
+                .map(|t| (t, None)),
+            Statement::CreateFunction(create_func) => {
+                self.execute_create_function(create_func).map(|t| (t, None))
+            }
             Statement::DropFunction {
                 if_exists,
                 func_desc,
                 ..
-            } => self.execute_drop_function(func_desc, *if_exists),
+            } => self
+                .execute_drop_function(func_desc, *if_exists)
+                .map(|t| (t, None)),
             Statement::CreateProcedure {
                 or_alter,
                 name,
                 params,
                 body,
                 ..
-            } => self.execute_create_procedure(name, params, body, *or_alter),
+            } => self
+                .execute_create_procedure(name, params, body, *or_alter)
+                .map(|t| (t, None)),
             Statement::DropProcedure {
                 if_exists,
                 proc_desc,
                 ..
-            } => self.execute_drop_procedure(proc_desc, *if_exists),
-            Statement::Call(func) => self.execute_call(func),
-            Statement::ExportData(export_data) => self.execute_export_data(export_data),
+            } => self
+                .execute_drop_procedure(proc_desc, *if_exists)
+                .map(|t| (t, None)),
+            Statement::Call(func) => self.execute_call(func).map(|t| (t, None)),
+            Statement::ExportData(export_data) => {
+                self.execute_export_data(export_data).map(|t| (t, None))
+            }
             Statement::CreateSchema {
                 schema_name,
                 if_not_exists,
                 options,
                 ..
-            } => self.execute_create_schema(schema_name, *if_not_exists, options),
-            Statement::AlterSchema(alter_schema) => self.execute_alter_schema(alter_schema),
-            Statement::Set(set) => self.execute_set(set),
-            Statement::Merge { .. } => self.execute_merge(stmt),
+            } => self
+                .execute_create_schema(schema_name, *if_not_exists, options)
+                .map(|t| (t, None)),
+            Statement::AlterSchema(alter_schema) => {
+                self.execute_alter_schema(alter_schema).map(|t| (t, None))
+            }
+            Statement::Merge { .. } => self.execute_merge(stmt).map(|t| (t, None)),
+            Statement::Declare { stmts } => self.execute_declare(stmts).map(|t| (t, None)),
+            Statement::Set(set_stmt) => self.execute_set_statement(set_stmt).map(|t| (t, None)),
+            Statement::If(if_stmt) => self.execute_if(if_stmt),
+            Statement::While(while_stmt) => self.execute_while(while_stmt),
+            Statement::StartTransaction {
+                statements,
+                exception,
+                ..
+            } => self.execute_begin_block(statements, exception.as_ref()),
+            Statement::Return(ret) => self.execute_return(ret),
+            Statement::Raise(raise) => self.execute_raise(raise),
+            Statement::Execute {
+                parameters,
+                immediate,
+                ..
+            } if *immediate => self.execute_immediate(parameters),
+            Statement::Case(case_stmt) => self.execute_case_statement(case_stmt),
             _ => Err(Error::UnsupportedFeature(format!(
                 "Statement type not yet supported: {:?}",
                 stmt
@@ -1003,12 +1285,12 @@ impl QueryExecutor {
         for (idx, item) in select.projection.iter().enumerate() {
             match item {
                 SelectItem::UnnamedExpr(expr) => {
-                    let val = evaluator.evaluate(expr, &empty_record)?;
+                    let val = self.evaluate_with_variables(&evaluator, expr, &empty_record)?;
                     result_values.push(val.clone());
                     field_names.push(self.expr_to_alias(expr, idx));
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
-                    let val = evaluator.evaluate(expr, &empty_record)?;
+                    let val = self.evaluate_with_variables(&evaluator, expr, &empty_record)?;
                     result_values.push(val.clone());
                     field_names.push(alias.value.clone());
                 }
@@ -1037,7 +1319,8 @@ impl QueryExecutor {
         let evaluator = Evaluator::with_user_functions(&input_schema, self.catalog.get_functions());
 
         let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
-            let resolved_selection = self.resolve_scalar_subqueries(selection)?;
+            let substituted_selection = self.substitute_variables(selection);
+            let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
             input_rows
                 .iter()
                 .filter(|row| {
@@ -1103,7 +1386,8 @@ impl QueryExecutor {
         let evaluator = Evaluator::with_user_functions(&input_schema, self.catalog.get_functions());
 
         let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
-            let resolved_selection = self.resolve_scalar_subqueries(selection)?;
+            let substituted_selection = self.substitute_variables(selection);
+            let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
             input_rows
                 .iter()
                 .filter(|row| {
@@ -4418,6 +4702,15 @@ impl QueryExecutor {
                 ))
             }
             Expr::Identifier(ident) if ident.value.to_uppercase() == "NULL" => Ok(Value::null()),
+            Expr::Identifier(ident) => {
+                if let Some(var) = self.get_variable(&ident.value) {
+                    return Ok(var.value.clone());
+                }
+                Err(Error::UnsupportedFeature(format!(
+                    "Expression not supported in this context: {:?}",
+                    expr
+                )))
+            }
             Expr::Array(arr) => {
                 let mut values = Vec::with_capacity(arr.elem.len());
                 for elem in &arr.elem {
@@ -5874,7 +6167,21 @@ impl QueryExecutor {
                     None => Ok(Value::null()),
                 }
             }
-            _ => evaluator.evaluate(expr, record),
+            _ => match evaluator.evaluate(expr, record) {
+                Ok(val) => Ok(val),
+                Err(Error::ColumnNotFound(name)) => {
+                    if let Some(var) = self.get_variable(&name) {
+                        return Ok(var.value.clone());
+                    }
+                    if let Some(sys_name) = name.strip_prefix("@@") {
+                        if let Some(val) = self.get_system_variable(sys_name) {
+                            return Ok(val.clone());
+                        }
+                    }
+                    Err(Error::ColumnNotFound(name))
+                }
+                Err(e) => Err(e),
+            },
         }
     }
 
@@ -5923,6 +6230,461 @@ impl QueryExecutor {
             _ => Err(Error::UnsupportedFeature(format!(
                 "Export format '{}' not supported",
                 format
+            ))),
+        }
+    }
+
+    fn evaluate_with_variables(
+        &self,
+        _evaluator: &Evaluator,
+        expr: &Expr,
+        record: &Record,
+    ) -> Result<Value> {
+        let (extended_schema, extended_record) = self.extend_with_variables(record);
+        let new_evaluator =
+            Evaluator::with_user_functions(&extended_schema, self.catalog.get_functions());
+        new_evaluator.evaluate(expr, &extended_record)
+    }
+
+    fn extend_with_variables(&self, base_record: &Record) -> (Schema, Record) {
+        let mut fields = Vec::new();
+        let mut values = base_record.values().to_vec();
+
+        for scope in &self.variables {
+            for (name, var) in scope {
+                fields.push(Field::nullable(name.clone(), var.value.data_type()));
+                values.push(var.value.clone());
+            }
+        }
+
+        for (name, value) in &self.system_variables {
+            let sys_name = format!("@@{}", name);
+            fields.push(Field::nullable(sys_name, value.data_type()));
+            values.push(value.clone());
+        }
+
+        let schema = Schema::from_fields(fields);
+        let record = Record::from_values(values);
+        (schema, record)
+    }
+
+    fn execute_declare(&mut self, stmts: &[ast::Declare]) -> Result<Table> {
+        for decl in stmts {
+            let data_type = match &decl.data_type {
+                Some(dt) => self.sql_type_to_data_type(dt)?,
+                None => DataType::Unknown,
+            };
+
+            let default_value = match &decl.assignment {
+                Some(ast::DeclareAssignment::Default(expr)) => {
+                    Some(self.evaluate_script_expr(expr)?)
+                }
+                Some(ast::DeclareAssignment::Expr(expr)) => Some(self.evaluate_script_expr(expr)?),
+                Some(ast::DeclareAssignment::For(expr)) => Some(self.evaluate_script_expr(expr)?),
+                Some(ast::DeclareAssignment::DuckAssignment(expr)) => {
+                    Some(self.evaluate_script_expr(expr)?)
+                }
+                Some(ast::DeclareAssignment::MsSqlAssignment(expr)) => {
+                    Some(self.evaluate_script_expr(expr)?)
+                }
+                None => None,
+            };
+
+            for name in &decl.names {
+                self.declare_variable(&name.value, data_type.clone(), default_value.clone());
+            }
+        }
+        Ok(Table::empty(Schema::new()))
+    }
+
+    fn execute_set_statement(&mut self, set_stmt: &ast::Set) -> Result<Table> {
+        match set_stmt {
+            ast::Set::SingleAssignment {
+                variable, values, ..
+            } => {
+                let var_name = self.object_name_to_string(variable);
+                let var_upper = var_name.to_uppercase();
+
+                if var_upper == "SEARCH_PATH" {
+                    return self.execute_set(set_stmt);
+                }
+
+                if let Some(sys_var_name) = var_name.strip_prefix("@@") {
+                    if let Some(first_val) = values.first() {
+                        let value = self.evaluate_script_expr(first_val)?;
+                        self.set_system_variable(sys_var_name, value);
+                    }
+                    return Ok(Table::empty(Schema::new()));
+                }
+
+                if let Some(first_val) = values.first() {
+                    let value = self.evaluate_script_expr(first_val)?;
+                    self.set_variable(&var_name, value)?;
+                }
+                Ok(Table::empty(Schema::new()))
+            }
+            ast::Set::ParenthesizedAssignments { variables, values } => {
+                for (var, val) in variables.iter().zip(values.iter()) {
+                    let var_name = self.object_name_to_string(var);
+                    let value = self.evaluate_script_expr(val)?;
+                    self.set_variable(&var_name, value)?;
+                }
+                Ok(Table::empty(Schema::new()))
+            }
+            _ => self.execute_set(set_stmt),
+        }
+    }
+
+    fn execute_if(&mut self, if_stmt: &ast::IfStatement) -> Result<(Table, Option<LoopControl>)> {
+        let condition = if_stmt
+            .if_block
+            .condition
+            .as_ref()
+            .ok_or_else(|| Error::InvalidQuery("IF statement missing condition".to_string()))?;
+
+        let cond_val = self.evaluate_script_expr(condition)?;
+        let cond_bool = cond_val.as_bool().unwrap_or(false);
+
+        if cond_bool {
+            return self.execute_statement_block(&if_stmt.if_block.conditional_statements);
+        }
+
+        for elseif_block in &if_stmt.elseif_blocks {
+            if let Some(elseif_cond) = &elseif_block.condition {
+                let elseif_val = self.evaluate_script_expr(elseif_cond)?;
+                if elseif_val.as_bool().unwrap_or(false) {
+                    return self.execute_statement_block(&elseif_block.conditional_statements);
+                }
+            }
+        }
+
+        if let Some(else_block) = &if_stmt.else_block {
+            return self.execute_statement_block(&else_block.conditional_statements);
+        }
+
+        Ok((Table::empty(Schema::new()), None))
+    }
+
+    fn execute_while(
+        &mut self,
+        while_stmt: &ast::WhileStatement,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        let max_iterations = 10000;
+        let mut iterations = 0;
+        let mut last_result = Table::empty(Schema::new());
+
+        let condition =
+            while_stmt.while_block.condition.as_ref().ok_or_else(|| {
+                Error::InvalidQuery("WHILE statement missing condition".to_string())
+            })?;
+
+        while iterations < max_iterations {
+            let cond_val = self.evaluate_script_expr(condition)?;
+            if !cond_val.as_bool().unwrap_or(false) {
+                break;
+            }
+
+            let (result, control) =
+                self.execute_statement_block(&while_stmt.while_block.conditional_statements)?;
+            last_result = result;
+
+            match control {
+                Some(LoopControl::Break) => break,
+                Some(LoopControl::Return) => return Ok((last_result, Some(LoopControl::Return))),
+                Some(LoopControl::Continue) | None => {}
+            }
+
+            iterations += 1;
+        }
+
+        Ok((last_result, None))
+    }
+
+    fn execute_begin_block(
+        &mut self,
+        statements: &[Statement],
+        exception: Option<&Vec<ast::ExceptionWhen>>,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        self.push_scope();
+        let result = self.execute_statements_with_exception(statements, exception);
+        self.pop_scope();
+        result
+    }
+
+    fn execute_statements_with_exception(
+        &mut self,
+        statements: &[Statement],
+        exception: Option<&Vec<ast::ExceptionWhen>>,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        let mut last_result = Table::empty(Schema::new());
+        let mut control = None;
+
+        for stmt in statements {
+            let exec_result = self.execute_statement_internal(stmt);
+            match exec_result {
+                Ok((result, ctrl)) => {
+                    last_result = result;
+                    control = ctrl;
+                    if control.is_some() {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    if let Some(exc_list) = exception {
+                        if let Some(handler) = exc_list.first() {
+                            return self.execute_exception_handler(handler);
+                        }
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        Ok((last_result, control))
+    }
+
+    fn execute_exception_handler(
+        &mut self,
+        exc: &ast::ExceptionWhen,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        let mut last_result = Table::empty(Schema::new());
+        let mut control = None;
+        for stmt in &exc.statements {
+            let (result, ctrl) = self.execute_statement_internal(stmt)?;
+            last_result = result;
+            control = ctrl;
+            if control.is_some() {
+                break;
+            }
+        }
+        Ok((last_result, control))
+    }
+
+    fn execute_return(&self, _ret: &ast::ReturnStatement) -> Result<(Table, Option<LoopControl>)> {
+        Ok((Table::empty(Schema::new()), Some(LoopControl::Return)))
+    }
+
+    fn execute_raise(&self, raise: &ast::RaiseStatement) -> Result<(Table, Option<LoopControl>)> {
+        let message = match &raise.value {
+            Some(ast::RaiseStatementValue::UsingMessage(e))
+            | Some(ast::RaiseStatementValue::Expr(e)) => {
+                let empty_schema = Schema::new();
+                let empty_record = Record::from_values(vec![]);
+                let evaluator = Evaluator::new(&empty_schema);
+                evaluator
+                    .evaluate(e, &empty_record)
+                    .ok()
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "Error raised".to_string())
+            }
+            None => "Error raised".to_string(),
+        };
+
+        Err(Error::InvalidQuery(message))
+    }
+
+    fn execute_immediate(&mut self, parameters: &[Expr]) -> Result<(Table, Option<LoopControl>)> {
+        let sql_value = parameters
+            .first()
+            .map(|p| self.evaluate_script_expr(p))
+            .transpose()?
+            .ok_or_else(|| {
+                Error::InvalidQuery("EXECUTE IMMEDIATE requires a string argument".to_string())
+            })?;
+
+        let sql = sql_value.as_str().map(|s| s.to_string()).ok_or_else(|| {
+            Error::InvalidQuery("EXECUTE IMMEDIATE requires a string argument".to_string())
+        })?;
+
+        let result = self.execute_sql(&sql)?;
+        Ok((result, None))
+    }
+
+    fn execute_case_statement(
+        &mut self,
+        case_stmt: &ast::CaseStatement,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        let match_operand = case_stmt
+            .match_expr
+            .as_ref()
+            .map(|e| self.evaluate_script_expr(e))
+            .transpose()?;
+
+        for branch in &case_stmt.when_blocks {
+            if let Some(condition) = &branch.condition {
+                let cond_val = self.evaluate_script_expr(condition)?;
+
+                let matches = match &match_operand {
+                    Some(operand) => operand == &cond_val,
+                    None => cond_val.as_bool().unwrap_or(false),
+                };
+
+                if matches {
+                    return self.execute_statement_block(&branch.conditional_statements);
+                }
+            }
+        }
+
+        if let Some(else_block) = &case_stmt.else_block {
+            return self.execute_statement_block(&else_block.conditional_statements);
+        }
+
+        Ok((Table::empty(Schema::new()), None))
+    }
+
+    fn execute_statement_block(
+        &mut self,
+        block: &ast::ConditionalStatements,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        match block {
+            ast::ConditionalStatements::Sequence { statements } => {
+                let mut last_result = Table::empty(Schema::new());
+                let mut control = None;
+                for stmt in statements {
+                    let (result, ctrl) = self.execute_statement_internal(stmt)?;
+                    last_result = result;
+                    control = ctrl;
+                    if control.is_some() {
+                        break;
+                    }
+                }
+                Ok((last_result, control))
+            }
+            ast::ConditionalStatements::BeginEnd(begin_end) => {
+                self.push_scope();
+                let mut last_result = Table::empty(Schema::new());
+                let mut control = None;
+                for stmt in &begin_end.statements {
+                    let (result, ctrl) = self.execute_statement_internal(stmt)?;
+                    last_result = result;
+                    control = ctrl;
+                    if control.is_some() {
+                        break;
+                    }
+                }
+                self.pop_scope();
+                Ok((last_result, control))
+            }
+        }
+    }
+
+    fn evaluate_script_expr(&self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Identifier(ident) => {
+                let name = &ident.value;
+                if let Some(var) = self.get_variable(name) {
+                    return Ok(var.value.clone());
+                }
+                if let Some(sys_var_name) = name.strip_prefix("@@") {
+                    if let Some(val) = self.get_system_variable(sys_var_name) {
+                        return Ok(val.clone());
+                    }
+                }
+                self.evaluate_literal_expr(expr)
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_script_expr(left)?;
+                let right_val = self.evaluate_script_expr(right)?;
+                self.evaluate_binary_op(&left_val, op, &right_val)
+            }
+            Expr::UnaryOp { op, expr } => {
+                let val = self.evaluate_script_expr(expr)?;
+                match op {
+                    ast::UnaryOperator::Minus => {
+                        if let Some(i) = val.as_i64() {
+                            return Ok(Value::int64(-i));
+                        }
+                        if let Some(f) = val.as_f64() {
+                            return Ok(Value::float64(-f));
+                        }
+                        Err(Error::InvalidQuery(
+                            "Cannot negate non-numeric value".to_string(),
+                        ))
+                    }
+                    ast::UnaryOperator::Not => {
+                        let b = val.as_bool().unwrap_or(false);
+                        Ok(Value::bool_val(!b))
+                    }
+                    ast::UnaryOperator::Plus => Ok(val),
+                    _ => self.evaluate_literal_expr(expr),
+                }
+            }
+            Expr::Nested(inner) => self.evaluate_script_expr(inner),
+            Expr::Subquery(query) => {
+                let result = self.execute_query(query)?;
+                let records = result.to_records()?;
+                if records.is_empty() {
+                    return Ok(Value::null());
+                }
+                let first_record = &records[0];
+                let values = first_record.values();
+                if values.is_empty() {
+                    return Ok(Value::null());
+                }
+                Ok(values[0].clone())
+            }
+            Expr::CompoundIdentifier(parts) => {
+                if parts.len() == 2 {
+                    let var_name = &parts[0].value;
+                    let field_name = &parts[1].value;
+                    if let Some(var) = self.get_variable(var_name) {
+                        if let Some(fields) = var.value.as_struct() {
+                            for (name, value) in fields {
+                                if name.to_uppercase() == field_name.to_uppercase() {
+                                    return Ok(value.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                self.evaluate_literal_expr(expr)
+            }
+            _ => self.evaluate_literal_expr(expr),
+        }
+    }
+
+    fn evaluate_binary_op(
+        &self,
+        left: &Value,
+        op: &ast::BinaryOperator,
+        right: &Value,
+    ) -> Result<Value> {
+        match op {
+            ast::BinaryOperator::Plus => self.add_values(left, right),
+            ast::BinaryOperator::Minus => self.subtract_values(left, right),
+            ast::BinaryOperator::Multiply => self.multiply_values(left, right),
+            ast::BinaryOperator::Divide => self.divide_values(left, right),
+            ast::BinaryOperator::Gt => Ok(Value::bool_val(
+                self.compare_script_values(left, right)? > 0,
+            )),
+            ast::BinaryOperator::GtEq => Ok(Value::bool_val(
+                self.compare_script_values(left, right)? >= 0,
+            )),
+            ast::BinaryOperator::Lt => Ok(Value::bool_val(
+                self.compare_script_values(left, right)? < 0,
+            )),
+            ast::BinaryOperator::LtEq => Ok(Value::bool_val(
+                self.compare_script_values(left, right)? <= 0,
+            )),
+            ast::BinaryOperator::Eq => Ok(Value::bool_val(
+                self.compare_script_values(left, right)? == 0,
+            )),
+            ast::BinaryOperator::NotEq => Ok(Value::bool_val(
+                self.compare_script_values(left, right)? != 0,
+            )),
+            ast::BinaryOperator::And => {
+                let l = left.as_bool().unwrap_or(false);
+                let r = right.as_bool().unwrap_or(false);
+                Ok(Value::bool_val(l && r))
+            }
+            ast::BinaryOperator::Or => {
+                let l = left.as_bool().unwrap_or(false);
+                let r = right.as_bool().unwrap_or(false);
+                Ok(Value::bool_val(l || r))
+            }
+            _ => Err(Error::UnsupportedFeature(format!(
+                "Unsupported binary operator: {:?}",
+                op
             ))),
         }
     }
@@ -7283,6 +8045,106 @@ impl QueryExecutor {
         let mut values = target_row.values().to_vec();
         values.extend(source_row.values().iter().cloned());
         Record::from_values(values)
+    }
+
+    fn add_values(&self, left: &Value, right: &Value) -> Result<Value> {
+        if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+            return Ok(Value::int64(l + r));
+        }
+        if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+            return Ok(Value::float64(l + r));
+        }
+        if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+            return Ok(Value::string(format!("{}{}", l, r)));
+        }
+        Err(Error::InvalidQuery(
+            "Cannot add incompatible types".to_string(),
+        ))
+    }
+
+    fn subtract_values(&self, left: &Value, right: &Value) -> Result<Value> {
+        if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+            return Ok(Value::int64(l - r));
+        }
+        if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+            return Ok(Value::float64(l - r));
+        }
+        Err(Error::InvalidQuery(
+            "Cannot subtract incompatible types".to_string(),
+        ))
+    }
+
+    fn multiply_values(&self, left: &Value, right: &Value) -> Result<Value> {
+        if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+            return Ok(Value::int64(l * r));
+        }
+        if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+            return Ok(Value::float64(l * r));
+        }
+        Err(Error::InvalidQuery(
+            "Cannot multiply incompatible types".to_string(),
+        ))
+    }
+
+    fn divide_values(&self, left: &Value, right: &Value) -> Result<Value> {
+        if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+            if r == 0 {
+                return Err(Error::InvalidQuery("Division by zero".to_string()));
+            }
+            return Ok(Value::int64(l / r));
+        }
+        if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+            if r == 0.0 {
+                return Err(Error::InvalidQuery("Division by zero".to_string()));
+            }
+            return Ok(Value::float64(l / r));
+        }
+        Err(Error::InvalidQuery(
+            "Cannot divide incompatible types".to_string(),
+        ))
+    }
+
+    fn compare_script_values(&self, left: &Value, right: &Value) -> Result<i8> {
+        if left.is_null() || right.is_null() {
+            return Ok(0);
+        }
+        if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+            return Ok(match l.cmp(&r) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            });
+        }
+        if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+            return Ok(if l < r {
+                -1
+            } else if l > r {
+                1
+            } else {
+                0
+            });
+        }
+        if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
+            return Ok(match l.cmp(r) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            });
+        }
+        Err(Error::InvalidQuery(
+            "Cannot compare incompatible types".to_string(),
+        ))
+    }
+
+    fn object_name_to_string(&self, name: &ast::ObjectName) -> String {
+        name.0
+            .iter()
+            .map(|p| match p {
+                ast::ObjectNamePart::Identifier(ident) => ident.value.clone(),
+                ast::ObjectNamePart::Function(f) => f.name.value.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(".")
     }
 }
 
