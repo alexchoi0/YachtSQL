@@ -352,6 +352,11 @@ impl QueryExecutor {
                 return Ok(());
             }
         }
+        if name.starts_with('@') {
+            let data_type = value.data_type();
+            self.declare_variable(name, data_type, Some(value));
+            return Ok(());
+        }
         Err(Error::ColumnNotFound(format!(
             "Variable '{}' not declared",
             name
@@ -748,10 +753,63 @@ impl QueryExecutor {
                 ..
             } if *immediate => self.execute_immediate(parameters),
             Statement::Case(case_stmt) => self.execute_case_statement(case_stmt),
+            Statement::Assert { condition, message } => {
+                self.execute_assert(condition, message.as_ref())
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Statement type not yet supported: {:?}",
                 stmt
             ))),
+        }
+    }
+
+    fn execute_assert(
+        &self,
+        condition: &Expr,
+        message: Option<&Expr>,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        let cond_val = self.evaluate_assert_expr(condition)?;
+        let is_true = cond_val.as_bool().unwrap_or(false);
+
+        if is_true {
+            Ok((Table::empty(Schema::new()), None))
+        } else {
+            let msg = message
+                .map(|m| self.evaluate_assert_expr(m))
+                .transpose()?
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "Assertion failed".to_string());
+            Err(Error::InvalidQuery(format!("ASSERT failed: {}", msg)))
+        }
+    }
+
+    fn evaluate_assert_expr(&self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Subquery(query) => {
+                let result = self.execute_query(query)?;
+                let records = result.to_records()?;
+                if records.is_empty() {
+                    return Ok(Value::null());
+                }
+                let first_record = &records[0];
+                let values = first_record.values();
+                if values.is_empty() {
+                    return Ok(Value::null());
+                }
+                Ok(values[0].clone())
+            }
+            Expr::Nested(inner) => self.evaluate_assert_expr(inner),
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_assert_expr(left)?;
+                let right_val = self.evaluate_assert_expr(right)?;
+                self.evaluate_binary_op(&left_val, op, &right_val)
+            }
+            _ => {
+                let empty_schema = Schema::new();
+                let empty_record = Record::from_values(vec![]);
+                let evaluator = Evaluator::new(&empty_schema);
+                evaluator.evaluate(expr, &empty_record)
+            }
         }
     }
 
@@ -1303,7 +1361,16 @@ impl QueryExecutor {
         }
 
         let (schema, rows) = if do_projection {
-            self.project_rows(&pre_projection_schema, &rows, &select.projection)?
+            let (out_schema, mut out_rows) =
+                self.project_rows(&pre_projection_schema, &rows, &select.projection)?;
+            if select.distinct.is_some() {
+                let mut seen = std::collections::HashSet::new();
+                out_rows.retain(|row| {
+                    let key = format!("{:?}", row.values());
+                    seen.insert(key)
+                });
+            }
+            (out_schema, out_rows)
         } else {
             (pre_projection_schema, rows)
         };
@@ -1398,7 +1465,7 @@ impl QueryExecutor {
         let (input_schema, input_rows) = self.get_from_data(&select.from)?;
         let evaluator = Evaluator::with_user_functions(&input_schema, self.catalog.get_functions());
 
-        let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
+        let filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
             let substituted_selection = self.substitute_variables(selection);
             let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
             input_rows
@@ -1422,14 +1489,6 @@ impl QueryExecutor {
             return self.execute_aggregate_query(&input_schema, &filtered_rows, select);
         }
 
-        if select.distinct.is_some() {
-            let mut seen = std::collections::HashSet::new();
-            filtered_rows.retain(|row| {
-                let key = format!("{:?}", row.values());
-                seen.insert(key)
-            });
-        }
-
         let has_window_funcs = self.has_window_functions(&select.projection);
         if has_window_funcs {
             let window_results =
@@ -1442,8 +1501,16 @@ impl QueryExecutor {
             );
         }
 
-        let (output_schema, output_rows) =
+        let (output_schema, mut output_rows) =
             self.project_rows(&input_schema, &filtered_rows, &select.projection)?;
+
+        if select.distinct.is_some() {
+            let mut seen = std::collections::HashSet::new();
+            output_rows.retain(|row| {
+                let key = format!("{:?}", row.values());
+                seen.insert(key)
+            });
+        }
 
         Ok((output_schema, output_rows))
     }
@@ -1465,7 +1532,7 @@ impl QueryExecutor {
         let (input_schema, input_rows) = self.get_from_data_ctes(&select.from, cte_tables)?;
         let evaluator = Evaluator::with_user_functions(&input_schema, self.catalog.get_functions());
 
-        let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
+        let filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
             let substituted_selection = self.substitute_variables(selection);
             let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
             input_rows
@@ -1491,14 +1558,6 @@ impl QueryExecutor {
             return Ok((schema, rows, false));
         }
 
-        if select.distinct.is_some() {
-            let mut seen = std::collections::HashSet::new();
-            filtered_rows.retain(|row| {
-                let key = format!("{:?}", row.values());
-                seen.insert(key)
-            });
-        }
-
         let has_window_funcs = self.has_window_functions(&select.projection);
         if has_window_funcs {
             let window_results =
@@ -1519,8 +1578,15 @@ impl QueryExecutor {
         if needs_deferred_projection {
             Ok((input_schema, filtered_rows, true))
         } else {
-            let (output_schema, output_rows) =
+            let (output_schema, mut output_rows) =
                 self.project_rows(&input_schema, &filtered_rows, &select.projection)?;
+            if select.distinct.is_some() {
+                let mut seen = std::collections::HashSet::new();
+                output_rows.retain(|row| {
+                    let key = format!("{:?}", row.values());
+                    seen.insert(key)
+                });
+            }
             Ok((output_schema, output_rows, false))
         }
     }
@@ -7145,6 +7211,12 @@ impl QueryExecutor {
                     }
                 }
                 self.evaluate_literal_expr(expr)
+            }
+            Expr::Function(_) => {
+                let empty_schema = Schema::new();
+                let empty_record = Record::from_values(vec![]);
+                let evaluator = Evaluator::new(&empty_schema);
+                evaluator.evaluate(expr, &empty_record)
             }
             _ => self.evaluate_literal_expr(expr),
         }
