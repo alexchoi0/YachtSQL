@@ -38,7 +38,6 @@ fn test_regexp_extract() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regexp_extract_all() {
     let mut executor = create_executor();
     let result = executor
@@ -84,7 +83,6 @@ fn test_regexp_instr_not_found() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regexp_substr() {
     let mut executor = create_executor();
     let result = executor
@@ -139,7 +137,6 @@ fn test_regexp_extract_with_group() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_regexp_replace_with_backreference() {
     let mut executor = create_executor();
     let result = executor
