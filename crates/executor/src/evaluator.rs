@@ -1234,6 +1234,24 @@ impl<'a> Evaluator<'a> {
         Ok(Value::bool_val(if negated { !in_range } else { in_range }))
     }
 
+    pub fn evaluate_between_values(
+        &self,
+        val: &Value,
+        low_val: &Value,
+        high_val: &Value,
+        negated: bool,
+    ) -> Result<Value> {
+        if val.is_null() || low_val.is_null() || high_val.is_null() {
+            return Ok(Value::null());
+        }
+
+        let ge_low = self.compare_values(val, low_val, |ord| ord.is_ge())?;
+        let le_high = self.compare_values(val, high_val, |ord| ord.is_le())?;
+
+        let in_range = ge_low.as_bool().unwrap_or(false) && le_high.as_bool().unwrap_or(false);
+        Ok(Value::bool_val(if negated { !in_range } else { in_range }))
+    }
+
     fn evaluate_like(
         &self,
         expr: &Expr,

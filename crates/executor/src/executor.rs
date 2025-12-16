@@ -3150,6 +3150,13 @@ impl QueryExecutor {
                     .unwrap_or(false)
             }
             Expr::Cast { expr, .. } => self.expr_has_aggregate(expr),
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                self.expr_has_aggregate(expr)
+                    || self.expr_has_aggregate(low)
+                    || self.expr_has_aggregate(high)
+            }
             _ => false,
         }
     }
@@ -3944,6 +3951,38 @@ impl QueryExecutor {
                     active_indices,
                 )?;
                 Ok(Value::Bool(!val.is_null()))
+            }
+            Expr::Between {
+                expr: inner_expr,
+                low,
+                high,
+                negated,
+            } => {
+                let expr_val = self.evaluate_aggregate_expr_with_grouping(
+                    inner_expr,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                )?;
+                let low_val = self.evaluate_aggregate_expr_with_grouping(
+                    low,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                )?;
+                let high_val = self.evaluate_aggregate_expr_with_grouping(
+                    high,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                )?;
+                evaluator.evaluate_between_values(&expr_val, &low_val, &high_val, *negated)
             }
             _ => {
                 if let Some(row) = group_rows.first() {
