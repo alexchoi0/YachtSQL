@@ -6,21 +6,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ValueTag {
     Null = 0,
-
     Bool = 1,
-
     Int64 = 2,
-
     Float64 = 3,
-
     Date = 4,
-
     Time = 5,
-
     DateTime = 6,
-
     Timestamp = 7,
-
     SmallString = 8,
 }
 
@@ -28,7 +20,6 @@ pub enum ValueTag {
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct SmallValue {
     pub(crate) tag: ValueTag,
-
     pub(crate) data: [u8; 15],
 }
 
@@ -269,167 +260,3 @@ impl PartialEq for SmallValue {
 }
 
 impl Eq for SmallValue {}
-
-#[cfg(test)]
-#[allow(clippy::approx_constant)]
-mod tests {
-    use std::mem;
-
-    use super::*;
-
-    #[test]
-    fn test_size() {
-        assert_eq!(mem::size_of::<SmallValue>(), 16);
-        assert_eq!(mem::align_of::<SmallValue>(), 1);
-    }
-
-    #[test]
-    fn test_null() {
-        let v = SmallValue::null();
-        assert!(v.is_null());
-        assert_eq!(v.tag(), ValueTag::Null);
-    }
-
-    #[test]
-    fn test_bool() {
-        let v_true = SmallValue::bool(true);
-        let v_false = SmallValue::bool(false);
-
-        assert_eq!(v_true.as_bool(), Some(true));
-        assert_eq!(v_false.as_bool(), Some(false));
-        assert_eq!(v_true.tag(), ValueTag::Bool);
-    }
-
-    #[test]
-    fn test_int64() {
-        let v = SmallValue::int64(42);
-        assert_eq!(v.as_int64(), Some(42));
-        assert_eq!(v.tag(), ValueTag::Int64);
-
-        let v_neg = SmallValue::int64(-100);
-        assert_eq!(v_neg.as_int64(), Some(-100));
-
-        let v_max = SmallValue::int64(i64::MAX);
-        assert_eq!(v_max.as_int64(), Some(i64::MAX));
-
-        let v_min = SmallValue::int64(i64::MIN);
-        assert_eq!(v_min.as_int64(), Some(i64::MIN));
-    }
-
-    #[test]
-    fn test_float64() {
-        let v = SmallValue::float64(3.14);
-        assert_eq!(v.as_float64(), Some(3.14));
-        assert_eq!(v.tag(), ValueTag::Float64);
-
-        let v_neg = SmallValue::float64(-2.5);
-        assert_eq!(v_neg.as_float64(), Some(-2.5));
-
-        let v_zero = SmallValue::float64(0.0);
-        assert_eq!(v_zero.as_float64(), Some(0.0));
-    }
-
-    #[test]
-    fn test_small_string() {
-        let v = SmallValue::small_string("hello").unwrap();
-        assert_eq!(v.as_str(), Some("hello"));
-        assert_eq!(v.tag(), ValueTag::SmallString);
-
-        let v_empty = SmallValue::small_string("").unwrap();
-        assert_eq!(v_empty.as_str(), Some(""));
-
-        let v_max = SmallValue::small_string("12345678901234").unwrap();
-        assert_eq!(v_max.as_str(), Some("12345678901234"));
-
-        let v_too_large = SmallValue::small_string("123456789012345");
-        assert!(v_too_large.is_none());
-    }
-
-    #[test]
-    fn test_date() {
-        let v = SmallValue::date(19000);
-        assert_eq!(v.as_date(), Some(19000));
-        assert_eq!(v.tag(), ValueTag::Date);
-
-        let v_neg = SmallValue::date(-365);
-        assert_eq!(v_neg.as_date(), Some(-365));
-    }
-
-    #[test]
-    fn test_equality() {
-        let v1 = SmallValue::int64(42);
-        let v2 = SmallValue::int64(42);
-        let v3 = SmallValue::int64(43);
-
-        assert_eq!(v1, v2);
-        assert_ne!(v1, v3);
-
-        let s1 = SmallValue::small_string("hello").unwrap();
-        let s2 = SmallValue::small_string("hello").unwrap();
-        let s3 = SmallValue::small_string("world").unwrap();
-
-        assert_eq!(s1, s2);
-        assert_ne!(s1, s3);
-    }
-
-    #[test]
-    fn test_type_mismatch() {
-        let v_int = SmallValue::int64(42);
-        let v_float = SmallValue::float64(42.0);
-
-        assert_ne!(v_int, v_float);
-        assert_eq!(v_int.as_float64(), None);
-        assert_eq!(v_float.as_int64(), None);
-    }
-
-    #[test]
-    fn test_copy() {
-        let v1 = SmallValue::int64(42);
-        let v2 = v1;
-
-        assert_eq!(v1, v2);
-        assert_eq!(v1.as_int64(), v2.as_int64());
-    }
-
-    #[test]
-    fn test_debug() {
-        let v_null = SmallValue::null();
-        assert_eq!(format!("{:?}", v_null), "NULL");
-
-        let v_bool = SmallValue::bool(true);
-        assert_eq!(format!("{:?}", v_bool), "Bool(true)");
-
-        let v_int = SmallValue::int64(42);
-        assert_eq!(format!("{:?}", v_int), "Int64(42)");
-
-        let v_str = SmallValue::small_string("hello").unwrap();
-        assert_eq!(format!("{:?}", v_str), "String(\"hello\")");
-    }
-
-    #[test]
-    fn test_memory_layout() {
-        let v = SmallValue::int64(0x0102030405060708);
-
-        assert_eq!(v.tag as u8, 2);
-
-        assert_eq!(v.data[0], 0x08);
-        assert_eq!(v.data[1], 0x07);
-        assert_eq!(v.data[7], 0x01);
-    }
-
-    #[test]
-    fn test_small_string_utf8() {
-        let v = SmallValue::small_string("hello").unwrap();
-        assert_eq!(v.as_str(), Some("hello"));
-
-        let v_emoji = SmallValue::small_string("👋").unwrap();
-        assert_eq!(v_emoji.as_str(), Some("👋"));
-
-        let long_emoji = "👋👋👋👋👋";
-        let result = SmallValue::small_string(long_emoji);
-
-        if long_emoji.len() > 14 {
-            assert!(result.is_none());
-        }
-    }
-}

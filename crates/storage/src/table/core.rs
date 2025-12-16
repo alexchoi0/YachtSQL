@@ -2,48 +2,40 @@ use indexmap::IndexMap;
 use yachtsql_common::error::Result;
 use yachtsql_common::types::Value;
 
-use crate::storage_backend::ColumnarStorage;
 use crate::{Column, Record, Schema};
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum TableEngine {
-    #[default]
-    Memory,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Table {
-    pub(super) schema: Schema,
-    pub(super) storage: ColumnarStorage,
-    pub(super) engine: TableEngine,
-    pub(super) comment: Option<String>,
+    schema: Schema,
+    columns: IndexMap<String, Column>,
+    row_count: usize,
 }
 
 impl Table {
     pub fn new(schema: Schema) -> Self {
-        let storage = ColumnarStorage::new(&schema);
+        let columns = schema
+            .fields()
+            .iter()
+            .map(|f| (f.name.clone(), Column::new(&f.data_type)))
+            .collect();
         Self {
             schema,
-            storage,
-            engine: TableEngine::default(),
-            comment: None,
+            columns,
+            row_count: 0,
         }
     }
 
-    pub fn engine(&self) -> &TableEngine {
-        &self.engine
+    pub fn from_columns(schema: Schema, columns: IndexMap<String, Column>) -> Self {
+        let row_count = columns.values().next().map(|c| c.len()).unwrap_or(0);
+        Self {
+            schema,
+            columns,
+            row_count,
+        }
     }
 
-    pub fn set_engine(&mut self, engine: TableEngine) {
-        self.engine = engine;
-    }
-
-    pub fn comment(&self) -> Option<&str> {
-        self.comment.as_deref()
-    }
-
-    pub fn set_comment(&mut self, comment: Option<String>) {
-        self.comment = comment;
+    pub fn empty(schema: Schema) -> Self {
+        Self::new(schema)
     }
 
     pub fn schema(&self) -> &Schema {
@@ -51,89 +43,181 @@ impl Table {
     }
 
     pub fn row_count(&self) -> usize {
-        self.storage.row_count()
+        self.row_count
+    }
+
+    pub fn num_rows(&self) -> usize {
+        self.row_count
     }
 
     pub fn is_empty(&self) -> bool {
-        self.storage.is_empty()
+        self.row_count == 0
     }
 
-    pub fn column(&self, name: &str) -> Option<&Column> {
-        self.storage.columns().get(name)
+    pub fn column(&self, idx: usize) -> Option<&Column> {
+        self.columns.values().nth(idx)
+    }
+
+    pub fn column_by_name(&self, name: &str) -> Option<&Column> {
+        self.columns.get(name)
     }
 
     pub fn columns(&self) -> &IndexMap<String, Column> {
-        self.storage.columns()
+        &self.columns
     }
 
-    pub fn storage(&self) -> &ColumnarStorage {
-        &self.storage
+    pub fn num_columns(&self) -> usize {
+        self.columns.len()
     }
 
-    pub fn storage_mut(&mut self) -> &mut ColumnarStorage {
-        &mut self.storage
-    }
-
-    pub fn clone_with(
-        &self,
-        schema: Schema,
-        columns: IndexMap<String, Column>,
-        row_count: usize,
-    ) -> Table {
-        Table {
-            schema,
-            storage: ColumnarStorage::from_columns(columns, row_count),
-            engine: self.engine.clone(),
-            comment: self.comment.clone(),
-        }
+    pub fn columns_mut(&mut self) -> &mut IndexMap<String, Column> {
+        &mut self.columns
     }
 
     pub fn push_row(&mut self, values: Vec<Value>) -> Result<()> {
-        self.storage.push_row_values(&values, &self.schema)
+        for (col, value) in self.columns.values_mut().zip(values.into_iter()) {
+            col.push(value)?;
+        }
+        self.row_count += 1;
+        Ok(())
     }
 
     pub fn get_row(&self, index: usize) -> Result<Record> {
-        let columns: Vec<Column> = self.storage.columns().values().cloned().collect();
-        Record::from_columns(&columns, index)
+        if index >= self.row_count {
+            return Err(yachtsql_common::error::Error::invalid_query(format!(
+                "Row index {} out of bounds (count: {})",
+                index, self.row_count
+            )));
+        }
+        let columns: Vec<&Column> = self.columns.values().collect();
+        let values: Vec<Value> = columns.iter().map(|c| c.get_value(index)).collect();
+        Ok(Record::from_values(values))
     }
 
     pub fn to_records(&self) -> Result<Vec<Record>> {
-        let num_rows = self.row_count();
-        let mut records = Vec::with_capacity(num_rows);
-        for i in 0..num_rows {
+        let mut records = Vec::with_capacity(self.row_count);
+        for i in 0..self.row_count {
             records.push(self.get_row(i)?);
         }
         Ok(records)
     }
 
+    pub fn rows(&self) -> Result<Vec<Record>> {
+        self.to_records()
+    }
+
+    pub fn from_records(schema: Schema, records: Vec<Record>) -> Result<Self> {
+        let mut table = Self::new(schema);
+        for record in records {
+            table.push_row(record.into_values())?;
+        }
+        Ok(table)
+    }
+
+    pub fn from_values(schema: Schema, values: Vec<Vec<Value>>) -> Result<Self> {
+        let mut table = Self::new(schema);
+        for row in values {
+            table.push_row(row)?;
+        }
+        Ok(table)
+    }
+
     pub fn clear(&mut self) {
-        self.storage.clear_data();
+        for col in self.columns.values_mut() {
+            col.clear();
+        }
+        self.row_count = 0;
     }
 
     pub fn remove_row(&mut self, index: usize) {
-        for col in self.storage.columns_mut().values_mut() {
+        for col in self.columns.values_mut() {
             col.remove(index);
+        }
+        if self.row_count > 0 {
+            self.row_count -= 1;
         }
     }
 
     pub fn update_row(&mut self, index: usize, values: Vec<Value>) -> Result<()> {
-        for (col, value) in self
-            .storage
-            .columns_mut()
-            .values_mut()
-            .zip(values.into_iter())
-        {
+        for (col, value) in self.columns.values_mut().zip(values.into_iter()) {
             col.set(index, value)?;
         }
         Ok(())
     }
 
-    pub fn remove_column(&mut self, index: usize) {
-        if index < self.storage.columns().len() {
-            let key = self.storage.columns().keys().nth(index).cloned();
-            if let Some(key) = key {
-                self.storage.columns_mut().shift_remove(&key);
-            }
+    pub fn drop_column(&mut self, name: &str) -> Result<()> {
+        let upper = name.to_uppercase();
+        let found = self
+            .columns
+            .keys()
+            .find(|k| k.to_uppercase() == upper)
+            .cloned();
+        if let Some(key) = found {
+            self.columns.shift_remove(&key);
+            let fields: Vec<_> = self
+                .schema
+                .fields()
+                .iter()
+                .filter(|f| f.name.to_uppercase() != upper)
+                .cloned()
+                .collect();
+            self.schema = Schema::from_fields(fields);
+            Ok(())
+        } else {
+            Err(yachtsql_common::error::Error::ColumnNotFound(
+                name.to_string(),
+            ))
         }
+    }
+
+    pub fn rename_column(&mut self, old_name: &str, new_name: &str) -> Result<()> {
+        let upper = old_name.to_uppercase();
+        let found = self
+            .columns
+            .keys()
+            .find(|k| k.to_uppercase() == upper)
+            .cloned();
+        if let Some(key) = found {
+            if let Some(col) = self.columns.shift_remove(&key) {
+                self.columns.insert(new_name.to_string(), col);
+            }
+            let fields: Vec<_> = self
+                .schema
+                .fields()
+                .iter()
+                .map(|f| {
+                    if f.name.to_uppercase() == upper {
+                        crate::Field::new(new_name.to_string(), f.data_type.clone(), f.mode)
+                    } else {
+                        f.clone()
+                    }
+                })
+                .collect();
+            self.schema = Schema::from_fields(fields);
+            Ok(())
+        } else {
+            Err(yachtsql_common::error::Error::ColumnNotFound(
+                old_name.to_string(),
+            ))
+        }
+    }
+}
+
+pub trait TableSchemaOps {
+    fn add_column(&mut self, field: crate::Field, default: Option<Value>) -> Result<()>;
+}
+
+impl TableSchemaOps for Table {
+    fn add_column(&mut self, field: crate::Field, default: Option<Value>) -> Result<()> {
+        let default_val = default.unwrap_or(Value::Null);
+        let mut col = Column::new(&field.data_type);
+        for _ in 0..self.row_count {
+            col.push(default_val.clone())?;
+        }
+        self.columns.insert(field.name.clone(), col);
+        let mut fields: Vec<_> = self.schema.fields().to_vec();
+        fields.push(field);
+        self.schema = Schema::from_fields(fields);
+        Ok(())
     }
 }

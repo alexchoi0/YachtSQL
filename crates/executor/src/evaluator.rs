@@ -300,7 +300,7 @@ impl<'a> Evaluator<'a> {
                     return Ok(Value::string(String::new()));
                 }
 
-                let result = if let Some(for_expr) = substring_for {
+                let result: String = if let Some(for_expr) = substring_for {
                     let len_val = self.evaluate(for_expr, record)?;
                     let len = len_val.as_i64().unwrap_or(0) as usize;
                     chars[start_idx..].iter().take(len).collect()
@@ -520,7 +520,7 @@ impl<'a> Evaluator<'a> {
                 }
             }
         }
-        Ok(Value::struct_val(struct_fields))
+        Ok(Value::struct_val(struct_fields.into_iter().collect()))
     }
 
     fn evaluate_typed_string(
@@ -1477,7 +1477,7 @@ impl<'a> Evaluator<'a> {
                 if start_idx >= chars.len() {
                     return Ok(Value::string(String::new()));
                 }
-                let result = if args.len() == 3 {
+                let result: String = if args.len() == 3 {
                     let len = args[2].as_i64().ok_or_else(|| Error::TypeMismatch {
                         expected: "INT64".to_string(),
                         actual: args[2].data_type().to_string(),
@@ -2140,7 +2140,7 @@ impl<'a> Evaluator<'a> {
                     expected: "STRING or BYTES".to_string(),
                     actual: args[0].data_type().to_string(),
                 })?;
-                Ok(Value::string(s.chars().rev().collect()))
+                Ok(Value::string(s.chars().rev().collect::<String>()))
             }
             "REPEAT" => {
                 if args.len() != 2 {
@@ -2525,7 +2525,7 @@ impl<'a> Evaluator<'a> {
                     " "
                 };
                 if s.chars().count() >= len {
-                    return Ok(Value::string(s.chars().take(len).collect()));
+                    return Ok(Value::string(s.chars().take(len).collect::<String>()));
                 }
                 let pad_len = len - s.chars().count();
                 let pad_chars: Vec<char> = pad.chars().cycle().take(pad_len).collect();
@@ -2549,7 +2549,7 @@ impl<'a> Evaluator<'a> {
                     " "
                 };
                 if s.chars().count() >= len {
-                    return Ok(Value::string(s.chars().take(len).collect()));
+                    return Ok(Value::string(s.chars().take(len).collect::<String>()));
                 }
                 let pad_len = len - s.chars().count();
                 let pad_chars: Vec<char> = pad.chars().cycle().take(pad_len).collect();

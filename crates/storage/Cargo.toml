@@ -3,51 +3,16 @@ name = "yachtsql-storage"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "YachtSQL storage engine with columnar storage and MVCC"
-
-[features]
-default = []
+description = "YachtSQL storage engine with columnar storage for BigQuery"
 
 [dependencies]
-# Core types and errors
 yachtsql-common = { path = "../common" }
 
-# Data structures
 indexmap = { version = "2.12", features = ["serde"] }
-hashbrown = "0.15"
 
-# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-# UUID support
-uuid = { version = "1.6", features = ["v4", "serde"] }
-
-# Date/time
 chrono = { version = "0.4", features = ["serde"] }
 
-# Decimal arithmetic
 rust_decimal = { version = "1.36", features = ["serde"] }
-
-# SIMD alignment
-aligned-vec = "0.6"
-
-# Bloom filter
-bloomfilter = "3.0"
-
-# Fast non-cryptographic hash for probabilistic data structures
-ahash = "0.8"
-
-# Regular expressions
-regex = "1.11"
-
-# SQL parsing (for index expressions only)
-sqlparser = { version = "0.59", features = ["visitor"] }
-
-[dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-
-[[bench]]
-name = "simd_filter_benchmark"
-harness = false
-

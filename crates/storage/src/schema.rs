@@ -20,7 +20,7 @@ pub struct Field {
 }
 
 impl Field {
-    fn new(name: impl Into<String>, data_type: DataType, mode: FieldMode) -> Self {
+    pub fn new(name: impl Into<String>, data_type: DataType, mode: FieldMode) -> Self {
         Self {
             name: name.into(),
             data_type,

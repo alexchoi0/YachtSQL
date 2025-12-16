@@ -1,7 +1,6 @@
 #![allow(clippy::approx_constant)]
 
 use yachtsql::{DataType, Table, Value};
-use yachtsql_common::types::{IPv4Addr, IPv6Addr};
 use yachtsql_storage::{Field, Schema};
 
 pub trait IntoValue {
@@ -213,14 +212,6 @@ pub fn ip(addr: &str) -> Value {
     Value::bytes(octets)
 }
 
-pub fn ipv4(addr: &str) -> Value {
-    Value::ipv4(IPv4Addr::parse(addr).expect("Invalid IPv4 address"))
-}
-
-pub fn ipv6(addr: &str) -> Value {
-    Value::ipv6(IPv6Addr::parse(addr).expect("Invalid IPv6 address"))
-}
-
 pub fn timestamp(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Value {
     use chrono::{TimeZone, Utc};
     let dt = Utc
@@ -251,46 +242,15 @@ pub fn n(val: &str) -> Value {
     numeric(val)
 }
 
-pub fn macaddr(addr: &str) -> Value {
-    use yachtsql_common::types::MacAddress;
-    let parts: Vec<u8> = addr
-        .split(':')
-        .map(|s| u8::from_str_radix(s, 16).expect("Invalid hex in MAC address"))
-        .collect();
-    let octets: [u8; 6] = parts.try_into().expect("MAC address must have 6 octets");
-    Value::macaddr(MacAddress::new_macaddr(octets))
-}
-
-pub fn macaddr8(addr: &str) -> Value {
-    use yachtsql_common::types::MacAddress;
-    let parts: Vec<u8> = addr
-        .split(':')
-        .map(|s| u8::from_str_radix(s, 16).expect("Invalid hex in MAC8 address"))
-        .collect();
-    let octets: [u8; 8] = parts.try_into().expect("MAC8 address must have 8 octets");
-    Value::macaddr8(MacAddress::new_macaddr8(octets))
-}
-
-pub fn inet(addr: &str) -> Value {
-    use yachtsql_common::types::network::InetAddr;
-    let parsed: InetAddr = addr.parse().expect("Invalid INET address");
-    Value::inet(parsed)
-}
-
-pub fn cidr(addr: &str) -> Value {
-    use yachtsql_common::types::network::CidrAddr;
-    let parsed: CidrAddr = addr.parse().expect("Invalid CIDR address");
-    Value::cidr(parsed)
-}
-
 pub fn dt(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Value {
     datetime(year, month, day, hour, min, sec)
 }
 
 pub fn datetime(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Value {
-    use chrono::{TimeZone, Utc};
-    let dt = Utc
-        .with_ymd_and_hms(year, month, day, hour, min, sec)
+    use chrono::NaiveDate;
+    let dt = NaiveDate::from_ymd_opt(year, month, day)
+        .unwrap()
+        .and_hms_opt(hour, min, sec)
         .unwrap();
     Value::datetime(dt)
 }

@@ -1,60 +1,47 @@
-//! SQL parser for BigQuery dialect.
+mod error;
+mod expr_planner;
+mod planner;
 
-#![warn(missing_docs)]
-#![warn(rustdoc::missing_crate_level_docs)]
-#![warn(rustdoc::broken_intra_doc_links)]
-#![allow(missing_docs)]
+pub use error::PlannerError;
+pub use planner::Planner;
+use sqlparser::dialect::BigQueryDialect;
+use sqlparser::parser::Parser;
+use yachtsql_common::error::Result;
+use yachtsql_ir::LogicalPlan;
+use yachtsql_storage::Schema;
 
-pub mod ast_visitor;
-pub mod parser;
-pub mod pattern_matcher;
-pub mod sql_context;
-pub mod sql_json;
-pub mod sql_types;
-pub mod validator;
+pub trait CatalogProvider {
+    fn get_table_schema(&self, name: &str) -> Option<Schema>;
+}
 
-pub use ast_visitor::{LogicalPlanBuilder, SessionVariable, UdfDefinition};
-pub use parser::{JSON_VALUE_OPTIONS_PREFIX, JsonValueRewriteOptions, Parser, Statement};
-pub use sql_json::Sql2023Json;
-pub use sql_types::Sql2023Types;
-pub use validator::CustomStatement;
+pub fn parse_sql(sql: &str) -> Result<Vec<sqlparser::ast::Statement>> {
+    let dialect = BigQueryDialect {};
+    Parser::parse_sql(&dialect, sql)
+        .map_err(|e| yachtsql_common::error::Error::parse_error(e.to_string()))
+}
 
-#[macro_export]
-macro_rules! aggregate_function_names {
-    () => {
-        "COUNT"
-            | "SUM"
-            | "AVG"
-            | "MIN"
-            | "MAX"
-            | "STRING_AGG"
-            | "ARRAY_AGG"
-            | "STDDEV"
-            | "STDDEV_POP"
-            | "STDDEV_SAMP"
-            | "VARIANCE"
-            | "VAR_POP"
-            | "VAR_SAMP"
-            | "CORR"
-            | "COVAR_POP"
-            | "COVAR_SAMP"
-            | "BIT_AND"
-            | "BIT_OR"
-            | "BIT_XOR"
-            | "LOGICAL_AND"
-            | "LOGICAL_OR"
-            | "APPROX_COUNT_DISTINCT"
-            | "APPROX_QUANTILES"
-            | "APPROX_TOP_COUNT"
-            | "APPROX_TOP_SUM"
-            | "COUNTIF"
-            | "ANY_VALUE"
-            | "ARRAY_CONCAT_AGG"
-            | "HLL_COUNT.INIT"
-            | "HLL_COUNT.MERGE"
-            | "HLL_COUNT.MERGE_PARTIAL"
-            | "HLL_COUNT.EXTRACT"
-            | "FIRST_VALUE"
-            | "LAST_VALUE"
-    };
+pub fn plan_statement<C: CatalogProvider>(
+    stmt: &sqlparser::ast::Statement,
+    catalog: &C,
+) -> Result<LogicalPlan> {
+    let planner = Planner::new(catalog);
+    planner.plan_statement(stmt)
+}
+
+pub fn parse_and_plan<C: CatalogProvider>(sql: &str, catalog: &C) -> Result<LogicalPlan> {
+    let statements = parse_sql(sql)?;
+
+    if statements.is_empty() {
+        return Err(yachtsql_common::error::Error::parse_error(
+            "Empty SQL statement",
+        ));
+    }
+
+    if statements.len() > 1 {
+        return Err(yachtsql_common::error::Error::parse_error(
+            "Multiple statements not supported",
+        ));
+    }
+
+    plan_statement(&statements[0], catalog)
 }

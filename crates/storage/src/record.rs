@@ -1,5 +1,3 @@
-//! Record type for row-like access during query execution.
-
 use yachtsql_common::error::Result;
 use yachtsql_common::types::Value;
 
@@ -65,21 +63,19 @@ impl Record {
         }
     }
 
-    pub fn from_columns(columns: &[Column], row_index: usize) -> Result<Self> {
+    pub fn from_columns(columns: &[Column], row_index: usize) -> Self {
         let mut values = Vec::with_capacity(columns.len());
         for col in columns {
-            values.push(col.get(row_index)?);
+            values.push(col.get_value(row_index));
         }
-        Ok(Self { values })
+        Self { values }
     }
 
     pub fn to_columns(records: &[Record], schema: &Schema) -> Result<Vec<Column>> {
-        let num_rows = records.len();
-
         let mut columns: Vec<Column> = schema
             .fields()
             .iter()
-            .map(|f| Column::new(&f.data_type, num_rows))
+            .map(|f| Column::new(&f.data_type))
             .collect();
 
         for record in records {

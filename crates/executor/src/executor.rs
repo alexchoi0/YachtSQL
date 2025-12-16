@@ -16,11 +16,10 @@ use sqlparser::dialect::BigQueryDialect;
 use sqlparser::parser::Parser;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField, Value};
-use yachtsql_storage::{Column, Field, Record, Schema, TableSchemaOps};
+use yachtsql_storage::{Column, Field, Record, Schema, Table, TableSchemaOps};
 
 use crate::catalog::Catalog;
 use crate::evaluator::{Evaluator, parse_byte_string_escapes};
-use crate::table::Table;
 
 pub struct QueryExecutor {
     catalog: Catalog,
