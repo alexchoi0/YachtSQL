@@ -777,6 +777,14 @@ fn is_leave_or_iterate_statement(sql: &str) -> Option<(bool, Option<String>)> {
     }
 }
 
+fn preprocess_range_types(sql: &str) -> String {
+    use regex::Regex;
+    lazy_static::lazy_static! {
+        static ref RANGE_TYPE_RE: Regex = Regex::new(r"(?i)\bRANGE\s*<\s*(DATE|DATETIME|TIMESTAMP)\s*>").unwrap();
+    }
+    RANGE_TYPE_RE.replace_all(sql, "RANGE_$1").to_string()
+}
+
 fn preprocess_loop_control_statements(sql: &str) -> String {
     let mut result = String::with_capacity(sql.len());
     let chars: Vec<char> = sql.chars().collect();
@@ -1056,6 +1064,7 @@ impl QueryExecutor {
             Value::Struct(_) => SqlValue::Null,
             Value::Json(j) => SqlValue::SingleQuotedString(j.to_string()),
             Value::Geography(g) => SqlValue::SingleQuotedString(g.to_string()),
+            Value::Range(_) => SqlValue::Null,
         }
     }
 
@@ -1229,8 +1238,9 @@ impl QueryExecutor {
         }
 
         let dialect = BigQueryDialect {};
-        let statements =
-            Parser::parse_sql(&dialect, sql).map_err(|e| Error::ParseError(e.to_string()))?;
+        let preprocessed_sql = preprocess_range_types(sql);
+        let statements = Parser::parse_sql(&dialect, &preprocessed_sql)
+            .map_err(|e| Error::ParseError(e.to_string()))?;
 
         if statements.is_empty() {
             return Err(Error::ParseError("Empty SQL statement".to_string()));
@@ -8001,6 +8011,9 @@ impl QueryExecutor {
                 let type_name = name.to_string().to_uppercase();
                 match type_name.as_str() {
                     "GEOGRAPHY" => Ok(DataType::Geography),
+                    "RANGE_DATE" => Ok(DataType::Range(Box::new(DataType::Date))),
+                    "RANGE_DATETIME" => Ok(DataType::Range(Box::new(DataType::DateTime))),
+                    "RANGE_TIMESTAMP" => Ok(DataType::Range(Box::new(DataType::Timestamp))),
                     _ => Err(Error::UnsupportedFeature(format!(
                         "Data type not yet supported: {:?}",
                         sql_type

@@ -3713,12 +3713,16 @@ impl<'a> Evaluator<'a> {
                 } else {
                     0
                 };
+                if let Some(i) = args[0].as_i64() {
+                    return Ok(Value::int64(i));
+                }
+                if let Some(d) = args[0].as_numeric() {
+                    let truncated = d.trunc_with_scale(decimals.max(0) as u32);
+                    return Ok(Value::numeric(truncated));
+                }
                 if let Some(f) = args[0].as_f64() {
                     let multiplier = 10f64.powi(decimals);
                     return Ok(Value::float64((f * multiplier).trunc() / multiplier));
-                }
-                if let Some(i) = args[0].as_i64() {
-                    return Ok(Value::int64(i));
                 }
                 Ok(Value::null())
             }
@@ -5706,12 +5710,22 @@ impl<'a> Evaluator<'a> {
                 Ok(Value::bool_val(false))
             }
             "RANGE" => {
-                let start = args.first().cloned().unwrap_or(Value::null());
-                let end = args.get(1).cloned().unwrap_or(Value::null());
-                Ok(Value::struct_val(vec![
-                    ("start".to_string(), start),
-                    ("end".to_string(), end),
-                ]))
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE requires 2 arguments".to_string(),
+                    ));
+                }
+                let start = if args[0].is_null() {
+                    None
+                } else {
+                    Some(args[0].clone())
+                };
+                let end = if args[1].is_null() {
+                    None
+                } else {
+                    Some(args[1].clone())
+                };
+                Ok(Value::range(start, end))
             }
             "JSON_ARRAY" => {
                 let json_arr: Vec<serde_json::Value> =
@@ -6623,38 +6637,193 @@ impl<'a> Evaluator<'a> {
                     Ok(Value::null())
                 }
             }
-            "RANGE_OVERLAPS" | "RANGE_CONTAINS" | "RANGE_INTERSECTS" => Ok(Value::bool_val(false)),
-            "RANGE_START" => {
-                if args.is_empty() {
+            "RANGE_OVERLAPS" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_OVERLAPS requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
                     return Ok(Value::null());
                 }
-                match &args[0] {
-                    Value::Struct(fields) => {
-                        for (name, val) in fields {
-                            if name == "start" {
-                                return Ok(val.clone());
-                            }
-                        }
-                        Ok(Value::null())
-                    }
-                    _ => Ok(Value::null()),
+                let range1 = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let range2 = args[1].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+                Ok(Value::bool_val(range1.overlaps(range2)))
+            }
+            "RANGE_CONTAINS" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_CONTAINS requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                if args[1].is_null() {
+                    return Ok(Value::bool_val(false));
+                }
+                Ok(Value::bool_val(range.contains(&args[1])))
+            }
+            "RANGE_INTERSECT" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_INTERSECT requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let range1 = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let range2 = args[1].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+                match range1.intersect(range2) {
+                    Some(r) => Ok(Value::range_val(r)),
+                    None => Ok(Value::null()),
+                }
+            }
+            "RANGE_START" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_START requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                match range.start() {
+                    Some(v) => Ok(v.clone()),
+                    None => Ok(Value::null()),
                 }
             }
             "RANGE_END" => {
-                if args.is_empty() {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_END requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
                     return Ok(Value::null());
                 }
-                match &args[0] {
-                    Value::Struct(fields) => {
-                        for (name, val) in fields {
-                            if name == "end" {
-                                return Ok(val.clone());
-                            }
-                        }
-                        Ok(Value::null())
-                    }
-                    _ => Ok(Value::null()),
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                match range.end() {
+                    Some(v) => Ok(v.clone()),
+                    None => Ok(Value::null()),
                 }
+            }
+            "GENERATE_RANGE_ARRAY" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "GENERATE_RANGE_ARRAY requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let interval = args[1].as_interval().ok_or_else(|| Error::TypeMismatch {
+                    expected: "INTERVAL".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+
+                let start = match range.start() {
+                    Some(v) => v.clone(),
+                    None => return Ok(Value::null()),
+                };
+                let end = match range.end() {
+                    Some(v) => v.clone(),
+                    None => return Ok(Value::null()),
+                };
+
+                let mut result = Vec::new();
+
+                if let (Some(start_date), Some(end_date)) = (start.as_date(), end.as_date()) {
+                    let mut current_date = start_date;
+                    while current_date < end_date {
+                        let next_date = if interval.days > 0 {
+                            current_date + chrono::Duration::days(interval.days as i64)
+                        } else if interval.months > 0 {
+                            let month = current_date.month0() as i32 + interval.months;
+                            let year = current_date.year() + month / 12;
+                            let month = (month % 12) as u32;
+                            chrono::NaiveDate::from_ymd_opt(
+                                year,
+                                month + 1,
+                                current_date.day().min(28),
+                            )
+                            .unwrap_or(current_date)
+                        } else {
+                            break;
+                        };
+
+                        let range_end = if next_date > end_date {
+                            end_date
+                        } else {
+                            next_date
+                        };
+                        result.push(Value::range(
+                            Some(Value::date(current_date)),
+                            Some(Value::date(range_end)),
+                        ));
+                        current_date = next_date;
+                    }
+                } else if let (Some(start_ts), Some(end_ts)) =
+                    (start.as_timestamp(), end.as_timestamp())
+                {
+                    let mut current_ts = start_ts;
+                    while current_ts < end_ts {
+                        let duration = chrono::Duration::nanoseconds(interval.nanos)
+                            + chrono::Duration::days(interval.days as i64);
+                        let next_ts = current_ts + duration;
+                        let range_end = if next_ts > end_ts { end_ts } else { next_ts };
+                        result.push(Value::range(
+                            Some(Value::timestamp(current_ts)),
+                            Some(Value::timestamp(range_end)),
+                        ));
+                        current_ts = next_ts;
+                    }
+                } else if let (Some(start_dt), Some(end_dt)) =
+                    (start.as_datetime(), end.as_datetime())
+                {
+                    let mut current_dt = start_dt;
+                    while current_dt < end_dt {
+                        let duration = chrono::Duration::nanoseconds(interval.nanos)
+                            + chrono::Duration::days(interval.days as i64);
+                        let next_dt = current_dt + duration;
+                        let range_end = if next_dt > end_dt { end_dt } else { next_dt };
+                        result.push(Value::range(
+                            Some(Value::datetime(current_dt)),
+                            Some(Value::datetime(range_end)),
+                        ));
+                        current_dt = next_dt;
+                    }
+                }
+
+                Ok(Value::array(result))
             }
             "ROW_NUMBER" | "RANK" | "DENSE_RANK" | "PERCENT_RANK" | "CUME_DIST" | "NTILE" => {
                 Ok(Value::int64(1))

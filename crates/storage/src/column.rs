@@ -2,7 +2,7 @@ use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use yachtsql_common::error::{Error, Result};
-use yachtsql_common::types::{DataType, IntervalValue, Value};
+use yachtsql_common::types::{DataType, IntervalValue, RangeValue, Value};
 
 use crate::NullBitmap;
 
@@ -69,6 +69,11 @@ pub enum Column {
     Interval {
         data: Vec<IntervalValue>,
         nulls: NullBitmap,
+    },
+    Range {
+        data: Vec<RangeValue>,
+        nulls: NullBitmap,
+        element_type: DataType,
     },
 }
 
@@ -140,6 +145,11 @@ impl Column {
                 data: Vec::new(),
                 nulls: NullBitmap::new(),
             },
+            DataType::Range(elem_type) => Column::Range {
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
+                element_type: (**elem_type).clone(),
+            },
         }
     }
 
@@ -160,6 +170,7 @@ impl Column {
             Column::Struct { data, .. } => data.len(),
             Column::Geography { data, .. } => data.len(),
             Column::Interval { data, .. } => data.len(),
+            Column::Range { data, .. } => data.len(),
         }
     }
 
@@ -193,6 +204,7 @@ impl Column {
             }
             Column::Geography { .. } => DataType::Geography,
             Column::Interval { .. } => DataType::Interval,
+            Column::Range { element_type, .. } => DataType::Range(Box::new(element_type.clone())),
         }
     }
 
@@ -213,6 +225,7 @@ impl Column {
             Column::Struct { nulls, .. } => nulls.is_null(index),
             Column::Geography { nulls, .. } => nulls.is_null(index),
             Column::Interval { nulls, .. } => nulls.is_null(index),
+            Column::Range { nulls, .. } => nulls.is_null(index),
         }
     }
 
@@ -244,6 +257,7 @@ impl Column {
             Column::Struct { data, .. } => Value::Struct(data[index].clone()),
             Column::Geography { data, .. } => Value::Geography(data[index].clone()),
             Column::Interval { data, .. } => Value::Interval(data[index].clone()),
+            Column::Range { data, .. } => Value::Range(data[index].clone()),
         })
     }
 
@@ -268,6 +282,7 @@ impl Column {
             Column::Struct { data, .. } => Value::Struct(data[index].clone()),
             Column::Geography { data, .. } => Value::Geography(data[index].clone()),
             Column::Interval { data, .. } => Value::Interval(data[index].clone()),
+            Column::Range { data, .. } => Value::Range(data[index].clone()),
         }
     }
 
@@ -398,6 +413,14 @@ impl Column {
                 nulls.push(true);
             }
             (Column::Interval { data, nulls }, Value::Interval(v)) => {
+                data.push(v);
+                nulls.push(false);
+            }
+            (Column::Range { data, nulls, .. }, Value::Null) => {
+                data.push(RangeValue::new(None, None));
+                nulls.push(true);
+            }
+            (Column::Range { data, nulls, .. }, Value::Range(v)) => {
                 data.push(v);
                 nulls.push(false);
             }
@@ -538,6 +561,14 @@ impl Column {
                 data[index] = v;
                 nulls.set(index, false);
             }
+            (Column::Range { data, nulls, .. }, Value::Null) => {
+                data[index] = RangeValue::new(None, None);
+                nulls.set(index, true);
+            }
+            (Column::Range { data, nulls, .. }, Value::Range(v)) => {
+                data[index] = v;
+                nulls.set(index, false);
+            }
             (col, val) => {
                 return Err(Error::type_mismatch(format!(
                     "Cannot set {:?} in column of type {:?}",
@@ -611,6 +642,10 @@ impl Column {
                 data.remove(index);
                 nulls.remove(index);
             }
+            Column::Range { data, nulls, .. } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
         }
     }
 
@@ -673,6 +708,10 @@ impl Column {
                 nulls.clear();
             }
             Column::Interval { data, nulls } => {
+                data.clear();
+                nulls.clear();
+            }
+            Column::Range { data, nulls, .. } => {
                 data.clear();
                 nulls.clear();
             }
