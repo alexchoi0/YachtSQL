@@ -38,7 +38,6 @@ fn test_numeric_in_table() {
 }
 
 #[test]
-#[ignore = "BUG: BIGNUMERIC literal in INSERT not working"]
 fn test_bignumeric_in_table() {
     let mut executor = create_executor();
     executor
@@ -83,7 +82,6 @@ fn test_numeric_division() {
 }
 
 #[test]
-#[ignore = "BUG: NUMERIC values from INSERT not visible in aggregate queries"]
 fn test_numeric_sum() {
     let mut executor = create_executor();
     executor
@@ -100,7 +98,6 @@ fn test_numeric_sum() {
 }
 
 #[test]
-#[ignore = "BUG: NUMERIC values from INSERT not visible in aggregate queries"]
 fn test_numeric_avg() {
     let mut executor = create_executor();
     executor
@@ -228,7 +225,6 @@ fn test_numeric_order_by() {
 }
 
 #[test]
-#[ignore = "BUG: NUMERIC values from INSERT not visible in aggregate queries"]
 fn test_numeric_group_by() {
     let mut executor = create_executor();
     executor

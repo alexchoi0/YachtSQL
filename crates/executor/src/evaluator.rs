@@ -1022,6 +1022,18 @@ impl<'a> Evaluator<'a> {
                 }
             }
             sqlparser::ast::DataType::Bytes(_) => Ok(Value::bytes(s.as_bytes().to_vec())),
+            sqlparser::ast::DataType::Numeric(_)
+            | sqlparser::ast::DataType::Decimal(_)
+            | sqlparser::ast::DataType::BigNumeric(_) => {
+                if let Ok(d) = s.parse::<rust_decimal::Decimal>() {
+                    Ok(Value::numeric(d))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Invalid NUMERIC literal: {}",
+                        s
+                    )))
+                }
+            }
             _ => Ok(Value::string(s.to_string())),
         }
     }
@@ -1338,6 +1350,12 @@ impl<'a> Evaluator<'a> {
                 if let Some(i) = val.as_i64() {
                     return Ok(Value::float64(i as f64));
                 }
+                if let Some(d) = val.as_numeric() {
+                    use rust_decimal::prelude::ToPrimitive;
+                    if let Some(f) = d.to_f64() {
+                        return Ok(Value::float64(f));
+                    }
+                }
                 if let Some(s) = val.as_str() {
                     if let Ok(f) = s.parse::<f64>() {
                         return Ok(Value::float64(f));
@@ -1565,7 +1583,7 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn cast_value(
+    pub fn cast_value(
         &self,
         val: &Value,
         target_type: &sqlparser::ast::DataType,
@@ -1588,6 +1606,12 @@ impl<'a> Evaluator<'a> {
                 if let Some(f) = val.as_f64() {
                     return Ok(Value::int64(f as i64));
                 }
+                if let Some(d) = val.as_numeric() {
+                    use rust_decimal::prelude::ToPrimitive;
+                    if let Some(i) = d.to_i64() {
+                        return Ok(Value::int64(i));
+                    }
+                }
                 if is_safe {
                     return Ok(Value::null());
                 }
@@ -1602,6 +1626,12 @@ impl<'a> Evaluator<'a> {
                 }
                 if let Some(i) = val.as_i64() {
                     return Ok(Value::float64(i as f64));
+                }
+                if let Some(d) = val.as_numeric() {
+                    use rust_decimal::prelude::ToPrimitive;
+                    if let Some(f) = d.to_f64() {
+                        return Ok(Value::float64(f));
+                    }
                 }
                 if is_safe {
                     return Ok(Value::null());
@@ -2834,9 +2864,15 @@ impl<'a> Evaluator<'a> {
                 if args[0].is_null() || args[1].is_null() {
                     return Ok(Value::null());
                 }
-                let json_str = args[0].as_str().unwrap_or_default();
                 let path = args[1].as_str().unwrap_or_default();
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let json_val_opt = if let Some(jv) = args[0].as_json() {
+                    Some(jv.clone())
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s).ok()
+                } else {
+                    None
+                };
+                if let Some(json_val) = json_val_opt {
                     let result = self.json_path_extract(&json_val, path);
                     return Ok(result
                         .map(|v| match v {
@@ -6263,6 +6299,71 @@ impl<'a> Evaluator<'a> {
                     nanos: remaining_micros * IntervalValue::NANOS_PER_MICRO,
                 }))
             }
+            "PARSE_JSON" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let s = args[0].as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                match serde_json::from_str::<serde_json::Value>(s) {
+                    Ok(json_val) => Ok(Value::json(json_val)),
+                    Err(_) => Err(Error::InvalidQuery(format!("Invalid JSON string: {}", s))),
+                }
+            }
+            "JSON_SET" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "JSON_SET requires at least 3 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s)
+                        .map_err(|_| Error::InvalidQuery("Invalid JSON".to_string()))?
+                } else {
+                    return Err(Error::TypeMismatch {
+                        expected: "JSON or STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    });
+                };
+                let path = args[1].as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+                let new_value = self.value_to_json(&args[2]);
+                let result = self.json_path_set(json_val, path, new_value);
+                Ok(Value::json(result))
+            }
+            "JSON_KEYS" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s)
+                        .map_err(|_| Error::InvalidQuery("Invalid JSON".to_string()))?
+                } else {
+                    return Err(Error::TypeMismatch {
+                        expected: "JSON or STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    });
+                };
+                match json_val {
+                    serde_json::Value::Object(map) => {
+                        let keys: Vec<Value> =
+                            map.keys().map(|k| Value::string(k.clone())).collect();
+                        Ok(Value::array(keys))
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Function not yet supported: {}",
                 name
@@ -6569,6 +6670,47 @@ impl<'a> Evaluator<'a> {
         }
 
         Some(current)
+    }
+
+    fn json_path_set(
+        &self,
+        mut json: serde_json::Value,
+        path: &str,
+        new_value: serde_json::Value,
+    ) -> serde_json::Value {
+        let path = path.trim_start_matches('$');
+        let parts: Vec<&str> = path.split('.').filter(|s| !s.is_empty()).collect();
+
+        if parts.is_empty() {
+            return new_value;
+        }
+
+        fn set_recursive(
+            current: &mut serde_json::Value,
+            parts: &[&str],
+            new_value: serde_json::Value,
+        ) {
+            if parts.is_empty() {
+                return;
+            }
+
+            let part = parts[0].trim();
+            let remaining = &parts[1..];
+
+            if remaining.is_empty() {
+                if let serde_json::Value::Object(map) = current {
+                    map.insert(part.to_string(), new_value);
+                }
+            } else if let serde_json::Value::Object(map) = current {
+                let entry = map
+                    .entry(part.to_string())
+                    .or_insert(serde_json::Value::Object(serde_json::Map::new()));
+                set_recursive(entry, remaining, new_value);
+            }
+        }
+
+        set_recursive(&mut json, &parts, new_value);
+        json
     }
 
     fn extract_function_args(

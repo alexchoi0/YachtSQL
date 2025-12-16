@@ -109,7 +109,6 @@ fn test_to_json_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_parse_json() {
     let mut executor = create_executor();
     let result = executor
@@ -189,7 +188,6 @@ fn test_json_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_json_set() {
     let mut executor = create_executor();
     let result = executor

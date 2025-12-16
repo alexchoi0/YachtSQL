@@ -2356,6 +2356,7 @@ impl QueryExecutor {
                     .map(|e| self.expr_has_aggregate(e))
                     .unwrap_or(false)
             }
+            Expr::Cast { expr, .. } => self.expr_has_aggregate(expr),
             _ => false,
         }
     }
@@ -2954,6 +2955,20 @@ impl QueryExecutor {
                     None => Ok(Value::null()),
                 }
             }
+            Expr::Cast {
+                expr: inner_expr,
+                data_type,
+                ..
+            } => {
+                let val = self.evaluate_aggregate_expr(
+                    inner_expr,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_by,
+                )?;
+                evaluator.cast_value(&val, data_type, false)
+            }
             _ => {
                 if let Some(row) = group_rows.first() {
                     evaluator.evaluate(expr, row)
@@ -3268,6 +3283,7 @@ impl QueryExecutor {
                     .ok_or_else(|| Error::InvalidQuery("SUM requires an argument".to_string()))?;
                 let mut sum_int: Option<i64> = None;
                 let mut sum_float: Option<f64> = None;
+                let mut sum_decimal: Option<rust_decimal::Decimal> = None;
                 let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
                 for row in group_rows {
@@ -3281,14 +3297,27 @@ impl QueryExecutor {
                             continue;
                         }
                     }
-                    if let Some(i) = val.as_i64() {
+                    if let Some(d) = val.as_numeric() {
+                        sum_decimal = Some(sum_decimal.unwrap_or(rust_decimal::Decimal::ZERO) + d);
+                    } else if let Some(i) = val.as_i64() {
                         sum_int = Some(sum_int.unwrap_or(0) + i);
                     } else if let Some(f) = val.as_f64() {
                         sum_float = Some(sum_float.unwrap_or(0.0) + f);
                     }
                 }
 
-                if let Some(s) = sum_float {
+                if let Some(s) = sum_decimal {
+                    let mut total = s;
+                    if let Some(i) = sum_int {
+                        total += rust_decimal::Decimal::from(i);
+                    }
+                    if let Some(f) = sum_float {
+                        if let Some(fd) = rust_decimal::Decimal::from_f64_retain(f) {
+                            total += fd;
+                        }
+                    }
+                    Ok(Value::numeric(total))
+                } else if let Some(s) = sum_float {
                     Ok(Value::float64(s + sum_int.unwrap_or(0) as f64))
                 } else if let Some(s) = sum_int {
                     Ok(Value::int64(s))
@@ -3300,6 +3329,7 @@ impl QueryExecutor {
                 let expr = arg_expr
                     .ok_or_else(|| Error::InvalidQuery("AVG requires an argument".to_string()))?;
                 let mut sum: f64 = 0.0;
+                let mut sum_decimal: Option<rust_decimal::Decimal> = None;
                 let mut count: i64 = 0;
                 let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
@@ -3314,7 +3344,10 @@ impl QueryExecutor {
                             continue;
                         }
                     }
-                    if let Some(i) = val.as_i64() {
+                    if let Some(d) = val.as_numeric() {
+                        sum_decimal = Some(sum_decimal.unwrap_or(rust_decimal::Decimal::ZERO) + d);
+                        count += 1;
+                    } else if let Some(i) = val.as_i64() {
                         sum += i as f64;
                         count += 1;
                     } else if let Some(f) = val.as_f64() {
@@ -3324,7 +3357,12 @@ impl QueryExecutor {
                 }
 
                 if count > 0 {
-                    Ok(Value::float64(sum / count as f64))
+                    if let Some(s) = sum_decimal {
+                        let avg = s / rust_decimal::Decimal::from(count);
+                        Ok(Value::numeric(avg))
+                    } else {
+                        Ok(Value::float64(sum / count as f64))
+                    }
                 } else {
                     Ok(Value::null())
                 }
@@ -5168,6 +5206,18 @@ impl QueryExecutor {
                 }
             }
             ast::DataType::Bytes(_) => Ok(Value::bytes(s.as_bytes().to_vec())),
+            ast::DataType::Numeric(_)
+            | ast::DataType::Decimal(_)
+            | ast::DataType::BigNumeric(_) => {
+                if let Ok(d) = s.parse::<rust_decimal::Decimal>() {
+                    Ok(Value::numeric(d))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Invalid NUMERIC literal: {}",
+                        s
+                    )))
+                }
+            }
             _ => Ok(Value::string(s.to_string())),
         }
     }
@@ -5348,6 +5398,7 @@ impl QueryExecutor {
             ast::DataType::Timestamp(_, _) => Ok(DataType::Timestamp),
             ast::DataType::Datetime(_) => Ok(DataType::Timestamp),
             ast::DataType::Numeric(_) | ast::DataType::Decimal(_) => Ok(DataType::Numeric(None)),
+            ast::DataType::BigNumeric(_) => Ok(DataType::BigNumeric),
             ast::DataType::JSON => Ok(DataType::Json),
             ast::DataType::Array(inner) => {
                 let element_type = match inner {
