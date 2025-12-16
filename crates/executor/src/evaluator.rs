@@ -238,6 +238,93 @@ impl<'a> Evaluator<'a> {
                 Ok(Value::string(result))
             }
 
+            Expr::IsDistinctFrom(left, right) => {
+                let l = self.evaluate(left, row)?;
+                let r = self.evaluate(right, row)?;
+                let distinct = match (l.is_null(), r.is_null()) {
+                    (true, true) => false,
+                    (true, false) | (false, true) => true,
+                    (false, false) => l != r,
+                };
+                Ok(Value::bool_val(distinct))
+            }
+
+            Expr::IsNotDistinctFrom(left, right) => {
+                let l = self.evaluate(left, row)?;
+                let r = self.evaluate(right, row)?;
+                let not_distinct = match (l.is_null(), r.is_null()) {
+                    (true, true) => true,
+                    (true, false) | (false, true) => false,
+                    (false, false) => l == r,
+                };
+                Ok(Value::bool_val(not_distinct))
+            }
+
+            Expr::Overlay {
+                expr,
+                overlay_what,
+                overlay_from,
+                overlay_for,
+            } => {
+                let s = self.evaluate(expr, row)?;
+                let what = self.evaluate(overlay_what, row)?;
+                let from = self.evaluate(overlay_from, row)?;
+
+                if s.is_null() {
+                    return Ok(Value::null());
+                }
+
+                let s_str = s.as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: s.data_type().to_string(),
+                })?;
+                let what_str = what.as_str().unwrap_or("");
+                let from_idx = from.as_i64().unwrap_or(1) as usize;
+                let start = if from_idx > 0 { from_idx - 1 } else { 0 };
+
+                let for_len = if let Some(for_expr) = overlay_for {
+                    let for_val = self.evaluate(for_expr, row)?;
+                    for_val.as_i64().unwrap_or(what_str.len() as i64) as usize
+                } else {
+                    what_str.len()
+                };
+
+                let chars: Vec<char> = s_str.chars().collect();
+                let end = (start + for_len).min(chars.len());
+
+                let mut result = String::new();
+                result.extend(&chars[..start.min(chars.len())]);
+                result.push_str(what_str);
+                if end < chars.len() {
+                    result.extend(&chars[end..]);
+                }
+                Ok(Value::string(result))
+            }
+
+            Expr::Position { expr, r#in } => {
+                let needle = self.evaluate(expr, row)?;
+                let haystack = self.evaluate(r#in, row)?;
+
+                if needle.is_null() || haystack.is_null() {
+                    return Ok(Value::null());
+                }
+
+                let needle_str = needle.as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: needle.data_type().to_string(),
+                })?;
+                let haystack_str = haystack.as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: haystack.data_type().to_string(),
+                })?;
+
+                let pos = haystack_str
+                    .find(needle_str)
+                    .map(|i| haystack_str[..i].chars().count() as i64 + 1)
+                    .unwrap_or(0);
+                Ok(Value::int64(pos))
+            }
+
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression type not yet supported: {:?}",
                 expr
