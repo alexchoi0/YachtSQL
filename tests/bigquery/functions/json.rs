@@ -180,7 +180,7 @@ fn test_json_object() {
 fn test_json_array() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT JSON_ARRAY(1, 2, 'three')")
+        .execute_sql("SELECT TO_JSON_STRING(JSON_ARRAY(1, 2, 'three'))")
         .unwrap();
     assert_table_eq!(result, [["[1,2,\"three\"]"]]);
 }
@@ -198,7 +198,7 @@ fn test_json_set() {
 fn test_json_strip_nulls() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT JSON_STRIP_NULLS(JSON '{\"a\": 1, \"b\": null}')")
+        .execute_sql("SELECT TO_JSON_STRING(JSON_STRIP_NULLS(JSON '{\"a\": 1, \"b\": null}'))")
         .unwrap();
     assert_table_eq!(result, [["{\"a\":1}"]]);
 }
@@ -207,7 +207,7 @@ fn test_json_strip_nulls() {
 fn test_json_remove() {
     let mut executor = create_executor();
     let result = executor
-        .execute_sql("SELECT JSON_REMOVE(JSON '{\"a\": 1, \"b\": 2}', '$.b')")
+        .execute_sql("SELECT TO_JSON_STRING(JSON_REMOVE(JSON '{\"a\": 1, \"b\": 2}', '$.b'))")
         .unwrap();
     assert_table_eq!(result, [["{\"a\":1}"]]);
 }
