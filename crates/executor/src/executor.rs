@@ -56,6 +56,22 @@ impl QueryExecutor {
         match stmt {
             Statement::Query(query) => self.execute_query(query),
             Statement::CreateTable(create) => self.execute_create_table(create),
+            Statement::CreateView {
+                name,
+                columns,
+                query,
+                or_replace,
+                if_not_exists,
+                materialized,
+                ..
+            } => self.execute_create_view(
+                name,
+                columns,
+                query,
+                *or_replace,
+                *if_not_exists,
+                *materialized,
+            ),
             Statement::Drop {
                 object_type,
                 names,
@@ -84,6 +100,16 @@ impl QueryExecutor {
     fn execute_query(&self, query: &Query) -> Result<Table> {
         let cte_tables = self.materialize_ctes(&query.with)?;
         self.execute_query_with_ctes(query, &cte_tables)
+    }
+
+    fn execute_view_query(&self, query_sql: &str) -> Result<Table> {
+        let dialect = BigQueryDialect {};
+        let statements =
+            Parser::parse_sql(&dialect, query_sql).map_err(|e| Error::ParseError(e.to_string()))?;
+        match statements.first() {
+            Some(Statement::Query(query)) => self.execute_query(query),
+            _ => Err(Error::ParseError("View query must be a SELECT".to_string())),
+        }
     }
 
     fn materialize_ctes(&self, with_clause: &Option<ast::With>) -> Result<HashMap<String, Table>> {
@@ -242,9 +268,14 @@ impl QueryExecutor {
         let evaluator = Evaluator::new(&input_schema);
 
         let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
+            let resolved_selection = self.resolve_scalar_subqueries(selection)?;
             input_rows
                 .iter()
-                .filter(|row| evaluator.evaluate_to_bool(selection, row).unwrap_or(false))
+                .filter(|row| {
+                    evaluator
+                        .evaluate_to_bool(&resolved_selection, row)
+                        .unwrap_or(false)
+                })
                 .cloned()
                 .collect()
         } else {
@@ -303,9 +334,14 @@ impl QueryExecutor {
         let evaluator = Evaluator::new(&input_schema);
 
         let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
+            let resolved_selection = self.resolve_scalar_subqueries(selection)?;
             input_rows
                 .iter()
-                .filter(|row| evaluator.evaluate_to_bool(selection, row).unwrap_or(false))
+                .filter(|row| {
+                    evaluator
+                        .evaluate_to_bool(&resolved_selection, row)
+                        .unwrap_or(false)
+                })
                 .cloned()
                 .collect()
         } else {
@@ -505,10 +541,70 @@ impl QueryExecutor {
                 let table_name = name.to_string();
                 let table_name_upper = table_name.to_uppercase();
 
-                let table_data = cte_tables
-                    .get(&table_name_upper)
+                if let Some(cte_table) = cte_tables.get(&table_name_upper) {
+                    let table_data = cte_table.clone();
+                    let schema = if let Some(alias) = alias {
+                        let prefix = &alias.name.value;
+                        Schema::from_fields(
+                            table_data
+                                .schema()
+                                .fields()
+                                .iter()
+                                .map(|f| {
+                                    Field::nullable(
+                                        format!("{}.{}", prefix, f.name),
+                                        f.data_type.clone(),
+                                    )
+                                })
+                                .collect(),
+                        )
+                    } else {
+                        table_data.schema().clone()
+                    };
+                    return Ok((schema, table_data.to_records()?));
+                }
+
+                if let Some(view_def) = self.catalog.get_view(&table_name) {
+                    let view_query = view_def.query.clone();
+                    let column_aliases = view_def.column_aliases.clone();
+                    let view_result = self.execute_view_query(&view_query)?;
+
+                    let rows = view_result.to_records()?;
+                    let base_schema = view_result.schema().clone();
+
+                    let schema = if !column_aliases.is_empty() {
+                        let fields = base_schema
+                            .fields()
+                            .iter()
+                            .zip(column_aliases.iter())
+                            .map(|(f, alias)| Field::nullable(alias.clone(), f.data_type.clone()))
+                            .collect();
+                        Schema::from_fields(fields)
+                    } else if let Some(table_alias) = alias {
+                        let prefix = &table_alias.name.value;
+                        Schema::from_fields(
+                            base_schema
+                                .fields()
+                                .iter()
+                                .map(|f| {
+                                    Field::nullable(
+                                        format!("{}.{}", prefix, f.name),
+                                        f.data_type.clone(),
+                                    )
+                                })
+                                .collect(),
+                        )
+                    } else {
+                        base_schema
+                    };
+
+                    return Ok((schema, rows));
+                }
+
+                let table_data = self
+                    .catalog
+                    .get_table(&table_name)
                     .cloned()
-                    .or_else(|| self.catalog.get_table(&table_name).cloned())
                     .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
 
                 let schema = if let Some(alias) = alias {
@@ -2390,6 +2486,36 @@ impl QueryExecutor {
         Ok(Table::empty(Schema::new()))
     }
 
+    fn execute_create_view(
+        &mut self,
+        name: &ObjectName,
+        columns: &[ast::ViewColumnDef],
+        query: &Query,
+        or_replace: bool,
+        if_not_exists: bool,
+        materialized: bool,
+    ) -> Result<Table> {
+        if materialized {
+            return Err(Error::UnsupportedFeature(
+                "MATERIALIZED VIEW not yet supported".to_string(),
+            ));
+        }
+
+        let view_name = name.to_string();
+        let column_aliases: Vec<String> = columns.iter().map(|c| c.name.value.clone()).collect();
+        let query_string = query.to_string();
+
+        self.catalog.create_view(
+            &view_name,
+            query_string,
+            column_aliases,
+            or_replace,
+            if_not_exists,
+        )?;
+
+        Ok(Table::empty(Schema::new()))
+    }
+
     fn execute_drop(
         &mut self,
         object_type: &ast::ObjectType,
@@ -2404,6 +2530,13 @@ impl QueryExecutor {
                         continue;
                     }
                     self.catalog.drop_table(&table_name)?;
+                }
+                Ok(Table::empty(Schema::new()))
+            }
+            ast::ObjectType::View => {
+                for name in names {
+                    let view_name = name.to_string();
+                    self.catalog.drop_view(&view_name, if_exists)?;
                 }
                 Ok(Table::empty(Schema::new()))
             }
@@ -2695,6 +2828,80 @@ impl QueryExecutor {
                 "DELETE requires FROM clause".to_string(),
             ))
         }
+    }
+
+    fn resolve_scalar_subqueries(&self, expr: &Expr) -> Result<Expr> {
+        match expr {
+            Expr::Subquery(query) => {
+                let result = self.execute_query(query)?;
+                let rows = result.to_records()?;
+                if rows.len() != 1 || result.schema().field_count() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "Scalar subquery must return exactly one row and one column".to_string(),
+                    ));
+                }
+                let value = rows[0].values()[0].clone();
+                Ok(self.value_to_expr(&value))
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let resolved_left = self.resolve_scalar_subqueries(left)?;
+                let resolved_right = self.resolve_scalar_subqueries(right)?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(resolved_left),
+                    op: op.clone(),
+                    right: Box::new(resolved_right),
+                })
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::UnaryOp {
+                    op: *op,
+                    expr: Box::new(resolved),
+                })
+            }
+            Expr::Nested(inner) => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::Nested(Box::new(resolved)))
+            }
+            Expr::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_scalar_subqueries(expr)?;
+                let resolved_low = self.resolve_scalar_subqueries(low)?;
+                let resolved_high = self.resolve_scalar_subqueries(high)?;
+                Ok(Expr::Between {
+                    expr: Box::new(resolved_expr),
+                    low: Box::new(resolved_low),
+                    high: Box::new(resolved_high),
+                    negated: *negated,
+                })
+            }
+            Expr::IsNull(inner) => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::IsNull(Box::new(resolved)))
+            }
+            Expr::IsNotNull(inner) => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::IsNotNull(Box::new(resolved)))
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    fn value_to_expr(&self, value: &Value) -> Expr {
+        let sql_value = match value {
+            Value::Null => SqlValue::Null,
+            Value::Bool(b) => SqlValue::Boolean(*b),
+            Value::Int64(i) => SqlValue::Number(i.to_string(), false),
+            Value::Float64(f) => SqlValue::Number(f.to_string(), false),
+            Value::String(s) => SqlValue::SingleQuotedString(s.clone()),
+            Value::Numeric(n) => SqlValue::Number(n.to_string(), false),
+            _ => SqlValue::Null,
+        };
+        Expr::Value(sql_value.into())
     }
 
     fn expr_to_alias(&self, expr: &Expr, idx: usize) -> String {

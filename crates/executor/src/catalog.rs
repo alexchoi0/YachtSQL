@@ -5,15 +5,23 @@ use std::collections::HashMap;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_storage::{Schema, Table};
 
+#[derive(Debug, Clone)]
+pub struct ViewDef {
+    pub query: String,
+    pub column_aliases: Vec<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct Catalog {
     tables: HashMap<String, Table>,
+    views: HashMap<String, ViewDef>,
 }
 
 impl Catalog {
     pub fn new() -> Self {
         Self {
             tables: HashMap::new(),
+            views: HashMap::new(),
         }
     }
 
@@ -67,5 +75,51 @@ impl Catalog {
             self.tables.insert(new_key, table);
         }
         Ok(())
+    }
+
+    pub fn create_view(
+        &mut self,
+        name: &str,
+        query: String,
+        column_aliases: Vec<String>,
+        or_replace: bool,
+        if_not_exists: bool,
+    ) -> Result<()> {
+        let key = name.to_uppercase();
+        if self.views.contains_key(&key) {
+            if if_not_exists {
+                return Ok(());
+            }
+            if !or_replace {
+                return Err(Error::invalid_query(format!(
+                    "View already exists: {}",
+                    name
+                )));
+            }
+        }
+        self.views.insert(
+            key,
+            ViewDef {
+                query,
+                column_aliases,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn drop_view(&mut self, name: &str, if_exists: bool) -> Result<()> {
+        let key = name.to_uppercase();
+        if self.views.remove(&key).is_none() && !if_exists {
+            return Err(Error::invalid_query(format!("View not found: {}", name)));
+        }
+        Ok(())
+    }
+
+    pub fn get_view(&self, name: &str) -> Option<&ViewDef> {
+        self.views.get(&name.to_uppercase())
+    }
+
+    pub fn view_exists(&self, name: &str) -> bool {
+        self.views.contains_key(&name.to_uppercase())
     }
 }
