@@ -370,6 +370,14 @@ fn geometry_geodesic_distance(geom1: &Geometry<f64>, geom2: &Geometry<f64>) -> f
     }
 }
 
+fn simplify_multipolygon(mp: MultiPolygon<f64>) -> Geometry<f64> {
+    if mp.0.len() == 1 {
+        Geometry::Polygon(mp.0.into_iter().next().unwrap())
+    } else {
+        Geometry::MultiPolygon(mp)
+    }
+}
+
 pub struct Evaluator<'a> {
     schema: &'a Schema,
     user_functions: Option<&'a HashMap<String, UserFunction>>,
@@ -2237,7 +2245,7 @@ impl<'a> Evaluator<'a> {
         self.evaluate_function_impl(&name, &args)
     }
 
-    fn evaluate_function_impl(&self, name: &str, args: &[Value]) -> Result<Value> {
+    pub fn evaluate_function_impl(&self, name: &str, args: &[Value]) -> Result<Value> {
         match name {
             "COALESCE" => {
                 for val in args {
@@ -5594,9 +5602,9 @@ impl<'a> Evaluator<'a> {
                 match (to_multipoly(&geom1), to_multipoly(&geom2)) {
                     (Some(mp1), Some(mp2)) => {
                         let result = mp1.difference(&mp2);
-                        Ok(Value::geography(format_wkt_number(
-                            &Geometry::MultiPolygon(result),
-                        )))
+                        Ok(Value::geography(format_wkt_number(&simplify_multipolygon(
+                            result,
+                        ))))
                     }
                     _ => Ok(Value::geography(format_wkt_number(&geom1))),
                 }
@@ -5638,9 +5646,9 @@ impl<'a> Evaluator<'a> {
                 match (to_multipoly(&geom1), to_multipoly(&geom2)) {
                     (Some(mp1), Some(mp2)) => {
                         let result = mp1.intersection(&mp2);
-                        Ok(Value::geography(format_wkt_number(
-                            &Geometry::MultiPolygon(result),
-                        )))
+                        Ok(Value::geography(format_wkt_number(&simplify_multipolygon(
+                            result,
+                        ))))
                     }
                     _ => Ok(Value::geography(format_wkt_number(&geom1))),
                 }
@@ -5751,9 +5759,9 @@ impl<'a> Evaluator<'a> {
                 match (to_multipoly(&geom1), to_multipoly(&geom2)) {
                     (Some(mp1), Some(mp2)) => {
                         let result = mp1.union(&mp2);
-                        Ok(Value::geography(format_wkt_number(
-                            &Geometry::MultiPolygon(result),
-                        )))
+                        Ok(Value::geography(format_wkt_number(&simplify_multipolygon(
+                            result,
+                        ))))
                     }
                     _ => Ok(Value::geography(format_wkt_number(&geom1))),
                 }
@@ -6077,9 +6085,9 @@ impl<'a> Evaluator<'a> {
                 let geom = parse_geography(wkt)
                     .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
                 let precision = if args.len() > 1 {
-                    args[1].as_i64().unwrap_or(20) as usize
+                    args[1].as_i64().unwrap_or(12).clamp(1, 12) as usize
                 } else {
-                    20
+                    12
                 };
                 match geom {
                     Geometry::Point(p) => {

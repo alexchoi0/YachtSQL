@@ -6941,6 +6941,16 @@ impl QueryExecutor {
                 Ok(DataType::Struct(struct_fields))
             }
             ast::DataType::Interval { .. } => Ok(DataType::Interval),
+            ast::DataType::Custom(name, _) => {
+                let type_name = name.to_string().to_uppercase();
+                match type_name.as_str() {
+                    "GEOGRAPHY" => Ok(DataType::Geography),
+                    _ => Err(Error::UnsupportedFeature(format!(
+                        "Custom type not yet supported: {:?}",
+                        sql_type
+                    ))),
+                }
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Data type not yet supported: {:?}",
                 sql_type
