@@ -56,6 +56,22 @@ impl QueryExecutor {
         match stmt {
             Statement::Query(query) => self.execute_query(query),
             Statement::CreateTable(create) => self.execute_create_table(create),
+            Statement::CreateView {
+                name,
+                columns,
+                query,
+                or_replace,
+                if_not_exists,
+                materialized,
+                ..
+            } => self.execute_create_view(
+                name,
+                columns,
+                query,
+                *or_replace,
+                *if_not_exists,
+                *materialized,
+            ),
             Statement::Drop {
                 object_type,
                 names,
@@ -103,6 +119,16 @@ impl QueryExecutor {
     fn execute_query(&self, query: &Query) -> Result<Table> {
         let cte_tables = self.materialize_ctes(&query.with)?;
         self.execute_query_with_ctes(query, &cte_tables)
+    }
+
+    fn execute_view_query(&self, query_sql: &str) -> Result<Table> {
+        let dialect = BigQueryDialect {};
+        let statements =
+            Parser::parse_sql(&dialect, query_sql).map_err(|e| Error::ParseError(e.to_string()))?;
+        match statements.first() {
+            Some(Statement::Query(query)) => self.execute_query(query),
+            _ => Err(Error::ParseError("View query must be a SELECT".to_string())),
+        }
     }
 
     fn materialize_ctes(&self, with_clause: &Option<ast::With>) -> Result<HashMap<String, Table>> {
@@ -261,9 +287,14 @@ impl QueryExecutor {
         let evaluator = Evaluator::with_user_functions(&input_schema, self.catalog.get_functions());
 
         let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
+            let resolved_selection = self.resolve_scalar_subqueries(selection)?;
             input_rows
                 .iter()
-                .filter(|row| evaluator.evaluate_to_bool(selection, row).unwrap_or(false))
+                .filter(|row| {
+                    evaluator
+                        .evaluate_to_bool(&resolved_selection, row)
+                        .unwrap_or(false)
+                })
                 .cloned()
                 .collect()
         } else {
@@ -322,9 +353,14 @@ impl QueryExecutor {
         let evaluator = Evaluator::with_user_functions(&input_schema, self.catalog.get_functions());
 
         let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
+            let resolved_selection = self.resolve_scalar_subqueries(selection)?;
             input_rows
                 .iter()
-                .filter(|row| evaluator.evaluate_to_bool(selection, row).unwrap_or(false))
+                .filter(|row| {
+                    evaluator
+                        .evaluate_to_bool(&resolved_selection, row)
+                        .unwrap_or(false)
+                })
                 .cloned()
                 .collect()
         } else {
@@ -471,9 +507,28 @@ impl QueryExecutor {
         }
 
         for additional_from in from.iter().skip(1) {
-            let (right_schema, right_rows) =
-                self.get_table_factor_data_ctes(&additional_from.relation, cte_tables)?;
-            (schema, rows) = self.execute_cross_join(&schema, &rows, &right_schema, &right_rows)?;
+            if let TableFactor::UNNEST {
+                alias,
+                array_exprs,
+                with_offset,
+                with_offset_alias,
+                ..
+            } = &additional_from.relation
+            {
+                (schema, rows) = self.execute_unnest_lateral(
+                    &schema,
+                    &rows,
+                    array_exprs,
+                    alias.as_ref(),
+                    *with_offset,
+                    with_offset_alias.as_ref(),
+                )?;
+            } else {
+                let (right_schema, right_rows) =
+                    self.get_table_factor_data_ctes(&additional_from.relation, cte_tables)?;
+                (schema, rows) =
+                    self.execute_cross_join(&schema, &rows, &right_schema, &right_rows)?;
+            }
 
             for join in &additional_from.joins {
                 let (join_right_schema, join_right_rows) =
@@ -505,10 +560,70 @@ impl QueryExecutor {
                 let table_name = name.to_string();
                 let table_name_upper = table_name.to_uppercase();
 
-                let table_data = cte_tables
-                    .get(&table_name_upper)
+                if let Some(cte_table) = cte_tables.get(&table_name_upper) {
+                    let table_data = cte_table.clone();
+                    let schema = if let Some(alias) = alias {
+                        let prefix = &alias.name.value;
+                        Schema::from_fields(
+                            table_data
+                                .schema()
+                                .fields()
+                                .iter()
+                                .map(|f| {
+                                    Field::nullable(
+                                        format!("{}.{}", prefix, f.name),
+                                        f.data_type.clone(),
+                                    )
+                                })
+                                .collect(),
+                        )
+                    } else {
+                        table_data.schema().clone()
+                    };
+                    return Ok((schema, table_data.to_records()?));
+                }
+
+                if let Some(view_def) = self.catalog.get_view(&table_name) {
+                    let view_query = view_def.query.clone();
+                    let column_aliases = view_def.column_aliases.clone();
+                    let view_result = self.execute_view_query(&view_query)?;
+
+                    let rows = view_result.to_records()?;
+                    let base_schema = view_result.schema().clone();
+
+                    let schema = if !column_aliases.is_empty() {
+                        let fields = base_schema
+                            .fields()
+                            .iter()
+                            .zip(column_aliases.iter())
+                            .map(|(f, alias)| Field::nullable(alias.clone(), f.data_type.clone()))
+                            .collect();
+                        Schema::from_fields(fields)
+                    } else if let Some(table_alias) = alias {
+                        let prefix = &table_alias.name.value;
+                        Schema::from_fields(
+                            base_schema
+                                .fields()
+                                .iter()
+                                .map(|f| {
+                                    Field::nullable(
+                                        format!("{}.{}", prefix, f.name),
+                                        f.data_type.clone(),
+                                    )
+                                })
+                                .collect(),
+                        )
+                    } else {
+                        base_schema
+                    };
+
+                    return Ok((schema, rows));
+                }
+
+                let table_data = self
+                    .catalog
+                    .get_table(&table_name)
                     .cloned()
-                    .or_else(|| self.catalog.get_table(&table_name).cloned())
                     .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
 
                 let schema = if let Some(alias) = alias {
@@ -573,6 +688,69 @@ impl QueryExecutor {
                     result.schema().clone()
                 };
                 Ok((schema, rows))
+            }
+            TableFactor::UNNEST {
+                alias,
+                array_exprs,
+                with_offset,
+                with_offset_alias,
+                ..
+            } => {
+                if array_exprs.is_empty() {
+                    return Err(Error::InvalidQuery(
+                        "UNNEST requires at least one array expression".to_string(),
+                    ));
+                }
+
+                let empty_schema = Schema::new();
+                let empty_record = Record::from_values(vec![]);
+                let evaluator = Evaluator::new(&empty_schema);
+                let array_expr = &array_exprs[0];
+
+                let element_alias = alias
+                    .as_ref()
+                    .map(|a| a.name.value.clone())
+                    .unwrap_or_else(|| "element".to_string());
+                let offset_alias = with_offset_alias
+                    .as_ref()
+                    .map(|a| a.value.clone())
+                    .unwrap_or_else(|| "offset".to_string());
+
+                let array_val = evaluator.evaluate(array_expr, &empty_record)?;
+                let mut result_rows = Vec::new();
+                let mut element_type: Option<DataType> = None;
+
+                match array_val.as_array() {
+                    Some(elements) => {
+                        if !elements.is_empty() {
+                            element_type = Some(elements[0].data_type());
+                        }
+                        for (idx, elem) in elements.iter().enumerate() {
+                            let mut values = vec![elem.clone()];
+                            if *with_offset {
+                                values.push(Value::int64(idx as i64));
+                            }
+                            result_rows.push(Record::from_values(values));
+                        }
+                    }
+                    None => {
+                        if !array_val.is_null() {
+                            return Err(Error::TypeMismatch {
+                                expected: "Array".to_string(),
+                                actual: format!("{:?}", array_val.data_type()),
+                            });
+                        }
+                    }
+                }
+
+                let final_element_type = element_type.unwrap_or(DataType::String);
+                let mut output_fields = vec![Field::nullable(element_alias, final_element_type)];
+                if *with_offset {
+                    output_fields.push(Field::nullable(offset_alias, DataType::Int64));
+                }
+                let output_schema = Schema::from_fields(output_fields);
+
+                Ok((output_schema, result_rows))
             }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Table factor not yet supported: {:?}",
@@ -910,6 +1088,74 @@ impl QueryExecutor {
         Ok((combined_schema, result_rows))
     }
 
+    fn execute_unnest_lateral(
+        &self,
+        left_schema: &Schema,
+        left_rows: &[Record],
+        array_exprs: &[Expr],
+        alias: Option<&ast::TableAlias>,
+        with_offset: bool,
+        with_offset_alias: Option<&ast::Ident>,
+    ) -> Result<(Schema, Vec<Record>)> {
+        if array_exprs.is_empty() {
+            return Err(Error::InvalidQuery(
+                "UNNEST requires at least one array expression".to_string(),
+            ));
+        }
+
+        let evaluator = Evaluator::new(left_schema);
+        let array_expr = &array_exprs[0];
+
+        let element_alias = alias
+            .map(|a| a.name.value.clone())
+            .unwrap_or_else(|| "element".to_string());
+        let offset_alias = with_offset_alias
+            .map(|a| a.value.clone())
+            .unwrap_or_else(|| "offset".to_string());
+
+        let mut result_rows = Vec::new();
+        let mut element_type: Option<DataType> = None;
+
+        for left_record in left_rows {
+            let array_val = evaluator.evaluate(array_expr, left_record)?;
+
+            match array_val.as_array() {
+                Some(elements) => {
+                    if element_type.is_none() && !elements.is_empty() {
+                        element_type = Some(elements[0].data_type());
+                    }
+                    for (idx, elem) in elements.iter().enumerate() {
+                        let mut combined_values: Vec<Value> = left_record.values().to_vec();
+                        combined_values.push(elem.clone());
+                        if with_offset {
+                            combined_values.push(Value::int64(idx as i64));
+                        }
+                        result_rows.push(Record::from_values(combined_values));
+                    }
+                }
+                None => {
+                    if array_val.is_null() {
+                        continue;
+                    }
+                    return Err(Error::TypeMismatch {
+                        expected: "Array".to_string(),
+                        actual: format!("{:?}", array_val.data_type()),
+                    });
+                }
+            }
+        }
+
+        let final_element_type = element_type.unwrap_or(DataType::String);
+        let mut output_fields: Vec<Field> = left_schema.fields().to_vec();
+        output_fields.push(Field::nullable(element_alias, final_element_type));
+        if with_offset {
+            output_fields.push(Field::nullable(offset_alias, DataType::Int64));
+        }
+        let output_schema = Schema::from_fields(output_fields);
+
+        Ok((output_schema, result_rows))
+    }
+
     fn has_aggregate_functions(&self, projection: &[SelectItem]) -> bool {
         for item in projection {
             match item {
@@ -931,7 +1177,7 @@ impl QueryExecutor {
                     return false;
                 }
                 let name = func.name.to_string().to_uppercase();
-                matches!(
+                if matches!(
                     name.as_str(),
                     "COUNT"
                         | "SUM"
@@ -947,6 +1193,9 @@ impl QueryExecutor {
                         | "VARIANCE"
                         | "VAR_POP"
                         | "VAR_SAMP"
+                        | "COVAR_POP"
+                        | "COVAR_SAMP"
+                        | "CORR"
                         | "BIT_AND"
                         | "BIT_OR"
                         | "BIT_XOR"
@@ -954,7 +1203,20 @@ impl QueryExecutor {
                         | "BOOL_OR"
                         | "EVERY"
                         | "ANY_VALUE"
-                )
+                ) {
+                    return true;
+                }
+                if let ast::FunctionArguments::List(arg_list) = &func.args {
+                    for arg in &arg_list.args {
+                        if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(arg_expr)) = arg
+                        {
+                            if self.expr_has_aggregate(arg_expr) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                false
             }
             Expr::BinaryOp { left, right, .. } => {
                 self.expr_has_aggregate(left) || self.expr_has_aggregate(right)
@@ -974,6 +1236,53 @@ impl QueryExecutor {
                     .unwrap_or(false)
             }
             _ => false,
+        }
+    }
+
+    fn has_array_join(&self, projection: &[SelectItem]) -> bool {
+        for item in projection {
+            match item {
+                SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                    if self.expr_has_array_join(expr) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn expr_has_array_join(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Function(func) => {
+                let name = func.name.to_string().to_uppercase();
+                name == "ARRAYJOIN"
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.expr_has_array_join(left) || self.expr_has_array_join(right)
+            }
+            Expr::UnaryOp { expr, .. } => self.expr_has_array_join(expr),
+            Expr::Nested(inner) => self.expr_has_array_join(inner),
+            _ => false,
+        }
+    }
+
+    fn find_array_join_expr<'a>(&self, expr: &'a Expr) -> Option<&'a Expr> {
+        match expr {
+            Expr::Function(func) => {
+                let name = func.name.to_string().to_uppercase();
+                if name == "ARRAYJOIN" {
+                    return Some(expr);
+                }
+                None
+            }
+            Expr::BinaryOp { left, right, .. } => self
+                .find_array_join_expr(left)
+                .or_else(|| self.find_array_join_expr(right)),
+            Expr::UnaryOp { expr, .. } => self.find_array_join_expr(expr),
+            Expr::Nested(inner) => self.find_array_join_expr(inner),
+            _ => None,
         }
     }
 
@@ -1108,8 +1417,24 @@ impl QueryExecutor {
                 if self.is_aggregate_function(&name) {
                     return self.compute_aggregate(&name, func, input_schema, group_rows);
                 }
+                let mut evaluated_args = Vec::new();
+                if let ast::FunctionArguments::List(arg_list) = &func.args {
+                    for arg in &arg_list.args {
+                        if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(arg_expr)) = arg
+                        {
+                            let val = self.evaluate_aggregate_expr(
+                                arg_expr,
+                                input_schema,
+                                group_rows,
+                                group_key,
+                                group_by,
+                            )?;
+                            evaluated_args.push(val);
+                        }
+                    }
+                }
                 if let Some(row) = group_rows.first() {
-                    evaluator.evaluate(expr, row)
+                    evaluator.evaluate_function(&name, &evaluated_args, func, row)
                 } else {
                     Ok(Value::null())
                 }
@@ -1239,6 +1564,9 @@ impl QueryExecutor {
                 | "VARIANCE"
                 | "VAR_POP"
                 | "VAR_SAMP"
+                | "COVAR_POP"
+                | "COVAR_SAMP"
+                | "CORR"
                 | "BIT_AND"
                 | "BIT_OR"
                 | "BIT_XOR"
@@ -1452,6 +1780,292 @@ impl QueryExecutor {
                     Ok(Value::null())
                 }
             }
+            "STDDEV" | "STDDEV_SAMP" => {
+                let expr = arg_expr
+                    .ok_or_else(|| Error::InvalidQuery(format!("{} requires an argument", name)))?;
+                let mut n: u64 = 0;
+                let mut mean: f64 = 0.0;
+                let mut m2: f64 = 0.0;
+
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    let x = match val.as_f64() {
+                        Some(f) => f,
+                        None => match val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    n += 1;
+                    let delta = x - mean;
+                    mean += delta / n as f64;
+                    let delta2 = x - mean;
+                    m2 += delta * delta2;
+                }
+
+                if n < 2 {
+                    Ok(Value::null())
+                } else {
+                    let variance = m2 / (n - 1) as f64;
+                    Ok(Value::float64(variance.sqrt()))
+                }
+            }
+            "STDDEV_POP" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("STDDEV_POP requires an argument".to_string())
+                })?;
+                let mut n: u64 = 0;
+                let mut mean: f64 = 0.0;
+                let mut m2: f64 = 0.0;
+
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    let x = match val.as_f64() {
+                        Some(f) => f,
+                        None => match val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    n += 1;
+                    let delta = x - mean;
+                    mean += delta / n as f64;
+                    let delta2 = x - mean;
+                    m2 += delta * delta2;
+                }
+
+                if n == 0 {
+                    Ok(Value::null())
+                } else {
+                    let variance = m2 / n as f64;
+                    Ok(Value::float64(variance.sqrt()))
+                }
+            }
+            "VARIANCE" | "VAR_SAMP" => {
+                let expr = arg_expr
+                    .ok_or_else(|| Error::InvalidQuery(format!("{} requires an argument", name)))?;
+                let mut n: u64 = 0;
+                let mut mean: f64 = 0.0;
+                let mut m2: f64 = 0.0;
+
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    let x = match val.as_f64() {
+                        Some(f) => f,
+                        None => match val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    n += 1;
+                    let delta = x - mean;
+                    mean += delta / n as f64;
+                    let delta2 = x - mean;
+                    m2 += delta * delta2;
+                }
+
+                if n < 2 {
+                    Ok(Value::null())
+                } else {
+                    let variance = m2 / (n - 1) as f64;
+                    Ok(Value::float64(variance))
+                }
+            }
+            "VAR_POP" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("VAR_POP requires an argument".to_string())
+                })?;
+                let mut n: u64 = 0;
+                let mut mean: f64 = 0.0;
+                let mut m2: f64 = 0.0;
+
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    let x = match val.as_f64() {
+                        Some(f) => f,
+                        None => match val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    n += 1;
+                    let delta = x - mean;
+                    mean += delta / n as f64;
+                    let delta2 = x - mean;
+                    m2 += delta * delta2;
+                }
+
+                if n == 0 {
+                    Ok(Value::null())
+                } else {
+                    let variance = m2 / n as f64;
+                    Ok(Value::float64(variance))
+                }
+            }
+            "COVAR_POP" => {
+                let x_expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("COVAR_POP requires two arguments".to_string())
+                })?;
+                let y_expr = self.extract_second_function_arg(func).ok_or_else(|| {
+                    Error::InvalidQuery("COVAR_POP requires two arguments".to_string())
+                })?;
+
+                let mut n: u64 = 0;
+                let mut mean_x: f64 = 0.0;
+                let mut mean_y: f64 = 0.0;
+                let mut co_moment: f64 = 0.0;
+
+                for row in group_rows {
+                    let x_val = evaluator.evaluate(&x_expr, row)?;
+                    let y_val = evaluator.evaluate(&y_expr, row)?;
+                    if x_val.is_null() || y_val.is_null() {
+                        continue;
+                    }
+                    let x = match x_val.as_f64() {
+                        Some(f) => f,
+                        None => match x_val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    let y = match y_val.as_f64() {
+                        Some(f) => f,
+                        None => match y_val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    n += 1;
+                    let dx = x - mean_x;
+                    mean_x += dx / n as f64;
+                    mean_y += (y - mean_y) / n as f64;
+                    co_moment += dx * (y - mean_y);
+                }
+
+                if n == 0 {
+                    Ok(Value::null())
+                } else {
+                    Ok(Value::float64(co_moment / n as f64))
+                }
+            }
+            "COVAR_SAMP" => {
+                let x_expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("COVAR_SAMP requires two arguments".to_string())
+                })?;
+                let y_expr = self.extract_second_function_arg(func).ok_or_else(|| {
+                    Error::InvalidQuery("COVAR_SAMP requires two arguments".to_string())
+                })?;
+
+                let mut n: u64 = 0;
+                let mut mean_x: f64 = 0.0;
+                let mut mean_y: f64 = 0.0;
+                let mut co_moment: f64 = 0.0;
+
+                for row in group_rows {
+                    let x_val = evaluator.evaluate(&x_expr, row)?;
+                    let y_val = evaluator.evaluate(&y_expr, row)?;
+                    if x_val.is_null() || y_val.is_null() {
+                        continue;
+                    }
+                    let x = match x_val.as_f64() {
+                        Some(f) => f,
+                        None => match x_val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    let y = match y_val.as_f64() {
+                        Some(f) => f,
+                        None => match y_val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    n += 1;
+                    let dx = x - mean_x;
+                    mean_x += dx / n as f64;
+                    mean_y += (y - mean_y) / n as f64;
+                    co_moment += dx * (y - mean_y);
+                }
+
+                if n < 2 {
+                    Ok(Value::null())
+                } else {
+                    Ok(Value::float64(co_moment / (n - 1) as f64))
+                }
+            }
+            "CORR" => {
+                let x_expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("CORR requires two arguments".to_string())
+                })?;
+                let y_expr = self.extract_second_function_arg(func).ok_or_else(|| {
+                    Error::InvalidQuery("CORR requires two arguments".to_string())
+                })?;
+
+                let mut n: u64 = 0;
+                let mut mean_x: f64 = 0.0;
+                let mut mean_y: f64 = 0.0;
+                let mut m2_x: f64 = 0.0;
+                let mut m2_y: f64 = 0.0;
+                let mut co_moment: f64 = 0.0;
+
+                for row in group_rows {
+                    let x_val = evaluator.evaluate(&x_expr, row)?;
+                    let y_val = evaluator.evaluate(&y_expr, row)?;
+                    if x_val.is_null() || y_val.is_null() {
+                        continue;
+                    }
+                    let x = match x_val.as_f64() {
+                        Some(f) => f,
+                        None => match x_val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    let y = match y_val.as_f64() {
+                        Some(f) => f,
+                        None => match y_val.as_i64() {
+                            Some(i) => i as f64,
+                            None => continue,
+                        },
+                    };
+                    n += 1;
+                    let dx = x - mean_x;
+                    let dy = y - mean_y;
+                    mean_x += dx / n as f64;
+                    mean_y += dy / n as f64;
+                    let dx2 = x - mean_x;
+                    let dy2 = y - mean_y;
+                    m2_x += dx * dx2;
+                    m2_y += dy * dy2;
+                    co_moment += dx * dy2;
+                }
+
+                if n < 2 {
+                    Ok(Value::null())
+                } else {
+                    let stddev_x = (m2_x / n as f64).sqrt();
+                    let stddev_y = (m2_y / n as f64).sqrt();
+                    if stddev_x == 0.0 || stddev_y == 0.0 {
+                        Ok(Value::null())
+                    } else {
+                        let covar = co_moment / n as f64;
+                        Ok(Value::float64(covar / (stddev_x * stddev_y)))
+                    }
+                }
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Aggregate function {} not yet supported",
                 name
@@ -1553,6 +2167,10 @@ impl QueryExecutor {
         rows: &[Record],
         projection: &[SelectItem],
     ) -> Result<(Schema, Vec<Record>)> {
+        if self.has_array_join(projection) {
+            return self.project_rows_with_array_join(input_schema, rows, projection);
+        }
+
         let evaluator = Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
 
         let mut all_cols: Vec<(String, DataType)> = Vec::new();
@@ -1613,6 +2231,119 @@ impl QueryExecutor {
                 }
             }
             output_rows.push(Record::from_values(values));
+        }
+
+        Ok((output_schema, output_rows))
+    }
+
+    fn project_rows_with_array_join(
+        &self,
+        input_schema: &Schema,
+        rows: &[Record],
+        projection: &[SelectItem],
+    ) -> Result<(Schema, Vec<Record>)> {
+        let evaluator = Evaluator::new(input_schema);
+
+        let mut array_join_col_idx: Option<usize> = None;
+        let mut all_cols: Vec<(String, DataType)> = Vec::new();
+
+        for (idx, item) in projection.iter().enumerate() {
+            match item {
+                SelectItem::Wildcard(_) => {
+                    for field in input_schema.fields() {
+                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                    }
+                }
+                SelectItem::UnnamedExpr(expr) => {
+                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                        Record::from_values(vec![Value::null(); input_schema.field_count()])
+                    });
+                    let val = evaluator
+                        .evaluate(expr, &sample_record)
+                        .unwrap_or(Value::null());
+                    let name = self.expr_to_alias(expr, idx);
+                    if self.expr_has_array_join(expr) {
+                        array_join_col_idx = Some(all_cols.len());
+                        let inner_type = match val.data_type() {
+                            DataType::Array(inner) => (*inner).clone(),
+                            _ => val.data_type(),
+                        };
+                        all_cols.push((name, inner_type));
+                    } else {
+                        all_cols.push((name, val.data_type()));
+                    }
+                }
+                SelectItem::ExprWithAlias { expr, alias } => {
+                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                        Record::from_values(vec![Value::null(); input_schema.field_count()])
+                    });
+                    let val = evaluator
+                        .evaluate(expr, &sample_record)
+                        .unwrap_or(Value::null());
+                    if self.expr_has_array_join(expr) {
+                        array_join_col_idx = Some(all_cols.len());
+                        let inner_type = match val.data_type() {
+                            DataType::Array(inner) => (*inner).clone(),
+                            _ => val.data_type(),
+                        };
+                        all_cols.push((alias.value.clone(), inner_type));
+                    } else {
+                        all_cols.push((alias.value.clone(), val.data_type()));
+                    }
+                }
+                _ => {
+                    return Err(Error::UnsupportedFeature(
+                        "Unsupported projection item".to_string(),
+                    ));
+                }
+            }
+        }
+
+        let fields: Vec<Field> = all_cols
+            .iter()
+            .map(|(name, dt)| Field::nullable(name.clone(), dt.clone()))
+            .collect();
+        let output_schema = Schema::from_fields(fields);
+
+        let mut output_rows = Vec::new();
+        for row in rows {
+            let mut base_values: Vec<Value> = Vec::new();
+            let mut array_values: Vec<Value> = Vec::new();
+
+            for item in projection {
+                match item {
+                    SelectItem::Wildcard(_) => {
+                        base_values.extend(row.values().iter().cloned());
+                    }
+                    SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                        let val = evaluator.evaluate(expr, row)?;
+                        if self.expr_has_array_join(expr) {
+                            if let Some(arr) = val.as_array() {
+                                array_values = arr.to_vec();
+                            } else {
+                                array_values = vec![val];
+                            }
+                            base_values.push(Value::null());
+                        } else {
+                            base_values.push(val);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some(arr_idx) = array_join_col_idx {
+                if array_values.is_empty() {
+                    continue;
+                }
+                for arr_val in array_values {
+                    let mut new_values = base_values.clone();
+                    new_values[arr_idx] = arr_val;
+                    output_rows.push(Record::from_values(new_values));
+                }
+            } else {
+                output_rows.push(Record::from_values(base_values));
+            }
         }
 
         Ok((output_schema, output_rows))
@@ -1779,6 +2510,36 @@ impl QueryExecutor {
         Ok(Table::empty(Schema::new()))
     }
 
+    fn execute_create_view(
+        &mut self,
+        name: &ObjectName,
+        columns: &[ast::ViewColumnDef],
+        query: &Query,
+        or_replace: bool,
+        if_not_exists: bool,
+        materialized: bool,
+    ) -> Result<Table> {
+        if materialized {
+            return Err(Error::UnsupportedFeature(
+                "MATERIALIZED VIEW not yet supported".to_string(),
+            ));
+        }
+
+        let view_name = name.to_string();
+        let column_aliases: Vec<String> = columns.iter().map(|c| c.name.value.clone()).collect();
+        let query_string = query.to_string();
+
+        self.catalog.create_view(
+            &view_name,
+            query_string,
+            column_aliases,
+            or_replace,
+            if_not_exists,
+        )?;
+
+        Ok(Table::empty(Schema::new()))
+    }
+
     fn execute_drop(
         &mut self,
         object_type: &ast::ObjectType,
@@ -1793,6 +2554,13 @@ impl QueryExecutor {
                         continue;
                     }
                     self.catalog.drop_table(&table_name)?;
+                }
+                Ok(Table::empty(Schema::new()))
+            }
+            ast::ObjectType::View => {
+                for name in names {
+                    let view_name = name.to_string();
+                    self.catalog.drop_view(&view_name, if_exists)?;
                 }
                 Ok(Table::empty(Schema::new()))
             }
@@ -2260,6 +3028,80 @@ impl QueryExecutor {
         }
     }
 
+    fn resolve_scalar_subqueries(&self, expr: &Expr) -> Result<Expr> {
+        match expr {
+            Expr::Subquery(query) => {
+                let result = self.execute_query(query)?;
+                let rows = result.to_records()?;
+                if rows.len() != 1 || result.schema().field_count() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "Scalar subquery must return exactly one row and one column".to_string(),
+                    ));
+                }
+                let value = rows[0].values()[0].clone();
+                Ok(self.value_to_expr(&value))
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let resolved_left = self.resolve_scalar_subqueries(left)?;
+                let resolved_right = self.resolve_scalar_subqueries(right)?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(resolved_left),
+                    op: op.clone(),
+                    right: Box::new(resolved_right),
+                })
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::UnaryOp {
+                    op: *op,
+                    expr: Box::new(resolved),
+                })
+            }
+            Expr::Nested(inner) => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::Nested(Box::new(resolved)))
+            }
+            Expr::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_scalar_subqueries(expr)?;
+                let resolved_low = self.resolve_scalar_subqueries(low)?;
+                let resolved_high = self.resolve_scalar_subqueries(high)?;
+                Ok(Expr::Between {
+                    expr: Box::new(resolved_expr),
+                    low: Box::new(resolved_low),
+                    high: Box::new(resolved_high),
+                    negated: *negated,
+                })
+            }
+            Expr::IsNull(inner) => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::IsNull(Box::new(resolved)))
+            }
+            Expr::IsNotNull(inner) => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::IsNotNull(Box::new(resolved)))
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    fn value_to_expr(&self, value: &Value) -> Expr {
+        let sql_value = match value {
+            Value::Null => SqlValue::Null,
+            Value::Bool(b) => SqlValue::Boolean(*b),
+            Value::Int64(i) => SqlValue::Number(i.to_string(), false),
+            Value::Float64(f) => SqlValue::Number(f.to_string(), false),
+            Value::String(s) => SqlValue::SingleQuotedString(s.clone()),
+            Value::Numeric(n) => SqlValue::Number(n.to_string(), false),
+            _ => SqlValue::Null,
+        };
+        Expr::Value(sql_value.into())
+    }
+
     fn expr_to_alias(&self, expr: &Expr, idx: usize) -> String {
         match expr {
             Expr::Identifier(ident) => ident.value.clone(),
@@ -2306,6 +3148,22 @@ impl QueryExecutor {
                 Ok(Value::array(values))
             }
             Expr::TypedString(ts) => self.evaluate_typed_string_literal(&ts.data_type, &ts.value),
+            Expr::Struct { values, fields: _ } => {
+                let mut struct_fields = Vec::with_capacity(values.len());
+                for (i, e) in values.iter().enumerate() {
+                    match e {
+                        Expr::Named { expr, name } => {
+                            let val = self.evaluate_literal_expr(expr)?;
+                            struct_fields.push((name.value.clone(), val));
+                        }
+                        _ => {
+                            let val = self.evaluate_literal_expr(e)?;
+                            struct_fields.push((format!("_field{}", i), val));
+                        }
+                    }
+                }
+                Ok(Value::struct_val(struct_fields))
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression not supported in this context: {:?}",
                 expr
@@ -2498,6 +3356,31 @@ impl QueryExecutor {
             DataType::Bytes => {
                 if let Some(s) = value.as_str() {
                     return Ok(Value::bytes(s.as_bytes().to_vec()));
+                }
+                Ok(value)
+            }
+            DataType::Struct(target_fields) => {
+                if let Some(struct_vals) = value.as_struct() {
+                    if struct_vals.len() == target_fields.len() {
+                        let coerced_fields: Vec<(String, Value)> = struct_vals
+                            .iter()
+                            .zip(target_fields.iter())
+                            .map(|((_, val), target_field)| {
+                                (target_field.name.clone(), val.clone())
+                            })
+                            .collect();
+                        return Ok(Value::struct_val(coerced_fields));
+                    }
+                }
+                Ok(value)
+            }
+            DataType::Array(element_type) => {
+                if let Some(arr) = value.as_array() {
+                    let coerced_elements: Vec<Value> = arr
+                        .iter()
+                        .map(|elem| self.coerce_value_to_type(elem.clone(), element_type))
+                        .collect::<Result<Vec<_>>>()?;
+                    return Ok(Value::array(coerced_elements));
                 }
                 Ok(value)
             }
@@ -3124,6 +4007,18 @@ impl QueryExecutor {
                     results.push(Value::float64(cume));
                 }
             }
+            "RUNNINGACCUMULATE" => {
+                let mut running_sum: i64 = 0;
+                for &idx in sorted_indices {
+                    let val = self.extract_running_accumulate_value(func, evaluator, &rows[idx])?;
+                    if let Some(n) = val.as_i64() {
+                        running_sum += n;
+                    } else if let Some(f) = val.as_f64() {
+                        running_sum += f as i64;
+                    }
+                    results.push(Value::int64(running_sum));
+                }
+            }
             _ => {
                 for _ in 0..partition_size {
                     results.push(Value::null());
@@ -3165,6 +4060,37 @@ impl QueryExecutor {
             }
         }
         Ok(None)
+    }
+
+    fn extract_running_accumulate_value(
+        &self,
+        func: &ast::Function,
+        evaluator: &Evaluator,
+        row: &Record,
+    ) -> Result<Value> {
+        if let ast::FunctionArguments::List(arg_list) = &func.args {
+            if let Some(arg) = arg_list.args.first() {
+                if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) = arg {
+                    if let Expr::Function(inner_func) = expr {
+                        let inner_name = inner_func.name.to_string().to_uppercase();
+                        if inner_name == "SUMSTATE" {
+                            if let ast::FunctionArguments::List(inner_args) = &inner_func.args {
+                                if let Some(inner_arg) = inner_args.args.first() {
+                                    if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                                        inner_expr,
+                                    )) = inner_arg
+                                    {
+                                        return evaluator.evaluate(inner_expr, row);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return evaluator.evaluate(expr, row);
+                }
+            }
+        }
+        Ok(Value::null())
     }
 
     fn extract_numeric_offset(&self, expr: &Expr) -> Option<usize> {

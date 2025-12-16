@@ -4,7 +4,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_stddev() {
     let mut executor = create_executor();
     executor
@@ -21,7 +20,6 @@ fn test_stddev() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_stddev_pop() {
     let mut executor = create_executor();
     executor
@@ -38,7 +36,6 @@ fn test_stddev_pop() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_stddev_samp() {
     let mut executor = create_executor();
     executor
@@ -55,7 +52,6 @@ fn test_stddev_samp() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_variance() {
     let mut executor = create_executor();
     executor
@@ -72,7 +68,6 @@ fn test_variance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_var_pop() {
     let mut executor = create_executor();
     executor
@@ -89,7 +84,6 @@ fn test_var_pop() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_var_samp() {
     let mut executor = create_executor();
     executor
@@ -106,7 +100,6 @@ fn test_var_samp() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_corr() {
     let mut executor = create_executor();
     executor
@@ -116,12 +109,13 @@ fn test_corr() {
         .execute_sql("INSERT INTO data VALUES (1, 2), (2, 4), (3, 6), (4, 8), (5, 10)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT CORR(x, y) FROM data").unwrap();
+    let result = executor
+        .execute_sql("SELECT ROUND(CORR(x, y), 6) FROM data")
+        .unwrap();
     assert_table_eq!(result, [[1.0]]);
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_covar_pop() {
     let mut executor = create_executor();
     executor
@@ -138,7 +132,6 @@ fn test_covar_pop() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_covar_samp() {
     let mut executor = create_executor();
     executor
@@ -155,7 +148,6 @@ fn test_covar_samp() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_statistical_with_group_by() {
     let mut executor = create_executor();
     executor

@@ -113,7 +113,6 @@ fn test_array_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_from() {
     let mut executor = create_executor();
     let result = executor
@@ -123,13 +122,87 @@ fn test_unnest_from() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_with_offset() {
     let mut executor = create_executor();
     let result = executor
         .execute_sql("SELECT num, offset FROM UNNEST(['a', 'b', 'c']) AS num WITH OFFSET AS offset ORDER BY offset")
         .unwrap();
     assert_table_eq!(result, [["a", 0], ["b", 1], ["c", 2]]);
+}
+
+#[test]
+fn test_unnest_struct_array() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT s.a, s.b FROM UNNEST([STRUCT(1 AS a, 'x' AS b), STRUCT(2 AS a, 'y' AS b)]) AS s ORDER BY s.a")
+        .unwrap();
+    assert_table_eq!(result, [[1, "x"], [2, "y"]]);
+}
+
+#[test]
+fn test_unnest_struct_from_table() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE items (id INT64, things ARRAY<STRUCT<name STRING, qty INT64>>)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO items VALUES (1, [STRUCT('apple' AS name, 5 AS qty), STRUCT('banana' AS name, 3 AS qty)])")
+        .unwrap();
+    let result = executor
+        .execute_sql("SELECT id, thing.name, thing.qty FROM items, UNNEST(things) AS thing ORDER BY thing.name")
+        .unwrap();
+    assert_table_eq!(result, [[1, "apple", 5], [1, "banana", 3]]);
+}
+
+#[test]
+fn test_unnest_struct_from_table_with_alias() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE items2 (id INT64, things ARRAY<STRUCT<name STRING, qty INT64>>)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO items2 VALUES (1, [STRUCT('apple' AS name, 5 AS qty), STRUCT('banana' AS name, 3 AS qty)])")
+        .unwrap();
+    let result = executor
+        .execute_sql("SELECT i.id, thing.name, thing.qty FROM items2 i, UNNEST(i.things) AS thing ORDER BY thing.name")
+        .unwrap();
+    assert_table_eq!(result, [[1, "apple", 5], [1, "banana", 3]]);
+}
+
+#[test]
+fn test_unnest_struct_in_cte() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE items3 (id INT64, things ARRAY<STRUCT<name STRING, qty INT64>>)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO items3 VALUES (1, [STRUCT('apple' AS name, 5 AS qty), STRUCT('banana' AS name, 3 AS qty)])")
+        .unwrap();
+    let result = executor
+        .execute_sql(
+            "WITH flattened AS (
+            SELECT i.id, thing.name, thing.qty
+            FROM items3 i, UNNEST(i.things) AS thing
+        )
+        SELECT * FROM flattened ORDER BY name",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[1, "apple", 5], [1, "banana", 3]]);
+}
+
+#[test]
+fn test_unnest_struct_positional_fields() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE items4 (id INT64, things ARRAY<STRUCT<product_name STRING, quantity INT64>>)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO items4 VALUES (1, [STRUCT('Laptop', 1), STRUCT('Mouse', 2)])")
+        .unwrap();
+    let result = executor
+        .execute_sql("SELECT i.id, thing.product_name, thing.quantity FROM items4 i, UNNEST(i.things) AS thing ORDER BY thing.quantity")
+        .unwrap();
+    assert_table_eq!(result, [[1, "Laptop", 1], [1, "Mouse", 2]]);
 }
 
 #[test]

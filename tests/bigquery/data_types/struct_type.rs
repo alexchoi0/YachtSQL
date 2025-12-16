@@ -29,7 +29,6 @@ fn test_struct_string_field_access() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_struct_in_table() {
     let mut executor = create_executor();
     executor
