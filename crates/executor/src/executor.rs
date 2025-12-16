@@ -32,7 +32,7 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField, Value};
 use yachtsql_storage::{Column, Field, Record, Schema, Table, TableSchemaOps};
 
-use crate::catalog::{Catalog, UserFunction, UserProcedure};
+use crate::catalog::{Catalog, ColumnDefault, UserFunction, UserProcedure};
 use crate::evaluator::{Evaluator, parse_byte_string_escapes};
 
 #[derive(Debug, Clone)]
@@ -1736,7 +1736,12 @@ impl QueryExecutor {
         cte_tables: &HashMap<String, Table>,
     ) -> Result<(Schema, Vec<Record>)> {
         match table_factor {
-            TableFactor::Table { name, alias, .. } => {
+            TableFactor::Table {
+                name,
+                alias,
+                sample,
+                ..
+            } => {
                 let table_name = name.to_string();
                 let table_name_upper = table_name.to_uppercase();
 
@@ -1760,7 +1765,9 @@ impl QueryExecutor {
                     } else {
                         table_data.schema().clone()
                     };
-                    return Ok((schema, table_data.to_records()?));
+                    let mut rows = table_data.to_records()?;
+                    rows = self.apply_table_sample(rows, sample)?;
+                    return Ok((schema, rows));
                 }
 
                 if let Some(view_def) = self.catalog.get_view(&table_name) {
@@ -1768,7 +1775,8 @@ impl QueryExecutor {
                     let column_aliases = view_def.column_aliases.clone();
                     let view_result = self.execute_view_query(&view_query)?;
 
-                    let rows = view_result.to_records()?;
+                    let mut rows = view_result.to_records()?;
+                    rows = self.apply_table_sample(rows, sample)?;
                     let base_schema = view_result.schema().clone();
 
                     let schema = if !column_aliases.is_empty() {
@@ -1825,7 +1833,9 @@ impl QueryExecutor {
                     table_data.schema().clone()
                 };
 
-                Ok((schema, table_data.to_records()?))
+                let mut rows = table_data.to_records()?;
+                rows = self.apply_table_sample(rows, sample)?;
+                Ok((schema, rows))
             }
             TableFactor::NestedJoin {
                 table_with_joins, ..
@@ -1936,6 +1946,46 @@ impl QueryExecutor {
                 "Table factor not yet supported: {:?}",
                 table_factor
             ))),
+        }
+    }
+
+    fn apply_table_sample(
+        &self,
+        rows: Vec<Record>,
+        sample: &Option<ast::TableSampleKind>,
+    ) -> Result<Vec<Record>> {
+        let sample_spec = match sample {
+            Some(ast::TableSampleKind::BeforeTableAlias(s)) => s,
+            Some(ast::TableSampleKind::AfterTableAlias(s)) => s,
+            None => return Ok(rows),
+        };
+
+        let quantity = match &sample_spec.quantity {
+            Some(q) => q,
+            None => return Ok(rows),
+        };
+
+        let value = self.evaluate_literal_expr(&quantity.value)?;
+        let num = value
+            .as_i64()
+            .or_else(|| value.as_f64().map(|f| f as i64))
+            .unwrap_or(0);
+
+        match &quantity.unit {
+            Some(ast::TableSampleUnit::Rows) => {
+                let limit = num.max(0) as usize;
+                Ok(rows.into_iter().take(limit).collect())
+            }
+            Some(ast::TableSampleUnit::Percent) | None => {
+                if num <= 0 {
+                    return Ok(Vec::new());
+                }
+                if num >= 100 {
+                    return Ok(rows);
+                }
+                let count = (rows.len() as f64 * (num as f64 / 100.0)).ceil() as usize;
+                Ok(rows.into_iter().take(count).collect())
+            }
         }
     }
 
@@ -2410,6 +2460,8 @@ impl QueryExecutor {
             }
             Expr::UnaryOp { expr, .. } => self.expr_has_aggregate(expr),
             Expr::Nested(inner) => self.expr_has_aggregate(inner),
+            Expr::IsNull(inner) => self.expr_has_aggregate(inner),
+            Expr::IsNotNull(inner) => self.expr_has_aggregate(inner),
             Expr::Case {
                 conditions,
                 else_result,
@@ -3196,6 +3248,28 @@ impl QueryExecutor {
                 }
             }
             Expr::Value(v) => self.sql_value_to_value(&v.value),
+            Expr::IsNull(inner) => {
+                let val = self.evaluate_aggregate_expr_with_grouping(
+                    inner,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                )?;
+                Ok(Value::Bool(val.is_null()))
+            }
+            Expr::IsNotNull(inner) => {
+                let val = self.evaluate_aggregate_expr_with_grouping(
+                    inner,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                )?;
+                Ok(Value::Bool(!val.is_null()))
+            }
             _ => {
                 if let Some(row) = group_rows.first() {
                     evaluator.evaluate(expr, row)
@@ -4581,6 +4655,8 @@ impl QueryExecutor {
             return Ok(Table::empty(Schema::new()));
         }
 
+        let mut column_defaults = Vec::new();
+
         let fields: Vec<Field> = create
             .columns
             .iter()
@@ -4590,6 +4666,16 @@ impl QueryExecutor {
                     .options
                     .iter()
                     .any(|opt| matches!(opt.option, ast::ColumnOption::NotNull));
+
+                for opt in &col.options {
+                    if let ast::ColumnOption::Default(expr) = &opt.option {
+                        column_defaults.push(ColumnDefault {
+                            column_name: col.name.value.clone(),
+                            default_expr: expr.clone(),
+                        });
+                    }
+                }
+
                 if nullable {
                     Ok(Field::nullable(col.name.value.clone(), data_type))
                 } else {
@@ -4600,6 +4686,11 @@ impl QueryExecutor {
 
         let schema = Schema::from_fields(fields);
         self.catalog.create_table(&table_name, schema)?;
+
+        if !column_defaults.is_empty() {
+            self.catalog
+                .set_table_defaults(&table_name, column_defaults);
+        }
 
         Ok(Table::empty(Schema::new()))
     }
@@ -4870,6 +4961,8 @@ impl QueryExecutor {
                 .collect::<Result<Vec<_>>>()?
         };
 
+        let default_row_values = self.compute_default_row_values(&table_name, &schema)?;
+
         let source = insert
             .source
             .as_ref()
@@ -4886,9 +4979,11 @@ impl QueryExecutor {
                         )));
                     }
 
-                    let mut row_values = vec![Value::null(); schema.field_count()];
+                    let mut row_values = default_row_values.clone();
                     for (expr_idx, &col_idx) in column_indices.iter().enumerate() {
-                        let val = self.evaluate_literal_expr(&row_exprs[expr_idx])?;
+                        let col_name = &schema.fields()[col_idx].name;
+                        let val =
+                            self.evaluate_insert_expr(&row_exprs[expr_idx], &table_name, col_name)?;
                         let target_type = &schema.fields()[col_idx].data_type;
                         let coerced = self.coerce_value_to_type(val, target_type)?;
                         row_values[col_idx] = coerced;
@@ -4911,7 +5006,7 @@ impl QueryExecutor {
                         )));
                     }
 
-                    let mut row_values = vec![Value::null(); schema.field_count()];
+                    let mut row_values = default_row_values.clone();
                     for (val_idx, &col_idx) in column_indices.iter().enumerate() {
                         row_values[col_idx] = values[val_idx].clone();
                     }
@@ -4926,6 +5021,37 @@ impl QueryExecutor {
         }
 
         Ok(Table::empty(Schema::new()))
+    }
+
+    fn compute_default_row_values(&self, table_name: &str, schema: &Schema) -> Result<Vec<Value>> {
+        let mut row_values = vec![Value::null(); schema.field_count()];
+        for (i, field) in schema.fields().iter().enumerate() {
+            if let Some(default_expr) = self.catalog.get_column_default(table_name, &field.name) {
+                let val = self.evaluate_literal_expr(default_expr)?;
+                let coerced = self.coerce_value_to_type(val, &field.data_type)?;
+                row_values[i] = coerced;
+            }
+        }
+        Ok(row_values)
+    }
+
+    fn evaluate_insert_expr(
+        &self,
+        expr: &Expr,
+        table_name: &str,
+        column_name: &str,
+    ) -> Result<Value> {
+        if let Expr::Identifier(ident) = expr {
+            if ident.value.to_uppercase() == "DEFAULT" {
+                if let Some(default_expr) = self.catalog.get_column_default(table_name, column_name)
+                {
+                    return self.evaluate_literal_expr(default_expr);
+                } else {
+                    return Ok(Value::null());
+                }
+            }
+        }
+        self.evaluate_literal_expr(expr)
     }
 
     fn execute_update(
@@ -4988,6 +5114,12 @@ impl QueryExecutor {
     fn execute_delete(&mut self, delete: &ast::Delete) -> Result<Table> {
         let table_name = self.extract_delete_table_name(delete)?;
         let user_functions = self.catalog.get_functions().clone();
+
+        let resolved_selection = match &delete.selection {
+            Some(selection) => Some(self.resolve_subqueries_in_expr(selection)?),
+            None => None,
+        };
+
         let table_data = self
             .catalog
             .get_table_mut(&table_name)
@@ -4996,13 +5128,16 @@ impl QueryExecutor {
         let schema = table_data.schema().clone();
         let evaluator = Evaluator::with_user_functions(&schema, &user_functions);
 
-        match &delete.selection {
+        match resolved_selection {
             Some(selection) => {
                 let num_rows = table_data.row_count();
                 let mut indices_to_delete = Vec::new();
                 for row_idx in 0..num_rows {
                     let row = table_data.get_row(row_idx)?;
-                    if evaluator.evaluate_to_bool(selection, &row).unwrap_or(false) {
+                    if evaluator
+                        .evaluate_to_bool(&selection, &row)
+                        .unwrap_or(false)
+                    {
                         indices_to_delete.push(row_idx);
                     }
                 }
@@ -5016,6 +5151,67 @@ impl QueryExecutor {
         }
 
         Ok(Table::empty(Schema::new()))
+    }
+
+    fn resolve_subqueries_in_expr(&self, expr: &Expr) -> Result<Expr> {
+        match expr {
+            Expr::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => {
+                let subquery_result = self.execute_query(subquery)?;
+                let values = self.table_column_to_expr_list(&subquery_result)?;
+                let resolved_expr = self.resolve_subqueries_in_expr(expr)?;
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list: values,
+                    negated: *negated,
+                })
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let resolved_left = self.resolve_subqueries_in_expr(left)?;
+                let resolved_right = self.resolve_subqueries_in_expr(right)?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(resolved_left),
+                    op: op.clone(),
+                    right: Box::new(resolved_right),
+                })
+            }
+            Expr::UnaryOp { op, expr } => {
+                let resolved_expr = self.resolve_subqueries_in_expr(expr)?;
+                Ok(Expr::UnaryOp {
+                    op: *op,
+                    expr: Box::new(resolved_expr),
+                })
+            }
+            Expr::Nested(inner) => {
+                let resolved = self.resolve_subqueries_in_expr(inner)?;
+                Ok(Expr::Nested(Box::new(resolved)))
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    fn table_column_to_expr_list(&self, table: &Table) -> Result<Vec<Expr>> {
+        if table.schema().fields().is_empty() {
+            return Ok(vec![]);
+        }
+        let column_name = &table.schema().fields()[0].name;
+        let column = table
+            .column_by_name(column_name)
+            .ok_or_else(|| Error::ColumnNotFound(column_name.clone()))?;
+
+        let mut exprs = Vec::with_capacity(table.row_count());
+        for i in 0..table.row_count() {
+            let value = column.get_value(i);
+            let sql_value = Self::value_to_sql_value(&value);
+            exprs.push(Expr::Value(ast::ValueWithSpan {
+                value: sql_value,
+                span: Span::empty(),
+            }));
+        }
+        Ok(exprs)
     }
 
     fn execute_truncate(&mut self, table_names: &[ast::TruncateTableTarget]) -> Result<Table> {
@@ -5330,9 +5526,79 @@ impl QueryExecutor {
                 };
                 Ok(Value::interval(interval_val))
             }
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_literal_expr(left)?;
+                let right_val = self.evaluate_literal_expr(right)?;
+                self.evaluate_binary_op_values(&left_val, op, &right_val)
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression not supported in this context: {:?}",
                 expr
+            ))),
+        }
+    }
+
+    fn evaluate_binary_op_values(
+        &self,
+        left: &Value,
+        op: &ast::BinaryOperator,
+        right: &Value,
+    ) -> Result<Value> {
+        match op {
+            ast::BinaryOperator::Plus => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    return Ok(Value::int64(l + r));
+                }
+                if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    return Ok(Value::float64(l + r));
+                }
+                Err(Error::InvalidQuery(format!(
+                    "Cannot add {:?} and {:?}",
+                    left, right
+                )))
+            }
+            ast::BinaryOperator::Minus => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    return Ok(Value::int64(l - r));
+                }
+                if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    return Ok(Value::float64(l - r));
+                }
+                Err(Error::InvalidQuery(format!(
+                    "Cannot subtract {:?} and {:?}",
+                    left, right
+                )))
+            }
+            ast::BinaryOperator::Multiply => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    return Ok(Value::int64(l * r));
+                }
+                if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    return Ok(Value::float64(l * r));
+                }
+                Err(Error::InvalidQuery(format!(
+                    "Cannot multiply {:?} and {:?}",
+                    left, right
+                )))
+            }
+            ast::BinaryOperator::Divide => {
+                if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
+                    if r == 0 {
+                        return Err(Error::InvalidQuery("Division by zero".to_string()));
+                    }
+                    return Ok(Value::int64(l / r));
+                }
+                if let (Some(l), Some(r)) = (left.as_f64(), right.as_f64()) {
+                    return Ok(Value::float64(l / r));
+                }
+                Err(Error::InvalidQuery(format!(
+                    "Cannot divide {:?} and {:?}",
+                    left, right
+                )))
+            }
+            _ => Err(Error::UnsupportedFeature(format!(
+                "Binary operator {:?} not supported in literal expressions",
+                op
             ))),
         }
     }

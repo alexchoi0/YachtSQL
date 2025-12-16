@@ -115,7 +115,6 @@ fn test_insert_with_null_value() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_insert_with_default_keyword() {
     let mut executor = create_executor();
     setup_table_with_defaults(&mut executor);
@@ -130,7 +129,6 @@ fn test_insert_with_default_keyword() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_insert_default_values() {
     let mut executor = create_executor();
     setup_table_with_defaults(&mut executor);
@@ -145,7 +143,6 @@ fn test_insert_default_values() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_insert_with_expression() {
     let mut executor = create_executor();
     setup_simple_table(&mut executor);

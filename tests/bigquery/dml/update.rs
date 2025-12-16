@@ -127,7 +127,6 @@ fn test_update_set_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_update_no_matching_rows() {
     let mut executor = create_executor();
     setup_users_table(&mut executor);

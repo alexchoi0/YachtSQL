@@ -34,9 +34,16 @@ pub struct SchemaMetadata {
     pub options: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ColumnDefault {
+    pub column_name: String,
+    pub default_expr: Expr,
+}
+
 #[derive(Debug, Default)]
 pub struct Catalog {
     tables: HashMap<String, Table>,
+    table_defaults: HashMap<String, Vec<ColumnDefault>>,
     functions: HashMap<String, UserFunction>,
     procedures: HashMap<String, UserProcedure>,
     views: HashMap<String, ViewDef>,
@@ -49,6 +56,7 @@ impl Catalog {
     pub fn new() -> Self {
         Self {
             tables: HashMap::new(),
+            table_defaults: HashMap::new(),
             functions: HashMap::new(),
             procedures: HashMap::new(),
             views: HashMap::new(),
@@ -190,6 +198,26 @@ impl Catalog {
         }
         self.tables.insert(key, Table::new(schema));
         Ok(())
+    }
+
+    pub fn set_table_defaults(&mut self, name: &str, defaults: Vec<ColumnDefault>) {
+        let key = name.to_uppercase();
+        self.table_defaults.insert(key, defaults);
+    }
+
+    pub fn get_table_defaults(&self, name: &str) -> Option<&Vec<ColumnDefault>> {
+        let key = self.resolve_table_name(name);
+        self.table_defaults.get(&key)
+    }
+
+    pub fn get_column_default(&self, table_name: &str, column_name: &str) -> Option<&Expr> {
+        let defaults = self.get_table_defaults(table_name)?;
+        for default in defaults {
+            if default.column_name.to_uppercase() == column_name.to_uppercase() {
+                return Some(&default.default_expr);
+            }
+        }
+        None
     }
 
     pub fn insert_table(&mut self, name: &str, table: Table) -> Result<()> {

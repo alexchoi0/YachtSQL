@@ -391,12 +391,17 @@ impl<'a> Evaluator<'a> {
         match expr {
             Expr::Identifier(ident) => {
                 let name = ident.value.to_uppercase();
-                let idx = self
-                    .schema
-                    .fields()
-                    .iter()
-                    .position(|f| f.name.to_uppercase() == name)
-                    .ok_or_else(|| Error::ColumnNotFound(ident.value.clone()))?;
+                let idx =
+                    self.schema
+                        .fields()
+                        .iter()
+                        .position(|f| f.name.to_uppercase() == name)
+                        .or_else(|| {
+                            self.schema.fields().iter().position(|f| {
+                                f.name.to_uppercase().ends_with(&format!(".{}", name))
+                            })
+                        })
+                        .ok_or_else(|| Error::ColumnNotFound(ident.value.clone()))?;
                 Ok(record.values().get(idx).cloned().unwrap_or(Value::null()))
             }
 
