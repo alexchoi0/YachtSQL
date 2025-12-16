@@ -124,6 +124,528 @@ fn test_self_join() {
 }
 
 #[test]
+fn test_self_join_with_inequality() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE nums (id INT64, val INT64)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO nums VALUES (1, 10), (2, 20), (3, 30)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT a.id AS a_id, b.id AS b_id FROM nums a JOIN nums b ON a.id < b.id ORDER BY a_id, b_id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, 2], [1, 3], [2, 3],]);
+}
+
+#[test]
+fn test_cte_self_join_with_inequality() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE nums (id INT64, val INT64)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO nums VALUES (1, 10), (2, 20), (3, 30)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("WITH nums_cte AS (SELECT id, val FROM nums) SELECT a.id AS a_id, b.id AS b_id FROM nums_cte a JOIN nums_cte b ON a.id < b.id ORDER BY a_id, b_id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, 2], [1, 3], [2, 3],]);
+}
+
+#[test]
+fn test_cte_self_join_with_compound_condition() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE order_items (order_id INT64, product_id INT64)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO order_items VALUES (1, 100), (1, 200), (1, 300), (2, 100), (2, 400)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("WITH order_products AS (SELECT DISTINCT order_id, product_id FROM order_items) SELECT op1.order_id, op1.product_id AS p1, op2.product_id AS p2 FROM order_products op1 JOIN order_products op2 ON op1.order_id = op2.order_id AND op1.product_id < op2.product_id ORDER BY op1.order_id, p1, p2")
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [[1, 100, 200], [1, 100, 300], [1, 200, 300], [2, 100, 400],]
+    );
+}
+
+#[test]
+fn test_cte_self_join_with_additional_joins() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE oi (order_id INT64, product_id INT64)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE prods (product_id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO oi VALUES (1, 100), (1, 200), (1, 300), (2, 100), (2, 400)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO prods VALUES (100, 'A'), (200, 'B'), (300, 'C'), (400, 'D')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("WITH order_products AS (SELECT DISTINCT order_id, product_id FROM oi) SELECT p1.name AS product_1, p2.name AS product_2, COUNT(*) AS times_bought_together FROM order_products op1 JOIN order_products op2 ON op1.order_id = op2.order_id AND op1.product_id < op2.product_id JOIN prods p1 ON op1.product_id = p1.product_id JOIN prods p2 ON op2.product_id = p2.product_id GROUP BY p1.name, p2.name ORDER BY product_1, product_2")
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [["A", "B", 1], ["A", "C", 1], ["A", "D", 1], ["B", "C", 1],]
+    );
+}
+
+#[test]
+fn test_cte_self_join_with_having() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE oi2 (order_id INT64, product_id INT64)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE prods2 (product_id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO oi2 VALUES (1, 100), (1, 200), (1, 300), (2, 100), (2, 400)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO prods2 VALUES (100, 'A'), (200, 'B'), (300, 'C'), (400, 'D')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("WITH order_products AS (SELECT DISTINCT order_id, product_id FROM oi2) SELECT p1.name AS product_1, p2.name AS product_2, COUNT(*) AS times_bought_together FROM order_products op1 JOIN order_products op2 ON op1.order_id = op2.order_id AND op1.product_id < op2.product_id JOIN prods2 p1 ON op1.product_id = p1.product_id JOIN prods2 p2 ON op2.product_id = p2.product_id GROUP BY p1.name, p2.name HAVING COUNT(*) >= 1 ORDER BY times_bought_together DESC, product_1, product_2")
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [["A", "B", 1], ["A", "C", 1], ["A", "D", 1], ["B", "C", 1],]
+    );
+}
+
+#[test]
+fn test_anti_join_pattern() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE users3 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE orders3 (id INT64, user_id INT64)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO users3 VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO orders3 VALUES (100, 1), (101, 1)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT u.id, u.name FROM users3 u LEFT JOIN orders3 o ON u.id = o.user_id WHERE o.id IS NULL ORDER BY u.id")
+        .unwrap();
+
+    assert_table_eq!(result, [[2, "Bob"], [3, "Charlie"],]);
+}
+
+#[test]
+fn test_cross_join_anti_pattern() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE customers4 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE customer_prefs (customer_id INT64, category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE all_cats (category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO customers4 VALUES (1, 'Alice'), (2, 'Bob')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO customer_prefs VALUES (1, 'Electronics'), (1, 'Books')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO all_cats VALUES ('Electronics'), ('Books'), ('Clothing')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT c.id, c.name, ac.category AS missing
+             FROM customers4 c
+             CROSS JOIN all_cats ac
+             LEFT JOIN customer_prefs cp ON c.id = cp.customer_id AND ac.category = cp.category
+             WHERE cp.customer_id IS NULL
+             ORDER BY c.id, missing",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            [1, "Alice", "Clothing"],
+            [2, "Bob", "Books"],
+            [2, "Bob", "Clothing"],
+            [2, "Bob", "Electronics"],
+        ]
+    );
+}
+
+#[test]
+fn test_cross_join_anti_pattern_with_ctes() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE customers5 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE customer_prefs5 (customer_id INT64, category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE all_cats5 (category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO customers5 VALUES (1, 'Alice'), (2, 'Bob')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO customer_prefs5 VALUES (1, 'Electronics'), (1, 'Books')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO all_cats5 VALUES ('Electronics'), ('Books'), ('Clothing')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH prefs AS (SELECT DISTINCT customer_id, category FROM customer_prefs5),
+                  cats AS (SELECT DISTINCT category FROM all_cats5)
+             SELECT c.id, c.name, ac.category AS missing
+             FROM customers5 c
+             CROSS JOIN cats ac
+             LEFT JOIN prefs cp ON c.id = cp.customer_id AND ac.category = cp.category
+             WHERE cp.customer_id IS NULL
+             ORDER BY c.id, missing",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            [1, "Alice", "Clothing"],
+            [2, "Bob", "Books"],
+            [2, "Bob", "Clothing"],
+            [2, "Bob", "Electronics"],
+        ]
+    );
+}
+
+#[test]
+#[ignore = "HAVING with non-projected aggregate not yet supported"]
+fn test_cross_sell_pattern() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE cust6 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE cust_cats6 (customer_id INT64, category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE all_cats6 (category STRING)")
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO cust6 VALUES (1, 'Alice'), (2, 'Bob')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO cust_cats6 VALUES (1, 'Electronics'), (1, 'Books')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO all_cats6 VALUES ('Electronics'), ('Books'), ('Clothing')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH customer_categories AS (SELECT DISTINCT customer_id, category FROM cust_cats6),
+                  all_categories AS (SELECT DISTINCT category FROM all_cats6)
+             SELECT
+                c.id,
+                c.name,
+                STRING_AGG(cc.category, ', ') AS purchased,
+                STRING_AGG(ac.category, ', ') AS missing
+             FROM cust6 c
+             LEFT JOIN customer_categories cc ON c.id = cc.customer_id
+             CROSS JOIN all_categories ac
+             LEFT JOIN customer_categories cc2 ON c.id = cc2.customer_id AND ac.category = cc2.category
+             WHERE cc2.customer_id IS NULL
+             GROUP BY c.id, c.name
+             HAVING COUNT(DISTINCT cc.category) > 0
+             ORDER BY c.id"
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "Alice", "Electronics, Books", "Clothing"],]);
+}
+
+#[test]
+fn test_cte_used_twice() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE data7 (id INT64, val STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO data7 VALUES (1, 'A'), (2, 'B'), (3, 'C')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH cte AS (SELECT id, val FROM data7)
+             SELECT a.id AS a_id, a.val AS a_val, b.id AS b_id, b.val AS b_val
+             FROM cte a
+             JOIN cte b ON a.id = b.id
+             ORDER BY a.id",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [[1, "A", 1, "A"], [2, "B", 2, "B"], [3, "C", 3, "C"],]
+    );
+}
+
+#[test]
+fn test_multiple_left_joins_to_same_cte() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE base8 (id INT64)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE lookup8 (id INT64, val STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO base8 VALUES (1), (2)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO lookup8 VALUES (1, 'A'), (2, 'B')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH lkp AS (SELECT id, val FROM lookup8)
+             SELECT b.id, a.val AS a_val, c.val AS c_val
+             FROM base8 b
+             LEFT JOIN lkp a ON b.id = a.id
+             LEFT JOIN lkp c ON b.id = c.id
+             ORDER BY b.id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "A", "A"], [2, "B", "B"],]);
+}
+
+#[test]
+fn test_cross_sell_pattern_no_group() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE cust9 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE cust_cats9 (customer_id INT64, category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE all_cats9 (category STRING)")
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO cust9 VALUES (1, 'Alice')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO cust_cats9 VALUES (1, 'Electronics'), (1, 'Books')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO all_cats9 VALUES ('Electronics'), ('Books'), ('Clothing')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH customer_categories AS (SELECT DISTINCT customer_id, category FROM cust_cats9),
+                  all_categories AS (SELECT DISTINCT category FROM all_cats9)
+             SELECT c.id, cc.category AS purchased, ac.category AS all_cat, cc2.category AS check_cat
+             FROM cust9 c
+             LEFT JOIN customer_categories cc ON c.id = cc.customer_id
+             CROSS JOIN all_categories ac
+             LEFT JOIN customer_categories cc2 ON c.id = cc2.customer_id AND ac.category = cc2.category
+             ORDER BY c.id, purchased, all_cat"
+        )
+        .unwrap();
+
+    println!("Result row count: {}", result.row_count());
+    for r in result.to_records().unwrap() {
+        println!("  {:?}", r.values());
+    }
+}
+
+#[test]
+fn test_cross_sell_pattern_with_where() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE cust10 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE cust_cats10 (customer_id INT64, category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE all_cats10 (category STRING)")
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO cust10 VALUES (1, 'Alice')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO cust_cats10 VALUES (1, 'Electronics'), (1, 'Books')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO all_cats10 VALUES ('Electronics'), ('Books'), ('Clothing')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH customer_categories AS (SELECT DISTINCT customer_id, category FROM cust_cats10),
+                  all_categories AS (SELECT DISTINCT category FROM all_cats10)
+             SELECT c.id, cc.category AS purchased, ac.category AS missing_cat
+             FROM cust10 c
+             LEFT JOIN customer_categories cc ON c.id = cc.customer_id
+             CROSS JOIN all_categories ac
+             LEFT JOIN customer_categories cc2 ON c.id = cc2.customer_id AND ac.category = cc2.category
+             WHERE cc2.customer_id IS NULL
+             ORDER BY c.id, purchased, missing_cat"
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [[1, "Books", "Clothing"], [1, "Electronics", "Clothing"],]
+    );
+}
+
+#[test]
+fn test_cross_sell_pattern_with_group() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE cust11 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE cust_cats11 (customer_id INT64, category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE all_cats11 (category STRING)")
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO cust11 VALUES (1, 'Alice')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO cust_cats11 VALUES (1, 'Electronics'), (1, 'Books')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO all_cats11 VALUES ('Electronics'), ('Books'), ('Clothing')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH customer_categories AS (SELECT DISTINCT customer_id, category FROM cust_cats11),
+                  all_categories AS (SELECT DISTINCT category FROM all_cats11)
+             SELECT
+                c.id,
+                c.name,
+                STRING_AGG(cc.category, ', ') AS purchased,
+                STRING_AGG(ac.category, ', ') AS missing
+             FROM cust11 c
+             LEFT JOIN customer_categories cc ON c.id = cc.customer_id
+             CROSS JOIN all_categories ac
+             LEFT JOIN customer_categories cc2 ON c.id = cc2.customer_id AND ac.category = cc2.category
+             WHERE cc2.customer_id IS NULL
+             GROUP BY c.id, c.name
+             ORDER BY c.id"
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [[1, "Alice", "Electronics, Books", "Clothing, Clothing"],]
+    );
+}
+
+#[test]
+#[ignore = "HAVING with non-projected aggregate not yet supported"]
+fn test_cross_sell_pattern_with_having() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE cust12 (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE cust_cats12 (customer_id INT64, category STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE all_cats12 (category STRING)")
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO cust12 VALUES (1, 'Alice')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO cust_cats12 VALUES (1, 'Electronics'), (1, 'Books')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO all_cats12 VALUES ('Electronics'), ('Books'), ('Clothing')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH customer_categories AS (SELECT DISTINCT customer_id, category FROM cust_cats12),
+                  all_categories AS (SELECT DISTINCT category FROM all_cats12)
+             SELECT
+                c.id,
+                c.name,
+                STRING_AGG(cc.category, ', ') AS purchased,
+                STRING_AGG(ac.category, ', ') AS missing
+             FROM cust12 c
+             LEFT JOIN customer_categories cc ON c.id = cc.customer_id
+             CROSS JOIN all_categories ac
+             LEFT JOIN customer_categories cc2 ON c.id = cc2.customer_id AND ac.category = cc2.category
+             WHERE cc2.customer_id IS NULL
+             GROUP BY c.id, c.name
+             HAVING COUNT(DISTINCT cc.category) > 0
+             ORDER BY c.id"
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [[1, "Alice", "Electronics, Books", "Clothing, Clothing"],]
+    );
+}
+
+#[test]
 fn test_join_with_where_clause() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
