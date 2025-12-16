@@ -366,7 +366,7 @@ fn geometry_geodesic_distance(geom1: &Geometry<f64>, geom2: &Geometry<f64>) -> f
 }
 
 pub struct Evaluator<'a> {
-    schema: &'a Schema,
+    pub schema: &'a Schema,
     user_functions: Option<&'a HashMap<String, UserFunction>>,
 }
 

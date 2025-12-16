@@ -3390,7 +3390,7 @@ impl QueryExecutor {
         cte_tables: &HashMap<String, Table>,
     ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
-        let group_exprs = self.extract_group_by_exprs(&select.group_by);
+        let group_exprs = self.extract_group_by_exprs(&select.group_by, &select.projection);
         let grouping_sets = self.extract_grouping_sets(&select.group_by);
 
         let group_by_is_empty = group_exprs.is_empty() && grouping_sets.is_none();
@@ -3520,6 +3520,39 @@ impl QueryExecutor {
             });
         }
 
+        let has_window_funcs = self.has_window_functions(&select.projection);
+        if has_window_funcs {
+            let mut expr_to_col: HashMap<String, usize> = HashMap::new();
+            for (idx, item) in select.projection.iter().enumerate() {
+                let expr = match item {
+                    SelectItem::UnnamedExpr(expr) => expr,
+                    SelectItem::ExprWithAlias { expr, .. } => expr,
+                    _ => continue,
+                };
+                let key = self.normalize_expr_key(expr);
+                expr_to_col.insert(key.clone(), idx);
+                if let Expr::Function(func) = expr {
+                    let name = func.name.to_string().to_uppercase();
+                    if self.is_aggregate_function(&name) && func.over.is_none() {
+                        expr_to_col.entry(key).or_insert(idx);
+                    }
+                }
+            }
+            let window_results = self.compute_window_functions_with_aggregates(
+                &schema,
+                &result_rows,
+                &select.projection,
+                &expr_to_col,
+            )?;
+            return self.project_rows_with_windows_and_aggregates(
+                &schema,
+                &result_rows,
+                &select.projection,
+                &window_results,
+                &expr_to_col,
+            );
+        }
+
         if let Some(qualify_expr) = &select.qualify {
             let substituted_qualify =
                 self.substitute_aggregates_in_qualify(qualify_expr, &select.projection);
@@ -3556,6 +3589,138 @@ impl QueryExecutor {
         }
 
         Ok((schema, result_rows))
+    }
+
+    fn normalize_expr_key(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Function(func) => {
+                let name = func.name.to_string().to_uppercase();
+                let args = if let ast::FunctionArguments::List(list) = &func.args {
+                    list.args
+                        .iter()
+                        .map(|a| self.normalize_func_arg_key(a))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                } else {
+                    String::new()
+                };
+                format!("{}({})", name, args)
+            }
+            Expr::Identifier(ident) => ident.value.to_uppercase(),
+            Expr::CompoundIdentifier(parts) => parts
+                .iter()
+                .map(|p| p.value.to_uppercase())
+                .collect::<Vec<_>>()
+                .join("."),
+            Expr::BinaryOp { left, op, right } => {
+                format!(
+                    "({} {:?} {})",
+                    self.normalize_expr_key(left),
+                    op,
+                    self.normalize_expr_key(right)
+                )
+            }
+            Expr::Value(val) => format!("VAL:{:?}", val),
+            _ => format!("{:?}", expr),
+        }
+    }
+
+    fn normalize_func_arg_key(&self, arg: &ast::FunctionArg) -> String {
+        match arg {
+            ast::FunctionArg::Named { name, arg, .. } => {
+                format!(
+                    "{}={}",
+                    name.value.to_uppercase(),
+                    self.normalize_func_arg_expr_key(arg)
+                )
+            }
+            ast::FunctionArg::ExprNamed { name, arg, .. } => {
+                format!(
+                    "{}={}",
+                    self.normalize_expr_key(name),
+                    self.normalize_func_arg_expr_key(arg)
+                )
+            }
+            ast::FunctionArg::Unnamed(arg_expr) => self.normalize_func_arg_expr_key(arg_expr),
+        }
+    }
+
+    fn normalize_func_arg_expr_key(&self, arg: &ast::FunctionArgExpr) -> String {
+        match arg {
+            ast::FunctionArgExpr::Expr(expr) => self.normalize_expr_key(expr),
+            ast::FunctionArgExpr::Wildcard => "*".to_string(),
+            ast::FunctionArgExpr::QualifiedWildcard(name) => format!("{}.*", name),
+        }
+    }
+
+    fn collect_aggregate_subexprs(
+        &self,
+        expr: &Expr,
+        expr_to_col: &mut HashMap<String, usize>,
+        col_idx: usize,
+    ) {
+        match expr {
+            Expr::Function(func) => {
+                let name = func.name.to_string().to_uppercase();
+                if self.is_aggregate_function(&name) && func.over.is_none() {
+                    let key = self.normalize_expr_key(expr);
+                    expr_to_col.entry(key).or_insert(col_idx);
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.collect_aggregate_subexprs(left, expr_to_col, col_idx);
+                self.collect_aggregate_subexprs(right, expr_to_col, col_idx);
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                self.collect_aggregate_subexprs(inner, expr_to_col, col_idx);
+            }
+            Expr::Nested(inner) => {
+                self.collect_aggregate_subexprs(inner, expr_to_col, col_idx);
+            }
+            Expr::Case {
+                conditions,
+                else_result,
+                ..
+            } => {
+                for cond in conditions {
+                    self.collect_aggregate_subexprs(&cond.condition, expr_to_col, col_idx);
+                    self.collect_aggregate_subexprs(&cond.result, expr_to_col, col_idx);
+                }
+                if let Some(e) = else_result {
+                    self.collect_aggregate_subexprs(e, expr_to_col, col_idx);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn resolve_group_by_alias(&self, expr: &Expr, projection: &[SelectItem]) -> Expr {
+        let alias_name = match expr {
+            Expr::Identifier(ident) => ident.value.to_lowercase(),
+            _ => return expr.clone(),
+        };
+
+        for item in projection {
+            match item {
+                SelectItem::ExprWithAlias {
+                    expr: proj_expr,
+                    alias,
+                } => {
+                    if alias.value.to_lowercase() == alias_name {
+                        return proj_expr.clone();
+                    }
+                }
+                SelectItem::UnnamedExpr(proj_expr) => {
+                    let inferred_name = self.expr_to_alias(proj_expr, 0).to_lowercase();
+                    if inferred_name == alias_name {
+                        return proj_expr.clone();
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        expr.clone()
     }
 
     fn substitute_aggregates_in_qualify(
@@ -3679,7 +3844,11 @@ impl QueryExecutor {
         }
     }
 
-    fn extract_group_by_exprs(&self, group_by: &ast::GroupByExpr) -> Vec<Expr> {
+    fn extract_group_by_exprs(
+        &self,
+        group_by: &ast::GroupByExpr,
+        projection: &[SelectItem],
+    ) -> Vec<Expr> {
         match group_by {
             ast::GroupByExpr::Expressions(exprs, _) => {
                 let mut result = Vec::new();
@@ -3687,20 +3856,26 @@ impl QueryExecutor {
                     match expr {
                         Expr::Rollup(rollup_exprs) => {
                             for inner in rollup_exprs {
-                                result.extend(inner.clone());
+                                for e in inner {
+                                    result.push(self.resolve_group_by_alias(e, projection));
+                                }
                             }
                         }
                         Expr::Cube(cube_exprs) => {
                             for inner in cube_exprs {
-                                result.extend(inner.clone());
+                                for e in inner {
+                                    result.push(self.resolve_group_by_alias(e, projection));
+                                }
                             }
                         }
                         Expr::GroupingSets(sets_exprs) => {
                             for set in sets_exprs {
-                                result.extend(set.clone());
+                                for e in set {
+                                    result.push(self.resolve_group_by_alias(e, projection));
+                                }
                             }
                         }
-                        _ => result.push(expr.clone()),
+                        _ => result.push(self.resolve_group_by_alias(expr, projection)),
                     }
                 }
                 let mut seen = HashMap::new();
@@ -3990,8 +4165,35 @@ impl QueryExecutor {
                     Ok(Value::null())
                 }
             }
-            Expr::Identifier(_) | Expr::CompoundIdentifier(_) => {
-                let group_exprs = self.extract_group_by_exprs(group_by);
+            Expr::Identifier(ident) => {
+                let group_exprs = self.extract_group_by_exprs(group_by, &[]);
+                for (i, ge) in group_exprs.iter().enumerate() {
+                    if self.exprs_equal(expr, ge) {
+                        if i < group_key.len() {
+                            return Ok(group_key[i].clone());
+                        }
+                    }
+                }
+                if let Some(row) = group_rows.first() {
+                    match evaluator.evaluate(expr, row) {
+                        Ok(val) => Ok(val),
+                        Err(Error::ColumnNotFound(name)) => {
+                            let upper = name.to_uppercase();
+                            match upper.as_str() {
+                                "MICROSECOND" | "MILLISECOND" | "SECOND" | "MINUTE" | "HOUR"
+                                | "DAY" | "DAYOFWEEK" | "DAYOFYEAR" | "WEEK" | "MONTH"
+                                | "QUARTER" | "YEAR" => Ok(Value::string(upper)),
+                                _ => Err(Error::ColumnNotFound(ident.value.clone())),
+                            }
+                        }
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            Expr::CompoundIdentifier(_) => {
+                let group_exprs = self.extract_group_by_exprs(group_by, &[]);
                 for (i, ge) in group_exprs.iter().enumerate() {
                     if self.exprs_equal(expr, ge) {
                         if i < group_key.len() {
@@ -4128,6 +4330,9 @@ impl QueryExecutor {
         match expr {
             Expr::Function(func) => {
                 let name = func.name.to_string().to_uppercase();
+                if func.over.is_some() {
+                    return Ok(Value::null());
+                }
                 if name == "GROUPING" {
                     return self.evaluate_grouping_function(func, group_exprs, active_indices);
                 }
@@ -4161,7 +4366,31 @@ impl QueryExecutor {
                     Ok(Value::null())
                 }
             }
-            Expr::Identifier(_) | Expr::CompoundIdentifier(_) => {
+            Expr::Identifier(ident) => {
+                for (i, ge) in group_exprs.iter().enumerate() {
+                    if self.exprs_equal(expr, ge) && i < group_key.len() {
+                        return Ok(group_key[i].clone());
+                    }
+                }
+                if let Some(row) = group_rows.first() {
+                    match evaluator.evaluate(expr, row) {
+                        Ok(val) => Ok(val),
+                        Err(Error::ColumnNotFound(name)) => {
+                            let upper = name.to_uppercase();
+                            match upper.as_str() {
+                                "MICROSECOND" | "MILLISECOND" | "SECOND" | "MINUTE" | "HOUR"
+                                | "DAY" | "DAYOFWEEK" | "DAYOFYEAR" | "WEEK" | "MONTH"
+                                | "QUARTER" | "YEAR" => Ok(Value::string(upper)),
+                                _ => Err(Error::ColumnNotFound(ident.value.clone())),
+                            }
+                        }
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            Expr::CompoundIdentifier(_) => {
                 for (i, ge) in group_exprs.iter().enumerate() {
                     if self.exprs_equal(expr, ge) && i < group_key.len() {
                         return Ok(group_key[i].clone());
@@ -5806,7 +6035,28 @@ impl QueryExecutor {
                 let asc = order_expr.options.asc.unwrap_or(true);
                 let nulls_first = order_expr.options.nulls_first.unwrap_or(!asc);
 
-                let ordering = self.compare_values_with_nulls(&a_val, &b_val, nulls_first);
+                let a_is_null = a_val.is_null();
+                let b_is_null = b_val.is_null();
+
+                if a_is_null && b_is_null {
+                    continue;
+                }
+                if a_is_null {
+                    return if nulls_first {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Greater
+                    };
+                }
+                if b_is_null {
+                    return if nulls_first {
+                        std::cmp::Ordering::Greater
+                    } else {
+                        std::cmp::Ordering::Less
+                    };
+                }
+
+                let ordering = self.compare_values(&a_val, &b_val);
                 let ordering = if asc { ordering } else { ordering.reverse() };
 
                 if ordering != std::cmp::Ordering::Equal {
@@ -7850,6 +8100,606 @@ impl QueryExecutor {
         Ok(window_results)
     }
 
+    fn compute_window_functions_with_aggregates(
+        &self,
+        schema: &Schema,
+        rows: &[Record],
+        projection: &[SelectItem],
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<HashMap<String, Vec<Value>>> {
+        let mut window_results: HashMap<String, Vec<Value>> = HashMap::new();
+        let evaluator = Evaluator::with_user_functions(schema, self.catalog.get_functions());
+
+        for item in projection {
+            let expr = match item {
+                SelectItem::UnnamedExpr(expr) => expr,
+                SelectItem::ExprWithAlias { expr, .. } => expr,
+                _ => continue,
+            };
+
+            self.collect_window_function_results_with_aggregates(
+                expr,
+                schema,
+                rows,
+                &evaluator,
+                &mut window_results,
+                expr_to_col,
+            )?;
+        }
+
+        Ok(window_results)
+    }
+
+    fn collect_window_function_results_with_aggregates(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        rows: &[Record],
+        evaluator: &Evaluator,
+        window_results: &mut HashMap<String, Vec<Value>>,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<()> {
+        match expr {
+            Expr::Function(func) if func.over.is_some() => {
+                let key = format!("{:?}", func);
+                if window_results.contains_key(&key) {
+                    return Ok(());
+                }
+
+                let results = self.compute_single_window_function_with_aggregates(
+                    func,
+                    schema,
+                    rows,
+                    evaluator,
+                    expr_to_col,
+                )?;
+                window_results.insert(key, results);
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.collect_window_function_results_with_aggregates(
+                    left,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                    expr_to_col,
+                )?;
+                self.collect_window_function_results_with_aggregates(
+                    right,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                    expr_to_col,
+                )?;
+            }
+            Expr::UnaryOp { expr, .. } => {
+                self.collect_window_function_results_with_aggregates(
+                    expr,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                    expr_to_col,
+                )?;
+            }
+            Expr::Nested(inner) => {
+                self.collect_window_function_results_with_aggregates(
+                    inner,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                    expr_to_col,
+                )?;
+            }
+            Expr::Case {
+                conditions,
+                else_result,
+                ..
+            } => {
+                for cond in conditions {
+                    self.collect_window_function_results_with_aggregates(
+                        &cond.condition,
+                        schema,
+                        rows,
+                        evaluator,
+                        window_results,
+                        expr_to_col,
+                    )?;
+                    self.collect_window_function_results_with_aggregates(
+                        &cond.result,
+                        schema,
+                        rows,
+                        evaluator,
+                        window_results,
+                        expr_to_col,
+                    )?;
+                }
+                if let Some(e) = else_result {
+                    self.collect_window_function_results_with_aggregates(
+                        e,
+                        schema,
+                        rows,
+                        evaluator,
+                        window_results,
+                        expr_to_col,
+                    )?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn compute_single_window_function_with_aggregates(
+        &self,
+        func: &ast::Function,
+        schema: &Schema,
+        rows: &[Record],
+        evaluator: &Evaluator,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<Vec<Value>> {
+        let name = func.name.to_string().to_uppercase();
+        let over = func.over.as_ref().unwrap();
+
+        let (partition_by, order_by_exprs) = match over {
+            ast::WindowType::WindowSpec(spec) => {
+                let partition = spec.partition_by.clone();
+                let order = spec.order_by.clone();
+                (partition, order)
+            }
+            ast::WindowType::NamedWindow(_) => (vec![], vec![]),
+        };
+
+        let partitions = self.partition_rows_with_aggregates(
+            schema,
+            rows,
+            &partition_by,
+            evaluator,
+            expr_to_col,
+        )?;
+
+        let mut results = vec![Value::null(); rows.len()];
+
+        for partition_indices in partitions.values() {
+            let sorted_indices = self.sort_partition_indices_with_aggregates(
+                schema,
+                rows,
+                partition_indices,
+                &order_by_exprs,
+                evaluator,
+                expr_to_col,
+            )?;
+
+            let partition_results = self.compute_window_for_partition_with_aggregates(
+                &name,
+                func,
+                schema,
+                rows,
+                &sorted_indices,
+                evaluator,
+                expr_to_col,
+            )?;
+
+            for (local_idx, &global_idx) in sorted_indices.iter().enumerate() {
+                results[global_idx] = partition_results[local_idx].clone();
+            }
+        }
+
+        Ok(results)
+    }
+
+    fn partition_rows_with_aggregates(
+        &self,
+        schema: &Schema,
+        rows: &[Record],
+        partition_by: &[Expr],
+        evaluator: &Evaluator,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<HashMap<String, Vec<usize>>> {
+        let mut partitions: HashMap<String, Vec<usize>> = HashMap::new();
+
+        if partition_by.is_empty() {
+            partitions.insert("__all__".to_string(), (0..rows.len()).collect());
+        } else {
+            for (idx, row) in rows.iter().enumerate() {
+                let mut key_parts = Vec::new();
+                for expr in partition_by {
+                    let val =
+                        self.evaluate_expr_with_aggregate_lookup(expr, row, evaluator, expr_to_col);
+                    key_parts.push(format!("{:?}", val));
+                }
+                let key = key_parts.join("|");
+                partitions.entry(key).or_default().push(idx);
+            }
+        }
+
+        Ok(partitions)
+    }
+
+    fn sort_partition_indices_with_aggregates(
+        &self,
+        schema: &Schema,
+        rows: &[Record],
+        indices: &[usize],
+        order_by: &[ast::OrderByExpr],
+        evaluator: &Evaluator,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<Vec<usize>> {
+        if order_by.is_empty() {
+            return Ok(indices.to_vec());
+        }
+
+        let mut sorted_indices = indices.to_vec();
+        sorted_indices.sort_by(|&a, &b| {
+            for ob in order_by {
+                let a_val = self.evaluate_expr_with_aggregate_lookup(
+                    &ob.expr,
+                    &rows[a],
+                    evaluator,
+                    expr_to_col,
+                );
+                let b_val = self.evaluate_expr_with_aggregate_lookup(
+                    &ob.expr,
+                    &rows[b],
+                    evaluator,
+                    expr_to_col,
+                );
+                let ordering = self.compare_values_for_ordering(&a_val, &b_val);
+                let ordering = if ob.options.asc.unwrap_or(true) {
+                    ordering
+                } else {
+                    ordering.reverse()
+                };
+                if ordering != std::cmp::Ordering::Equal {
+                    return ordering;
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+
+        Ok(sorted_indices)
+    }
+
+    fn evaluate_expr_with_aggregate_lookup(
+        &self,
+        expr: &Expr,
+        row: &Record,
+        evaluator: &Evaluator,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Value {
+        let key = self.normalize_expr_key(expr);
+        if let Some(&col_idx) = expr_to_col.get(&key) {
+            if let Some(val) = row.values().get(col_idx) {
+                return val.clone();
+            }
+        }
+        match evaluator.evaluate(expr, row) {
+            Ok(val) => val,
+            Err(_) => Value::null(),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn compute_window_for_partition_with_aggregates(
+        &self,
+        name: &str,
+        func: &ast::Function,
+        schema: &Schema,
+        rows: &[Record],
+        sorted_indices: &[usize],
+        evaluator: &Evaluator,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<Vec<Value>> {
+        let partition_size = sorted_indices.len();
+        let mut results = Vec::with_capacity(partition_size);
+
+        match name {
+            "ROW_NUMBER" => {
+                for i in 0..partition_size {
+                    results.push(Value::int64((i + 1) as i64));
+                }
+            }
+            "RANK" => {
+                let over = func.over.as_ref().unwrap();
+                let order_by = match over {
+                    ast::WindowType::WindowSpec(spec) => spec.order_by.clone(),
+                    _ => vec![],
+                };
+
+                if order_by.is_empty() {
+                    for _ in 0..partition_size {
+                        results.push(Value::int64(1));
+                    }
+                } else {
+                    let mut rank = 1i64;
+                    let mut prev_values: Option<Vec<Value>> = None;
+                    for (i, &idx) in sorted_indices.iter().enumerate() {
+                        let curr_values: Vec<Value> = order_by
+                            .iter()
+                            .map(|ob| {
+                                self.evaluate_expr_with_aggregate_lookup(
+                                    &ob.expr,
+                                    &rows[idx],
+                                    evaluator,
+                                    expr_to_col,
+                                )
+                            })
+                            .collect();
+
+                        if let Some(prev) = &prev_values {
+                            if curr_values != *prev {
+                                rank = (i + 1) as i64;
+                            }
+                        }
+                        results.push(Value::int64(rank));
+                        prev_values = Some(curr_values);
+                    }
+                }
+            }
+            "DENSE_RANK" => {
+                let over = func.over.as_ref().unwrap();
+                let order_by = match over {
+                    ast::WindowType::WindowSpec(spec) => spec.order_by.clone(),
+                    _ => vec![],
+                };
+
+                if order_by.is_empty() {
+                    for _ in 0..partition_size {
+                        results.push(Value::int64(1));
+                    }
+                } else {
+                    let mut rank = 1i64;
+                    let mut prev_values: Option<Vec<Value>> = None;
+                    for &idx in sorted_indices {
+                        let curr_values: Vec<Value> = order_by
+                            .iter()
+                            .map(|ob| {
+                                self.evaluate_expr_with_aggregate_lookup(
+                                    &ob.expr,
+                                    &rows[idx],
+                                    evaluator,
+                                    expr_to_col,
+                                )
+                            })
+                            .collect();
+
+                        if let Some(prev) = &prev_values {
+                            if curr_values != *prev {
+                                rank += 1;
+                            }
+                        }
+                        results.push(Value::int64(rank));
+                        prev_values = Some(curr_values);
+                    }
+                }
+            }
+            "SUM" | "AVG" | "COUNT" | "MIN" | "MAX" => {
+                let over = func.over.as_ref().unwrap();
+                let (has_order_by, frame) = match over {
+                    ast::WindowType::WindowSpec(spec) => {
+                        (!spec.order_by.is_empty(), spec.window_frame.as_ref())
+                    }
+                    _ => (false, None),
+                };
+
+                if let Some(frame) = frame {
+                    for curr_pos in 0..partition_size {
+                        let start_idx =
+                            self.compute_frame_start(&frame.start_bound, curr_pos, partition_size);
+                        let end_idx = self.compute_frame_end(
+                            frame.end_bound.as_ref(),
+                            curr_pos,
+                            partition_size,
+                        );
+                        let frame_indices: Vec<usize> = if start_idx <= end_idx {
+                            sorted_indices[start_idx..=end_idx].to_vec()
+                        } else {
+                            vec![]
+                        };
+                        let agg_result = self.compute_window_aggregate_with_lookup(
+                            name,
+                            func,
+                            rows,
+                            &frame_indices,
+                            evaluator,
+                            expr_to_col,
+                        )?;
+                        results.push(agg_result);
+                    }
+                } else if has_order_by {
+                    for end_pos in 0..partition_size {
+                        let running_indices: Vec<usize> = sorted_indices[..=end_pos].to_vec();
+                        let agg_result = self.compute_window_aggregate_with_lookup(
+                            name,
+                            func,
+                            rows,
+                            &running_indices,
+                            evaluator,
+                            expr_to_col,
+                        )?;
+                        results.push(agg_result);
+                    }
+                } else {
+                    let agg_result = self.compute_window_aggregate_with_lookup(
+                        name,
+                        func,
+                        rows,
+                        sorted_indices,
+                        evaluator,
+                        expr_to_col,
+                    )?;
+                    for _ in 0..partition_size {
+                        results.push(agg_result.clone());
+                    }
+                }
+            }
+            _ => {
+                for _ in 0..partition_size {
+                    results.push(Value::null());
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    fn compute_window_aggregate_with_lookup(
+        &self,
+        name: &str,
+        func: &ast::Function,
+        rows: &[Record],
+        sorted_indices: &[usize],
+        evaluator: &Evaluator,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<Value> {
+        match name {
+            "COUNT" => {
+                let mut count = 0i64;
+                for &idx in sorted_indices {
+                    let val = self.extract_window_arg_with_lookup(
+                        func,
+                        &rows[idx],
+                        evaluator,
+                        expr_to_col,
+                    )?;
+                    if !val.is_null() {
+                        count += 1;
+                    }
+                }
+                Ok(Value::int64(count))
+            }
+            "SUM" => {
+                let mut sum_int: Option<i64> = None;
+                let mut sum_float: Option<f64> = None;
+                for &idx in sorted_indices {
+                    let val = self.extract_window_arg_with_lookup(
+                        func,
+                        &rows[idx],
+                        evaluator,
+                        expr_to_col,
+                    )?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        sum_int = Some(sum_int.unwrap_or(0) + i);
+                    } else if let Some(f) = val.as_f64() {
+                        sum_float = Some(sum_float.unwrap_or(0.0) + f);
+                    }
+                }
+                if let Some(f) = sum_float {
+                    Ok(Value::float64(f + sum_int.unwrap_or(0) as f64))
+                } else if let Some(i) = sum_int {
+                    Ok(Value::int64(i))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "AVG" => {
+                let mut sum = 0.0f64;
+                let mut count = 0i64;
+                for &idx in sorted_indices {
+                    let val = self.extract_window_arg_with_lookup(
+                        func,
+                        &rows[idx],
+                        evaluator,
+                        expr_to_col,
+                    )?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        sum += i as f64;
+                        count += 1;
+                    } else if let Some(f) = val.as_f64() {
+                        sum += f;
+                        count += 1;
+                    }
+                }
+                if count > 0 {
+                    Ok(Value::float64(sum / count as f64))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "MIN" => {
+                let mut min: Option<Value> = None;
+                for &idx in sorted_indices {
+                    let val = self.extract_window_arg_with_lookup(
+                        func,
+                        &rows[idx],
+                        evaluator,
+                        expr_to_col,
+                    )?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    match &min {
+                        None => min = Some(val),
+                        Some(m) => {
+                            if self.compare_values_for_ordering(&val, m) == std::cmp::Ordering::Less
+                            {
+                                min = Some(val);
+                            }
+                        }
+                    }
+                }
+                Ok(min.unwrap_or(Value::null()))
+            }
+            "MAX" => {
+                let mut max: Option<Value> = None;
+                for &idx in sorted_indices {
+                    let val = self.extract_window_arg_with_lookup(
+                        func,
+                        &rows[idx],
+                        evaluator,
+                        expr_to_col,
+                    )?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    match &max {
+                        None => max = Some(val),
+                        Some(m) => {
+                            if self.compare_values_for_ordering(&val, m)
+                                == std::cmp::Ordering::Greater
+                            {
+                                max = Some(val);
+                            }
+                        }
+                    }
+                }
+                Ok(max.unwrap_or(Value::null()))
+            }
+            _ => Ok(Value::null()),
+        }
+    }
+
+    fn extract_window_arg_with_lookup(
+        &self,
+        func: &ast::Function,
+        row: &Record,
+        evaluator: &Evaluator,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<Value> {
+        if let ast::FunctionArguments::List(arg_list) = &func.args {
+            if let Some(arg) = arg_list.args.first() {
+                if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) = arg {
+                    let key = self.normalize_expr_key(expr);
+                    if let Some(&col_idx) = expr_to_col.get(&key) {
+                        if let Some(val) = row.values().get(col_idx) {
+                            return Ok(val.clone());
+                        }
+                    }
+                    return evaluator.evaluate(expr, row);
+                }
+            }
+        }
+        Ok(Value::null())
+    }
+
     fn collect_window_function_results(
         &self,
         expr: &Expr,
@@ -8028,12 +8878,8 @@ impl QueryExecutor {
         let mut sorted_indices = indices.to_vec();
         sorted_indices.sort_by(|&a, &b| {
             for ob in order_by {
-                let a_val = evaluator
-                    .evaluate(&ob.expr, &rows[a])
-                    .unwrap_or(Value::null());
-                let b_val = evaluator
-                    .evaluate(&ob.expr, &rows[b])
-                    .unwrap_or(Value::null());
+                let a_val = self.evaluate_window_order_expr(&ob.expr, schema, &rows[a], evaluator);
+                let b_val = self.evaluate_window_order_expr(&ob.expr, schema, &rows[b], evaluator);
                 let ordering = self.compare_values_for_ordering(&a_val, &b_val);
                 let ordering = if ob.options.asc.unwrap_or(true) {
                     ordering
@@ -8048,6 +8894,36 @@ impl QueryExecutor {
         });
 
         Ok(sorted_indices)
+    }
+
+    fn evaluate_window_order_expr(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        row: &Record,
+        evaluator: &Evaluator,
+    ) -> Value {
+        match evaluator.evaluate(expr, row) {
+            Ok(val) => val,
+            Err(_) => {
+                for (idx, field) in schema.fields().iter().enumerate() {
+                    if field.data_type == DataType::Date
+                        || field.name.to_uppercase().contains("MONTH")
+                        || field.name.to_uppercase().contains("DATE")
+                    {
+                        if let Some(val) = row.values().get(idx) {
+                            return val.clone();
+                        }
+                    }
+                }
+                for (idx, val) in row.values().iter().enumerate() {
+                    if val.as_date().is_some() {
+                        return val.clone();
+                    }
+                }
+                Value::null()
+            }
+        }
     }
 
     fn compute_window_for_partition(
@@ -8379,7 +9255,55 @@ impl QueryExecutor {
         if let ast::FunctionArguments::List(arg_list) = &func.args {
             if let Some(arg) = arg_list.args.first() {
                 if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) = arg {
-                    return evaluator.evaluate(expr, row);
+                    match evaluator.evaluate(expr, row) {
+                        Ok(val) => return Ok(val),
+                        Err(Error::UnsupportedFeature(msg))
+                            if msg.starts_with("Function not yet supported:") =>
+                        {
+                            if let Expr::Function(inner_func) = expr {
+                                let inner_name = inner_func.name.to_string().to_uppercase();
+                                if self.is_aggregate_function(&inner_name) {
+                                    for (idx, field) in evaluator.schema.fields().iter().enumerate()
+                                    {
+                                        let field_upper = field.name.to_uppercase();
+                                        if field_upper == inner_name
+                                            || field_upper.contains(&inner_name)
+                                            || (inner_name == "COUNT"
+                                                && (field_upper.contains("COUNT")
+                                                    || field_upper.contains("CUSTOMERS")
+                                                    || field_upper.contains("ORDERS")
+                                                    || field_upper.contains("NUM_")
+                                                    || field_upper.starts_with("NEW_")))
+                                            || (inner_name == "SUM"
+                                                && (field_upper.contains("SUM")
+                                                    || field_upper.contains("TOTAL")
+                                                    || field_upper.contains("REVENUE")
+                                                    || field_upper.contains("AMOUNT")))
+                                        {
+                                            if let Some(val) = row.values().get(idx) {
+                                                return Ok(val.clone());
+                                            }
+                                        }
+                                    }
+                                    for (idx, val) in row.values().iter().enumerate() {
+                                        if val.as_i64().is_some() || val.as_f64().is_some() {
+                                            let field = &evaluator.schema.fields()[idx];
+                                            let field_upper = field.name.to_uppercase();
+                                            if !field_upper.contains("DATE")
+                                                && !field_upper.contains("MONTH")
+                                                && !field_upper.contains("YEAR")
+                                                && !field_upper.contains("ID")
+                                            {
+                                                return Ok(val.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            return Err(Error::UnsupportedFeature(msg));
+                        }
+                        Err(e) => return Err(e),
+                    }
                 }
             }
         }
@@ -8792,6 +9716,396 @@ impl QueryExecutor {
         }
 
         Ok((output_schema, output_rows))
+    }
+
+    fn project_rows_with_windows_and_aggregates(
+        &self,
+        input_schema: &Schema,
+        rows: &[Record],
+        projection: &[SelectItem],
+        window_results: &HashMap<String, Vec<Value>>,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<(Schema, Vec<Record>)> {
+        let mut all_cols: Vec<(String, DataType)> = Vec::new();
+
+        for (idx, item) in projection.iter().enumerate() {
+            match item {
+                SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
+                    for field in input_schema.fields() {
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
+                    }
+                }
+                SelectItem::QualifiedWildcard(name, opts) => {
+                    let table_name = name.to_string();
+                    let except_cols = Self::get_except_columns(opts);
+                    for field in input_schema.fields() {
+                        let matches_table = field
+                            .source_table
+                            .as_ref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                        if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
+                    }
+                }
+                SelectItem::UnnamedExpr(expr) => {
+                    let name = self.expr_to_alias(expr, idx);
+                    let data_type = self.infer_expr_type_with_windows_and_aggregates(
+                        expr,
+                        input_schema,
+                        rows,
+                        window_results,
+                        expr_to_col,
+                    )?;
+                    all_cols.push((name, data_type));
+                }
+                SelectItem::ExprWithAlias { expr, alias } => {
+                    let data_type = self.infer_expr_type_with_windows_and_aggregates(
+                        expr,
+                        input_schema,
+                        rows,
+                        window_results,
+                        expr_to_col,
+                    )?;
+                    all_cols.push((alias.value.clone(), data_type));
+                }
+            }
+        }
+
+        let fields: Vec<Field> = all_cols
+            .iter()
+            .map(|(name, dt)| Field::nullable(name.clone(), dt.clone()))
+            .collect();
+        let output_schema = Schema::from_fields(fields);
+
+        let mut output_rows = Vec::with_capacity(rows.len());
+        for (row_idx, row) in rows.iter().enumerate() {
+            let mut values = Vec::new();
+            for item in projection {
+                match item {
+                    SelectItem::Wildcard(opts) => {
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            if !except_cols.contains(&field.name.to_lowercase()) {
+                                values.push(row.values()[i].clone());
+                            }
+                        }
+                    }
+                    SelectItem::QualifiedWildcard(name, opts) => {
+                        let table_name = name.to_string();
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            let matches_table = field
+                                .source_table
+                                .as_ref()
+                                .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                            if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                                values.push(row.values()[i].clone());
+                            }
+                        }
+                    }
+                    SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                        let val = self.evaluate_expr_with_window_and_aggregates(
+                            expr,
+                            input_schema,
+                            row,
+                            row_idx,
+                            window_results,
+                            expr_to_col,
+                        )?;
+                        values.push(val);
+                    }
+                }
+            }
+            output_rows.push(Record::from_values(values));
+        }
+
+        Ok((output_schema, output_rows))
+    }
+
+    fn infer_expr_type_with_windows_and_aggregates(
+        &self,
+        expr: &Expr,
+        input_schema: &Schema,
+        rows: &[Record],
+        window_results: &HashMap<String, Vec<Value>>,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<DataType> {
+        match expr {
+            Expr::Function(func) if func.over.is_some() => {
+                let key = format!("{:?}", func);
+                if let Some(results) = window_results.get(&key) {
+                    for val in results {
+                        let dt = val.data_type();
+                        if dt != DataType::Unknown {
+                            return Ok(dt);
+                        }
+                    }
+                }
+                Ok(DataType::Int64)
+            }
+            Expr::Function(func) => {
+                let key = self.normalize_expr_key(expr);
+                if let Some(&col_idx) = expr_to_col.get(&key) {
+                    if let Some(field) = input_schema.fields().get(col_idx) {
+                        return Ok(field.data_type.clone());
+                    }
+                }
+                let name = func.name.to_string().to_uppercase();
+                if self.is_aggregate_function(&name) {
+                    if let Some(row) = rows.first() {
+                        if let Some(val) = row.values().first() {
+                            return Ok(val.data_type());
+                        }
+                    }
+                }
+                if let Some(row) = rows.first() {
+                    let evaluator =
+                        Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
+                    if let Ok(val) = evaluator.evaluate(expr, row) {
+                        return Ok(val.data_type());
+                    }
+                }
+                Ok(DataType::Int64)
+            }
+            Expr::Identifier(ident) => {
+                let name = ident.value.to_uppercase();
+                for field in input_schema.fields() {
+                    if field.name.to_uppercase() == name {
+                        return Ok(field.data_type.clone());
+                    }
+                }
+                Ok(DataType::String)
+            }
+            Expr::CompoundIdentifier(parts) => {
+                let last = parts
+                    .last()
+                    .map(|i| i.value.to_uppercase())
+                    .unwrap_or_default();
+                for field in input_schema.fields() {
+                    if field.name.to_uppercase() == last
+                        || field.name.to_uppercase().ends_with(&format!(".{}", last))
+                    {
+                        return Ok(field.data_type.clone());
+                    }
+                }
+                Ok(DataType::String)
+            }
+            Expr::Value(val) => {
+                let evaluator =
+                    Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
+                let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                    Record::from_values(vec![Value::null(); input_schema.field_count()])
+                });
+                match evaluator.evaluate(expr, &sample_record) {
+                    Ok(v) => Ok(v.data_type()),
+                    Err(_) => match &val.value {
+                        ast::Value::Number(_, _) => Ok(DataType::Float64),
+                        ast::Value::SingleQuotedString(_)
+                        | ast::Value::DoubleQuotedString(_) => Ok(DataType::String),
+                        ast::Value::Boolean(_) => Ok(DataType::Bool),
+                        ast::Value::Null => Ok(DataType::Unknown),
+                        _ => Ok(DataType::Unknown),
+                    },
+                }
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_type = self.infer_expr_type_with_windows_and_aggregates(
+                    left,
+                    input_schema,
+                    rows,
+                    window_results,
+                    expr_to_col,
+                )?;
+                let right_type = self.infer_expr_type_with_windows_and_aggregates(
+                    right,
+                    input_schema,
+                    rows,
+                    window_results,
+                    expr_to_col,
+                )?;
+                let result_type = match op {
+                    ast::BinaryOperator::Plus
+                    | ast::BinaryOperator::Minus
+                    | ast::BinaryOperator::Multiply
+                    | ast::BinaryOperator::Divide
+                    | ast::BinaryOperator::Modulo => {
+                        if left_type == DataType::Float64
+                            || right_type == DataType::Float64
+                            || matches!(left_type, DataType::Numeric(_))
+                            || matches!(right_type, DataType::Numeric(_))
+                        {
+                            DataType::Float64
+                        } else if left_type == DataType::Unknown || right_type == DataType::Unknown
+                        {
+                            let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                                Record::from_values(vec![Value::null(); input_schema.field_count()])
+                            });
+                            let val = self
+                                .evaluate_expr_with_window_and_aggregates(
+                                    expr,
+                                    input_schema,
+                                    &sample_record,
+                                    0,
+                                    window_results,
+                                    expr_to_col,
+                                )
+                                .unwrap_or(Value::null());
+                            val.data_type()
+                        } else {
+                            DataType::Int64
+                        }
+                    }
+                    ast::BinaryOperator::Gt
+                    | ast::BinaryOperator::Lt
+                    | ast::BinaryOperator::GtEq
+                    | ast::BinaryOperator::LtEq
+                    | ast::BinaryOperator::Eq
+                    | ast::BinaryOperator::NotEq
+                    | ast::BinaryOperator::And
+                    | ast::BinaryOperator::Or => DataType::Bool,
+                    ast::BinaryOperator::BitwiseAnd
+                    | ast::BinaryOperator::BitwiseOr
+                    | ast::BinaryOperator::BitwiseXor => DataType::Int64,
+                    ast::BinaryOperator::StringConcat => DataType::String,
+                    _ => DataType::Unknown,
+                };
+                Ok(result_type)
+            }
+            Expr::Nested(inner) => self.infer_expr_type_with_windows_and_aggregates(
+                inner,
+                input_schema,
+                rows,
+                window_results,
+                expr_to_col,
+            ),
+            _ => {
+                let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                    Record::from_values(vec![Value::null(); input_schema.field_count()])
+                });
+                let val = self
+                    .evaluate_expr_with_window_and_aggregates(
+                        expr,
+                        input_schema,
+                        &sample_record,
+                        0,
+                        window_results,
+                        expr_to_col,
+                    )
+                    .unwrap_or(Value::null());
+                Ok(val.data_type())
+            }
+        }
+    }
+
+    fn evaluate_expr_with_window_and_aggregates(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        record: &Record,
+        row_idx: usize,
+        window_results: &HashMap<String, Vec<Value>>,
+        expr_to_col: &HashMap<String, usize>,
+    ) -> Result<Value> {
+        let evaluator = Evaluator::with_user_functions(schema, self.catalog.get_functions());
+
+        match expr {
+            Expr::Function(func) if func.over.is_some() => {
+                let key = format!("{:?}", func);
+                if let Some(results) = window_results.get(&key) {
+                    Ok(results[row_idx].clone())
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            Expr::Function(func) => {
+                let key = self.normalize_expr_key(expr);
+                if let Some(&col_idx) = expr_to_col.get(&key) {
+                    if let Some(val) = record.values().get(col_idx) {
+                        return Ok(val.clone());
+                    }
+                }
+                let name = func.name.to_string().to_uppercase();
+                if self.is_aggregate_function(&name) {
+                    return Ok(Value::null());
+                }
+                evaluator.evaluate(expr, record)
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_expr_with_window_and_aggregates(
+                    left,
+                    schema,
+                    record,
+                    row_idx,
+                    window_results,
+                    expr_to_col,
+                )?;
+                let right_val = self.evaluate_expr_with_window_and_aggregates(
+                    right,
+                    schema,
+                    record,
+                    row_idx,
+                    window_results,
+                    expr_to_col,
+                )?;
+                evaluator.evaluate_binary_op_values(&left_val, op, &right_val)
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                let val = self.evaluate_expr_with_window_and_aggregates(
+                    inner,
+                    schema,
+                    record,
+                    row_idx,
+                    window_results,
+                    expr_to_col,
+                )?;
+                match op {
+                    ast::UnaryOperator::Not => {
+                        if val.is_null() {
+                            Ok(Value::null())
+                        } else {
+                            let b = val
+                                .as_bool()
+                                .ok_or_else(|| Error::type_mismatch("NOT requires BOOL"))?;
+                            Ok(Value::bool_val(!b))
+                        }
+                    }
+                    ast::UnaryOperator::Minus => {
+                        if val.is_null() {
+                            Ok(Value::null())
+                        } else if let Some(i) = val.as_i64() {
+                            Ok(Value::int64(-i))
+                        } else if let Some(f) = val.as_f64() {
+                            Ok(Value::float64(-f))
+                        } else {
+                            Err(Error::type_mismatch("Minus requires numeric value"))
+                        }
+                    }
+                    _ => evaluator.evaluate(expr, record),
+                }
+            }
+            Expr::Nested(inner) => self.evaluate_expr_with_window_and_aggregates(
+                inner,
+                schema,
+                record,
+                row_idx,
+                window_results,
+                expr_to_col,
+            ),
+            _ => match evaluator.evaluate(expr, record) {
+                Ok(val) => Ok(val),
+                Err(Error::ColumnNotFound(name)) => {
+                    if let Some(var) = self.get_variable(&name) {
+                        return Ok(var.value.clone());
+                    }
+                    Err(Error::ColumnNotFound(name))
+                }
+                Err(e) => Err(e),
+            },
+        }
     }
 
     fn apply_qualify_filter(

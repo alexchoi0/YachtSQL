@@ -206,7 +206,6 @@ fn test_category_performance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_lifetime_value() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -243,17 +242,16 @@ fn test_customer_lifetime_value() {
     assert_table_eq!(
         result,
         [
-            [1, "Alice Johnson", "Premium", 3, 3025, 1008, 22],
-            [3, "Carol White", "Premium", 1, 1800, 1800, 0],
-            [2, "Bob Smith", "Standard", 1, 350, 350, 0],
-            [5, "Eve Davis", "New", 1, 325, 325, 0],
-            [4, "David Brown", "Standard", 0, null, 0, null],
+            [1, "Alice Johnson", "Premium", 3, 3025, 1008.3333333333334, 22],
+            [3, "Carol White", "Premium", 1, 1800, 1800.0, 0],
+            [2, "Bob Smith", "Standard", 1, 350, 350.0, 0],
+            [5, "Eve Davis", "New", 1, 325, 325.0, 0],
+            [4, "David Brown", "Standard", 0, null, 0.0, null],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_product_affinity_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -290,7 +288,6 @@ fn test_product_affinity_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_inventory_velocity() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -328,7 +325,6 @@ fn test_inventory_velocity() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_segmentation() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -369,7 +365,6 @@ fn test_customer_segmentation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_conversion_funnel() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -400,7 +395,6 @@ fn test_conversion_funnel() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_order_status_breakdown() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -427,7 +421,6 @@ fn test_order_status_breakdown() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_daily_sales_trend() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -449,18 +442,17 @@ fn test_daily_sales_trend() {
     assert_table_eq!(
         result,
         [
-            [d(2024, 1, 10), 1, 1300, 1300.0],
-            [d(2024, 1, 12), 1, 350, 1650.0],
-            [d(2024, 1, 15), 1, 365, 2015.0],
-            [d(2024, 1, 18), 1, 1800, 3815.0],
-            [d(2024, 1, 22), 1, 325, 4140.0],
-            [d(2024, 2, 1), 1, 1360, 5500.0],
+            [d(2024, 1, 10), 1, 1300, 1300],
+            [d(2024, 1, 12), 1, 350, 1650],
+            [d(2024, 1, 15), 1, 365, 2015],
+            [d(2024, 1, 18), 1, 1800, 3815],
+            [d(2024, 1, 22), 1, 325, 4140],
+            [d(2024, 2, 1), 1, 1360, 5500],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_discount_impact_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -501,7 +493,6 @@ fn test_discount_impact_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_new_vs_returning_customers() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -567,7 +558,6 @@ fn test_average_basket_composition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_acquisition_by_month() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -596,7 +586,6 @@ fn test_customer_acquisition_by_month() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_product_margin_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -675,7 +664,6 @@ fn test_product_margin_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_order_size_distribution() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -715,7 +703,7 @@ fn test_order_size_distribution() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "STRING_AGG deduplication issue"]
 fn test_cross_sell_opportunities() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -772,7 +760,6 @@ fn test_cross_sell_opportunities() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_revenue_concentration() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -806,19 +793,18 @@ fn test_revenue_concentration() {
     assert_table_eq!(
         result,
         [
-            ["Laptop Pro", 3600, 65.45, 65.4545454545455],
-            ["Standing Desk", 600, 10.91, 76.3636363636364],
-            ["USB-C Hub", 400, 7.27, 83.6363636363636],
-            ["Notebook Set", 375, 6.82, 90.4545454545455],
-            ["Office Chair", 350, 6.36, 96.8181818181818],
-            ["Wireless Mouse", 100, 1.82, 98.6363636363636],
+            ["Laptop Pro", 3600, 65.45, 65.45454545454545],
+            ["Standing Desk", 600, 10.91, 76.36363636363636],
+            ["USB-C Hub", 400, 7.27, 83.63636363636364],
+            ["Notebook Set", 375, 6.82, 90.45454545454545],
+            ["Office Chair", 350, 6.36, 96.81818181818181],
+            ["Wireless Mouse", 100, 1.82, 98.63636363636364],
             ["Pen Pack", 75, 1.36, 100.0],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_days_between_orders() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
