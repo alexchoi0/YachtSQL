@@ -9,7 +9,6 @@ description = "YachtSQL execution engine"
 # YachtSQL crates
 yachtsql-common = { path = "../common" }
 yachtsql-storage = { path = "../storage" }
-yachtsql-optimizer = { path = "../optimizer" }
 yachtsql-parser = { path = "../parser" }
 yachtsql-ir = { path = "../ir" }
 yachtsql-functions = { path = "../functions" }

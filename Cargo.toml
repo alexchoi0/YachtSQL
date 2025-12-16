@@ -12,7 +12,6 @@ yachtsql-storage = { path = "crates/storage" }
 yachtsql-ir = { path = "crates/ir" }
 yachtsql-parser = { path = "crates/parser" }
 yachtsql-functions = { path = "crates/functions" }
-yachtsql-optimizer = { path = "crates/optimizer" }
 yachtsql-executor = { path = "crates/executor" }
 
 sentry = "0.45.0"
@@ -108,7 +107,6 @@ members = [
     "crates/executor",
     "crates/functions",
     "crates/ir",
-    "crates/optimizer",
     "crates/parser",
     "crates/storage",
     "crates/test-utils",

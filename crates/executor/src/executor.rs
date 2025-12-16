@@ -21,6 +21,14 @@ use yachtsql_storage::{Column, Field, Record, Schema, Table, TableSchemaOps};
 use crate::catalog::Catalog;
 use crate::evaluator::{Evaluator, parse_byte_string_escapes};
 
+#[derive(Debug, Clone)]
+struct WindowFunctionInfo {
+    func_name: String,
+    args: Vec<Expr>,
+    partition_by: Vec<Expr>,
+    order_by: Vec<ast::OrderByExpr>,
+}
+
 pub struct QueryExecutor {
     catalog: Catalog,
 }
@@ -225,6 +233,18 @@ impl QueryExecutor {
             });
         }
 
+        let has_window_funcs = self.has_window_functions(&select.projection);
+        if has_window_funcs {
+            let window_results =
+                self.compute_window_functions(&input_schema, &filtered_rows, &select.projection)?;
+            return self.project_rows_with_windows(
+                &input_schema,
+                &filtered_rows,
+                &select.projection,
+                &window_results,
+            );
+        }
+
         let (output_schema, output_rows) =
             self.project_rows(&input_schema, &filtered_rows, &select.projection)?;
 
@@ -265,6 +285,19 @@ impl QueryExecutor {
                 let key = format!("{:?}", row.values());
                 seen.insert(key)
             });
+        }
+
+        let has_window_funcs = self.has_window_functions(&select.projection);
+        if has_window_funcs {
+            let window_results =
+                self.compute_window_functions(&input_schema, &filtered_rows, &select.projection)?;
+            let (schema, rows) = self.project_rows_with_windows(
+                &input_schema,
+                &filtered_rows,
+                &select.projection,
+                &window_results,
+            )?;
+            return Ok((schema, rows, false));
         }
 
         let needs_deferred_projection = order_by.as_ref().is_some_and(|ob| {
@@ -802,6 +835,9 @@ impl QueryExecutor {
     fn expr_has_aggregate(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Function(func) => {
+                if func.over.is_some() {
+                    return false;
+                }
                 let name = func.name.to_string().to_uppercase();
                 matches!(
                     name.as_str(),
@@ -2254,6 +2290,993 @@ impl QueryExecutor {
                 "Data type not yet supported: {:?}",
                 sql_type
             ))),
+        }
+    }
+
+    fn has_window_functions(&self, projection: &[SelectItem]) -> bool {
+        for item in projection {
+            match item {
+                SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                    if self.expr_has_window_function(expr) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn expr_has_window_function(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Function(func) => func.over.is_some(),
+            Expr::BinaryOp { left, right, .. } => {
+                self.expr_has_window_function(left) || self.expr_has_window_function(right)
+            }
+            Expr::UnaryOp { expr, .. } => self.expr_has_window_function(expr),
+            Expr::Nested(inner) => self.expr_has_window_function(inner),
+            Expr::Case {
+                conditions,
+                else_result,
+                ..
+            } => {
+                conditions.iter().any(|c| {
+                    self.expr_has_window_function(&c.condition)
+                        || self.expr_has_window_function(&c.result)
+                }) || else_result
+                    .as_ref()
+                    .is_some_and(|e| self.expr_has_window_function(e))
+            }
+            _ => false,
+        }
+    }
+
+    fn compute_window_functions(
+        &self,
+        schema: &Schema,
+        rows: &[Record],
+        projection: &[SelectItem],
+    ) -> Result<HashMap<String, Vec<Value>>> {
+        let mut window_results: HashMap<String, Vec<Value>> = HashMap::new();
+        let evaluator = Evaluator::new(schema);
+
+        for item in projection {
+            let expr = match item {
+                SelectItem::UnnamedExpr(expr) => expr,
+                SelectItem::ExprWithAlias { expr, .. } => expr,
+                _ => continue,
+            };
+
+            self.collect_window_function_results(
+                expr,
+                schema,
+                rows,
+                &evaluator,
+                &mut window_results,
+            )?;
+        }
+
+        Ok(window_results)
+    }
+
+    fn collect_window_function_results(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        rows: &[Record],
+        evaluator: &Evaluator,
+        window_results: &mut HashMap<String, Vec<Value>>,
+    ) -> Result<()> {
+        match expr {
+            Expr::Function(func) if func.over.is_some() => {
+                let key = format!("{:?}", func);
+                if window_results.contains_key(&key) {
+                    return Ok(());
+                }
+
+                let results = self.compute_single_window_function(func, schema, rows, evaluator)?;
+                window_results.insert(key, results);
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.collect_window_function_results(
+                    left,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                )?;
+                self.collect_window_function_results(
+                    right,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                )?;
+            }
+            Expr::UnaryOp { expr, .. } => {
+                self.collect_window_function_results(
+                    expr,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                )?;
+            }
+            Expr::Nested(inner) => {
+                self.collect_window_function_results(
+                    inner,
+                    schema,
+                    rows,
+                    evaluator,
+                    window_results,
+                )?;
+            }
+            Expr::Case {
+                conditions,
+                else_result,
+                ..
+            } => {
+                for cond in conditions {
+                    self.collect_window_function_results(
+                        &cond.condition,
+                        schema,
+                        rows,
+                        evaluator,
+                        window_results,
+                    )?;
+                    self.collect_window_function_results(
+                        &cond.result,
+                        schema,
+                        rows,
+                        evaluator,
+                        window_results,
+                    )?;
+                }
+                if let Some(e) = else_result {
+                    self.collect_window_function_results(
+                        e,
+                        schema,
+                        rows,
+                        evaluator,
+                        window_results,
+                    )?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn compute_single_window_function(
+        &self,
+        func: &ast::Function,
+        schema: &Schema,
+        rows: &[Record],
+        evaluator: &Evaluator,
+    ) -> Result<Vec<Value>> {
+        let name = func.name.to_string().to_uppercase();
+        let over = func.over.as_ref().unwrap();
+
+        let (partition_by, order_by_exprs) = match over {
+            ast::WindowType::WindowSpec(spec) => {
+                let partition = spec.partition_by.clone();
+                let order = spec.order_by.clone();
+                (partition, order)
+            }
+            ast::WindowType::NamedWindow(_) => (vec![], vec![]),
+        };
+
+        let partitions = self.partition_rows(schema, rows, &partition_by, evaluator)?;
+
+        let mut results = vec![Value::null(); rows.len()];
+
+        for (partition_key, partition_indices) in &partitions {
+            let sorted_indices = self.sort_partition_indices(
+                schema,
+                rows,
+                partition_indices,
+                &order_by_exprs,
+                evaluator,
+            )?;
+
+            let partition_results = self.compute_window_for_partition(
+                &name,
+                func,
+                schema,
+                rows,
+                &sorted_indices,
+                evaluator,
+            )?;
+
+            for (local_idx, &global_idx) in sorted_indices.iter().enumerate() {
+                results[global_idx] = partition_results[local_idx].clone();
+            }
+        }
+
+        Ok(results)
+    }
+
+    fn partition_rows(
+        &self,
+        schema: &Schema,
+        rows: &[Record],
+        partition_by: &[Expr],
+        evaluator: &Evaluator,
+    ) -> Result<HashMap<String, Vec<usize>>> {
+        let mut partitions: HashMap<String, Vec<usize>> = HashMap::new();
+
+        if partition_by.is_empty() {
+            partitions.insert("__all__".to_string(), (0..rows.len()).collect());
+        } else {
+            for (idx, row) in rows.iter().enumerate() {
+                let mut key_parts = Vec::new();
+                for expr in partition_by {
+                    let val = evaluator.evaluate(expr, row)?;
+                    key_parts.push(format!("{:?}", val));
+                }
+                let key = key_parts.join("|");
+                partitions.entry(key).or_default().push(idx);
+            }
+        }
+
+        Ok(partitions)
+    }
+
+    fn sort_partition_indices(
+        &self,
+        schema: &Schema,
+        rows: &[Record],
+        indices: &[usize],
+        order_by: &[ast::OrderByExpr],
+        evaluator: &Evaluator,
+    ) -> Result<Vec<usize>> {
+        if order_by.is_empty() {
+            return Ok(indices.to_vec());
+        }
+
+        let mut sorted_indices = indices.to_vec();
+        sorted_indices.sort_by(|&a, &b| {
+            for ob in order_by {
+                let a_val = evaluator
+                    .evaluate(&ob.expr, &rows[a])
+                    .unwrap_or(Value::null());
+                let b_val = evaluator
+                    .evaluate(&ob.expr, &rows[b])
+                    .unwrap_or(Value::null());
+                let ordering = self.compare_values_for_ordering(&a_val, &b_val);
+                let ordering = if ob.options.asc.unwrap_or(true) {
+                    ordering
+                } else {
+                    ordering.reverse()
+                };
+                if ordering != std::cmp::Ordering::Equal {
+                    return ordering;
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+
+        Ok(sorted_indices)
+    }
+
+    fn compute_window_for_partition(
+        &self,
+        name: &str,
+        func: &ast::Function,
+        schema: &Schema,
+        rows: &[Record],
+        sorted_indices: &[usize],
+        evaluator: &Evaluator,
+    ) -> Result<Vec<Value>> {
+        let partition_size = sorted_indices.len();
+        let mut results = Vec::with_capacity(partition_size);
+
+        match name {
+            "ROW_NUMBER" => {
+                for i in 0..partition_size {
+                    results.push(Value::int64((i + 1) as i64));
+                }
+            }
+            "RANK" => {
+                let over = func.over.as_ref().unwrap();
+                let order_by = match over {
+                    ast::WindowType::WindowSpec(spec) => spec.order_by.clone(),
+                    _ => vec![],
+                };
+
+                if order_by.is_empty() {
+                    for _ in 0..partition_size {
+                        results.push(Value::int64(1));
+                    }
+                } else {
+                    let mut rank = 1i64;
+                    let mut prev_values: Option<Vec<Value>> = None;
+                    for (i, &idx) in sorted_indices.iter().enumerate() {
+                        let curr_values: Vec<Value> = order_by
+                            .iter()
+                            .map(|ob| {
+                                evaluator
+                                    .evaluate(&ob.expr, &rows[idx])
+                                    .unwrap_or(Value::null())
+                            })
+                            .collect();
+
+                        if let Some(prev) = &prev_values {
+                            if curr_values != *prev {
+                                rank = (i + 1) as i64;
+                            }
+                        }
+                        results.push(Value::int64(rank));
+                        prev_values = Some(curr_values);
+                    }
+                }
+            }
+            "DENSE_RANK" => {
+                let over = func.over.as_ref().unwrap();
+                let order_by = match over {
+                    ast::WindowType::WindowSpec(spec) => spec.order_by.clone(),
+                    _ => vec![],
+                };
+
+                if order_by.is_empty() {
+                    for _ in 0..partition_size {
+                        results.push(Value::int64(1));
+                    }
+                } else {
+                    let mut rank = 1i64;
+                    let mut prev_values: Option<Vec<Value>> = None;
+                    for &idx in sorted_indices {
+                        let curr_values: Vec<Value> = order_by
+                            .iter()
+                            .map(|ob| {
+                                evaluator
+                                    .evaluate(&ob.expr, &rows[idx])
+                                    .unwrap_or(Value::null())
+                            })
+                            .collect();
+
+                        if let Some(prev) = &prev_values {
+                            if curr_values != *prev {
+                                rank += 1;
+                            }
+                        }
+                        results.push(Value::int64(rank));
+                        prev_values = Some(curr_values);
+                    }
+                }
+            }
+            "NTILE" => {
+                let n = self
+                    .extract_first_window_arg(func, evaluator, &rows[sorted_indices[0]])?
+                    .as_i64()
+                    .unwrap_or(1) as usize;
+                let n = n.max(1);
+                for i in 0..partition_size {
+                    let bucket = (i * n / partition_size) + 1;
+                    results.push(Value::int64(bucket as i64));
+                }
+            }
+            "LAG" => {
+                let offset = if let Some(arg) =
+                    self.extract_nth_window_arg(func, 1, evaluator, &rows[sorted_indices[0]])?
+                {
+                    arg.as_i64().unwrap_or(1) as usize
+                } else {
+                    1
+                };
+                let default = self
+                    .extract_nth_window_arg(func, 2, evaluator, &rows[sorted_indices[0]])?
+                    .unwrap_or(Value::null());
+
+                for i in 0..partition_size {
+                    let idx = sorted_indices[i];
+                    if i >= offset {
+                        let lag_idx = sorted_indices[i - offset];
+                        let val = self.extract_first_window_arg(func, evaluator, &rows[lag_idx])?;
+                        results.push(val);
+                    } else {
+                        results.push(default.clone());
+                    }
+                }
+            }
+            "LEAD" => {
+                let offset = if let Some(arg) =
+                    self.extract_nth_window_arg(func, 1, evaluator, &rows[sorted_indices[0]])?
+                {
+                    arg.as_i64().unwrap_or(1) as usize
+                } else {
+                    1
+                };
+                let default = self
+                    .extract_nth_window_arg(func, 2, evaluator, &rows[sorted_indices[0]])?
+                    .unwrap_or(Value::null());
+
+                for i in 0..partition_size {
+                    if i + offset < partition_size {
+                        let lead_idx = sorted_indices[i + offset];
+                        let val =
+                            self.extract_first_window_arg(func, evaluator, &rows[lead_idx])?;
+                        results.push(val);
+                    } else {
+                        results.push(default.clone());
+                    }
+                }
+            }
+            "FIRST_VALUE" => {
+                let first_idx = sorted_indices[0];
+                let first_val = self.extract_first_window_arg(func, evaluator, &rows[first_idx])?;
+                for _ in 0..partition_size {
+                    results.push(first_val.clone());
+                }
+            }
+            "LAST_VALUE" => {
+                let last_idx = sorted_indices[partition_size - 1];
+                let last_val = self.extract_first_window_arg(func, evaluator, &rows[last_idx])?;
+                for _ in 0..partition_size {
+                    results.push(last_val.clone());
+                }
+            }
+            "NTH_VALUE" => {
+                let n = if let Some(arg) =
+                    self.extract_nth_window_arg(func, 1, evaluator, &rows[sorted_indices[0]])?
+                {
+                    arg.as_i64().unwrap_or(1) as usize
+                } else {
+                    1
+                };
+                let nth_val = if n > 0 && n <= partition_size {
+                    let nth_idx = sorted_indices[n - 1];
+                    self.extract_first_window_arg(func, evaluator, &rows[nth_idx])?
+                } else {
+                    Value::null()
+                };
+                for _ in 0..partition_size {
+                    results.push(nth_val.clone());
+                }
+            }
+            "SUM" | "AVG" | "COUNT" | "MIN" | "MAX" => {
+                let agg_result =
+                    self.compute_window_aggregate(name, func, rows, sorted_indices, evaluator)?;
+                for _ in 0..partition_size {
+                    results.push(agg_result.clone());
+                }
+            }
+            "PERCENT_RANK" => {
+                if partition_size <= 1 {
+                    for _ in 0..partition_size {
+                        results.push(Value::float64(0.0));
+                    }
+                } else {
+                    let over = func.over.as_ref().unwrap();
+                    let order_by = match over {
+                        ast::WindowType::WindowSpec(spec) => spec.order_by.clone(),
+                        _ => vec![],
+                    };
+
+                    let mut prev_values: Option<Vec<Value>> = None;
+                    let mut rank = 0i64;
+                    for (i, &idx) in sorted_indices.iter().enumerate() {
+                        let curr_values: Vec<Value> = order_by
+                            .iter()
+                            .map(|ob| {
+                                evaluator
+                                    .evaluate(&ob.expr, &rows[idx])
+                                    .unwrap_or(Value::null())
+                            })
+                            .collect();
+
+                        if prev_values.as_ref() != Some(&curr_values) {
+                            rank = i as i64;
+                        }
+                        let pct = rank as f64 / (partition_size - 1) as f64;
+                        results.push(Value::float64(pct));
+                        prev_values = Some(curr_values);
+                    }
+                }
+            }
+            "CUME_DIST" => {
+                let over = func.over.as_ref().unwrap();
+                let order_by = match over {
+                    ast::WindowType::WindowSpec(spec) => spec.order_by.clone(),
+                    _ => vec![],
+                };
+
+                let mut ranks = vec![0usize; partition_size];
+                let mut prev_values: Option<Vec<Value>> = None;
+                let mut group_end = 0usize;
+
+                for (i, &idx) in sorted_indices.iter().enumerate() {
+                    let curr_values: Vec<Value> = order_by
+                        .iter()
+                        .map(|ob| {
+                            evaluator
+                                .evaluate(&ob.expr, &rows[idx])
+                                .unwrap_or(Value::null())
+                        })
+                        .collect();
+
+                    if prev_values.as_ref() != Some(&curr_values) {
+                        for j in group_end..i {
+                            ranks[j] = i;
+                        }
+                        group_end = i;
+                    }
+                    prev_values = Some(curr_values);
+                }
+                for j in group_end..partition_size {
+                    ranks[j] = partition_size;
+                }
+
+                for i in 0..partition_size {
+                    let cume = ranks[i] as f64 / partition_size as f64;
+                    results.push(Value::float64(cume));
+                }
+            }
+            _ => {
+                for _ in 0..partition_size {
+                    results.push(Value::null());
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    fn extract_first_window_arg(
+        &self,
+        func: &ast::Function,
+        evaluator: &Evaluator,
+        row: &Record,
+    ) -> Result<Value> {
+        if let ast::FunctionArguments::List(arg_list) = &func.args {
+            if let Some(arg) = arg_list.args.first() {
+                if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) = arg {
+                    return evaluator.evaluate(expr, row);
+                }
+            }
+        }
+        Ok(Value::null())
+    }
+
+    fn extract_nth_window_arg(
+        &self,
+        func: &ast::Function,
+        n: usize,
+        evaluator: &Evaluator,
+        row: &Record,
+    ) -> Result<Option<Value>> {
+        if let ast::FunctionArguments::List(arg_list) = &func.args {
+            if let Some(arg) = arg_list.args.get(n) {
+                if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) = arg {
+                    return Ok(Some(evaluator.evaluate(expr, row)?));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn compute_window_aggregate(
+        &self,
+        name: &str,
+        func: &ast::Function,
+        rows: &[Record],
+        sorted_indices: &[usize],
+        evaluator: &Evaluator,
+    ) -> Result<Value> {
+        match name {
+            "COUNT" => {
+                let is_count_star = match &func.args {
+                    ast::FunctionArguments::List(arg_list) => arg_list.args.iter().any(|arg| {
+                        matches!(
+                            arg,
+                            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Wildcard)
+                        )
+                    }),
+                    ast::FunctionArguments::Subquery(_) => false,
+                    ast::FunctionArguments::None => false,
+                };
+
+                let count = if is_count_star {
+                    sorted_indices.len() as i64
+                } else {
+                    let mut cnt = 0i64;
+                    for &idx in sorted_indices {
+                        let val = self.extract_first_window_arg(func, evaluator, &rows[idx])?;
+                        if !val.is_null() {
+                            cnt += 1;
+                        }
+                    }
+                    cnt
+                };
+                Ok(Value::int64(count))
+            }
+            "SUM" => {
+                let mut sum_int: Option<i64> = None;
+                let mut sum_float: Option<f64> = None;
+                for &idx in sorted_indices {
+                    let val = self.extract_first_window_arg(func, evaluator, &rows[idx])?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        sum_int = Some(sum_int.unwrap_or(0) + i);
+                    } else if let Some(f) = val.as_f64() {
+                        sum_float = Some(sum_float.unwrap_or(0.0) + f);
+                    }
+                }
+                if let Some(f) = sum_float {
+                    Ok(Value::float64(f + sum_int.unwrap_or(0) as f64))
+                } else if let Some(i) = sum_int {
+                    Ok(Value::int64(i))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "AVG" => {
+                let mut sum = 0.0f64;
+                let mut count = 0i64;
+                for &idx in sorted_indices {
+                    let val = self.extract_first_window_arg(func, evaluator, &rows[idx])?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        sum += i as f64;
+                        count += 1;
+                    } else if let Some(f) = val.as_f64() {
+                        sum += f;
+                        count += 1;
+                    }
+                }
+                if count > 0 {
+                    Ok(Value::float64(sum / count as f64))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "MIN" => {
+                let mut min: Option<Value> = None;
+                for &idx in sorted_indices {
+                    let val = self.extract_first_window_arg(func, evaluator, &rows[idx])?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    match &min {
+                        None => min = Some(val),
+                        Some(m) => {
+                            if self.compare_values_for_ordering(&val, m) == std::cmp::Ordering::Less
+                            {
+                                min = Some(val);
+                            }
+                        }
+                    }
+                }
+                Ok(min.unwrap_or(Value::null()))
+            }
+            "MAX" => {
+                let mut max: Option<Value> = None;
+                for &idx in sorted_indices {
+                    let val = self.extract_first_window_arg(func, evaluator, &rows[idx])?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    match &max {
+                        None => max = Some(val),
+                        Some(m) => {
+                            if self.compare_values_for_ordering(&val, m)
+                                == std::cmp::Ordering::Greater
+                            {
+                                max = Some(val);
+                            }
+                        }
+                    }
+                }
+                Ok(max.unwrap_or(Value::null()))
+            }
+            _ => Ok(Value::null()),
+        }
+    }
+
+    fn infer_expr_type_with_windows(
+        &self,
+        expr: &Expr,
+        input_schema: &Schema,
+        rows: &[Record],
+        window_results: &HashMap<String, Vec<Value>>,
+    ) -> Result<DataType> {
+        match expr {
+            Expr::Function(func) if func.over.is_some() => {
+                let key = format!("{:?}", func);
+                if let Some(results) = window_results.get(&key) {
+                    for val in results {
+                        let dt = val.data_type();
+                        if dt != DataType::Unknown {
+                            return Ok(dt);
+                        }
+                    }
+                }
+                Ok(DataType::Int64)
+            }
+            Expr::Identifier(ident) => {
+                let name = ident.value.to_uppercase();
+                for field in input_schema.fields() {
+                    if field.name.to_uppercase() == name {
+                        return Ok(field.data_type.clone());
+                    }
+                }
+                Ok(DataType::String)
+            }
+            Expr::CompoundIdentifier(parts) => {
+                let last = parts
+                    .last()
+                    .map(|i| i.value.to_uppercase())
+                    .unwrap_or_default();
+                for field in input_schema.fields() {
+                    if field.name.to_uppercase() == last
+                        || field.name.to_uppercase().ends_with(&format!(".{}", last))
+                    {
+                        return Ok(field.data_type.clone());
+                    }
+                }
+                Ok(DataType::String)
+            }
+            _ => {
+                let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                    Record::from_values(vec![Value::null(); input_schema.field_count()])
+                });
+                let val = self
+                    .evaluate_expr_with_window_results(
+                        expr,
+                        input_schema,
+                        &sample_record,
+                        0,
+                        window_results,
+                    )
+                    .unwrap_or(Value::null());
+                let dt = val.data_type();
+                if dt == DataType::Unknown {
+                    for (row_idx, row) in rows.iter().enumerate() {
+                        let v = self
+                            .evaluate_expr_with_window_results(
+                                expr,
+                                input_schema,
+                                row,
+                                row_idx,
+                                window_results,
+                            )
+                            .ok();
+                        if let Some(v) = v {
+                            let t = v.data_type();
+                            if t != DataType::Unknown {
+                                return Ok(t);
+                            }
+                        }
+                    }
+                }
+                Ok(dt)
+            }
+        }
+    }
+
+    fn project_rows_with_windows(
+        &self,
+        input_schema: &Schema,
+        rows: &[Record],
+        projection: &[SelectItem],
+        window_results: &HashMap<String, Vec<Value>>,
+    ) -> Result<(Schema, Vec<Record>)> {
+        let mut all_cols: Vec<(String, DataType)> = Vec::new();
+
+        for (idx, item) in projection.iter().enumerate() {
+            match item {
+                SelectItem::Wildcard(_) => {
+                    for field in input_schema.fields() {
+                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                    }
+                }
+                SelectItem::UnnamedExpr(expr) => {
+                    let name = self.expr_to_alias(expr, idx);
+                    let data_type = self.infer_expr_type_with_windows(
+                        expr,
+                        input_schema,
+                        rows,
+                        window_results,
+                    )?;
+                    all_cols.push((name, data_type));
+                }
+                SelectItem::ExprWithAlias { expr, alias } => {
+                    let data_type = self.infer_expr_type_with_windows(
+                        expr,
+                        input_schema,
+                        rows,
+                        window_results,
+                    )?;
+                    all_cols.push((alias.value.clone(), data_type));
+                }
+                _ => {
+                    return Err(Error::UnsupportedFeature(
+                        "Unsupported projection item".to_string(),
+                    ));
+                }
+            }
+        }
+
+        let fields: Vec<Field> = all_cols
+            .iter()
+            .map(|(name, dt)| Field::nullable(name.clone(), dt.clone()))
+            .collect();
+        let output_schema = Schema::from_fields(fields);
+
+        let mut output_rows = Vec::with_capacity(rows.len());
+        for (row_idx, row) in rows.iter().enumerate() {
+            let mut values = Vec::new();
+            for item in projection {
+                match item {
+                    SelectItem::Wildcard(_) => {
+                        values.extend(row.values().iter().cloned());
+                    }
+                    SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                        let val = self.evaluate_expr_with_window_results(
+                            expr,
+                            input_schema,
+                            row,
+                            row_idx,
+                            window_results,
+                        )?;
+                        values.push(val);
+                    }
+                    _ => {}
+                }
+            }
+            output_rows.push(Record::from_values(values));
+        }
+
+        Ok((output_schema, output_rows))
+    }
+
+    fn evaluate_expr_with_window_results(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        record: &Record,
+        row_idx: usize,
+        window_results: &HashMap<String, Vec<Value>>,
+    ) -> Result<Value> {
+        let evaluator = Evaluator::new(schema);
+
+        match expr {
+            Expr::Function(func) if func.over.is_some() => {
+                let key = format!("{:?}", func);
+                if let Some(results) = window_results.get(&key) {
+                    Ok(results[row_idx].clone())
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_expr_with_window_results(
+                    left,
+                    schema,
+                    record,
+                    row_idx,
+                    window_results,
+                )?;
+                let right_val = self.evaluate_expr_with_window_results(
+                    right,
+                    schema,
+                    record,
+                    row_idx,
+                    window_results,
+                )?;
+                evaluator.evaluate_binary_op_values(&left_val, op, &right_val)
+            }
+            Expr::UnaryOp { op, expr } => {
+                let val = self.evaluate_expr_with_window_results(
+                    expr,
+                    schema,
+                    record,
+                    row_idx,
+                    window_results,
+                )?;
+                match op {
+                    ast::UnaryOperator::Not => {
+                        if val.is_null() {
+                            Ok(Value::null())
+                        } else {
+                            let b = val
+                                .as_bool()
+                                .ok_or_else(|| Error::type_mismatch("NOT requires BOOL"))?;
+                            Ok(Value::bool_val(!b))
+                        }
+                    }
+                    ast::UnaryOperator::Minus => {
+                        if val.is_null() {
+                            Ok(Value::null())
+                        } else if let Some(i) = val.as_i64() {
+                            Ok(Value::int64(-i))
+                        } else if let Some(f) = val.as_f64() {
+                            Ok(Value::float64(-f))
+                        } else {
+                            Err(Error::type_mismatch("Minus requires numeric value"))
+                        }
+                    }
+                    _ => evaluator.evaluate(expr, record),
+                }
+            }
+            Expr::Nested(inner) => self.evaluate_expr_with_window_results(
+                inner,
+                schema,
+                record,
+                row_idx,
+                window_results,
+            ),
+            Expr::Case {
+                operand,
+                conditions,
+                else_result,
+                ..
+            } => {
+                match operand {
+                    Some(op_expr) => {
+                        let op_val = self.evaluate_expr_with_window_results(
+                            op_expr,
+                            schema,
+                            record,
+                            row_idx,
+                            window_results,
+                        )?;
+                        for cond in conditions {
+                            let when_val = self.evaluate_expr_with_window_results(
+                                &cond.condition,
+                                schema,
+                                record,
+                                row_idx,
+                                window_results,
+                            )?;
+                            if op_val == when_val {
+                                return self.evaluate_expr_with_window_results(
+                                    &cond.result,
+                                    schema,
+                                    record,
+                                    row_idx,
+                                    window_results,
+                                );
+                            }
+                        }
+                    }
+                    None => {
+                        for cond in conditions {
+                            let cond_val = self.evaluate_expr_with_window_results(
+                                &cond.condition,
+                                schema,
+                                record,
+                                row_idx,
+                                window_results,
+                            )?;
+                            if let Some(true) = cond_val.as_bool() {
+                                return self.evaluate_expr_with_window_results(
+                                    &cond.result,
+                                    schema,
+                                    record,
+                                    row_idx,
+                                    window_results,
+                                );
+                            }
+                        }
+                    }
+                }
+                match else_result {
+                    Some(else_expr) => self.evaluate_expr_with_window_results(
+                        else_expr,
+                        schema,
+                        record,
+                        row_idx,
+                        window_results,
+                    ),
+                    None => Ok(Value::null()),
+                }
+            }
+            _ => evaluator.evaluate(expr, record),
         }
     }
 }

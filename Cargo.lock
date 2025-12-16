@@ -4565,7 +4565,6 @@ dependencies = [
  "yachtsql-executor",
  "yachtsql-functions",
  "yachtsql-ir",
- "yachtsql-optimizer",
  "yachtsql-parser",
  "yachtsql-storage",
  "yachtsql-test-utils",
@@ -4658,7 +4657,6 @@ dependencies = [
  "yachtsql-common",
  "yachtsql-functions",
  "yachtsql-ir",
- "yachtsql-optimizer",
  "yachtsql-parser",
  "yachtsql-storage",
  "yachtsql-test-utils",
@@ -4720,25 +4718,6 @@ dependencies = [
  "sqlparser",
  "yachtsql",
  "yachtsql-common",
- "yachtsql-storage",
- "yachtsql-test-utils",
-]
-
-[[package]]
-name = "yachtsql-optimizer"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "debug_print",
- "indexmap",
- "ordered-float 4.6.0",
- "rust_decimal",
- "serde",
- "serde_json",
- "sqlparser",
- "yachtsql",
- "yachtsql-common",
- "yachtsql-ir",
  "yachtsql-storage",
  "yachtsql-test-utils",
 ]
