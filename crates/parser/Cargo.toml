@@ -3,35 +3,21 @@ name = "yachtsql-parser"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "SQL parser for YachtSQL"
+description = "SQL parser and planner for YachtSQL (BigQuery dialect)"
 
 [dependencies]
-# Core types and errors
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-ir = { path = "../ir" }
 yachtsql-storage = { path = "../storage" }
-yachtsql-optimizer = { path = "../optimizer" }
 
-# SQL parsing
 sqlparser = { version = "0.59", features = ["visitor"] }
 
-# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-# Decimal arithmetic
 rust_decimal = { version = "1.36", features = ["serde"] }
 
-# Utilities
-indexmap = { version = "2.12", features = ["serde"] }
-regex = "1"
-lazy_static = "1.5"
-
-# Date/Time parsing
 chrono = "0.4"
 
-# Debug printing
-debug_print = "1.0"
-
-[dev-dependencies]
-yachtsql = { path = "../.." }
+ordered-float = { version = "4.5", features = ["serde"] }
+hex = "0.4"

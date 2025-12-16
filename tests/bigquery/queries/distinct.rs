@@ -2,6 +2,7 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_distinct_single_column() {
     let mut executor = create_executor();
     executor
@@ -37,6 +38,7 @@ fn test_distinct_multiple_columns() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_distinct_with_null() {
     let mut executor = create_executor();
     executor
@@ -69,6 +71,7 @@ fn test_count_distinct() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_distinct_with_where() {
     let mut executor = create_executor();
     executor

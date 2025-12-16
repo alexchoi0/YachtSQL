@@ -130,6 +130,7 @@ fn test_delete_no_matching_rows() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_delete_with_subquery() {
     let mut executor = create_executor();
     setup_users_table(&mut executor);

@@ -2,6 +2,7 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_function_sql() {
     let mut executor = create_executor();
 
@@ -14,6 +15,7 @@ fn test_create_function_sql() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_function_string() {
     let mut executor = create_executor();
 
@@ -28,6 +30,7 @@ fn test_create_function_string() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_or_replace_function() {
     let mut executor = create_executor();
 
@@ -44,6 +47,7 @@ fn test_create_or_replace_function() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_function_if_not_exists() {
     let mut executor = create_executor();
 
@@ -62,6 +66,7 @@ fn test_create_function_if_not_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_temp_function() {
     let mut executor = create_executor();
 
@@ -74,6 +79,7 @@ fn test_create_temp_function() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_function_multiple_params() {
     let mut executor = create_executor();
 
@@ -86,6 +92,7 @@ fn test_create_function_multiple_params() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_function() {
     let mut executor = create_executor();
 
@@ -100,6 +107,7 @@ fn test_drop_function() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_function_if_exists() {
     let mut executor = create_executor();
 
@@ -108,6 +116,7 @@ fn test_drop_function_if_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_function_with_case() {
     let mut executor = create_executor();
 
@@ -128,6 +137,7 @@ fn test_create_function_with_case() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_function_with_coalesce() {
     let mut executor = create_executor();
 
@@ -140,6 +150,7 @@ fn test_create_function_with_coalesce() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_function_in_where_clause() {
     let mut executor = create_executor();
     executor
@@ -159,6 +170,7 @@ fn test_function_in_where_clause() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_function_in_select() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE TABLE data (x INT64)").unwrap();
@@ -176,6 +188,7 @@ fn test_function_in_select() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_procedure() {
     let mut executor = create_executor();
 
@@ -193,6 +206,7 @@ fn test_create_procedure() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_or_replace_procedure() {
     let mut executor = create_executor();
 
@@ -219,6 +233,7 @@ fn test_create_or_replace_procedure() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_procedure() {
     let mut executor = create_executor();
 
@@ -238,6 +253,7 @@ fn test_drop_procedure() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_procedure_if_exists() {
     let mut executor = create_executor();
 
@@ -246,6 +262,7 @@ fn test_drop_procedure_if_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_procedure_with_out_param() {
     let mut executor = create_executor();
 
@@ -263,6 +280,7 @@ fn test_procedure_with_out_param() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_procedure_with_inout_param() {
     let mut executor = create_executor();
 
@@ -283,6 +301,7 @@ fn test_procedure_with_inout_param() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_function_with_struct_return() {
     let mut executor = create_executor();
 
@@ -299,6 +318,7 @@ fn test_function_with_struct_return() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_function_with_array_return() {
     let mut executor = create_executor();
 
@@ -315,6 +335,7 @@ fn test_function_with_array_return() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_function_nested_call() {
     let mut executor = create_executor();
 

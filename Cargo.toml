@@ -7,14 +7,12 @@ description = "YachtSQL - Lightweight in-memory SQL test database with columnar 
 
 [dependencies]
 # Internal crates
-yachtsql-core = { path = "crates/core" }
+yachtsql-common = { path = "crates/common" }
 yachtsql-storage = { path = "crates/storage" }
 yachtsql-ir = { path = "crates/ir" }
 yachtsql-parser = { path = "crates/parser" }
 yachtsql-functions = { path = "crates/functions" }
-yachtsql-optimizer = { path = "crates/optimizer" }
 yachtsql-executor = { path = "crates/executor" }
-yachtsql-capability = { path = "crates/capability" }
 
 sentry = "0.45.0"
 
@@ -92,30 +90,6 @@ parquet = { version = "54", default-features = false, features = ["arrow"] }
 tempfile = "3.14"
 yachtsql-test-utils = { path = "crates/test-utils" }
 
-[features]
-# Benchmark configuration features
-# Use `cargo bench --features bench-large-sample` for more accurate results (100 samples)
-# Default is 10 samples for faster iteration during development
-bench-large-sample = []
-
-# ClickHouse dialect tests (disabled by default due to initialization issues)
-clickhouse-tests = []
-
-[[bench]]
-name = "postgresql"
-path = "benches/postgresql/main.rs"
-harness = false
-
-[[bench]]
-name = "clickhouse"
-path = "benches/clickhouse/main.rs"
-harness = false
-
-[[bench]]
-name = "bigquery"
-path = "benches/bigquery/main.rs"
-harness = false
-
 # Linting configuration
 # Run with: cargo clippy -- -D warnings
 [lints.clippy]
@@ -129,16 +103,10 @@ wildcard-enum-match-arm = "warn"     # Discourage wildcards in match (prefer exh
 [workspace]
 members = [
     ".",
-    "crates/capability",
-    "crates/core",
-    "crates/dialects/bigquery",
-    "crates/dialects/clickhouse",
-    "crates/dialects/core",
-    "crates/dialects/postgres",
+    "crates/common",
     "crates/executor",
     "crates/functions",
     "crates/ir",
-    "crates/optimizer",
     "crates/parser",
     "crates/storage",
     "crates/test-utils",

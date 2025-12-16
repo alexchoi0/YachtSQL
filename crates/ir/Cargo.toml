@@ -7,7 +7,7 @@ description = "YachtSQL intermediate representation (IR) for logical plans and e
 
 [dependencies]
 # Core types and errors
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-storage = { path = "../storage" }
 
 # SQL parsing

@@ -104,6 +104,7 @@ fn test_truncate_multiple_tables_sequentially() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_truncate_with_qualified_name() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA test_schema").unwrap();

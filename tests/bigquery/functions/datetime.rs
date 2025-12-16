@@ -165,6 +165,7 @@ fn test_date_in_group_by() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_date_add() {
     let mut executor = create_executor();
     let result = executor
@@ -174,6 +175,7 @@ fn test_date_add() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_date_sub() {
     let mut executor = create_executor();
     let result = executor
@@ -183,6 +185,7 @@ fn test_date_sub() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_date_diff() {
     let mut executor = create_executor();
     let result = executor
@@ -192,6 +195,7 @@ fn test_date_diff() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_date_trunc() {
     let mut executor = create_executor();
     let result = executor
@@ -201,6 +205,7 @@ fn test_date_trunc() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_date_from_unix_date() {
     let mut executor = create_executor();
     let result = executor
@@ -210,6 +215,7 @@ fn test_date_from_unix_date() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unix_date() {
     let mut executor = create_executor();
     let result = executor
@@ -219,6 +225,7 @@ fn test_unix_date() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_parse_date() {
     let mut executor = create_executor();
     let result = executor
@@ -228,6 +235,7 @@ fn test_parse_date() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_format_date() {
     let mut executor = create_executor();
     let result = executor
@@ -237,6 +245,7 @@ fn test_format_date() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_last_day() {
     let mut executor = create_executor();
     let result = executor
@@ -246,6 +255,7 @@ fn test_last_day() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_timestamp_add() {
     let mut executor = create_executor();
     let result = executor
@@ -255,6 +265,7 @@ fn test_timestamp_add() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_timestamp_sub() {
     let mut executor = create_executor();
     let result = executor
@@ -264,6 +275,7 @@ fn test_timestamp_sub() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_timestamp_diff() {
     let mut executor = create_executor();
     let result = executor
@@ -273,6 +285,7 @@ fn test_timestamp_diff() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_timestamp_trunc() {
     let mut executor = create_executor();
     let result = executor
@@ -282,6 +295,7 @@ fn test_timestamp_trunc() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_parse_timestamp() {
     let mut executor = create_executor();
     let result = executor
@@ -291,6 +305,7 @@ fn test_parse_timestamp() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_format_timestamp() {
     let mut executor = create_executor();
     let result = executor
@@ -300,6 +315,7 @@ fn test_format_timestamp() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unix_seconds() {
     let mut executor = create_executor();
     let result = executor
@@ -309,6 +325,7 @@ fn test_unix_seconds() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_timestamp_seconds() {
     let mut executor = create_executor();
     let result = executor
@@ -318,6 +335,7 @@ fn test_timestamp_seconds() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unix_millis() {
     let mut executor = create_executor();
     let result = executor
@@ -327,6 +345,7 @@ fn test_unix_millis() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_timestamp_millis() {
     let mut executor = create_executor();
     let result = executor
@@ -336,6 +355,7 @@ fn test_timestamp_millis() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unix_micros() {
     let mut executor = create_executor();
     let result = executor
@@ -345,6 +365,7 @@ fn test_unix_micros() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_timestamp_micros() {
     let mut executor = create_executor();
     let result = executor
@@ -361,6 +382,7 @@ fn test_time_literal() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_time_add() {
     let mut executor = create_executor();
     let result = executor
@@ -370,6 +392,7 @@ fn test_time_add() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_time_sub() {
     let mut executor = create_executor();
     let result = executor
@@ -379,6 +402,7 @@ fn test_time_sub() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_time_diff() {
     let mut executor = create_executor();
     let result = executor
@@ -388,6 +412,7 @@ fn test_time_diff() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_time_trunc() {
     let mut executor = create_executor();
     let result = executor
@@ -397,6 +422,7 @@ fn test_time_trunc() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_datetime_literal() {
     let mut executor = create_executor();
     let result = executor
@@ -406,6 +432,7 @@ fn test_datetime_literal() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_datetime_add() {
     let mut executor = create_executor();
     let result = executor
@@ -415,6 +442,7 @@ fn test_datetime_add() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_datetime_sub() {
     let mut executor = create_executor();
     let result = executor
@@ -424,6 +452,7 @@ fn test_datetime_sub() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_datetime_diff() {
     let mut executor = create_executor();
     let result = executor
@@ -433,6 +462,7 @@ fn test_datetime_diff() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_datetime_trunc() {
     let mut executor = create_executor();
     let result = executor

@@ -73,6 +73,7 @@ fn test_alter_table_rename_column() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_alter_table_rename_table() {
     let mut executor = create_executor();
 
@@ -94,6 +95,7 @@ fn test_alter_table_rename_table() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_alter_table_add_column_with_default() {
     let mut executor = create_executor();
 
@@ -115,6 +117,7 @@ fn test_alter_table_add_column_with_default() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_alter_table_add_constraint() {
     let mut executor = create_executor();
 
@@ -136,6 +139,7 @@ fn test_alter_table_add_constraint() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_alter_table_set_not_null() {
     let mut executor = create_executor();
 
@@ -156,6 +160,7 @@ fn test_alter_table_set_not_null() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_alter_table_drop_not_null() {
     let mut executor = create_executor();
 

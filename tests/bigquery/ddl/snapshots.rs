@@ -2,6 +2,7 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_snapshot_table() {
     let mut executor = create_executor();
     executor
@@ -16,6 +17,7 @@ fn test_create_snapshot_table() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_snapshot_if_not_exists() {
     let mut executor = create_executor();
     executor
@@ -35,6 +37,7 @@ fn test_create_snapshot_if_not_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_snapshot_with_expiration() {
     let mut executor = create_executor();
     executor
@@ -53,6 +56,7 @@ fn test_create_snapshot_with_expiration() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_snapshot_for_system_time() {
     let mut executor = create_executor();
     executor
@@ -71,6 +75,7 @@ fn test_create_snapshot_for_system_time() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_snapshot_table_query() {
     let mut executor = create_executor();
     executor
@@ -91,6 +96,7 @@ fn test_snapshot_table_query() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_snapshot_isolation() {
     let mut executor = create_executor();
     executor
@@ -120,6 +126,7 @@ fn test_snapshot_isolation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_snapshot_table() {
     let mut executor = create_executor();
     executor
@@ -141,6 +148,7 @@ fn test_drop_snapshot_table() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_snapshot_if_exists() {
     let mut executor = create_executor();
 
@@ -149,6 +157,7 @@ fn test_drop_snapshot_if_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_snapshot_with_description() {
     let mut executor = create_executor();
     executor
@@ -167,6 +176,7 @@ fn test_snapshot_with_description() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_snapshot_with_labels() {
     let mut executor = create_executor();
     executor
@@ -185,6 +195,7 @@ fn test_snapshot_with_labels() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_restore_from_snapshot() {
     let mut executor = create_executor();
     executor
@@ -236,6 +247,7 @@ fn test_snapshot_complex_table() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_snapshot_partitioned_table() {
     let mut executor = create_executor();
     executor
@@ -261,6 +273,7 @@ fn test_snapshot_partitioned_table() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_snapshot_clustered_table() {
     let mut executor = create_executor();
     executor

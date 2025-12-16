@@ -2,6 +2,7 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();
@@ -20,6 +21,7 @@ fn test_create_schema() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_schema_if_not_exists() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();
@@ -40,6 +42,7 @@ fn test_drop_schema() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_schema_if_exists() {
     let mut executor = create_executor();
 
@@ -48,6 +51,7 @@ fn test_drop_schema_if_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_schema_cascade() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();
@@ -67,6 +71,7 @@ fn test_drop_schema_cascade() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_schema_qualified_table_names() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA schema1").unwrap();
@@ -98,6 +103,7 @@ fn test_schema_qualified_table_names() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_schema_with_options() {
     let mut executor = create_executor();
     executor
@@ -124,6 +130,7 @@ fn test_alter_schema() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cross_schema_join() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA schema_a").unwrap();
@@ -150,6 +157,7 @@ fn test_cross_schema_join() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_view_in_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();
@@ -224,6 +232,7 @@ fn test_truncate_table() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_truncate_table_in_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();

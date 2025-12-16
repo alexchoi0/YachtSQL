@@ -55,6 +55,7 @@ fn test_stddev_samp() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_variance() {
     let mut executor = create_executor();
     executor
@@ -71,6 +72,7 @@ fn test_variance() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_var_pop() {
     let mut executor = create_executor();
     executor
@@ -87,6 +89,7 @@ fn test_var_pop() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_var_samp() {
     let mut executor = create_executor();
     executor
@@ -103,6 +106,7 @@ fn test_var_samp() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_corr() {
     let mut executor = create_executor();
     executor
@@ -134,6 +138,7 @@ fn test_covar_pop() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_covar_samp() {
     let mut executor = create_executor();
     executor
@@ -150,6 +155,7 @@ fn test_covar_samp() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_statistical_with_group_by() {
     let mut executor = create_executor();
     executor

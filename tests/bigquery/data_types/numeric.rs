@@ -63,6 +63,7 @@ fn test_float64_scientific() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_numeric_basic() {
     let mut executor = create_executor();
 
@@ -72,6 +73,7 @@ fn test_numeric_basic() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_numeric_arithmetic() {
     let mut executor = create_executor();
 

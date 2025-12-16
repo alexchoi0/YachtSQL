@@ -1,470 +1,305 @@
-use sqlparser::ast::CteAsMaterialized;
-use yachtsql_core::types::DataType;
-use yachtsql_storage::schema::GeneratedExpression;
+use serde::{Deserialize, Serialize};
+use yachtsql_common::types::DataType;
 
-use crate::expr::Expr;
+use crate::expr::{Expr, SortExpr};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GroupingMetadata {
-    pub grouped_columns: Vec<String>,
-    pub grouping_set_id: usize,
-    pub total_sets: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SamplingMethod {
-    Bernoulli,
-    System,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum SampleSize {
-    Percent(f64),
-    Rows(usize),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct LogicalPlan {
-    pub root: Box<PlanNode>,
-}
-
-impl LogicalPlan {
-    pub fn new(root: PlanNode) -> Self {
-        Self {
-            root: Box::new(root),
-        }
-    }
-
-    pub fn root(&self) -> &PlanNode {
-        &self.root
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum PlanNode {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LogicalPlan {
     Scan {
         table_name: String,
-        alias: Option<String>,
-        projection: Option<Vec<String>>,
-        only: bool,
-        final_modifier: bool,
-    },
-
-    IndexScan {
-        table_name: String,
-        alias: Option<String>,
-        index_name: String,
-        predicate: Expr,
-        projection: Option<Vec<String>>,
+        schema: PlanSchema,
+        projection: Option<Vec<usize>>,
     },
 
     Filter {
+        input: Box<LogicalPlan>,
         predicate: Expr,
-        input: Box<PlanNode>,
     },
 
-    Projection {
-        expressions: Vec<(Expr, Option<String>)>,
-        input: Box<PlanNode>,
-    },
-
-    Join {
-        left: Box<PlanNode>,
-        right: Box<PlanNode>,
-        on: Expr,
-        join_type: JoinType,
-        using_columns: Option<Vec<String>>,
-    },
-
-    LateralJoin {
-        left: Box<PlanNode>,
-        right: Box<PlanNode>,
-        on: Expr,
-        join_type: JoinType,
-    },
-
-    AsOfJoin {
-        left: Box<PlanNode>,
-        right: Box<PlanNode>,
-        equality_condition: Expr,
-        match_condition: Expr,
-        is_left_join: bool,
+    Project {
+        input: Box<LogicalPlan>,
+        expressions: Vec<Expr>,
+        schema: PlanSchema,
     },
 
     Aggregate {
+        input: Box<LogicalPlan>,
         group_by: Vec<Expr>,
         aggregates: Vec<Expr>,
-        input: Box<PlanNode>,
-        grouping_metadata: Option<GroupingMetadata>,
+        schema: PlanSchema,
+    },
+
+    Join {
+        left: Box<LogicalPlan>,
+        right: Box<LogicalPlan>,
+        join_type: JoinType,
+        condition: Option<Expr>,
+        schema: PlanSchema,
     },
 
     Sort {
-        order_by: Vec<crate::expr::OrderByExpr>,
-        input: Box<PlanNode>,
+        input: Box<LogicalPlan>,
+        sort_exprs: Vec<SortExpr>,
     },
 
     Limit {
-        limit: usize,
-        offset: usize,
-        input: Box<PlanNode>,
-    },
-
-    LimitPercent {
-        percent: f64,
-        offset: usize,
-        with_ties: bool,
-        input: Box<PlanNode>,
+        input: Box<LogicalPlan>,
+        limit: Option<usize>,
+        offset: Option<usize>,
     },
 
     Distinct {
-        input: Box<PlanNode>,
+        input: Box<LogicalPlan>,
     },
 
-    DistinctOn {
-        expressions: Vec<Expr>,
-        input: Box<PlanNode>,
+    Values {
+        values: Vec<Vec<Expr>>,
+        schema: PlanSchema,
     },
 
-    SubqueryScan {
-        subquery: Box<PlanNode>,
-        alias: String,
-    },
-
-    Union {
-        left: Box<PlanNode>,
-        right: Box<PlanNode>,
-        all: bool,
-    },
-
-    Intersect {
-        left: Box<PlanNode>,
-        right: Box<PlanNode>,
-        all: bool,
-    },
-
-    Except {
-        left: Box<PlanNode>,
-        right: Box<PlanNode>,
-        all: bool,
-    },
-
-    Cte {
-        name: String,
-        cte_plan: Box<PlanNode>,
-        input: Box<PlanNode>,
-        recursive: bool,
-        use_union_all: bool,
-        materialization_hint: Option<CteAsMaterialized>,
-        column_aliases: Option<Vec<String>>,
-    },
-
-    Update {
-        table_name: String,
-        assignments: Vec<(String, Expr)>,
-        predicate: Option<Expr>,
-    },
-
-    Delete {
-        table_name: String,
-        predicate: Option<Expr>,
+    Empty {
+        schema: PlanSchema,
     },
 
     Insert {
         table_name: String,
-        columns: Option<Vec<String>>,
-        values: Option<Vec<Vec<Expr>>>,
-        source: Option<Box<PlanNode>>,
+        columns: Vec<String>,
+        source: Box<LogicalPlan>,
+    },
+
+    Update {
+        table_name: String,
+        assignments: Vec<Assignment>,
+        filter: Option<Expr>,
+    },
+
+    Delete {
+        table_name: String,
+        filter: Option<Expr>,
+    },
+
+    CreateTable {
+        table_name: String,
+        columns: Vec<ColumnDef>,
+        if_not_exists: bool,
+        or_replace: bool,
+    },
+
+    DropTable {
+        table_name: String,
+        if_exists: bool,
+    },
+
+    AlterTable {
+        table_name: String,
+        operation: AlterTableOp,
     },
 
     Truncate {
         table_name: String,
     },
-
-    Unnest {
-        array_expr: Expr,
-        alias: Option<String>,
-        column_alias: Option<String>,
-        with_offset: bool,
-        offset_alias: Option<String>,
-    },
-
-    TableValuedFunction {
-        function_name: String,
-        args: Vec<Expr>,
-        alias: Option<String>,
-    },
-
-    ArrayJoin {
-        input: Box<PlanNode>,
-        arrays: Vec<(Expr, Option<String>)>,
-        is_left: bool,
-        is_unaligned: bool,
-    },
-
-    Window {
-        window_exprs: Vec<(Expr, Option<String>)>,
-        input: Box<PlanNode>,
-    },
-
-    AlterTable {
-        table_name: String,
-        operation: AlterTableOperation,
-        if_exists: bool,
-    },
-
-    EmptyRelation,
-
-    Values {
-        rows: Vec<Vec<Expr>>,
-    },
-
-    InsertOnConflict {
-        table_name: String,
-        columns: Option<Vec<String>>,
-        values: Vec<Vec<Expr>>,
-        conflict_target: Vec<String>,
-        conflict_action: ConflictAction,
-        where_clause: Option<Expr>,
-        returning: Option<Vec<(Expr, Option<String>)>>,
-    },
-
-    Merge {
-        target_table: String,
-        target_alias: Option<String>,
-        source: Box<PlanNode>,
-        source_alias: Option<String>,
-        on_condition: Expr,
-        when_matched: Vec<MergeWhenMatched>,
-        when_not_matched: Vec<MergeWhenNotMatched>,
-        when_not_matched_by_source: Vec<MergeWhenNotMatchedBySource>,
-        returning: Option<Vec<(Expr, Option<String>)>>,
-    },
-
-    TableSample {
-        input: Box<PlanNode>,
-        method: SamplingMethod,
-        size: SampleSize,
-        seed: Option<u64>,
-    },
-
-    Pivot {
-        input: Box<PlanNode>,
-        aggregate_expr: Expr,
-        aggregate_function: String,
-        pivot_column: String,
-        pivot_values: Vec<yachtsql_core::types::Value>,
-        group_by_columns: Vec<String>,
-    },
-
-    Unpivot {
-        input: Box<PlanNode>,
-        value_column: String,
-        name_column: String,
-        unpivot_columns: Vec<String>,
-    },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ConflictAction {
-    Update { assignments: Vec<(String, Expr)> },
-    DoNothing,
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Assignment {
+    pub column: String,
+    pub value: Expr,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct WhenClause {
-    pub match_type: MatchType,
-    pub condition: Option<Expr>,
-    pub action: MergeAction,
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ColumnDef {
+    pub name: String,
+    pub data_type: DataType,
+    pub nullable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MatchType {
-    Matched,
-    NotMatched,
-    NotMatchedBySource,
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum AlterTableOp {
+    AddColumn { column: ColumnDef },
+    DropColumn { name: String },
+    RenameColumn { old_name: String, new_name: String },
+    RenameTable { new_name: String },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum MergeAction {
-    Update {
-        assignments: Vec<(String, Expr)>,
-    },
-    Insert {
-        columns: Option<Vec<String>>,
-        values: Vec<Expr>,
-    },
-    Delete,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct PlanSchema {
+    pub fields: Vec<PlanField>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReferentialAction {
-    Cascade,
-    SetNull,
-    SetDefault,
-    Restrict,
-    NoAction,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlanField {
+    pub name: String,
+    pub data_type: DataType,
+    pub nullable: bool,
+    pub table: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TableConstraint {
-    PrimaryKey {
-        name: Option<String>,
-        columns: Vec<String>,
-    },
-    Unique {
-        name: Option<String>,
-        columns: Vec<String>,
-    },
-    Check {
-        name: Option<String>,
-        expression: String,
-    },
-    ForeignKey {
-        name: Option<String>,
-        columns: Vec<String>,
-        ref_table: String,
-        ref_columns: Vec<String>,
-        on_delete: Option<ReferentialAction>,
-        on_update: Option<ReferentialAction>,
-    },
+impl PlanField {
+    pub fn new(name: impl Into<String>, data_type: DataType) -> Self {
+        Self {
+            name: name.into(),
+            data_type,
+            nullable: true,
+            table: None,
+        }
+    }
+
+    pub fn required(name: impl Into<String>, data_type: DataType) -> Self {
+        Self {
+            name: name.into(),
+            data_type,
+            nullable: false,
+            table: None,
+        }
+    }
+
+    pub fn with_table(mut self, table: impl Into<String>) -> Self {
+        self.table = Some(table.into());
+        self
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum AlterTableOperation {
-    AddColumn {
-        column_name: String,
-        data_type: DataType,
-        if_not_exists: bool,
-        not_null: bool,
-        default_value: Option<Expr>,
-        generated_expression: Option<GeneratedExpression>,
-    },
-    DropColumn {
-        column_name: String,
-        if_exists: bool,
-        cascade: bool,
-    },
-    RenameColumn {
-        old_name: String,
-        new_name: String,
-    },
-    AlterColumn {
-        column_name: String,
-        new_data_type: Option<DataType>,
-        set_not_null: Option<bool>,
-        set_default: Option<Expr>,
-        drop_default: bool,
-    },
-    RenameTable {
-        new_name: String,
-    },
-    AddConstraint {
-        constraint: TableConstraint,
-    },
-    DropConstraint {
-        constraint_name: String,
-        if_exists: bool,
-    },
+impl PlanSchema {
+    pub fn new() -> Self {
+        Self { fields: Vec::new() }
+    }
+
+    pub fn from_fields(fields: Vec<PlanField>) -> Self {
+        Self { fields }
+    }
+
+    pub fn field_count(&self) -> usize {
+        self.fields.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+
+    pub fn field(&self, name: &str) -> Option<&PlanField> {
+        self.fields.iter().find(|f| f.name == name)
+    }
+
+    pub fn field_index(&self, name: &str) -> Option<usize> {
+        self.fields.iter().position(|f| {
+            f.name.eq_ignore_ascii_case(name) || {
+                if let Some(dot_pos) = f.name.rfind('.') {
+                    f.name[dot_pos + 1..].eq_ignore_ascii_case(name)
+                } else {
+                    false
+                }
+            }
+        })
+    }
+
+    pub fn field_index_qualified(&self, name: &str, table: Option<&str>) -> Option<usize> {
+        match table {
+            Some(tbl) => {
+                let qualified_name = format!("{}.{}", tbl, name);
+                self.fields
+                    .iter()
+                    .position(|f| f.name.eq_ignore_ascii_case(&qualified_name))
+                    .or_else(|| {
+                        self.fields.iter().position(|f| {
+                            f.name.eq_ignore_ascii_case(name)
+                                && f.table
+                                    .as_ref()
+                                    .is_some_and(|t| t.eq_ignore_ascii_case(tbl))
+                        })
+                    })
+            }
+            None => self.field_index(name),
+        }
+    }
+
+    pub fn merge(self, other: PlanSchema) -> Self {
+        let mut fields = self.fields;
+        fields.extend(other.fields);
+        Self { fields }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum MergeWhenMatched {
-    Update {
-        condition: Option<Expr>,
-        assignments: Vec<(String, Expr)>,
-    },
-    Delete {
-        condition: Option<Expr>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum MergeWhenNotMatched {
-    Insert {
-        condition: Option<Expr>,
-        columns: Vec<String>,
-        values: Vec<Expr>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum MergeWhenNotMatchedBySource {
-    Update {
-        condition: Option<Expr>,
-        assignments: Vec<(String, Expr)>,
-    },
-    Delete {
-        condition: Option<Expr>,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum JoinType {
     Inner,
     Left,
     Right,
     Full,
     Cross,
-    Semi,
-    Anti,
-    Paste,
-    AsOf,
 }
 
-impl PlanNode {
-    pub fn aggregate(group_by: Vec<Expr>, aggregates: Vec<Expr>, input: Box<PlanNode>) -> Self {
-        Self::Aggregate {
-            group_by,
-            aggregates,
-            grouping_metadata: None,
-            input,
-        }
-    }
-
-    pub fn children(&self) -> Vec<&PlanNode> {
+impl LogicalPlan {
+    pub fn schema(&self) -> &PlanSchema {
         match self {
-            PlanNode::Scan { .. }
-            | PlanNode::IndexScan { .. }
-            | PlanNode::Update { .. }
-            | PlanNode::Delete { .. }
-            | PlanNode::Truncate { .. }
-            | PlanNode::Unnest { .. }
-            | PlanNode::TableValuedFunction { .. }
-            | PlanNode::AlterTable { .. }
-            | PlanNode::InsertOnConflict { .. }
-            | PlanNode::EmptyRelation
-            | PlanNode::Values { .. } => vec![],
-            PlanNode::Insert { source, .. } => {
-                if let Some(source_plan) = source {
-                    vec![source_plan.as_ref()]
-                } else {
-                    vec![]
-                }
-            }
-            PlanNode::ArrayJoin { input, .. } => vec![input.as_ref()],
-            PlanNode::Filter { input, .. }
-            | PlanNode::Projection { input, .. }
-            | PlanNode::Aggregate { input, .. }
-            | PlanNode::Sort { input, .. }
-            | PlanNode::Limit { input, .. }
-            | PlanNode::LimitPercent { input, .. }
-            | PlanNode::Distinct { input }
-            | PlanNode::DistinctOn { input, .. }
-            | PlanNode::Window { input, .. } => vec![input],
-            PlanNode::Join { left, right, .. }
-            | PlanNode::LateralJoin { left, right, .. }
-            | PlanNode::AsOfJoin { left, right, .. }
-            | PlanNode::Union { left, right, .. }
-            | PlanNode::Intersect { left, right, .. }
-            | PlanNode::Except { left, right, .. } => vec![left, right],
-            PlanNode::SubqueryScan { subquery, .. } => vec![subquery],
-            PlanNode::Cte {
-                cte_plan, input, ..
-            } => vec![cte_plan, input],
-            PlanNode::Merge { source, .. } => vec![source],
-            PlanNode::TableSample { input, .. } => vec![input],
-            PlanNode::Pivot { input, .. } => vec![input],
-            PlanNode::Unpivot { input, .. } => vec![input],
+            LogicalPlan::Scan { schema, .. } => schema,
+            LogicalPlan::Filter { input, .. } => input.schema(),
+            LogicalPlan::Project { schema, .. } => schema,
+            LogicalPlan::Aggregate { schema, .. } => schema,
+            LogicalPlan::Join { schema, .. } => schema,
+            LogicalPlan::Sort { input, .. } => input.schema(),
+            LogicalPlan::Limit { input, .. } => input.schema(),
+            LogicalPlan::Distinct { input, .. } => input.schema(),
+            LogicalPlan::Values { schema, .. } => schema,
+            LogicalPlan::Empty { schema } => schema,
+            LogicalPlan::Insert { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Update { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Delete { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::CreateTable { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::DropTable { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::AlterTable { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Truncate { .. } => &EMPTY_SCHEMA,
+        }
+    }
+
+    pub fn scan(table_name: impl Into<String>, schema: PlanSchema) -> Self {
+        LogicalPlan::Scan {
+            table_name: table_name.into(),
+            schema,
+            projection: None,
+        }
+    }
+
+    pub fn filter(self, predicate: Expr) -> Self {
+        LogicalPlan::Filter {
+            input: Box::new(self),
+            predicate,
+        }
+    }
+
+    pub fn project(self, expressions: Vec<Expr>, schema: PlanSchema) -> Self {
+        LogicalPlan::Project {
+            input: Box::new(self),
+            expressions,
+            schema,
+        }
+    }
+
+    pub fn sort(self, sort_exprs: Vec<SortExpr>) -> Self {
+        LogicalPlan::Sort {
+            input: Box::new(self),
+            sort_exprs,
+        }
+    }
+
+    pub fn limit(self, limit: Option<usize>, offset: Option<usize>) -> Self {
+        LogicalPlan::Limit {
+            input: Box::new(self),
+            limit,
+            offset,
+        }
+    }
+
+    pub fn distinct(self) -> Self {
+        LogicalPlan::Distinct {
+            input: Box::new(self),
+        }
+    }
+
+    pub fn empty() -> Self {
+        LogicalPlan::Empty {
+            schema: PlanSchema::new(),
         }
     }
 }
+
+static EMPTY_SCHEMA: PlanSchema = PlanSchema { fields: Vec::new() };

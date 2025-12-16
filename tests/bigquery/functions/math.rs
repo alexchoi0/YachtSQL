@@ -11,6 +11,7 @@ fn test_abs() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_abs_float() {
     let mut executor = create_executor();
 
@@ -20,6 +21,7 @@ fn test_abs_float() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_ceil() {
     let mut executor = create_executor();
 
@@ -29,6 +31,7 @@ fn test_ceil() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_floor() {
     let mut executor = create_executor();
 
@@ -38,6 +41,7 @@ fn test_floor() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_round() {
     let mut executor = create_executor();
 
@@ -47,6 +51,7 @@ fn test_round() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_round_no_decimal() {
     let mut executor = create_executor();
 

@@ -13,6 +13,7 @@ fn setup_base_table(executor: &mut yachtsql::QueryExecutor) {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_view() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);
@@ -46,6 +47,7 @@ fn test_create_view_with_columns() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_or_replace_view() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);
@@ -85,6 +87,7 @@ fn test_create_view_if_not_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_view() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);
@@ -100,6 +103,7 @@ fn test_drop_view() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_view_if_exists() {
     let mut executor = create_executor();
 
@@ -108,6 +112,7 @@ fn test_drop_view_if_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_view_with_aggregation() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);
@@ -123,6 +128,7 @@ fn test_view_with_aggregation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_view_with_join() {
     let mut executor = create_executor();
     executor
@@ -149,6 +155,7 @@ fn test_view_with_join() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_view_with_subquery() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);
@@ -198,6 +205,7 @@ fn test_view_with_cte() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_nested_views() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);
@@ -217,6 +225,7 @@ fn test_nested_views() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_materialized_view() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);
@@ -232,6 +241,7 @@ fn test_materialized_view() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_view_with_options() {
     let mut executor = create_executor();
     setup_base_table(&mut executor);

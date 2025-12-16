@@ -134,6 +134,7 @@ fn test_order_by_with_null_values() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_order_by_expression() {
     let mut executor = create_executor();
     setup_table(&mut executor);

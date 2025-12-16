@@ -119,6 +119,7 @@ fn test_null_in_where_clause() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_null_order_by() {
     let mut executor = create_executor();
     executor

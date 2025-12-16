@@ -1,276 +1,47 @@
-//! SQL parser with multi-dialect support.
+mod error;
+mod expr_planner;
+mod planner;
 
-#![warn(missing_docs)]
-#![warn(rustdoc::missing_crate_level_docs)]
-#![warn(rustdoc::broken_intra_doc_links)]
-#![allow(missing_docs)]
+pub use error::PlannerError;
+pub use planner::Planner;
+use sqlparser::dialect::BigQueryDialect;
+use sqlparser::parser::Parser;
+use yachtsql_common::error::Result;
+use yachtsql_ir::LogicalPlan;
+use yachtsql_storage::Schema;
 
-pub mod ast_visitor;
-pub mod parser;
-pub mod pattern_matcher;
-pub mod sql_context;
-pub mod sql_json;
-pub mod sql_types;
-pub mod validator;
+pub trait CatalogProvider {
+    fn get_table_schema(&self, name: &str) -> Option<Schema>;
+}
 
-pub use ast_visitor::{LogicalPlanBuilder, SessionVariable, UdfDefinition};
-pub use parser::{
-    DialectType, JSON_VALUE_OPTIONS_PREFIX, JsonValueRewriteOptions, Parser, Statement,
-};
-pub use sql_json::Sql2023Json;
-pub use sql_types::Sql2023Types;
-pub use validator::{
-    ClickHouseSystemCommand, CustomStatement, LockMode, SetConstraintsMode, SetConstraintsTarget,
-};
+pub fn parse_sql(sql: &str) -> Result<Vec<sqlparser::ast::Statement>> {
+    let dialect = BigQueryDialect {};
+    Parser::parse_sql(&dialect, sql)
+        .map_err(|e| yachtsql_common::error::Error::parse_error(e.to_string()))
+}
 
-#[macro_export]
-macro_rules! aggregate_function_names {
-    () => {
-        "COUNT"
-            | "SUM"
-            | "AVG"
-            | "MIN"
-            | "MAX"
-            | "STRING_AGG"
-            | "ARRAY_AGG"
-            | "STDDEV"
-            | "STDDEV_POP"
-            | "STDDEV_SAMP"
-            | "STDDEVPOP"
-            | "STDDEVSAMP"
-            | "VARIANCE"
-            | "VAR_POP"
-            | "VAR_SAMP"
-            | "VARPOP"
-            | "VARSAMP"
-            | "MEDIAN"
-            | "MODE"
-            | "PERCENTILE_CONT"
-            | "PERCENTILE_DISC"
-            | "CORR"
-            | "COVAR_POP"
-            | "COVAR_SAMP"
-            | "COVARPOP"
-            | "COVARSAMP"
-            | "JSON_AGG"
-            | "JSONB_AGG"
-            | "JSON_ARRAYAGG"
-            | "JSON_OBJECT_AGG"
-            | "JSONB_OBJECT_AGG"
-            | "JSON_OBJECTAGG"
-            | "BIT_AND"
-            | "BIT_OR"
-            | "BIT_XOR"
-            | "BOOL_AND"
-            | "BOOL_OR"
-            | "EVERY"
-            | "APPROX_COUNT_DISTINCT"
-            | "APPROX_QUANTILES"
-            | "APPROX_TOP_COUNT"
-            | "APPROX_TOP_SUM"
-            | "LISTAGG"
-            | "COUNTIF"
-            | "COUNT_IF"
-            | "SUMIF"
-            | "SUM_IF"
-            | "AVGIF"
-            | "AVG_IF"
-            | "MINIF"
-            | "MIN_IF"
-            | "MAXIF"
-            | "MAX_IF"
-            | "SUMDISTINCT"
-            | "SUM_DISTINCT"
-            | "AVGDISTINCT"
-            | "AVG_DISTINCT"
-            | "UNIQ"
-            | "UNIQEXACT"
-            | "UNIQ_EXACT"
-            | "UNIQHLL12"
-            | "UNIQ_HLL12"
-            | "UNIQCOMBINED"
-            | "UNIQ_COMBINED"
-            | "UNIQCOMBINED64"
-            | "UNIQ_COMBINED_64"
-            | "UNIQTHETA"
-            | "UNIQ_THETA_SKETCH"
-            | "UNIQ_ARRAY"
-            | "QUANTILE"
-            | "QUANTILEEXACT"
-            | "QUANTILE_EXACT"
-            | "QUANTILETDIGEST"
-            | "QUANTILE_TDIGEST"
-            | "QUANTILETIMING"
-            | "QUANTILE_TIMING"
-            | "QUANTILES"
-            | "QUANTILESTDIGEST"
-            | "QUANTILES_TDIGEST"
-            | "QUANTILESTIMING"
-            | "QUANTILES_TIMING"
-            | "ARG_MIN"
-            | "ARG_MAX"
-            | "ARGMIN"
-            | "ARGMAX"
-            | "ANYHEAVY"
-            | "ANYLAST"
-            | "AVGWEIGHTED"
-            | "AVG_WEIGHTED"
-            | "GROUP_ARRAY"
-            | "GROUPARRAY"
-            | "GROUP_ARRAY_MOVING_AVG"
-            | "GROUPARRAYMOVINGAVG"
-            | "GROUP_ARRAY_MOVING_SUM"
-            | "GROUPARRAYMOVINGSUM"
-            | "GROUPUNIQARRAY"
-            | "GROUP_UNIQ_ARRAY"
-            | "GROUPBITAND"
-            | "GROUP_BIT_AND"
-            | "GROUPBITOR"
-            | "GROUP_BIT_OR"
-            | "GROUPBITXOR"
-            | "GROUP_BIT_XOR"
-            | "ANY"
-            | "ANY_LAST"
-            | "ANY_HEAVY"
-            | "TOP_K"
-            | "TOPK"
-            | "TOPKWEIGHTED"
-            | "SUMWITHOVERFLOW"
-            | "SUM_WITH_OVERFLOW"
-            | "SUMMAP"
-            | "SUM_MAP"
-            | "MINMAP"
-            | "MIN_MAP"
-            | "MAXMAP"
-            | "MAX_MAP"
-            | "GROUP_BITMAP"
-            | "GROUPBITMAP"
-            | "GROUP_BITMAP_AND"
-            | "GROUPBITMAPAND"
-            | "GROUP_BITMAP_OR"
-            | "GROUPBITMAPOR"
-            | "GROUP_BITMAP_XOR"
-            | "GROUPBITMAPXOR"
-            | "RETENTION"
-            | "WINDOW_FUNNEL"
-            | "WINDOWFUNNEL"
-            | "HISTOGRAM"
-            | "SIMPLE_LINEAR_REGRESSION"
-            | "SIMPLELINEARREGRESSION"
-            | "STOCHASTIC_LINEAR_REGRESSION"
-            | "STOCHASTICLINEARREGRESSION"
-            | "STOCHASTIC_LOGISTIC_REGRESSION"
-            | "ENTROPY"
-            | "RANKCORR"
-            | "RANK_CORR"
-            | "CONTINGENCY"
-            | "CRAMERSV"
-            | "CRAMERS_V"
-            | "THEILSU"
-            | "THEILS_U"
-            | "SKEWPOP"
-            | "SKEW_POP"
-            | "SKEWSAMP"
-            | "SKEW_SAMP"
-            | "KURTPOP"
-            | "KURT_POP"
-            | "KURTSAMP"
-            | "KURT_SAMP"
-            | "STUDENTTTEST"
-            | "STUDENT_T_TEST"
-            | "WELCHTTEST"
-            | "WELCH_T_TEST"
-            | "MANNWHITNEYUTEST"
-            | "MANN_WHITNEY_U_TEST"
-            | "EXPONENTIALMOVINGAVERAGE"
-            | "EXPONENTIAL_MOVING_AVERAGE"
-            | "DELTASUM"
-            | "DELTA_SUM"
-            | "DELTASUMTIMESTAMP"
-            | "DELTA_SUM_TIMESTAMP"
-            | "SEQUENCEMATCH"
-            | "SEQUENCE_MATCH"
-            | "SEQUENCECOUNT"
-            | "SEQUENCE_COUNT"
-            | "INTERVALLENGTHSUM"
-            | "INTERVAL_LENGTH_SUM"
-            | "MAXINTERSECTIONS"
-            | "MAX_INTERSECTIONS"
-            | "MAXINTERSECTIONSPOSITION"
-            | "MAX_INTERSECTIONS_POSITION"
-            | "CATEGORICALINFORMATIONVALUE"
-            | "CATEGORICAL_INFORMATION_VALUE"
-            | "SINGLEVALUEORNULL"
-            | "SINGLE_VALUE_OR_NULL"
-            | "LARGESTTRIANGLETHREEBUCKETS"
-            | "LARGEST_TRIANGLE_THREE_BUCKETS"
-            | "SPARKBAR"
-            | "BOUNDEDSAMPLE"
-            | "BOUNDED_SAMPLE"
-            | "SUMKAHAN"
-            | "SUM_KAHAN"
-            | "NOTHING"
-            | "FIRST_VALUE"
-            | "LAST_VALUE"
-            | "GROUPCONCAT"
-            | "GROUP_CONCAT"
-            | "ANYIF"
-            | "ANY_IF"
-            | "GROUPARRAYSAMPLE"
-            | "GROUP_ARRAY_SAMPLE"
-            | "GROUPARRAYSORTED"
-            | "GROUP_ARRAY_SORTED"
-            | "GROUPARRAYINSERTAT"
-            | "GROUP_ARRAY_INSERTAT"
-            | "GROUPARRAYLAST"
-            | "GROUP_ARRAY_LAST"
-            | "AVGMAP"
-            | "AVG_MAP"
-            | "GROUPARRAYINTERSECT"
-            | "GROUP_ARRAY_INTERSECT"
-            | "QUANTILEEXACTLOW"
-            | "QUANTILE_EXACT_LOW"
-            | "QUANTILEEXACTHIGH"
-            | "QUANTILE_EXACT_HIGH"
-            | "QUANTILEDD"
-            | "QUANTILE_DD"
-            | "QUANTILEGK"
-            | "QUANTILE_GK"
-            | "QUANTILEINTERPOLATEDWEIGHTED"
-            | "QUANTILE_INTERPOLATED_WEIGHTED"
-            | "QUANTILEBFLOAT16WEIGHTED"
-            | "QUANTILE_BFLOAT16_WEIGHTED"
-            | "QUANTILEIF"
-            | "QUANTILE_IF"
-            | "QUANTILESIF"
-            | "QUANTILES_IF"
-            | "UNIQIF"
-            | "UNIQ_IF"
-            | "SUMMAPMWITHOVERFLOW"
-            | "SUM_MAP_WITH_OVERFLOW"
-            | "SUMMAPFILTEREDIF"
-            | "SUM_MAP_FILTERED_IF"
-            | "QUANTILEEXACTWEIGHTED"
-            | "QUANTILE_EXACT_WEIGHTED"
-            | "QUANTILETIMINGWEIGHTED"
-            | "QUANTILE_TIMING_WEIGHTED"
-            | "QUANTILETDIGESTWEIGHTED"
-            | "QUANTILE_TDIGEST_WEIGHTED"
-            | "QUANTILEDETERMINISTIC"
-            | "QUANTILE_DETERMINISTIC"
-            | "QUANTILEBFLOAT16"
-            | "QUANTILE_BFLOAT16"
-            | "QUANTILESEXACT"
-            | "QUANTILES_EXACT"
-            | "UNIQUPTO"
-            | "UNIQ_UP_TO"
-            | "HLL_COUNT_INIT"
-            | "HLL_COUNT.INIT"
-            | "HLL_COUNT_MERGE"
-            | "HLL_COUNT.MERGE"
-            | "HLL_COUNT_MERGE_PARTIAL"
-            | "HLL_COUNT.MERGE_PARTIAL"
-            | "HLL_COUNT_EXTRACT"
-            | "HLL_COUNT.EXTRACT"
-    };
+pub fn plan_statement<C: CatalogProvider>(
+    stmt: &sqlparser::ast::Statement,
+    catalog: &C,
+) -> Result<LogicalPlan> {
+    let planner = Planner::new(catalog);
+    planner.plan_statement(stmt)
+}
+
+pub fn parse_and_plan<C: CatalogProvider>(sql: &str, catalog: &C) -> Result<LogicalPlan> {
+    let statements = parse_sql(sql)?;
+
+    if statements.is_empty() {
+        return Err(yachtsql_common::error::Error::parse_error(
+            "Empty SQL statement",
+        ));
+    }
+
+    if statements.len() > 1 {
+        return Err(yachtsql_common::error::Error::parse_error(
+            "Multiple statements not supported",
+        ));
+    }
+
+    plan_statement(&statements[0], catalog)
 }

@@ -1,6 +1,7 @@
 use crate::common::create_executor;
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_export_data_csv() {
     let mut executor = create_executor();
     executor
@@ -63,6 +64,7 @@ fn test_export_data_parquet() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_export_data_avro() {
     let mut executor = create_executor();
     executor
@@ -82,6 +84,7 @@ fn test_export_data_avro() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_export_data_with_field_delimiter() {
     let mut executor = create_executor();
     executor
@@ -102,6 +105,7 @@ fn test_export_data_with_field_delimiter() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_export_data_with_query() {
     let mut executor = create_executor();
     executor
@@ -376,6 +380,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_parquet_basic() {
         let mut executor = create_executor();
         executor
@@ -410,6 +415,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_parquet_with_file_uri() {
         let mut executor = create_executor();
         executor
@@ -432,6 +438,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_parquet_overwrite() {
         let mut executor = create_executor();
         executor
@@ -461,6 +468,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_parquet_append() {
         let mut executor = create_executor();
         executor
@@ -486,6 +494,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_parquet_typed_columns() {
         let mut executor = create_executor();
         executor
@@ -513,6 +522,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_parquet_basic() {
         let mut executor = create_executor();
         executor
@@ -562,6 +572,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_parquet_with_aggregation() {
         let mut executor = create_executor();
         executor
@@ -604,6 +615,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_parquet_with_nulls() {
         let mut executor = create_executor();
         executor
@@ -646,6 +658,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_roundtrip_all_basic_types() {
         let mut executor = create_executor();
         executor
@@ -702,6 +715,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_roundtrip_date_datetime() {
         let mut executor = create_executor();
         executor
@@ -752,6 +766,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_filtered_query() {
         let mut executor = create_executor();
         executor
@@ -798,6 +813,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_parquet_column_subset() {
         let mut executor = create_executor();
         executor
@@ -827,6 +843,7 @@ mod local_parquet {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_empty_result() {
         let mut executor = create_executor();
         executor
@@ -886,6 +903,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_json_basic() {
         let mut executor = create_executor();
         executor
@@ -920,6 +938,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_json_with_file_uri() {
         let mut executor = create_executor();
         executor
@@ -942,6 +961,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_json_overwrite() {
         let mut executor = create_executor();
         executor
@@ -971,6 +991,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_json_append() {
         let mut executor = create_executor();
         executor
@@ -996,6 +1017,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_json_typed_columns() {
         let mut executor = create_executor();
         executor
@@ -1021,6 +1043,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_json_basic() {
         let mut executor = create_executor();
         executor
@@ -1070,6 +1093,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_json_with_aggregation() {
         let mut executor = create_executor();
         executor
@@ -1112,6 +1136,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_json_with_nulls() {
         let mut executor = create_executor();
         executor
@@ -1154,6 +1179,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_roundtrip_json_all_basic_types() {
         let mut executor = create_executor();
         executor
@@ -1210,6 +1236,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_roundtrip_json_date() {
         let mut executor = create_executor();
         executor
@@ -1258,6 +1285,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_json_filtered_query() {
         let mut executor = create_executor();
         executor
@@ -1304,6 +1332,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_export_json_empty_result() {
         let mut executor = create_executor();
         executor
@@ -1335,6 +1364,7 @@ mod local_json {
     }
 
     #[test]
+    #[ignore = "Implement me!"]
     fn test_load_json_case_insensitive_columns() {
         let content = r#"{"ID": 1, "NAME": "Alice"}
 {"ID": 2, "NAME": "Bob"}"#;

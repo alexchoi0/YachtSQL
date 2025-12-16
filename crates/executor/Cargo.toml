@@ -7,13 +7,11 @@ description = "YachtSQL execution engine"
 
 [dependencies]
 # YachtSQL crates
-yachtsql-core = { path = "../core" }
+yachtsql-common = { path = "../common" }
 yachtsql-storage = { path = "../storage" }
-yachtsql-optimizer = { path = "../optimizer" }
 yachtsql-parser = { path = "../parser" }
 yachtsql-ir = { path = "../ir" }
 yachtsql-functions = { path = "../functions" }
-yachtsql-capability = { path = "../capability" }
 
 # SQL parsing
 sqlparser = { version = "0.59", features = ["visitor"] }
@@ -128,9 +126,4 @@ yachtsql-test-utils = { path = "../test-utils" }
 mockall = "0.13"
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.14"
-
-[[bench]]
-name = "parquet_loading"
-harness = false
-
 

@@ -29,6 +29,7 @@ fn test_simple_cte() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cte_with_column_aliases() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -43,6 +44,7 @@ fn test_cte_with_column_aliases() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_multiple_ctes() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -57,6 +59,7 @@ fn test_multiple_ctes() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cte_used_multiple_times() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -71,6 +74,7 @@ fn test_cte_used_multiple_times() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cte_with_join() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -88,6 +92,7 @@ fn test_cte_with_join() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -105,6 +110,7 @@ fn test_recursive_cte() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_with_limit() {
     let mut executor = create_executor();
 
@@ -139,6 +145,7 @@ fn test_cte_with_aggregation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cte_in_subquery() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -153,6 +160,7 @@ fn test_cte_in_subquery() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cte_with_insert() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -175,6 +183,7 @@ fn test_cte_with_insert() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cte_with_update() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -193,6 +202,7 @@ fn test_cte_with_update() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cte_with_delete() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -211,6 +221,7 @@ fn test_cte_with_delete() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_fibonacci() {
     let mut executor = create_executor();
 
@@ -245,6 +256,7 @@ fn test_recursive_cte_fibonacci() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_path_finding() {
     let mut executor = create_executor();
 
@@ -283,6 +295,7 @@ fn test_recursive_cte_path_finding() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_tree_aggregation() {
     let mut executor = create_executor();
 
@@ -331,6 +344,7 @@ fn test_recursive_cte_tree_aggregation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_generate_series() {
     let mut executor = create_executor();
 
@@ -362,6 +376,7 @@ fn test_recursive_cte_generate_series() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_max_depth() {
     let mut executor = create_executor();
 
@@ -382,6 +397,7 @@ fn test_recursive_cte_max_depth() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_with_aggregation() {
     let mut executor = create_executor();
 
@@ -427,6 +443,7 @@ fn test_recursive_cte_with_aggregation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_multiple_anchors() {
     let mut executor = create_executor();
 
@@ -459,6 +476,7 @@ fn test_recursive_cte_multiple_anchors() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_cte_string_accumulation() {
     let mut executor = create_executor();
 

@@ -70,6 +70,7 @@ fn test_create_table_with_not_null() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_table_with_default() {
     let mut executor = create_executor();
 

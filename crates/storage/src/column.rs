@@ -1,36 +1,28 @@
-use std::str::FromStr;
-
-use aligned_vec::AVec;
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
-use indexmap::IndexMap;
 use rust_decimal::Decimal;
-use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{DataType, FixedStringData, Interval, Value};
+use serde::{Deserialize, Serialize};
+use yachtsql_common::error::{Error, Result};
+use yachtsql_common::types::{DataType, IntervalValue, Value};
 
 use crate::NullBitmap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Column {
     Bool {
-        data: AVec<u8>,
+        data: Vec<bool>,
         nulls: NullBitmap,
     },
     Int64 {
-        data: AVec<i64>,
-        nulls: NullBitmap,
-    },
-
-    Unknown {
+        data: Vec<i64>,
         nulls: NullBitmap,
     },
     Float64 {
-        data: AVec<f64>,
+        data: Vec<f64>,
         nulls: NullBitmap,
     },
     Numeric {
         data: Vec<Decimal>,
         nulls: NullBitmap,
-        precision_scale: Option<(u8, u8)>,
     },
     String {
         data: Vec<String>,
@@ -44,20 +36,16 @@ pub enum Column {
         data: Vec<NaiveDate>,
         nulls: NullBitmap,
     },
-    DateTime {
-        data: Vec<DateTime<Utc>>,
-        nulls: NullBitmap,
-    },
     Time {
         data: Vec<NaiveTime>,
         nulls: NullBitmap,
     },
-    Timestamp {
-        data: Vec<DateTime<Utc>>,
+    DateTime {
+        data: Vec<chrono::NaiveDateTime>,
         nulls: NullBitmap,
     },
-    Uuid {
-        data: Vec<uuid::Uuid>,
+    Timestamp {
+        data: Vec<DateTime<Utc>>,
         nulls: NullBitmap,
     },
     Json {
@@ -69,486 +57,109 @@ pub enum Column {
         nulls: NullBitmap,
         element_type: DataType,
     },
-    Vector {
-        data: Vec<Vec<Value>>,
-        nulls: NullBitmap,
-        dimensions: usize,
-    },
     Struct {
-        data: Vec<IndexMap<String, Value>>,
+        data: Vec<Vec<(String, Value)>>,
         nulls: NullBitmap,
+        fields: Vec<(String, DataType)>,
     },
     Geography {
         data: Vec<String>,
         nulls: NullBitmap,
     },
     Interval {
-        data: Vec<Interval>,
-        nulls: NullBitmap,
-    },
-
-    Hstore {
-        data: Vec<IndexMap<String, Option<String>>>,
-        nulls: NullBitmap,
-    },
-    MacAddr {
-        data: Vec<yachtsql_core::types::MacAddress>,
-        nulls: NullBitmap,
-    },
-    MacAddr8 {
-        data: Vec<yachtsql_core::types::MacAddress>,
-        nulls: NullBitmap,
-    },
-    Inet {
-        data: Vec<yachtsql_core::types::network::InetAddr>,
-        nulls: NullBitmap,
-    },
-    Cidr {
-        data: Vec<yachtsql_core::types::network::CidrAddr>,
-        nulls: NullBitmap,
-    },
-    Enum {
-        data: Vec<String>,
-        nulls: NullBitmap,
-        type_name: String,
-        labels: Vec<String>,
-    },
-
-    Point {
-        data: Vec<yachtsql_core::types::PgPoint>,
-        nulls: NullBitmap,
-    },
-
-    PgBox {
-        data: Vec<yachtsql_core::types::PgBox>,
-        nulls: NullBitmap,
-    },
-
-    Circle {
-        data: Vec<yachtsql_core::types::PgCircle>,
-        nulls: NullBitmap,
-    },
-
-    Line {
-        data: Vec<yachtsql_core::types::PgLine>,
-        nulls: NullBitmap,
-    },
-
-    Lseg {
-        data: Vec<yachtsql_core::types::PgLseg>,
-        nulls: NullBitmap,
-    },
-
-    Path {
-        data: Vec<yachtsql_core::types::PgPath>,
-        nulls: NullBitmap,
-    },
-
-    Polygon {
-        data: Vec<yachtsql_core::types::PgPolygon>,
-        nulls: NullBitmap,
-    },
-
-    Map {
-        data: Vec<Vec<(Value, Value)>>,
-        nulls: NullBitmap,
-        key_type: DataType,
-        value_type: DataType,
-    },
-
-    Range {
-        data: Vec<yachtsql_core::types::Range>,
-        nulls: NullBitmap,
-        range_type: yachtsql_core::types::RangeType,
-    },
-
-    Multirange {
-        data: Vec<yachtsql_core::types::Multirange>,
-        nulls: NullBitmap,
-        multirange_type: yachtsql_core::types::MultirangeType,
-    },
-
-    IPv4 {
-        data: Vec<yachtsql_core::types::IPv4Addr>,
-        nulls: NullBitmap,
-    },
-
-    IPv6 {
-        data: Vec<yachtsql_core::types::IPv6Addr>,
-        nulls: NullBitmap,
-    },
-
-    Date32 {
-        data: Vec<yachtsql_core::types::Date32Value>,
-        nulls: NullBitmap,
-    },
-
-    GeoPoint {
-        data: Vec<yachtsql_core::types::GeoPointValue>,
-        nulls: NullBitmap,
-    },
-
-    GeoRing {
-        data: Vec<yachtsql_core::types::GeoRingValue>,
-        nulls: NullBitmap,
-    },
-
-    GeoPolygon {
-        data: Vec<yachtsql_core::types::GeoPolygonValue>,
-        nulls: NullBitmap,
-    },
-
-    GeoMultiPolygon {
-        data: Vec<yachtsql_core::types::GeoMultiPolygonValue>,
-        nulls: NullBitmap,
-    },
-
-    FixedString {
-        data: Vec<FixedStringData>,
-        nulls: NullBitmap,
-        length: usize,
-    },
-
-    TsVector {
-        data: Vec<String>,
-        nulls: NullBitmap,
-    },
-
-    TsQuery {
-        data: Vec<String>,
+        data: Vec<IntervalValue>,
         nulls: NullBitmap,
     },
 }
 
 impl Column {
-    pub fn new(data_type: &DataType, capacity: usize) -> Self {
+    pub fn new(data_type: &DataType) -> Self {
         match data_type {
             DataType::Bool => Column::Bool {
-                data: AVec::with_capacity(64, capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
             DataType::Int64 => Column::Int64 {
-                data: AVec::with_capacity(64, capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
             DataType::Float64 => Column::Float64 {
-                data: AVec::with_capacity(64, capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
-            DataType::String => Column::String {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+            DataType::Numeric(_) | DataType::BigNumeric => Column::Numeric {
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
+            },
+            DataType::String | DataType::Unknown => Column::String {
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
             DataType::Bytes => Column::Bytes {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
             DataType::Date => Column::Date {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::DateTime => Column::DateTime {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
             DataType::Time => Column::Time {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
-            DataType::Timestamp | DataType::TimestampTz => Column::Timestamp {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+            DataType::DateTime => Column::DateTime {
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
-            DataType::Array(elem_type) => Column::Array {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                element_type: *elem_type.clone(),
-            },
-            DataType::Vector(dims) => Column::Vector {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                dimensions: *dims,
-            },
-            DataType::Struct(_) => Column::Struct {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Numeric(precision_scale) => Column::Numeric {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                precision_scale: *precision_scale,
-            },
-            DataType::BigNumeric => Column::Numeric {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                precision_scale: None,
-            },
-            DataType::Uuid => Column::Uuid {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+            DataType::Timestamp => Column::Timestamp {
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
             DataType::Json => Column::Json {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
-            DataType::Unknown => Column::Unknown {
-                nulls: NullBitmap::new_valid(0),
+            DataType::Array(elem_type) => Column::Array {
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
+                element_type: (**elem_type).clone(),
+            },
+            DataType::Struct(fields) => Column::Struct {
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
+                fields: fields
+                    .iter()
+                    .map(|f| (f.name.clone(), f.data_type.clone()))
+                    .collect(),
             },
             DataType::Geography => Column::Geography {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
             DataType::Interval => Column::Interval {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
+                data: Vec::new(),
+                nulls: NullBitmap::new(),
             },
-            DataType::Hstore => Column::Hstore {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::MacAddr => Column::MacAddr {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::MacAddr8 => Column::MacAddr8 {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Inet => Column::Inet {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Cidr => Column::Cidr {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Enum { type_name, labels } => Column::Enum {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                type_name: type_name.clone(),
-                labels: labels.clone(),
-            },
-
-            DataType::Custom(_) => Column::Struct {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Point => Column::Point {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::PgBox => Column::PgBox {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Circle => Column::Circle {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Line => Column::Line {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Lseg => Column::Lseg {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Path => Column::Path {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Polygon => Column::Polygon {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Map(key_type, value_type) => Column::Map {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                key_type: *key_type.clone(),
-                value_type: *value_type.clone(),
-            },
-            DataType::Range(range_type) => Column::Range {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                range_type: range_type.clone(),
-            },
-            DataType::Multirange(multirange_type) => Column::Multirange {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                multirange_type: multirange_type.clone(),
-            },
-            DataType::IPv4 => Column::IPv4 {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::IPv6 => Column::IPv6 {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::Date32 => Column::Date32 {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::GeoPoint => Column::GeoPoint {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::GeoRing => Column::GeoRing {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::GeoPolygon => Column::GeoPolygon {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::GeoMultiPolygon => Column::GeoMultiPolygon {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::FixedString(length) => Column::FixedString {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-                length: *length,
-            },
-            DataType::Xid | DataType::Xid8 | DataType::Tid | DataType::Cid | DataType::Oid => {
-                Column::Int64 {
-                    data: AVec::with_capacity(64, capacity),
-                    nulls: NullBitmap::new_valid(0),
-                }
-            }
-            DataType::TsVector => Column::TsVector {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::TsQuery => Column::TsQuery {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            _ => unimplemented!("Complex types not yet supported: {:?}", data_type),
-        }
-    }
-
-    pub fn data_type(&self) -> DataType {
-        match self {
-            Column::Bool { .. } => DataType::Bool,
-            Column::Int64 { .. } => DataType::Int64,
-            Column::Unknown { .. } => DataType::Unknown,
-            Column::Float64 { .. } => DataType::Float64,
-            Column::Numeric {
-                precision_scale, ..
-            } => DataType::Numeric(*precision_scale),
-            Column::String { .. } => DataType::String,
-            Column::Bytes { .. } => DataType::Bytes,
-            Column::Date { .. } => DataType::Date,
-            Column::DateTime { .. } => DataType::DateTime,
-            Column::Time { .. } => DataType::Time,
-            Column::Timestamp { .. } => DataType::Timestamp,
-            Column::Uuid { .. } => DataType::Uuid,
-            Column::Json { .. } => DataType::Json,
-            Column::Array { element_type, .. } => DataType::Array(Box::new(element_type.clone())),
-            Column::Vector { dimensions, .. } => DataType::Vector(*dimensions),
-            Column::Struct { data, .. } => {
-                if let Some(first_struct) = data.first() {
-                    let fields = first_struct
-                        .iter()
-                        .map(|(name, value)| yachtsql_core::types::StructField {
-                            name: name.clone(),
-                            data_type: value.data_type(),
-                        })
-                        .collect();
-                    DataType::Struct(fields)
-                } else {
-                    DataType::Struct(vec![])
-                }
-            }
-            Column::Geography { .. } => DataType::Geography,
-            Column::Interval { .. } => DataType::Interval,
-            Column::Hstore { .. } => DataType::Hstore,
-            Column::MacAddr { .. } => DataType::MacAddr,
-            Column::MacAddr8 { .. } => DataType::MacAddr8,
-            Column::Inet { .. } => DataType::Inet,
-            Column::Cidr { .. } => DataType::Cidr,
-            Column::Enum {
-                type_name, labels, ..
-            } => DataType::Enum {
-                type_name: type_name.clone(),
-                labels: labels.clone(),
-            },
-            Column::Point { .. } => DataType::Point,
-            Column::PgBox { .. } => DataType::PgBox,
-            Column::Circle { .. } => DataType::Circle,
-            Column::Line { .. } => DataType::Line,
-            Column::Lseg { .. } => DataType::Lseg,
-            Column::Path { .. } => DataType::Path,
-            Column::Polygon { .. } => DataType::Polygon,
-            Column::Map {
-                key_type,
-                value_type,
-                ..
-            } => DataType::Map(Box::new(key_type.clone()), Box::new(value_type.clone())),
-            Column::Range { range_type, .. } => DataType::Range(range_type.clone()),
-            Column::Multirange {
-                multirange_type, ..
-            } => DataType::Multirange(multirange_type.clone()),
-            Column::IPv4 { .. } => DataType::IPv4,
-            Column::IPv6 { .. } => DataType::IPv6,
-            Column::Date32 { .. } => DataType::Date32,
-            Column::GeoPoint { .. } => DataType::GeoPoint,
-            Column::GeoRing { .. } => DataType::GeoRing,
-            Column::GeoPolygon { .. } => DataType::GeoPolygon,
-            Column::GeoMultiPolygon { .. } => DataType::GeoMultiPolygon,
-            Column::FixedString { length, .. } => DataType::FixedString(*length),
-            Column::TsVector { .. } => DataType::TsVector,
-            Column::TsQuery { .. } => DataType::TsQuery,
         }
     }
 
     pub fn len(&self) -> usize {
         match self {
-            Column::Bool { nulls, .. } => nulls.len(),
-            Column::Int64 { nulls, .. } => nulls.len(),
-            Column::Unknown { nulls } => nulls.len(),
-            Column::Float64 { nulls, .. } => nulls.len(),
-            Column::Numeric { nulls, .. } => nulls.len(),
-            Column::String { nulls, .. } => nulls.len(),
-            Column::Bytes { nulls, .. } => nulls.len(),
-            Column::Date { nulls, .. } => nulls.len(),
-            Column::DateTime { nulls, .. } => nulls.len(),
-            Column::Time { nulls, .. } => nulls.len(),
-            Column::Timestamp { nulls, .. } => nulls.len(),
-            Column::Uuid { nulls, .. } => nulls.len(),
-            Column::Json { nulls, .. } => nulls.len(),
-            Column::Array { nulls, .. } => nulls.len(),
-            Column::Vector { nulls, .. } => nulls.len(),
-            Column::Struct { nulls, .. } => nulls.len(),
-            Column::Geography { nulls, .. } => nulls.len(),
-            Column::Interval { nulls, .. } => nulls.len(),
-            Column::Hstore { nulls, .. } => nulls.len(),
-            Column::MacAddr { nulls, .. } => nulls.len(),
-            Column::MacAddr8 { nulls, .. } => nulls.len(),
-            Column::Inet { nulls, .. } => nulls.len(),
-            Column::Cidr { nulls, .. } => nulls.len(),
-            Column::Enum { nulls, .. } => nulls.len(),
-            Column::Point { nulls, .. } => nulls.len(),
-            Column::PgBox { nulls, .. } => nulls.len(),
-            Column::Circle { nulls, .. } => nulls.len(),
-            Column::Line { nulls, .. } => nulls.len(),
-            Column::Lseg { nulls, .. } => nulls.len(),
-            Column::Path { nulls, .. } => nulls.len(),
-            Column::Polygon { nulls, .. } => nulls.len(),
-            Column::Map { nulls, .. } => nulls.len(),
-            Column::Range { nulls, .. } => nulls.len(),
-            Column::IPv4 { nulls, .. } => nulls.len(),
-            Column::IPv6 { nulls, .. } => nulls.len(),
-            Column::Date32 { nulls, .. } => nulls.len(),
-            Column::GeoPoint { nulls, .. } => nulls.len(),
-            Column::GeoRing { nulls, .. } => nulls.len(),
-            Column::GeoPolygon { nulls, .. } => nulls.len(),
-            Column::GeoMultiPolygon { nulls, .. } => nulls.len(),
-            Column::FixedString { nulls, .. } => nulls.len(),
-            Column::Multirange { nulls, .. } => nulls.len(),
-            Column::TsVector { nulls, .. } => nulls.len(),
-            Column::TsQuery { nulls, .. } => nulls.len(),
+            Column::Bool { data, .. } => data.len(),
+            Column::Int64 { data, .. } => data.len(),
+            Column::Float64 { data, .. } => data.len(),
+            Column::Numeric { data, .. } => data.len(),
+            Column::String { data, .. } => data.len(),
+            Column::Bytes { data, .. } => data.len(),
+            Column::Date { data, .. } => data.len(),
+            Column::Time { data, .. } => data.len(),
+            Column::DateTime { data, .. } => data.len(),
+            Column::Timestamp { data, .. } => data.len(),
+            Column::Json { data, .. } => data.len(),
+            Column::Array { data, .. } => data.len(),
+            Column::Struct { data, .. } => data.len(),
+            Column::Geography { data, .. } => data.len(),
+            Column::Interval { data, .. } => data.len(),
         }
     }
 
@@ -556,3123 +167,515 @@ impl Column {
         self.len() == 0
     }
 
-    pub fn nulls(&self) -> &NullBitmap {
+    pub fn data_type(&self) -> DataType {
         match self {
-            Column::Bool { nulls, .. } => nulls,
-            Column::Int64 { nulls, .. } => nulls,
-            Column::Unknown { nulls } => nulls,
-            Column::Float64 { nulls, .. } => nulls,
-            Column::Numeric { nulls, .. } => nulls,
-            Column::String { nulls, .. } => nulls,
-            Column::Bytes { nulls, .. } => nulls,
-            Column::Date { nulls, .. } => nulls,
-            Column::DateTime { nulls, .. } => nulls,
-            Column::Time { nulls, .. } => nulls,
-            Column::Timestamp { nulls, .. } => nulls,
-            Column::Uuid { nulls, .. } => nulls,
-            Column::Json { nulls, .. } => nulls,
-            Column::Array { nulls, .. } => nulls,
-            Column::Vector { nulls, .. } => nulls,
-            Column::Struct { nulls, .. } => nulls,
-            Column::Geography { nulls, .. } => nulls,
-            Column::Interval { nulls, .. } => nulls,
-            Column::Hstore { nulls, .. } => nulls,
-            Column::MacAddr { nulls, .. } => nulls,
-            Column::MacAddr8 { nulls, .. } => nulls,
-            Column::Inet { nulls, .. } => nulls,
-            Column::Cidr { nulls, .. } => nulls,
-            Column::Enum { nulls, .. } => nulls,
-            Column::Point { nulls, .. } => nulls,
-            Column::PgBox { nulls, .. } => nulls,
-            Column::Circle { nulls, .. } => nulls,
-            Column::Line { nulls, .. } => nulls,
-            Column::Lseg { nulls, .. } => nulls,
-            Column::Path { nulls, .. } => nulls,
-            Column::Polygon { nulls, .. } => nulls,
-            Column::Map { nulls, .. } => nulls,
-            Column::Range { nulls, .. } => nulls,
-            Column::IPv4 { nulls, .. } => nulls,
-            Column::IPv6 { nulls, .. } => nulls,
-            Column::Date32 { nulls, .. } => nulls,
-            Column::GeoPoint { nulls, .. } => nulls,
-            Column::GeoRing { nulls, .. } => nulls,
-            Column::GeoPolygon { nulls, .. } => nulls,
-            Column::GeoMultiPolygon { nulls, .. } => nulls,
-            Column::FixedString { nulls, .. } => nulls,
-            Column::Multirange { nulls, .. } => nulls,
-            Column::TsVector { nulls, .. } => nulls,
-            Column::TsQuery { nulls, .. } => nulls,
+            Column::Bool { .. } => DataType::Bool,
+            Column::Int64 { .. } => DataType::Int64,
+            Column::Float64 { .. } => DataType::Float64,
+            Column::Numeric { .. } => DataType::Numeric(None),
+            Column::String { .. } => DataType::String,
+            Column::Bytes { .. } => DataType::Bytes,
+            Column::Date { .. } => DataType::Date,
+            Column::Time { .. } => DataType::Time,
+            Column::DateTime { .. } => DataType::DateTime,
+            Column::Timestamp { .. } => DataType::Timestamp,
+            Column::Json { .. } => DataType::Json,
+            Column::Array { element_type, .. } => DataType::Array(Box::new(element_type.clone())),
+            Column::Struct { fields, .. } => {
+                let struct_fields = fields
+                    .iter()
+                    .map(|(name, dt)| yachtsql_common::types::StructField {
+                        name: name.clone(),
+                        data_type: dt.clone(),
+                    })
+                    .collect();
+                DataType::Struct(struct_fields)
+            }
+            Column::Geography { .. } => DataType::Geography,
+            Column::Interval { .. } => DataType::Interval,
         }
     }
 
-    pub fn null_count(&self) -> usize {
-        self.nulls().count_null()
+    pub fn is_null(&self, index: usize) -> bool {
+        match self {
+            Column::Bool { nulls, .. } => nulls.is_null(index),
+            Column::Int64 { nulls, .. } => nulls.is_null(index),
+            Column::Float64 { nulls, .. } => nulls.is_null(index),
+            Column::Numeric { nulls, .. } => nulls.is_null(index),
+            Column::String { nulls, .. } => nulls.is_null(index),
+            Column::Bytes { nulls, .. } => nulls.is_null(index),
+            Column::Date { nulls, .. } => nulls.is_null(index),
+            Column::Time { nulls, .. } => nulls.is_null(index),
+            Column::DateTime { nulls, .. } => nulls.is_null(index),
+            Column::Timestamp { nulls, .. } => nulls.is_null(index),
+            Column::Json { nulls, .. } => nulls.is_null(index),
+            Column::Array { nulls, .. } => nulls.is_null(index),
+            Column::Struct { nulls, .. } => nulls.is_null(index),
+            Column::Geography { nulls, .. } => nulls.is_null(index),
+            Column::Interval { nulls, .. } => nulls.is_null(index),
+        }
     }
 
-    fn validate_vector_value(vector: &[Value], expected_dims: usize) -> Result<()> {
-        if vector.len() != expected_dims {
+    pub fn get(&self, index: usize) -> Result<Value> {
+        if index >= self.len() {
             return Err(Error::invalid_query(format!(
-                "Vector dimension mismatch: expected {}, got {}",
-                expected_dims,
-                vector.len()
+                "Column index {} out of bounds (len: {})",
+                index,
+                self.len()
             )));
         }
-
-        if let Some((i, elem)) = vector.iter().enumerate().find(|(_, v)| !v.is_float64()) {
-            return Err(Error::invalid_query(format!(
-                "Vector element {} must be FLOAT64, got {:?}",
-                i, elem
-            )));
+        if self.is_null(index) {
+            return Ok(Value::Null);
         }
 
-        Ok(())
+        Ok(match self {
+            Column::Bool { data, .. } => Value::Bool(data[index]),
+            Column::Int64 { data, .. } => Value::Int64(data[index]),
+            Column::Float64 { data, .. } => Value::float64(data[index]),
+            Column::Numeric { data, .. } => Value::Numeric(data[index]),
+            Column::String { data, .. } => Value::String(data[index].clone()),
+            Column::Bytes { data, .. } => Value::Bytes(data[index].clone()),
+            Column::Date { data, .. } => Value::Date(data[index]),
+            Column::Time { data, .. } => Value::Time(data[index]),
+            Column::DateTime { data, .. } => Value::DateTime(data[index]),
+            Column::Timestamp { data, .. } => Value::Timestamp(data[index]),
+            Column::Json { data, .. } => Value::Json(data[index].clone()),
+            Column::Array { data, .. } => Value::Array(data[index].clone()),
+            Column::Struct { data, .. } => Value::Struct(data[index].clone()),
+            Column::Geography { data, .. } => Value::Geography(data[index].clone()),
+            Column::Interval { data, .. } => Value::Interval(data[index].clone()),
+        })
+    }
+
+    pub fn get_value(&self, index: usize) -> Value {
+        if index >= self.len() || self.is_null(index) {
+            return Value::Null;
+        }
+
+        match self {
+            Column::Bool { data, .. } => Value::Bool(data[index]),
+            Column::Int64 { data, .. } => Value::Int64(data[index]),
+            Column::Float64 { data, .. } => Value::float64(data[index]),
+            Column::Numeric { data, .. } => Value::Numeric(data[index]),
+            Column::String { data, .. } => Value::String(data[index].clone()),
+            Column::Bytes { data, .. } => Value::Bytes(data[index].clone()),
+            Column::Date { data, .. } => Value::Date(data[index]),
+            Column::Time { data, .. } => Value::Time(data[index]),
+            Column::DateTime { data, .. } => Value::DateTime(data[index]),
+            Column::Timestamp { data, .. } => Value::Timestamp(data[index]),
+            Column::Json { data, .. } => Value::Json(data[index].clone()),
+            Column::Array { data, .. } => Value::Array(data[index].clone()),
+            Column::Struct { data, .. } => Value::Struct(data[index].clone()),
+            Column::Geography { data, .. } => Value::Geography(data[index].clone()),
+            Column::Interval { data, .. } => Value::Interval(data[index].clone()),
+        }
     }
 
     pub fn push(&mut self, value: Value) -> Result<()> {
-        if value.is_null() {
-            return self.push_null();
-        }
-
-        match self {
-            Column::Bool { data, nulls } => {
-                if let Some(v) = value.as_bool() {
-                    data.push(if v { 1 } else { 0 });
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
+        match (self, value) {
+            (Column::Bool { data, nulls }, Value::Null) => {
+                data.push(false);
+                nulls.push(true);
             }
-            Column::Int64 { data, nulls } => {
-                if let Some(v) = value.as_i64() {
-                    data.push(v);
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(n) = value.as_numeric() {
-                    if n.fract().is_zero()
-                        && let Ok(v) = i64::try_from(n)
-                    {
-                        data.push(v);
-                        nulls.push(true);
-                        return Ok(());
-                    }
-                    Err(Error::invalid_query(format!(
-                        "Cannot convert NUMERIC {} to INT64",
-                        n
-                    )))
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Float64 { data, nulls } => {
-                if let Some(f) = value.as_f64() {
-                    data.push(f);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Numeric { data, nulls, .. } => {
-                if let Some(d) = value.as_numeric() {
-                    data.push(d);
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(f) = value.as_f64() {
-                    if let Ok(decimal) = Decimal::try_from(f) {
-                        data.push(decimal);
-                        nulls.push(true);
-                        Ok(())
-                    } else {
-                        Err(Error::invalid_query(format!(
-                            "Cannot convert {} to Numeric",
-                            f
-                        )))
-                    }
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::String { data, nulls } => {
-                if let Some(s) = value.as_str() {
-                    data.push(s.to_string());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Bytes { data, nulls } => {
-                if let Some(v) = value.as_bytes() {
-                    data.push(v.to_vec());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Unknown { nulls } => {
-                let null_count = nulls.len();
-                let target_type = value.data_type();
-                let mut new_col = Column::new(&target_type, null_count + 1);
-                for _ in 0..null_count {
-                    new_col.push_null()?;
-                }
-                new_col.push(value)?;
-                *self = new_col;
-                Ok(())
-            }
-            Column::Date { data, nulls } => {
-                if let Some(v) = value.as_date() {
-                    data.push(v);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Timestamp { data, nulls } => {
-                if let Some(v) = value.as_timestamp() {
-                    data.push(v);
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(v) = value.as_datetime() {
-                    data.push(v);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::DateTime { data, nulls } => {
-                if let Some(v) = value.as_datetime() {
-                    data.push(v);
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(v) = value.as_timestamp() {
-                    data.push(v);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Time { data, nulls } => {
-                if let Some(v) = value.as_time() {
-                    data.push(v);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Uuid { data, nulls } => {
-                if let Some(v) = value.as_uuid() {
-                    data.push(*v);
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(s) = value.as_str() {
-                    match uuid::Uuid::parse_str(s) {
-                        Ok(uuid_val) => {
-                            data.push(uuid_val);
-                            nulls.push(true);
-                            Ok(())
-                        }
-                        Err(e) => Err(Error::invalid_query(format!(
-                            "Invalid UUID string '{}': {}",
-                            s, e
-                        ))),
-                    }
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Json { data, nulls } => {
-                if let Some(v) = value.as_json() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(s) = value.as_str() {
-                    match serde_json::from_str(s) {
-                        Ok(json_val) => {
-                            data.push(json_val);
-                            nulls.push(true);
-                            Ok(())
-                        }
-                        Err(e) => Err(Error::InvalidOperation(format!(
-                            "Invalid JSON string: {}",
-                            e
-                        ))),
-                    }
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Array {
-                data,
-                nulls,
-                element_type: _,
-            } => {
-                if let Some(v) = value.as_array() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Vector {
-                data,
-                nulls,
-                dimensions,
-            } => {
-                if let Some(v) = value.as_array() {
-                    Self::validate_vector_value(v, *dimensions)?;
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(v) = value.as_vector() {
-                    if *dimensions != 0 && v.len() != *dimensions {
-                        return Err(Error::invalid_query(format!(
-                            "VECTOR dimension mismatch: expected {}, got {}",
-                            dimensions,
-                            v.len()
-                        )));
-                    }
-                    let as_values: Vec<Value> = v.iter().map(|f| Value::float64(*f)).collect();
-                    data.push(as_values);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected VECTOR({}), got {}",
-                        dimensions,
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Geography { data, nulls } => {
-                if let Some(v) = value.as_geography() {
-                    data.push(v.to_string());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Struct { data, nulls } => {
-                if let Some(v) = value.as_struct() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Interval { data, nulls } => {
-                if let Some(v) = value.as_interval() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Hstore { data, nulls } => {
-                if let Some(v) = value.as_hstore() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::MacAddr { data, nulls } => {
-                if let Some(v) = value.as_macaddr() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::MacAddr8 { data, nulls } => {
-                if let Some(v) = value.as_macaddr8() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Inet { data, nulls } => {
-                if let Some(v) = value.as_inet() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(s) = value.as_str() {
-                    match yachtsql_core::types::network::InetAddr::from_str(s) {
-                        Ok(inet) => {
-                            data.push(inet);
-                            nulls.push(true);
-                            Ok(())
-                        }
-                        Err(e) => Err(Error::invalid_query(format!(
-                            "cannot parse '{}' as INET: {}",
-                            s, e
-                        ))),
-                    }
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Cidr { data, nulls } => {
-                if let Some(v) = value.as_cidr() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(s) = value.as_str() {
-                    match yachtsql_core::types::network::CidrAddr::from_str(s) {
-                        Ok(cidr) => {
-                            data.push(cidr);
-                            nulls.push(true);
-                            Ok(())
-                        }
-                        Err(e) => Err(Error::invalid_query(format!(
-                            "cannot parse '{}' as CIDR: {}",
-                            s, e
-                        ))),
-                    }
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Enum { data, nulls, .. } => {
-                if let Some(s) = value.as_str() {
-                    data.push(s.to_string());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Point { data, nulls } => {
-                if let Some(v) = value.as_point() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::PgBox { data, nulls } => {
-                if let Some(v) = value.as_pgbox() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Circle { data, nulls } => {
-                if let Some(v) = value.as_circle() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Line { data, nulls } => {
-                if let Some(v) = value.as_line() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Lseg { data, nulls } => {
-                if let Some(v) = value.as_lseg() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Path { data, nulls } => {
-                if let Some(v) = value.as_path() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Polygon { data, nulls } => {
-                if let Some(v) = value.as_polygon() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Map { data, nulls, .. } => {
-                if let Some(v) = value.as_map() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Range { data, nulls, .. } => {
-                if let Some(v) = value.as_range() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::IPv4 { data, nulls } => {
-                if let Some(v) = value.as_ipv4() {
-                    data.push(*v);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::IPv6 { data, nulls } => {
-                if let Some(v) = value.as_ipv6() {
-                    data.push(*v);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Date32 { data, nulls } => {
-                if let Some(v) = value.as_date32() {
-                    data.push(*v);
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoPoint { data, nulls } => {
-                if let Some(v) = value.as_geo_point() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoRing { data, nulls } => {
-                if let Some(v) = value.as_geo_ring() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoPolygon { data, nulls } => {
-                if let Some(v) = value.as_geo_polygon() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoMultiPolygon { data, nulls } => {
-                if let Some(v) = value.as_geo_multipolygon() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::FixedString {
-                data,
-                nulls,
-                length,
-            } => {
-                if let Some(fs) = value.as_fixed_string() {
-                    data.push(FixedStringData::new(fs.data.clone(), *length));
-                    nulls.push(true);
-                    Ok(())
-                } else if let Some(s) = value.as_str() {
-                    data.push(FixedStringData::from_str(s, *length));
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Multirange { data, nulls, .. } => {
-                if let Some(v) = value.as_multirange() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::TsVector { data, nulls } => {
-                if let Some(v) = value.as_tsvector() {
-                    data.push(v.to_string());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::TsQuery { data, nulls } => {
-                if let Some(v) = value.as_tsquery() {
-                    data.push(v.to_string());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-        }
-    }
-
-    fn push_null(&mut self) -> Result<()> {
-        match self {
-            Column::Bool { data, nulls } => {
-                data.push(0);
+            (Column::Bool { data, nulls }, Value::Bool(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Int64 { data, nulls } => {
+            (Column::Int64 { data, nulls }, Value::Null) => {
                 data.push(0);
+                nulls.push(true);
+            }
+            (Column::Int64 { data, nulls }, Value::Int64(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Float64 { data, nulls } => {
+            (Column::Float64 { data, nulls }, Value::Null) => {
                 data.push(0.0);
+                nulls.push(true);
+            }
+            (Column::Float64 { data, nulls }, Value::Float64(v)) => {
+                data.push(v.0);
                 nulls.push(false);
             }
-            Column::Numeric { data, nulls, .. } => {
+            (Column::Float64 { data, nulls }, Value::Int64(v)) => {
+                data.push(v as f64);
+                nulls.push(false);
+            }
+            (Column::Numeric { data, nulls }, Value::Null) => {
                 data.push(Decimal::ZERO);
+                nulls.push(true);
+            }
+            (Column::Numeric { data, nulls }, Value::Numeric(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::String { data, nulls } => {
+            (Column::String { data, nulls }, Value::Null) => {
                 data.push(String::new());
+                nulls.push(true);
+            }
+            (Column::String { data, nulls }, Value::String(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Bytes { data, nulls } => {
+            (Column::Bytes { data, nulls }, Value::Null) => {
                 data.push(Vec::new());
+                nulls.push(true);
+            }
+            (Column::Bytes { data, nulls }, Value::Bytes(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Unknown { nulls } => {
+            (Column::Date { data, nulls }, Value::Null) => {
+                data.push(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
+                nulls.push(true);
+            }
+            (Column::Date { data, nulls }, Value::Date(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Date { data, nulls } => {
-                data.push(NaiveDate::default());
+            (Column::Time { data, nulls }, Value::Null) => {
+                data.push(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+                nulls.push(true);
+            }
+            (Column::Time { data, nulls }, Value::Time(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::DateTime { data, nulls } => {
-                data.push(DateTime::<Utc>::default());
+            (Column::DateTime { data, nulls }, Value::Null) => {
+                data.push(chrono::DateTime::UNIX_EPOCH.naive_utc());
+                nulls.push(true);
+            }
+            (Column::DateTime { data, nulls }, Value::DateTime(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Time { data, nulls } => {
-                data.push(NaiveTime::default());
+            (Column::Timestamp { data, nulls }, Value::Null) => {
+                data.push(DateTime::UNIX_EPOCH);
+                nulls.push(true);
+            }
+            (Column::Timestamp { data, nulls }, Value::Timestamp(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Timestamp { data, nulls } => {
-                data.push(DateTime::<Utc>::default());
-                nulls.push(false);
-            }
-            Column::Uuid { data, nulls } => {
-                data.push(uuid::Uuid::nil());
-                nulls.push(false);
-            }
-            Column::Json { data, nulls } => {
+            (Column::Json { data, nulls }, Value::Null) => {
                 data.push(serde_json::Value::Null);
+                nulls.push(true);
+            }
+            (Column::Json { data, nulls }, Value::Json(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Array { data, nulls, .. } => {
+            (Column::Array { data, nulls, .. }, Value::Null) => {
                 data.push(Vec::new());
+                nulls.push(true);
+            }
+            (Column::Array { data, nulls, .. }, Value::Array(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Vector {
-                data,
-                nulls,
-                dimensions,
-            } => {
-                data.push(vec![Value::float64(0.0); *dimensions]);
-                nulls.push(false);
-            }
-            Column::Geography { data, nulls } => {
-                data.push(String::new());
-                nulls.push(false);
-            }
-            Column::Struct { data, nulls } => {
-                data.push(IndexMap::new());
-                nulls.push(false);
-            }
-            Column::Interval { data, nulls } => {
-                data.push(Interval::default());
-                nulls.push(false);
-            }
-            Column::Hstore { data, nulls } => {
-                data.push(IndexMap::new());
-                nulls.push(false);
-            }
-            Column::MacAddr { data, nulls } => {
-                data.push(yachtsql_core::types::MacAddress::new_macaddr([
-                    0, 0, 0, 0, 0, 0,
-                ]));
-                nulls.push(false);
-            }
-            Column::MacAddr8 { data, nulls } => {
-                data.push(yachtsql_core::types::MacAddress::new_macaddr8([
-                    0, 0, 0, 0, 0, 0, 0, 0,
-                ]));
-                nulls.push(false);
-            }
-            Column::Inet { data, nulls } => {
-                data.push(yachtsql_core::types::network::InetAddr::new(
-                    std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-                ));
-                nulls.push(false);
-            }
-            Column::Cidr { data, nulls } => {
-                data.push(
-                    yachtsql_core::types::network::CidrAddr::new(
-                        std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-                        0,
-                    )
-                    .unwrap(),
-                );
-                nulls.push(false);
-            }
-            Column::Enum { data, nulls, .. } => {
-                data.push(String::new());
-                nulls.push(false);
-            }
-            Column::Point { data, nulls } => {
-                data.push(yachtsql_core::types::PgPoint::new(0.0, 0.0));
-                nulls.push(false);
-            }
-            Column::PgBox { data, nulls } => {
-                data.push(yachtsql_core::types::PgBox::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                ));
-                nulls.push(false);
-            }
-            Column::Circle { data, nulls } => {
-                data.push(yachtsql_core::types::PgCircle::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    0.0,
-                ));
-                nulls.push(false);
-            }
-            Column::Line { data, nulls } => {
-                data.push(yachtsql_core::types::PgLine::new(0.0, 0.0, 0.0));
-                nulls.push(false);
-            }
-            Column::Lseg { data, nulls } => {
-                data.push(yachtsql_core::types::PgLseg::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                ));
-                nulls.push(false);
-            }
-            Column::Path { data, nulls } => {
-                data.push(yachtsql_core::types::PgPath::new(Vec::new(), false));
-                nulls.push(false);
-            }
-            Column::Polygon { data, nulls } => {
-                data.push(yachtsql_core::types::PgPolygon::new(Vec::new()));
-                nulls.push(false);
-            }
-            Column::Map { data, nulls, .. } => {
+            (Column::Struct { data, nulls, .. }, Value::Null) => {
                 data.push(Vec::new());
+                nulls.push(true);
+            }
+            (Column::Struct { data, nulls, .. }, Value::Struct(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::Range {
-                data,
-                nulls,
-                range_type,
-            } => {
-                data.push(yachtsql_core::types::Range {
-                    range_type: range_type.clone(),
-                    lower: None,
-                    upper: None,
-                    lower_inclusive: false,
-                    upper_inclusive: false,
+            (Column::Geography { data, nulls }, Value::Null) => {
+                data.push(String::new());
+                nulls.push(true);
+            }
+            (Column::Geography { data, nulls }, Value::Geography(v)) => {
+                data.push(v);
+                nulls.push(false);
+            }
+            (Column::Interval { data, nulls }, Value::Null) => {
+                data.push(IntervalValue {
+                    months: 0,
+                    days: 0,
+                    nanos: 0,
                 });
+                nulls.push(true);
+            }
+            (Column::Interval { data, nulls }, Value::Interval(v)) => {
+                data.push(v);
                 nulls.push(false);
             }
-            Column::IPv4 { data, nulls } => {
-                data.push(yachtsql_core::types::IPv4Addr(0));
-                nulls.push(false);
-            }
-            Column::IPv6 { data, nulls } => {
-                data.push(yachtsql_core::types::IPv6Addr(0));
-                nulls.push(false);
-            }
-            Column::Date32 { data, nulls } => {
-                data.push(yachtsql_core::types::Date32Value(0));
-                nulls.push(false);
-            }
-            Column::GeoPoint { data, nulls } => {
-                data.push(yachtsql_core::types::GeoPointValue { x: 0.0, y: 0.0 });
-                nulls.push(false);
-            }
-            Column::GeoRing { data, nulls } => {
-                data.push(Vec::new());
-                nulls.push(false);
-            }
-            Column::GeoPolygon { data, nulls } => {
-                data.push(Vec::new());
-                nulls.push(false);
-            }
-            Column::GeoMultiPolygon { data, nulls } => {
-                data.push(Vec::new());
-                nulls.push(false);
-            }
-            Column::FixedString {
-                data,
-                nulls,
-                length,
-            } => {
-                data.push(FixedStringData::new(vec![], *length));
-                nulls.push(false);
-            }
-            Column::Multirange {
-                data,
-                nulls,
-                multirange_type,
-            } => {
-                data.push(yachtsql_core::types::Multirange {
-                    multirange_type: multirange_type.clone(),
-                    ranges: Vec::new(),
-                });
-                nulls.push(false);
-            }
-            Column::TsVector { data, nulls } => {
-                data.push(String::new());
-                nulls.push(false);
-            }
-            Column::TsQuery { data, nulls } => {
-                data.push(String::new());
-                nulls.push(false);
+            (col, val) => {
+                return Err(Error::type_mismatch(format!(
+                    "Cannot push {:?} to column of type {:?}",
+                    val.data_type(),
+                    col.data_type()
+                )));
             }
         }
         Ok(())
     }
 
-    pub fn update(&mut self, index: usize, value: Value) -> Result<()> {
-        if index >= self.len() {
-            return Err(Error::InvalidOperation(format!(
-                "Index {} out of bounds",
-                index
-            )));
-        }
-
-        if value.is_null() {
-            return self.update_null(index);
-        }
-
-        match self {
-            Column::Bool { data, nulls } => {
-                if let Some(v) = value.as_bool() {
-                    data[index] = if v { 1 } else { 0 };
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
+    pub fn set(&mut self, index: usize, value: Value) -> Result<()> {
+        match (self, value) {
+            (Column::Bool { data, nulls }, Value::Null) => {
+                data[index] = false;
+                nulls.set(index, true);
             }
-            Column::Int64 { data, nulls } => {
-                if let Some(v) = value.as_i64() {
-                    data[index] = v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Float64 { data, nulls } => {
-                if let Some(f) = value.as_f64() {
-                    data[index] = f;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Numeric { data, nulls, .. } => {
-                if let Some(d) = value.as_numeric() {
-                    data[index] = d;
-                    nulls.set(index, true);
-                    Ok(())
-                } else if let Some(f) = value.as_f64() {
-                    if let Ok(decimal) = Decimal::try_from(f) {
-                        data[index] = decimal;
-                        nulls.set(index, true);
-                        Ok(())
-                    } else {
-                        Err(Error::invalid_query(format!(
-                            "Cannot convert {} to Numeric",
-                            f
-                        )))
-                    }
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::String { data, nulls } => {
-                if let Some(s) = value.as_str() {
-                    data[index] = s.to_string();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Bytes { data, nulls } => {
-                if let Some(v) = value.as_bytes() {
-                    data[index] = v.to_vec();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Unknown { .. } => Err(Error::invalid_query(
-                "Unknown column type can only contain NULL values".to_string(),
-            )),
-            Column::Date { data, nulls } => {
-                if let Some(v) = value.as_date() {
-                    data[index] = v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Timestamp { data, nulls } => {
-                if let Some(v) = value.as_timestamp() {
-                    data[index] = v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else if let Some(v) = value.as_datetime() {
-                    data[index] = v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::DateTime { data, nulls } => {
-                if let Some(v) = value.as_datetime() {
-                    data[index] = v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else if let Some(v) = value.as_timestamp() {
-                    data[index] = v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Time { data, nulls } => {
-                if let Some(v) = value.as_time() {
-                    data[index] = v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Uuid { data, nulls } => {
-                if let Some(v) = value.as_uuid() {
-                    data[index] = *v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Json { data, nulls } => {
-                if let Some(v) = value.as_json() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else if let Some(s) = value.as_str() {
-                    match serde_json::from_str(s) {
-                        Ok(json_val) => {
-                            data[index] = json_val;
-                            nulls.set(index, true);
-                            Ok(())
-                        }
-                        Err(e) => Err(Error::InvalidOperation(format!(
-                            "Invalid JSON string: {}",
-                            e
-                        ))),
-                    }
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Array {
-                data,
-                nulls,
-                element_type: _,
-            } => {
-                if let Some(v) = value.as_array() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Vector {
-                data,
-                nulls,
-                dimensions,
-            } => {
-                if let Some(v) = value.as_array() {
-                    Self::validate_vector_value(v, *dimensions)?;
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else if let Some(v) = value.as_vector() {
-                    if *dimensions != 0 && v.len() != *dimensions {
-                        return Err(Error::invalid_query(format!(
-                            "VECTOR dimension mismatch: expected {}, got {}",
-                            dimensions,
-                            v.len()
-                        )));
-                    }
-                    let as_values: Vec<Value> = v.iter().map(|f| Value::float64(*f)).collect();
-                    data[index] = as_values;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected VECTOR({}), got {}",
-                        dimensions,
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Geography { data, nulls } => {
-                if let Some(v) = value.as_geography() {
-                    data[index] = v.to_string();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Struct { data, nulls } => {
-                if let Some(v) = value.as_struct() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Interval { data, nulls } => {
-                if let Some(v) = value.as_interval() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Hstore { data, nulls } => {
-                if let Some(v) = value.as_hstore() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::MacAddr { data, nulls } => {
-                if let Some(v) = value.as_macaddr() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::MacAddr8 { data, nulls } => {
-                if let Some(v) = value.as_macaddr8() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Inet { data, nulls } => {
-                if let Some(v) = value.as_inet() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Cidr { data, nulls } => {
-                if let Some(v) = value.as_cidr() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Enum { data, nulls, .. } => {
-                if let Some(s) = value.as_str() {
-                    data[index] = s.to_string();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Point { data, nulls } => {
-                if let Some(v) = value.as_point() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::PgBox { data, nulls } => {
-                if let Some(v) = value.as_pgbox() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Circle { data, nulls } => {
-                if let Some(v) = value.as_circle() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Line { data, nulls } => {
-                if let Some(v) = value.as_line() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Lseg { data, nulls } => {
-                if let Some(v) = value.as_lseg() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Path { data, nulls } => {
-                if let Some(v) = value.as_path() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Polygon { data, nulls } => {
-                if let Some(v) = value.as_polygon() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Map { data, nulls, .. } => {
-                if let Some(v) = value.as_map() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Range { data, nulls, .. } => {
-                if let Some(v) = value.as_range() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::IPv4 { data, nulls } => {
-                if let Some(v) = value.as_ipv4() {
-                    data[index] = *v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::IPv6 { data, nulls } => {
-                if let Some(v) = value.as_ipv6() {
-                    data[index] = *v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Date32 { data, nulls } => {
-                if let Some(v) = value.as_date32() {
-                    data[index] = *v;
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoPoint { data, nulls } => {
-                if let Some(v) = value.as_geo_point() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoRing { data, nulls } => {
-                if let Some(v) = value.as_geo_ring() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoPolygon { data, nulls } => {
-                if let Some(v) = value.as_geo_polygon() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::GeoMultiPolygon { data, nulls } => {
-                if let Some(v) = value.as_geo_multipolygon() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::FixedString {
-                data,
-                nulls,
-                length,
-            } => {
-                if let Some(fs) = value.as_fixed_string() {
-                    data[index] = FixedStringData::new(fs.data.clone(), *length);
-                    nulls.set(index, true);
-                    Ok(())
-                } else if let Some(s) = value.as_str() {
-                    data[index] = FixedStringData::from_str(s, *length);
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::Multirange { data, nulls, .. } => {
-                if let Some(v) = value.as_multirange() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::TsVector { data, nulls } => {
-                if let Some(v) = value.as_tsvector() {
-                    data[index] = v.to_string();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::TsQuery { data, nulls } => {
-                if let Some(v) = value.as_tsquery() {
-                    data[index] = v.to_string();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-        }
-    }
-
-    fn update_null(&mut self, index: usize) -> Result<()> {
-        match self {
-            Column::Bool { data, nulls } => {
-                data[index] = 0;
+            (Column::Bool { data, nulls }, Value::Bool(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Int64 { data, nulls } => {
+            (Column::Int64 { data, nulls }, Value::Null) => {
                 data[index] = 0;
+                nulls.set(index, true);
+            }
+            (Column::Int64 { data, nulls }, Value::Int64(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Float64 { data, nulls } => {
+            (Column::Float64 { data, nulls }, Value::Null) => {
                 data[index] = 0.0;
+                nulls.set(index, true);
+            }
+            (Column::Float64 { data, nulls }, Value::Float64(v)) => {
+                data[index] = v.0;
                 nulls.set(index, false);
             }
-            Column::Numeric { data, nulls, .. } => {
+            (Column::Numeric { data, nulls }, Value::Null) => {
                 data[index] = Decimal::ZERO;
+                nulls.set(index, true);
+            }
+            (Column::Numeric { data, nulls }, Value::Numeric(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::String { data, nulls } => {
+            (Column::String { data, nulls }, Value::Null) => {
                 data[index] = String::new();
+                nulls.set(index, true);
+            }
+            (Column::String { data, nulls }, Value::String(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Bytes { data, nulls } => {
+            (Column::Bytes { data, nulls }, Value::Null) => {
                 data[index] = Vec::new();
+                nulls.set(index, true);
+            }
+            (Column::Bytes { data, nulls }, Value::Bytes(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Unknown { nulls } => {
+            (Column::Date { data, nulls }, Value::Null) => {
+                data[index] = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+                nulls.set(index, true);
+            }
+            (Column::Date { data, nulls }, Value::Date(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Date { data, nulls } => {
-                data[index] = NaiveDate::default();
+            (Column::Time { data, nulls }, Value::Null) => {
+                data[index] = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+                nulls.set(index, true);
+            }
+            (Column::Time { data, nulls }, Value::Time(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::DateTime { data, nulls } => {
-                data[index] = DateTime::<Utc>::default();
+            (Column::DateTime { data, nulls }, Value::Null) => {
+                data[index] = chrono::DateTime::UNIX_EPOCH.naive_utc();
+                nulls.set(index, true);
+            }
+            (Column::DateTime { data, nulls }, Value::DateTime(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Time { data, nulls } => {
-                data[index] = NaiveTime::default();
+            (Column::Timestamp { data, nulls }, Value::Null) => {
+                data[index] = DateTime::UNIX_EPOCH;
+                nulls.set(index, true);
+            }
+            (Column::Timestamp { data, nulls }, Value::Timestamp(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Timestamp { data, nulls } => {
-                data[index] = DateTime::<Utc>::default();
-                nulls.set(index, false);
-            }
-            Column::Uuid { data, nulls } => {
-                data[index] = uuid::Uuid::nil();
-                nulls.set(index, false);
-            }
-            Column::Json { data, nulls } => {
+            (Column::Json { data, nulls }, Value::Null) => {
                 data[index] = serde_json::Value::Null;
+                nulls.set(index, true);
+            }
+            (Column::Json { data, nulls }, Value::Json(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Array { data, nulls, .. } => {
+            (Column::Array { data, nulls, .. }, Value::Null) => {
                 data[index] = Vec::new();
+                nulls.set(index, true);
+            }
+            (Column::Array { data, nulls, .. }, Value::Array(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Vector {
-                data,
-                nulls,
-                dimensions,
-            } => {
-                data[index] = vec![Value::float64(0.0); *dimensions];
-                nulls.set(index, false);
-            }
-            Column::Geography { data, nulls } => {
-                data[index] = String::new();
-                nulls.set(index, false);
-            }
-            Column::Struct { data, nulls } => {
-                data[index] = IndexMap::new();
-                nulls.set(index, false);
-            }
-            Column::Interval { data, nulls } => {
-                data[index] = Interval::default();
-                nulls.set(index, false);
-            }
-            Column::Hstore { data, nulls } => {
-                data[index] = IndexMap::new();
-                nulls.set(index, false);
-            }
-            Column::MacAddr { data, nulls } => {
-                data[index] = yachtsql_core::types::MacAddress::new_macaddr([0, 0, 0, 0, 0, 0]);
-                nulls.set(index, false);
-            }
-            Column::MacAddr8 { data, nulls } => {
-                data[index] =
-                    yachtsql_core::types::MacAddress::new_macaddr8([0, 0, 0, 0, 0, 0, 0, 0]);
-                nulls.set(index, false);
-            }
-            Column::Inet { data, nulls } => {
-                data[index] = yachtsql_core::types::network::InetAddr::new(std::net::IpAddr::V4(
-                    std::net::Ipv4Addr::new(0, 0, 0, 0),
-                ));
-                nulls.set(index, false);
-            }
-            Column::Cidr { data, nulls } => {
-                data[index] = yachtsql_core::types::network::CidrAddr::new(
-                    std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-                    0,
-                )
-                .unwrap();
-                nulls.set(index, false);
-            }
-            Column::Enum { data, nulls, .. } => {
-                data[index] = String::new();
-                nulls.set(index, false);
-            }
-            Column::Point { data, nulls } => {
-                data[index] = yachtsql_core::types::PgPoint::new(0.0, 0.0);
-                nulls.set(index, false);
-            }
-            Column::PgBox { data, nulls } => {
-                data[index] = yachtsql_core::types::PgBox::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                );
-                nulls.set(index, false);
-            }
-            Column::Circle { data, nulls } => {
-                data[index] = yachtsql_core::types::PgCircle::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    0.0,
-                );
-                nulls.set(index, false);
-            }
-            Column::Line { data, nulls } => {
-                data[index] = yachtsql_core::types::PgLine::new(0.0, 0.0, 0.0);
-                nulls.set(index, false);
-            }
-            Column::Lseg { data, nulls } => {
-                data[index] = yachtsql_core::types::PgLseg::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                );
-                nulls.set(index, false);
-            }
-            Column::Path { data, nulls } => {
-                data[index] = yachtsql_core::types::PgPath::new(Vec::new(), false);
-                nulls.set(index, false);
-            }
-            Column::Polygon { data, nulls } => {
-                data[index] = yachtsql_core::types::PgPolygon::new(Vec::new());
-                nulls.set(index, false);
-            }
-            Column::Map { data, nulls, .. } => {
+            (Column::Struct { data, nulls, .. }, Value::Null) => {
                 data[index] = Vec::new();
+                nulls.set(index, true);
+            }
+            (Column::Struct { data, nulls, .. }, Value::Struct(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::Range {
-                data,
-                nulls,
-                range_type,
-            } => {
-                data[index] = yachtsql_core::types::Range {
-                    range_type: range_type.clone(),
-                    lower: None,
-                    upper: None,
-                    lower_inclusive: false,
-                    upper_inclusive: false,
+            (Column::Geography { data, nulls }, Value::Null) => {
+                data[index] = String::new();
+                nulls.set(index, true);
+            }
+            (Column::Geography { data, nulls }, Value::Geography(v)) => {
+                data[index] = v;
+                nulls.set(index, false);
+            }
+            (Column::Interval { data, nulls }, Value::Null) => {
+                data[index] = IntervalValue {
+                    months: 0,
+                    days: 0,
+                    nanos: 0,
                 };
+                nulls.set(index, true);
+            }
+            (Column::Interval { data, nulls }, Value::Interval(v)) => {
+                data[index] = v;
                 nulls.set(index, false);
             }
-            Column::IPv4 { data, nulls } => {
-                data[index] = yachtsql_core::types::IPv4Addr(0);
-                nulls.set(index, false);
-            }
-            Column::IPv6 { data, nulls } => {
-                data[index] = yachtsql_core::types::IPv6Addr(0);
-                nulls.set(index, false);
-            }
-            Column::Date32 { data, nulls } => {
-                data[index] = yachtsql_core::types::Date32Value(0);
-                nulls.set(index, false);
-            }
-            Column::GeoPoint { data, nulls } => {
-                data[index] = yachtsql_core::types::GeoPointValue { x: 0.0, y: 0.0 };
-                nulls.set(index, false);
-            }
-            Column::GeoRing { data, nulls } => {
-                data[index] = Vec::new();
-                nulls.set(index, false);
-            }
-            Column::GeoPolygon { data, nulls } => {
-                data[index] = Vec::new();
-                nulls.set(index, false);
-            }
-            Column::GeoMultiPolygon { data, nulls } => {
-                data[index] = Vec::new();
-                nulls.set(index, false);
-            }
-            Column::FixedString {
-                data,
-                nulls,
-                length,
-            } => {
-                data[index] = FixedStringData::new(vec![], *length);
-                nulls.set(index, false);
-            }
-            Column::Multirange {
-                data,
-                nulls,
-                multirange_type,
-            } => {
-                data[index] = yachtsql_core::types::Multirange {
-                    multirange_type: multirange_type.clone(),
-                    ranges: Vec::new(),
-                };
-                nulls.set(index, false);
-            }
-            Column::TsVector { data, nulls } => {
-                data[index] = String::new();
-                nulls.set(index, false);
-            }
-            Column::TsQuery { data, nulls } => {
-                data[index] = String::new();
-                nulls.set(index, false);
+            (col, val) => {
+                return Err(Error::type_mismatch(format!(
+                    "Cannot set {:?} in column of type {:?}",
+                    val.data_type(),
+                    col.data_type()
+                )));
             }
         }
         Ok(())
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        match self {
+            Column::Bool { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Int64 { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Float64 { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Numeric { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::String { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Bytes { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Date { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Time { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::DateTime { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Timestamp { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Json { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Array { data, nulls, .. } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Struct { data, nulls, .. } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Geography { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+            Column::Interval { data, nulls } => {
+                data.remove(index);
+                nulls.remove(index);
+            }
+        }
     }
 
     pub fn clear(&mut self) {
         match self {
             Column::Bool { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Int64 { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Unknown { nulls } => {
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Float64 { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
-            Column::Numeric { data, nulls, .. } => {
+            Column::Numeric { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::String { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Bytes { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Date { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::DateTime { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Time { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
+            }
+            Column::DateTime { data, nulls } => {
+                data.clear();
+                nulls.clear();
             }
             Column::Timestamp { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Uuid { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Json { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Array { data, nulls, .. } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
-            Column::Vector { data, nulls, .. } => {
+            Column::Struct { data, nulls, .. } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Struct { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Geography { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
             Column::Interval { data, nulls } => {
                 data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Hstore { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::MacAddr { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::MacAddr8 { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Inet { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Cidr { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Enum { data, nulls, .. } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Point { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::PgBox { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Circle { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Line { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Lseg { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Path { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Polygon { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Map { data, nulls, .. } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Range { data, nulls, .. } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::IPv4 { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::IPv6 { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Date32 { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::GeoPoint { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::GeoRing { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::GeoPolygon { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::GeoMultiPolygon { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::FixedString { data, nulls, .. } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::Multirange { data, nulls, .. } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::TsVector { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::TsQuery { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
+                nulls.clear();
             }
         }
-    }
-
-    pub fn get(&self, index: usize) -> Result<Value> {
-        if index >= self.len() {
-            return Err(Error::InvalidOperation(format!(
-                "Index {} out of bounds for column of length {}",
-                index,
-                self.len()
-            )));
-        }
-
-        let is_valid = self.nulls().is_valid(index);
-        if !is_valid {
-            return Ok(Value::null());
-        }
-
-        match self {
-            Column::Bool { data, .. } => Ok(Value::bool_val(data[index] != 0)),
-            Column::Int64 { data, .. } => Ok(Value::int64(data[index])),
-            Column::Unknown { .. } => Ok(Value::null()),
-            Column::Float64 { data, .. } => Ok(Value::float64(data[index])),
-            Column::Numeric { data, .. } => Ok(Value::numeric(data[index])),
-            Column::String { data, .. } => Ok(Value::string(data[index].clone())),
-            Column::Bytes { data, .. } => Ok(Value::bytes(data[index].clone())),
-            Column::Date { data, .. } => Ok(Value::date(data[index])),
-            Column::DateTime { data, .. } => Ok(Value::datetime(data[index])),
-            Column::Time { data, .. } => Ok(Value::time(data[index])),
-            Column::Timestamp { data, .. } => Ok(Value::timestamp(data[index])),
-            Column::Uuid { data, .. } => Ok(Value::uuid(data[index])),
-            Column::Json { data, .. } => Ok(Value::json(data[index].clone())),
-            Column::Array { data, .. } => Ok(Value::array(data[index].clone())),
-            Column::Vector { data, .. } => Ok(Value::array(data[index].clone())),
-            Column::Struct { data, .. } => Ok(Value::struct_val(data[index].clone())),
-            Column::Geography { data, .. } => Ok(Value::geography(data[index].clone())),
-            Column::Interval { data, .. } => Ok(Value::interval(data[index].clone())),
-            Column::Hstore { data, .. } => Ok(Value::hstore(data[index].clone())),
-            Column::MacAddr { data, .. } => Ok(Value::macaddr(data[index].clone())),
-            Column::MacAddr8 { data, .. } => Ok(Value::macaddr8(data[index].clone())),
-            Column::Inet { data, .. } => Ok(Value::inet(data[index].clone())),
-            Column::Cidr { data, .. } => Ok(Value::cidr(data[index].clone())),
-            Column::Enum { data, .. } => Ok(Value::string(data[index].clone())),
-            Column::Point { data, .. } => Ok(Value::point(data[index].clone())),
-            Column::PgBox { data, .. } => Ok(Value::pgbox(data[index].clone())),
-            Column::Circle { data, .. } => Ok(Value::circle(data[index].clone())),
-            Column::Line { data, .. } => Ok(Value::line(data[index].clone())),
-            Column::Lseg { data, .. } => Ok(Value::lseg(data[index].clone())),
-            Column::Path { data, .. } => Ok(Value::path(data[index].clone())),
-            Column::Polygon { data, .. } => Ok(Value::polygon(data[index].clone())),
-            Column::Map { data, .. } => Ok(Value::map(data[index].clone())),
-            Column::Range { data, .. } => Ok(Value::range(data[index].clone())),
-            Column::IPv4 { data, .. } => Ok(Value::ipv4(data[index])),
-            Column::IPv6 { data, .. } => Ok(Value::ipv6(data[index])),
-            Column::Date32 { data, .. } => Ok(Value::date32(data[index])),
-            Column::GeoPoint { data, .. } => Ok(Value::geo_point(data[index].clone())),
-            Column::GeoRing { data, .. } => Ok(Value::geo_ring(data[index].clone())),
-            Column::GeoPolygon { data, .. } => Ok(Value::geo_polygon(data[index].clone())),
-            Column::GeoMultiPolygon { data, .. } => {
-                Ok(Value::geo_multipolygon(data[index].clone()))
-            }
-            Column::FixedString { data, .. } => Ok(Value::fixed_string(data[index].clone())),
-            Column::Multirange { data, .. } => Ok(Value::multirange(data[index].clone())),
-            Column::TsVector { data, .. } => Ok(Value::tsvector(data[index].clone())),
-            Column::TsQuery { data, .. } => Ok(Value::tsquery(data[index].clone())),
-        }
-    }
-
-    pub fn slice(&self, start: usize, len: usize) -> Result<Column> {
-        if start + len > self.len() {
-            return Err(Error::InvalidOperation("Slice out of bounds".to_string()));
-        }
-
-        let nulls = self.nulls().slice(start, len);
-
-        match self {
-            Column::Bool { data, .. } => {
-                let mut sliced_data = AVec::with_capacity(64, len);
-                sliced_data.extend_from_slice(&data[start..start + len]);
-                Ok(Column::Bool {
-                    data: sliced_data,
-                    nulls,
-                })
-            }
-            Column::Int64 { data, .. } => {
-                let mut sliced_data = AVec::with_capacity(64, len);
-                sliced_data.extend_from_slice(&data[start..start + len]);
-                Ok(Column::Int64 {
-                    data: sliced_data,
-                    nulls,
-                })
-            }
-            Column::Float64 { data, .. } => {
-                let mut sliced_data = AVec::with_capacity(64, len);
-                sliced_data.extend_from_slice(&data[start..start + len]);
-                Ok(Column::Float64 {
-                    data: sliced_data,
-                    nulls,
-                })
-            }
-            Column::Numeric {
-                data,
-                precision_scale,
-                ..
-            } => Ok(Column::Numeric {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                precision_scale: *precision_scale,
-            }),
-            Column::String { data, .. } => Ok(Column::String {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Bytes { data, .. } => Ok(Column::Bytes {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Uuid { data, .. } => Ok(Column::Uuid {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Json { data, .. } => Ok(Column::Json {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Geography { data, .. } => Ok(Column::Geography {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Unknown { .. } => Ok(Column::Unknown { nulls }),
-            Column::Date { data, .. } => Ok(Column::Date {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::DateTime { data, .. } => Ok(Column::DateTime {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Time { data, .. } => Ok(Column::Time {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Timestamp { data, .. } => Ok(Column::Timestamp {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Array {
-                data, element_type, ..
-            } => Ok(Column::Array {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                element_type: element_type.clone(),
-            }),
-            Column::Vector {
-                data, dimensions, ..
-            } => Ok(Column::Vector {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                dimensions: *dimensions,
-            }),
-            Column::Struct { data, .. } => Ok(Column::Struct {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Interval { data, .. } => Ok(Column::Interval {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Hstore { data, .. } => Ok(Column::Hstore {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::MacAddr { data, .. } => Ok(Column::MacAddr {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::MacAddr8 { data, .. } => Ok(Column::MacAddr8 {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Inet { data, .. } => Ok(Column::Inet {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Cidr { data, .. } => Ok(Column::Cidr {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Enum {
-                data,
-                type_name,
-                labels,
-                ..
-            } => Ok(Column::Enum {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                type_name: type_name.clone(),
-                labels: labels.clone(),
-            }),
-            Column::Point { data, .. } => Ok(Column::Point {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::PgBox { data, .. } => Ok(Column::PgBox {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Circle { data, .. } => Ok(Column::Circle {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Line { data, .. } => Ok(Column::Line {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Lseg { data, .. } => Ok(Column::Lseg {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Path { data, .. } => Ok(Column::Path {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Polygon { data, .. } => Ok(Column::Polygon {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Map {
-                data,
-                key_type,
-                value_type,
-                ..
-            } => Ok(Column::Map {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                key_type: key_type.clone(),
-                value_type: value_type.clone(),
-            }),
-            Column::Range {
-                data, range_type, ..
-            } => Ok(Column::Range {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                range_type: range_type.clone(),
-            }),
-            Column::IPv4 { data, .. } => Ok(Column::IPv4 {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::IPv6 { data, .. } => Ok(Column::IPv6 {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::Date32 { data, .. } => Ok(Column::Date32 {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::GeoPoint { data, .. } => Ok(Column::GeoPoint {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::GeoRing { data, .. } => Ok(Column::GeoRing {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::GeoPolygon { data, .. } => Ok(Column::GeoPolygon {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::GeoMultiPolygon { data, .. } => Ok(Column::GeoMultiPolygon {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::FixedString { data, length, .. } => Ok(Column::FixedString {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                length: *length,
-            }),
-            Column::Multirange {
-                data,
-                multirange_type,
-                ..
-            } => Ok(Column::Multirange {
-                data: data[start..start + len].to_vec(),
-                nulls,
-                multirange_type: multirange_type.clone(),
-            }),
-            Column::TsVector { data, .. } => Ok(Column::TsVector {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::TsQuery { data, .. } => Ok(Column::TsQuery {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-        }
-    }
-
-    pub fn gather(&self, indices: &[usize]) -> Result<Column> {
-        let nulls = self.nulls().gather(indices);
-
-        macro_rules! gather_avec {
-            ($data:expr, $variant:ident) => {{
-                let mut gathered_data = AVec::with_capacity(64, indices.len());
-                for &idx in indices {
-                    gathered_data.push($data[idx]);
-                }
-                Ok(Column::$variant {
-                    data: gathered_data,
-                    nulls,
-                })
-            }};
-        }
-
-        macro_rules! gather_copy {
-            ($data:expr, $variant:ident) => {{
-                let gathered_data = indices.iter().map(|&idx| $data[idx]).collect();
-                Ok(Column::$variant {
-                    data: gathered_data,
-                    nulls,
-                })
-            }};
-        }
-
-        macro_rules! gather_clone {
-            ($data:expr, $variant:ident) => {{
-                let gathered_data = indices.iter().map(|&idx| $data[idx].clone()).collect();
-                Ok(Column::$variant {
-                    data: gathered_data,
-                    nulls,
-                })
-            }};
-        }
-
-        match self {
-            Column::Bool { data, .. } => gather_avec!(data, Bool),
-            Column::Int64 { data, .. } => gather_avec!(data, Int64),
-            Column::Unknown { .. } => Ok(Column::Unknown { nulls }),
-            Column::Float64 { data, .. } => gather_avec!(data, Float64),
-            Column::Numeric {
-                data,
-                precision_scale,
-                ..
-            } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx]).collect();
-                Ok(Column::Numeric {
-                    data: gathered_data,
-                    nulls,
-                    precision_scale: *precision_scale,
-                })
-            }
-            Column::String { data, .. } => gather_clone!(data, String),
-            Column::Bytes { data, .. } => gather_clone!(data, Bytes),
-            Column::Date { data, .. } => gather_copy!(data, Date),
-            Column::DateTime { data, .. } => gather_copy!(data, DateTime),
-            Column::Time { data, .. } => gather_copy!(data, Time),
-            Column::Timestamp { data, .. } => gather_copy!(data, Timestamp),
-            Column::Uuid { data, .. } => gather_copy!(data, Uuid),
-            Column::Json { data, .. } => gather_clone!(data, Json),
-            Column::Array {
-                data, element_type, ..
-            } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::Array {
-                    data: gathered_data,
-                    nulls,
-                    element_type: element_type.clone(),
-                })
-            }
-            Column::Vector {
-                data, dimensions, ..
-            } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::Vector {
-                    data: gathered_data,
-                    nulls,
-                    dimensions: *dimensions,
-                })
-            }
-            Column::Struct { data, .. } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::Struct {
-                    data: gathered_data,
-                    nulls,
-                })
-            }
-            Column::Geography { data, .. } => gather_clone!(data, Geography),
-            Column::Interval { data, .. } => gather_clone!(data, Interval),
-            Column::Hstore { data, .. } => gather_clone!(data, Hstore),
-            Column::MacAddr { data, .. } => gather_clone!(data, MacAddr),
-            Column::MacAddr8 { data, .. } => gather_clone!(data, MacAddr8),
-            Column::Inet { data, .. } => gather_clone!(data, Inet),
-            Column::Cidr { data, .. } => gather_clone!(data, Cidr),
-            Column::Enum {
-                data,
-                type_name,
-                labels,
-                ..
-            } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::Enum {
-                    data: gathered_data,
-                    nulls,
-                    type_name: type_name.clone(),
-                    labels: labels.clone(),
-                })
-            }
-            Column::Point { data, .. } => gather_clone!(data, Point),
-            Column::PgBox { data, .. } => gather_clone!(data, PgBox),
-            Column::Circle { data, .. } => gather_clone!(data, Circle),
-            Column::Line { data, .. } => gather_clone!(data, Line),
-            Column::Lseg { data, .. } => gather_clone!(data, Lseg),
-            Column::Path { data, .. } => gather_clone!(data, Path),
-            Column::Polygon { data, .. } => gather_clone!(data, Polygon),
-            Column::Map {
-                data,
-                key_type,
-                value_type,
-                ..
-            } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::Map {
-                    data: gathered_data,
-                    nulls,
-                    key_type: key_type.clone(),
-                    value_type: value_type.clone(),
-                })
-            }
-            Column::Range {
-                data, range_type, ..
-            } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::Range {
-                    data: gathered_data,
-                    nulls,
-                    range_type: range_type.clone(),
-                })
-            }
-            Column::IPv4 { data, .. } => gather_clone!(data, IPv4),
-            Column::IPv6 { data, .. } => gather_clone!(data, IPv6),
-            Column::Date32 { data, .. } => gather_clone!(data, Date32),
-            Column::GeoPoint { data, .. } => gather_clone!(data, GeoPoint),
-            Column::GeoRing { data, .. } => gather_clone!(data, GeoRing),
-            Column::GeoPolygon { data, .. } => gather_clone!(data, GeoPolygon),
-            Column::GeoMultiPolygon { data, .. } => gather_clone!(data, GeoMultiPolygon),
-            Column::FixedString { data, length, .. } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::FixedString {
-                    data: gathered_data,
-                    nulls,
-                    length: *length,
-                })
-            }
-            Column::Multirange {
-                data,
-                multirange_type,
-                ..
-            } => {
-                let gathered_data = indices.iter().map(|&idx| data[idx].clone()).collect();
-                Ok(Column::Multirange {
-                    data: gathered_data,
-                    nulls,
-                    multirange_type: multirange_type.clone(),
-                })
-            }
-            Column::TsVector { data, .. } => gather_clone!(data, TsVector),
-            Column::TsQuery { data, .. } => gather_clone!(data, TsQuery),
-        }
-    }
-
-    pub fn append(&mut self, other: &Column) -> Result<()> {
-        if self.data_type() != other.data_type() {
-            return Err(Error::type_mismatch(self.data_type(), other.data_type()));
-        }
-
-        match (self, other) {
-            (
-                Column::Int64 {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Int64 {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Float64 {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Float64 {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::String {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::String {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Date {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Date {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::DateTime {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::DateTime {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Time {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Time {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Timestamp {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Timestamp {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Bytes {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Bytes {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Bool {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Bool {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Numeric {
-                    data: self_data,
-                    nulls: self_nulls,
-                    ..
-                },
-                Column::Numeric {
-                    data: other_data,
-                    nulls: other_nulls,
-                    ..
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Uuid {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Uuid {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Json {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Json {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Array {
-                    data: self_data,
-                    nulls: self_nulls,
-                    element_type: self_elem_type,
-                },
-                Column::Array {
-                    data: other_data,
-                    nulls: other_nulls,
-                    element_type: other_elem_type,
-                },
-            ) => {
-                if self_elem_type != other_elem_type {
-                    return Err(Error::InvalidOperation(format!(
-                        "Cannot append Array columns with different element types: {:?} vs {:?}",
-                        self_elem_type, other_elem_type
-                    )));
-                }
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Vector {
-                    data: self_data,
-                    nulls: self_nulls,
-                    dimensions: self_dims,
-                },
-                Column::Vector {
-                    data: other_data,
-                    nulls: other_nulls,
-                    dimensions: other_dims,
-                },
-            ) => {
-                if self_dims != other_dims {
-                    return Err(Error::InvalidOperation(format!(
-                        "Cannot append Vector columns with different dimensions: {} vs {}",
-                        self_dims, other_dims
-                    )));
-                }
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Geography {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Geography {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Struct {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Struct {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Map {
-                    data: self_data,
-                    nulls: self_nulls,
-                    ..
-                },
-                Column::Map {
-                    data: other_data,
-                    nulls: other_nulls,
-                    ..
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Unknown {
-                    nulls: self_nulls, ..
-                },
-                Column::Unknown {
-                    nulls: other_nulls, ..
-                },
-            ) => {
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Interval {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Interval {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Hstore {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Hstore {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::MacAddr {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::MacAddr {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::MacAddr8 {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::MacAddr8 {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Inet {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Inet {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Cidr {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Cidr {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Enum {
-                    data: self_data,
-                    nulls: self_nulls,
-                    labels: self_labels,
-                    type_name: self_type_name,
-                },
-                Column::Enum {
-                    data: other_data,
-                    nulls: other_nulls,
-                    labels: other_labels,
-                    type_name: other_type_name,
-                },
-            ) => {
-                if self_labels != other_labels || self_type_name != other_type_name {
-                    return Err(Error::InvalidOperation(
-                        "Cannot append Enum columns with different labels or type names"
-                            .to_string(),
-                    ));
-                }
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Point {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Point {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::PgBox {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::PgBox {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Circle {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Circle {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Range {
-                    data: self_data,
-                    nulls: self_nulls,
-                    range_type: self_range_type,
-                },
-                Column::Range {
-                    data: other_data,
-                    nulls: other_nulls,
-                    range_type: other_range_type,
-                },
-            ) => {
-                if self_range_type != other_range_type {
-                    return Err(Error::InvalidOperation(format!(
-                        "Cannot append Range columns with different range types: {:?} vs {:?}",
-                        self_range_type, other_range_type
-                    )));
-                }
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::IPv4 {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::IPv4 {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::IPv6 {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::IPv6 {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::Date32 {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Date32 {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::GeoPoint {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::GeoPoint {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::GeoRing {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::GeoRing {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::GeoPolygon {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::GeoPolygon {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::GeoMultiPolygon {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::GeoMultiPolygon {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::FixedString {
-                    data: self_data,
-                    nulls: self_nulls,
-                    length: self_length,
-                },
-                Column::FixedString {
-                    data: other_data,
-                    nulls: other_nulls,
-                    length: other_length,
-                },
-            ) => {
-                if self_length != other_length {
-                    return Err(Error::InvalidOperation(
-                        "Cannot append FixedString columns with different lengths".to_string(),
-                    ));
-                }
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (left, right) => {
-                panic!(
-                    "Append not implemented for type combination: {:?} and {:?}",
-                    std::mem::discriminant(left),
-                    std::mem::discriminant(right)
-                )
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn enum_ordinal(&self, index: usize) -> Option<usize> {
-        match self {
-            Column::Enum {
-                data,
-                labels,
-                nulls,
-                ..
-            } => {
-                if !nulls.is_valid(index) {
-                    return None;
-                }
-                let value = &data[index];
-                labels.iter().position(|l| l == value)
-            }
-            _ => None,
-        }
-    }
-
-    pub fn is_enum(&self) -> bool {
-        matches!(self, Column::Enum { .. })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_column_creation() {
-        let col = Column::new(&DataType::Int64, 10);
-        assert_eq!(col.data_type(), DataType::Int64);
-        assert_eq!(col.len(), 0);
-        assert!(col.is_empty());
-    }
-
-    #[test]
-    fn test_push_and_get() {
-        let mut col = Column::new(&DataType::Int64, 10);
-        col.push(Value::int64(42)).unwrap();
-        col.push(Value::null()).unwrap();
-        col.push(Value::int64(100)).unwrap();
-
-        assert_eq!(col.len(), 3);
-        assert_eq!(col.get(0).unwrap(), Value::int64(42));
-        assert_eq!(col.get(1).unwrap(), Value::null());
-        assert_eq!(col.get(2).unwrap(), Value::int64(100));
-    }
-
-    #[test]
-    fn test_null_count() {
-        let mut col = Column::new(&DataType::Int64, 10);
-        col.push(Value::int64(1)).unwrap();
-        col.push(Value::null()).unwrap();
-        col.push(Value::null()).unwrap();
-        col.push(Value::int64(2)).unwrap();
-
-        assert_eq!(col.null_count(), 2);
-    }
-
-    #[test]
-    fn test_slice() {
-        let mut col = Column::new(&DataType::Int64, 10);
-        for i in 0..10 {
-            col.push(Value::int64(i)).unwrap();
-        }
-
-        let sliced = col.slice(2, 5).unwrap();
-        assert_eq!(sliced.len(), 5);
-        assert_eq!(sliced.get(0).unwrap(), Value::int64(2));
-        assert_eq!(sliced.get(4).unwrap(), Value::int64(6));
-    }
-
-    #[test]
-    fn test_gather() {
-        let mut col = Column::new(&DataType::Int64, 10);
-        for i in 0..10 {
-            col.push(Value::int64(i)).unwrap();
-        }
-
-        let gathered = col.gather(&[0, 2, 5, 9]).unwrap();
-        assert_eq!(gathered.len(), 4);
-        assert_eq!(gathered.get(0).unwrap(), Value::int64(0));
-        assert_eq!(gathered.get(1).unwrap(), Value::int64(2));
-        assert_eq!(gathered.get(2).unwrap(), Value::int64(5));
-        assert_eq!(gathered.get(3).unwrap(), Value::int64(9));
     }
 }

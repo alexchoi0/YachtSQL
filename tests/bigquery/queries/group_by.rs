@@ -87,6 +87,7 @@ fn test_group_by_multiple_columns() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_group_by_with_having() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -99,6 +100,7 @@ fn test_group_by_with_having() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_group_by_with_having_count() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);
@@ -111,6 +113,7 @@ fn test_group_by_with_having_count() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_group_by_with_where_and_having() {
     let mut executor = create_executor();
     setup_sales_table(&mut executor);

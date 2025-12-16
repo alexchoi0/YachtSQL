@@ -1,609 +1,309 @@
-use yachtsql_core::types::DataType;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use yachtsql_common::types::DataType;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expr {
+    Literal(Literal),
+
     Column {
-        name: String,
         table: Option<String>,
+        name: String,
+        index: Option<usize>,
     },
-    Literal(LiteralValue),
+
     BinaryOp {
         left: Box<Expr>,
         op: BinaryOp,
         right: Box<Expr>,
     },
+
     UnaryOp {
         op: UnaryOp,
         expr: Box<Expr>,
     },
-    Function {
-        name: crate::function::FunctionName,
+
+    ScalarFunction {
+        name: ScalarFunction,
         args: Vec<Expr>,
     },
+
     Aggregate {
-        name: crate::function::FunctionName,
+        func: AggregateFunction,
         args: Vec<Expr>,
         distinct: bool,
-        order_by: Option<Vec<OrderByExpr>>,
-        filter: Option<Box<Expr>>,
     },
+
     Case {
         operand: Option<Box<Expr>>,
-        when_then: Vec<(Expr, Expr)>,
-        else_expr: Option<Box<Expr>>,
+        when_clauses: Vec<WhenClause>,
+        else_result: Option<Box<Expr>>,
     },
+
+    Cast {
+        expr: Box<Expr>,
+        data_type: DataType,
+    },
+
+    IsNull {
+        expr: Box<Expr>,
+        negated: bool,
+    },
+
     InList {
         expr: Box<Expr>,
         list: Vec<Expr>,
         negated: bool,
     },
+
     Between {
         expr: Box<Expr>,
         low: Box<Expr>,
         high: Box<Expr>,
         negated: bool,
     },
-    Wildcard,
-    QualifiedWildcard {
-        qualifier: String,
-    },
-    ExpressionWildcard {
+
+    Like {
         expr: Box<Expr>,
-    },
-    Tuple(Vec<Expr>),
-    Cast {
-        expr: Box<Expr>,
-        data_type: CastDataType,
-    },
-    TryCast {
-        expr: Box<Expr>,
-        data_type: CastDataType,
-    },
-    Subquery {
-        plan: Box<crate::plan::PlanNode>,
-    },
-    Exists {
-        plan: Box<crate::plan::PlanNode>,
+        pattern: Box<Expr>,
         negated: bool,
+        case_insensitive: bool,
     },
-    InSubquery {
+
+    Alias {
         expr: Box<Expr>,
-        plan: Box<crate::plan::PlanNode>,
-        negated: bool,
+        name: String,
     },
-    TupleInList {
-        tuple: Vec<Expr>,
-        list: Vec<Vec<Expr>>,
-        negated: bool,
+
+    Wildcard {
+        table: Option<String>,
     },
-    TupleInSubquery {
-        tuple: Vec<Expr>,
-        plan: Box<crate::plan::PlanNode>,
-        negated: bool,
-    },
-    InTable {
-        expr: Box<Expr>,
-        table_name: String,
-        negated: bool,
-    },
-    WindowFunction {
-        name: crate::function::FunctionName,
-        args: Vec<Expr>,
-        partition_by: Vec<Expr>,
-        order_by: Vec<OrderByExpr>,
-        frame_units: Option<WindowFrameUnits>,
-        frame_start_offset: Option<i64>,
-        frame_end_offset: Option<i64>,
-        exclude: Option<ExcludeMode>,
-        null_treatment: Option<NullTreatment>,
-    },
-    ArrayIndex {
-        array: Box<Expr>,
-        index: Box<Expr>,
-        safe: bool,
-    },
-    ArraySlice {
-        array: Box<Expr>,
-        start: Option<Box<Expr>>,
-        end: Option<Box<Expr>>,
-    },
-    StructLiteral {
-        fields: Vec<StructLiteralField>,
-    },
-    StructFieldAccess {
-        expr: Box<Expr>,
-        field: String,
-    },
-    TupleElementAccess {
-        expr: Box<Expr>,
-        index: usize,
-    },
-    AnyOp {
-        left: Box<Expr>,
-        compare_op: BinaryOp,
-        right: Box<Expr>,
-    },
-    AllOp {
-        left: Box<Expr>,
-        compare_op: BinaryOp,
-        right: Box<Expr>,
-    },
-    ScalarSubquery {
-        subquery: Box<crate::plan::PlanNode>,
-    },
-    ArraySubquery {
-        subquery: Box<crate::plan::PlanNode>,
-    },
-    Grouping {
-        column: String,
-    },
-    GroupingId {
-        columns: Vec<String>,
-    },
-    Excluded {
-        column: String,
-    },
-    IsDistinctFrom {
-        left: Box<Expr>,
-        right: Box<Expr>,
-        negated: bool,
-    },
-    Lambda {
-        params: Vec<String>,
-        body: Box<Expr>,
-    },
+
+    Subquery(Box<crate::plan::LogicalPlan>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct WithFill {
-    pub from: Option<Expr>,
-    pub to: Option<Expr>,
-    pub step: Option<Expr>,
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WhenClause {
+    pub condition: Expr,
+    pub result: Expr,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct OrderByExpr {
-    pub expr: Expr,
-    pub asc: Option<bool>,
-    pub nulls_first: Option<bool>,
-    pub collation: Option<String>,
-    pub with_fill: Option<WithFill>,
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Literal {
+    Null,
+    Bool(bool),
+    Int64(i64),
+    Float64(ordered_float::OrderedFloat<f64>),
+    Numeric(Decimal),
+    String(String),
+    Bytes(Vec<u8>),
+    Date(i32),
+    Time(i64),
+    Timestamp(i64),
+    Array(Vec<Literal>),
+    Struct(Vec<(String, Literal)>),
+    Json(serde_json::Value),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ExcludeMode {
-    #[default]
-    NoOthers,
-    CurrentRow,
-    Group,
-    Ties,
+impl Literal {
+    pub fn data_type(&self) -> DataType {
+        match self {
+            Literal::Null => DataType::Unknown,
+            Literal::Bool(_) => DataType::Bool,
+            Literal::Int64(_) => DataType::Int64,
+            Literal::Float64(_) => DataType::Float64,
+            Literal::Numeric(_) => DataType::Numeric(None),
+            Literal::String(_) => DataType::String,
+            Literal::Bytes(_) => DataType::Bytes,
+            Literal::Date(_) => DataType::Date,
+            Literal::Time(_) => DataType::Time,
+            Literal::Timestamp(_) => DataType::Timestamp,
+            Literal::Array(elements) => {
+                let elem_type = elements
+                    .first()
+                    .map(|e| e.data_type())
+                    .unwrap_or(DataType::Unknown);
+                DataType::Array(Box::new(elem_type))
+            }
+            Literal::Struct(fields) => {
+                let struct_fields = fields
+                    .iter()
+                    .map(|(name, lit)| yachtsql_common::types::StructField {
+                        name: name.clone(),
+                        data_type: lit.data_type(),
+                    })
+                    .collect();
+                DataType::Struct(struct_fields)
+            }
+            Literal::Json(_) => DataType::Json,
+        }
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowFrameUnits {
-    Rows,
-    Range,
-    Groups,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum NullTreatment {
-    #[default]
-    RespectNulls,
-    IgnoreNulls,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CastDataType {
-    Int64,
-    Float64,
-    Numeric(Option<(u8, u8)>),
-    String,
-    Bytes,
-    Bool,
-    Date,
-    DateTime,
-    Time,
-    Timestamp,
-    TimestampTz,
-    Geography,
-    Json,
-    Array(Box<CastDataType>),
-    Vector(usize),
-    Interval,
-    Uuid,
-    Hstore,
-    MacAddr,
-    MacAddr8,
-    Inet,
-    Cidr,
-    Int4Range,
-    Int8Range,
-    NumRange,
-    TsRange,
-    TsTzRange,
-    DateRange,
-    Int4Multirange,
-    Int8Multirange,
-    NumMultirange,
-    TsMultirange,
-    TsTzMultirange,
-    DateMultirange,
-    Point,
-    PgBox,
-    Circle,
-    Xid,
-    Xid8,
-    Tid,
-    Cid,
-    Oid,
-    Custom(String, Vec<yachtsql_core::types::StructField>),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BinaryOp {
     Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
-    Equal,
-    NotEqual,
-    LessThan,
-    LessThanOrEqual,
-    GreaterThan,
-    GreaterThanOrEqual,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Eq,
+    NotEq,
+    Lt,
+    LtEq,
+    Gt,
+    GtEq,
     And,
     Or,
+    Concat,
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
     ShiftLeft,
     ShiftRight,
-    Like,
-    NotLike,
-    ILike,
-    NotILike,
-    SimilarTo,
-    NotSimilarTo,
-    Concat,
-    RegexMatch,
-    RegexNotMatch,
-    RegexMatchI,
-    RegexNotMatchI,
-    In,
-    NotIn,
-    VectorL2Distance,
-    VectorInnerProduct,
-    VectorCosineDistance,
-    ArrayContains,
-    ArrayContainedBy,
-    ArrayOverlap,
-    GeometricDistance,
-    GeometricContains,
-    GeometricContainedBy,
-    GeometricOverlap,
-    GeometricParallel,
-    GeometricPerpendicular,
-    GeometricIntersects,
-    HashMinus,
-    RangeAdjacent,
-    RangeStrictlyLeft,
-    RangeStrictlyRight,
-    InetContains,
-    InetContainedBy,
-    InetContainsOrEqual,
-    InetContainedByOrEqual,
-    InetOverlap,
-    TSVectorMatch,
-    TSQueryAnd,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum UnaryOp {
     Not,
-    Negate,
+    Minus,
     Plus,
-    IsNull,
-    IsNotNull,
     BitwiseNot,
-    TSQueryNot,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum LiteralValue {
-    Null,
-    Boolean(bool),
-    Int64(i64),
-    Float64(f64),
-    Numeric(rust_decimal::Decimal),
-    String(String),
-    Bytes(Vec<u8>),
-    Date(String),
-    Time(String),
-    DateTime(String),
-    Timestamp(String),
-    Uuid(String),
-    Json(String),
-    Array(Vec<Expr>),
-    Vector(Vec<f64>),
-    Interval(String),
-    Range(String),
-    Point(String),
-    PgBox(String),
-    Circle(String),
-    Line(String),
-    Lseg(String),
-    Path(String),
-    Polygon(String),
-    MacAddr(String),
-    MacAddr8(String),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AggregateFunction {
+    Count,
+    Sum,
+    Avg,
+    Min,
+    Max,
+    ArrayAgg,
+    StringAgg,
+    AnyValue,
 }
 
-impl LiteralValue {
-    pub fn to_value(&self) -> yachtsql_core::types::Value {
-        use yachtsql_core::types::Value;
-
-        match self {
-            LiteralValue::Null => Value::null(),
-            LiteralValue::Boolean(b) => Value::bool_val(*b),
-            LiteralValue::Int64(i) => Value::int64(*i),
-            LiteralValue::Float64(f) => Value::float64(*f),
-            LiteralValue::Numeric(d) => Value::numeric(*d),
-            LiteralValue::String(s) => Value::string(s.clone()),
-            LiteralValue::Bytes(b) => Value::bytes(b.clone()),
-            LiteralValue::Date(s) => {
-                if let Ok(date) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-                    Value::date(date)
-                } else {
-                    Value::null()
-                }
-            }
-            LiteralValue::Time(s) => {
-                if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M:%S") {
-                    Value::time(time)
-                } else if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M:%S%.f") {
-                    Value::time(time)
-                } else if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M") {
-                    Value::time(time)
-                } else {
-                    Value::null()
-                }
-            }
-            LiteralValue::DateTime(s) => yachtsql_core::types::parse_timestamp_to_utc(s)
-                .map(Value::datetime)
-                .unwrap_or(Value::null()),
-            LiteralValue::Timestamp(s) => yachtsql_core::types::parse_timestamp_to_utc(s)
-                .map(Value::timestamp)
-                .unwrap_or(Value::null()),
-            LiteralValue::Json(s) => match serde_json::from_str(s) {
-                Ok(json_val) => Value::json(json_val),
-                Err(_) => Value::null(),
-            },
-            LiteralValue::Array(elements) => {
-                let mut values = Vec::with_capacity(elements.len());
-                for element in elements {
-                    match element {
-                        Expr::Literal(inner) => {
-                            values.push(inner.to_value());
-                        }
-                        _ => {
-                            return Value::null();
-                        }
-                    }
-                }
-                Value::array(values)
-            }
-            LiteralValue::Uuid(s) => yachtsql_core::types::parse_uuid_literal(s),
-            LiteralValue::Vector(values) => Value::vector(values.clone()),
-            LiteralValue::Interval(_s) => Value::null(),
-            LiteralValue::Range(_s) => Value::null(),
-            LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
-            LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
-            LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
-            LiteralValue::Line(s) => yachtsql_core::types::parse_line_literal(s),
-            LiteralValue::Lseg(s) => yachtsql_core::types::parse_lseg_literal(s),
-            LiteralValue::Path(s) => yachtsql_core::types::parse_path_literal(s),
-            LiteralValue::Polygon(s) => yachtsql_core::types::parse_polygon_literal(s),
-            LiteralValue::MacAddr(s) => match yachtsql_core::types::MacAddress::parse(s, false) {
-                Some(mac) => Value::macaddr(mac),
-                None => Value::null(),
-            },
-            LiteralValue::MacAddr8(s) => match yachtsql_core::types::MacAddress::parse(s, true) {
-                Some(mac) => Value::macaddr8(mac),
-                None => match yachtsql_core::types::MacAddress::parse(s, false) {
-                    Some(mac) => Value::macaddr8(mac.to_eui64()),
-                    None => Value::null(),
-                },
-            },
-        }
-    }
-
-    pub fn from_value(val: &yachtsql_core::types::Value) -> Self {
-        if val.is_null() {
-            LiteralValue::Null
-        } else if let Some(b) = val.as_bool() {
-            LiteralValue::Boolean(b)
-        } else if let Some(i) = val.as_i64() {
-            LiteralValue::Int64(i)
-        } else if let Some(f) = val.as_f64() {
-            LiteralValue::Float64(f)
-        } else if let Some(s) = val.as_str() {
-            LiteralValue::String(s.to_string())
-        } else if let Some(arr) = val.as_array() {
-            let elements: Vec<Expr> = arr
-                .iter()
-                .map(|v| Expr::Literal(LiteralValue::from_value(v)))
-                .collect();
-            LiteralValue::Array(elements)
-        } else {
-            LiteralValue::Null
-        }
-    }
-
-    pub fn as_f64(&self) -> Option<f64> {
-        match self {
-            LiteralValue::Float64(f) => Some(*f),
-            LiteralValue::Int64(i) => Some(*i as f64),
-            LiteralValue::Numeric(d) => d.to_string().parse().ok(),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct StructLiteralField {
-    pub name: String,
-    pub expr: Expr,
-    pub declared_type: Option<DataType>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ScalarFunction {
+    Upper,
+    Lower,
+    Length,
+    Trim,
+    LTrim,
+    RTrim,
+    Substr,
+    Concat,
+    Replace,
+    Reverse,
+    Left,
+    Right,
+    Repeat,
+    StartsWith,
+    EndsWith,
+    Contains,
+    Abs,
+    Round,
+    Floor,
+    Ceil,
+    Sqrt,
+    Power,
+    Mod,
+    Sign,
+    Exp,
+    Ln,
+    Log,
+    Log10,
+    Coalesce,
+    IfNull,
+    NullIf,
+    If,
+    CurrentDate,
+    CurrentTimestamp,
+    CurrentTime,
+    Extract,
+    DateAdd,
+    DateSub,
+    DateDiff,
+    DateTrunc,
+    FormatDate,
+    FormatTimestamp,
+    ParseDate,
+    ParseTimestamp,
+    Custom(String),
 }
 
 impl Expr {
+    pub fn literal_null() -> Self {
+        Expr::Literal(Literal::Null)
+    }
+
+    pub fn literal_bool(v: bool) -> Self {
+        Expr::Literal(Literal::Bool(v))
+    }
+
+    pub fn literal_i64(v: i64) -> Self {
+        Expr::Literal(Literal::Int64(v))
+    }
+
+    pub fn literal_f64(v: f64) -> Self {
+        Expr::Literal(Literal::Float64(ordered_float::OrderedFloat(v)))
+    }
+
+    pub fn literal_string(v: impl Into<String>) -> Self {
+        Expr::Literal(Literal::String(v.into()))
+    }
+
     pub fn column(name: impl Into<String>) -> Self {
-        Self::Column {
-            name: name.into(),
+        Expr::Column {
             table: None,
+            name: name.into(),
+            index: None,
         }
     }
 
     pub fn qualified_column(table: impl Into<String>, name: impl Into<String>) -> Self {
-        Self::Column {
-            name: name.into(),
+        Expr::Column {
             table: Some(table.into()),
+            name: name.into(),
+            index: None,
         }
     }
 
-    pub fn literal(value: LiteralValue) -> Self {
-        Self::Literal(value)
-    }
-
-    pub fn binary_op(left: Expr, op: BinaryOp, right: Expr) -> Self {
-        Self::BinaryOp {
-            left: Box::new(left),
-            op,
-            right: Box::new(right),
+    pub fn alias(self, name: impl Into<String>) -> Self {
+        Expr::Alias {
+            expr: Box::new(self),
+            name: name.into(),
         }
     }
 
-    pub fn unary_op(op: UnaryOp, expr: Expr) -> Self {
-        Self::UnaryOp {
-            op,
-            expr: Box::new(expr),
+    pub fn eq(self, other: Expr) -> Self {
+        Expr::BinaryOp {
+            left: Box::new(self),
+            op: BinaryOp::Eq,
+            right: Box::new(other),
         }
     }
 
-    pub fn contains_subquery(&self) -> bool {
-        match self {
-            Expr::Subquery { .. }
-            | Expr::Exists { .. }
-            | Expr::InSubquery { .. }
-            | Expr::TupleInSubquery { .. }
-            | Expr::AnyOp { .. }
-            | Expr::AllOp { .. }
-            | Expr::ScalarSubquery { .. }
-            | Expr::ArraySubquery { .. } => true,
-
-            Expr::BinaryOp { left, right, .. } => {
-                left.contains_subquery() || right.contains_subquery()
-            }
-            Expr::UnaryOp { expr, .. } => expr.contains_subquery(),
-            Expr::Function { args, .. } | Expr::Aggregate { args, .. } => {
-                args.iter().any(|arg| arg.contains_subquery())
-            }
-            Expr::Case {
-                operand,
-                when_then,
-                else_expr,
-            } => {
-                operand.as_ref().is_some_and(|e| e.contains_subquery())
-                    || when_then
-                        .iter()
-                        .any(|(when, then)| when.contains_subquery() || then.contains_subquery())
-                    || else_expr.as_ref().is_some_and(|e| e.contains_subquery())
-            }
-            Expr::InList { expr, list, .. } => {
-                expr.contains_subquery() || list.iter().any(|e| e.contains_subquery())
-            }
-            Expr::TupleInList { tuple, list, .. } => {
-                tuple.iter().any(|e| e.contains_subquery())
-                    || list
-                        .iter()
-                        .any(|tuple| tuple.iter().any(|e| e.contains_subquery()))
-            }
-            Expr::Between {
-                expr, low, high, ..
-            } => expr.contains_subquery() || low.contains_subquery() || high.contains_subquery(),
-            Expr::Cast { expr, .. } | Expr::TryCast { expr, .. } => expr.contains_subquery(),
-            Expr::WindowFunction {
-                args,
-                partition_by,
-                order_by,
-                frame_units: _,
-                exclude: _,
-                ..
-            } => {
-                args.iter().any(|arg| arg.contains_subquery())
-                    || partition_by.iter().any(|e| e.contains_subquery())
-                    || order_by.iter().any(|ob| ob.expr.contains_subquery())
-            }
-            Expr::ArrayIndex { array, index, .. } => {
-                array.contains_subquery() || index.contains_subquery()
-            }
-            Expr::ArraySlice { array, start, end } => {
-                array.contains_subquery()
-                    || start.as_ref().is_some_and(|s| s.contains_subquery())
-                    || end.as_ref().is_some_and(|e| e.contains_subquery())
-            }
-            Expr::StructLiteral { fields } => {
-                fields.iter().any(|field| field.expr.contains_subquery())
-            }
-            Expr::StructFieldAccess { expr, .. } => expr.contains_subquery(),
-            Expr::TupleElementAccess { expr, .. } => expr.contains_subquery(),
-            Expr::Tuple(exprs) => exprs.iter().any(|e| e.contains_subquery()),
-            Expr::IsDistinctFrom { left, right, .. } => {
-                left.contains_subquery() || right.contains_subquery()
-            }
-
-            Expr::Lambda { body, .. } => body.contains_subquery(),
-
-            Expr::InTable { expr, .. } => expr.contains_subquery(),
-            Expr::ExpressionWildcard { expr } => expr.contains_subquery(),
-
-            Expr::Column { .. }
-            | Expr::Literal(_)
-            | Expr::Wildcard
-            | Expr::QualifiedWildcard { .. }
-            | Expr::Grouping { .. }
-            | Expr::GroupingId { .. }
-            | Expr::Excluded { .. } => false,
+    pub fn and(self, other: Expr) -> Self {
+        Expr::BinaryOp {
+            left: Box::new(self),
+            op: BinaryOp::And,
+            right: Box::new(other),
         }
     }
 
-    pub fn is_subquery_comparison(&self) -> bool {
-        matches!(self, Expr::AnyOp { .. } | Expr::AllOp { .. })
-    }
-
-    pub fn subquery_comparison_left(&self) -> Option<&Expr> {
-        match self {
-            Expr::AnyOp { left, .. } | Expr::AllOp { left, .. } => Some(left),
-            _ => None,
+    pub fn or(self, other: Expr) -> Self {
+        Expr::BinaryOp {
+            left: Box::new(self),
+            op: BinaryOp::Or,
+            right: Box::new(other),
         }
     }
+}
 
-    pub fn is_trivial(&self) -> bool {
-        matches!(
-            self,
-            Expr::Column { .. }
-                | Expr::Literal(_)
-                | Expr::Wildcard
-                | Expr::QualifiedWildcard { .. }
-        )
-    }
-
-    pub fn is_wildcard(&self) -> bool {
-        matches!(
-            self,
-            Expr::Wildcard | Expr::QualifiedWildcard { .. } | Expr::ExpressionWildcard { .. }
-        )
-    }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SortExpr {
+    pub expr: Expr,
+    pub asc: bool,
+    pub nulls_first: bool,
 }

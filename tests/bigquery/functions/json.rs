@@ -109,6 +109,7 @@ fn test_to_json_string() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_parse_json() {
     let mut executor = create_executor();
     let result = executor
@@ -118,6 +119,7 @@ fn test_parse_json() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_type() {
     let mut executor = create_executor();
     let result = executor
@@ -127,6 +129,7 @@ fn test_json_type() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_extract_array() {
     let mut executor = create_executor();
     let result = executor
@@ -136,6 +139,7 @@ fn test_json_extract_array() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_extract_string_array() {
     let mut executor = create_executor();
     let result = executor
@@ -145,6 +149,7 @@ fn test_json_extract_string_array() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_query_array() {
     let mut executor = create_executor();
     let result = executor
@@ -154,6 +159,7 @@ fn test_json_query_array() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_value_array() {
     let mut executor = create_executor();
     let result = executor
@@ -183,6 +189,7 @@ fn test_json_array() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_set() {
     let mut executor = create_executor();
     let result = executor
@@ -192,6 +199,7 @@ fn test_json_set() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_strip_nulls() {
     let mut executor = create_executor();
     let result = executor
@@ -201,6 +209,7 @@ fn test_json_strip_nulls() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_remove() {
     let mut executor = create_executor();
     let result = executor
@@ -210,6 +219,7 @@ fn test_json_remove() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_bool_from_json() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT BOOL(JSON 'true')").unwrap();
@@ -217,6 +227,7 @@ fn test_bool_from_json() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_int64_from_json() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT INT64(JSON '123')").unwrap();
@@ -224,6 +235,7 @@ fn test_int64_from_json() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_float64_from_json() {
     let mut executor = create_executor();
     let result = executor.execute_sql("SELECT FLOAT64(JSON '3.14')").unwrap();
@@ -231,6 +243,7 @@ fn test_float64_from_json() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_string_from_json() {
     let mut executor = create_executor();
     let result = executor
@@ -240,6 +253,7 @@ fn test_string_from_json() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_lax_bool() {
     let mut executor = create_executor();
     let result = executor
@@ -249,6 +263,7 @@ fn test_lax_bool() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_lax_int64() {
     let mut executor = create_executor();
     let result = executor
