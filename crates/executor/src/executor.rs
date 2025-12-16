@@ -2468,12 +2468,12 @@ impl QueryExecutor {
                     }
                 }
                 Expr::CompoundIdentifier(parts) => {
-                    if let Some(last) = parts.last() {
-                        let col_name = last.value.to_uppercase();
-                        if !projected_columns.contains(&col_name) {
+                    if let Some(first) = parts.first() {
+                        let base_col = first.value.to_uppercase();
+                        if !projected_columns.contains(&base_col) {
                             if input_schema.fields().iter().any(|f| {
-                                f.name.to_uppercase() == col_name
-                                    || f.name.to_uppercase().ends_with(&format!(".{}", col_name))
+                                f.name.to_uppercase() == base_col
+                                    || f.name.to_uppercase().ends_with(&format!(".{}", base_col))
                             }) {
                                 return true;
                             }

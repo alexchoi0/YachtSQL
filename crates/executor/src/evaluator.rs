@@ -2114,22 +2114,24 @@ impl<'a> Evaluator<'a> {
         })
     }
 
-    fn numeric_op<F, G>(&self, left: &Value, right: &Value, int_op: F, float_op: G) -> Result<Value>
+    fn numeric_op<F, G, H>(
+        &self,
+        left: &Value,
+        right: &Value,
+        int_op: F,
+        float_op: G,
+        decimal_op: H,
+    ) -> Result<Value>
     where
         F: Fn(i64, i64) -> i64,
         G: Fn(f64, f64) -> f64,
+        H: Fn(rust_decimal::Decimal, rust_decimal::Decimal) -> rust_decimal::Decimal,
     {
         if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
             return Ok(Value::int64(int_op(l, r)));
         }
         if let (Some(l), Some(r)) = (left.as_numeric(), right.as_numeric()) {
-            use rust_decimal::prelude::ToPrimitive;
-            if let (Some(lf), Some(rf)) = (l.to_f64(), r.to_f64()) {
-                return Ok(Value::numeric(
-                    rust_decimal::Decimal::from_f64_retain(float_op(lf, rf))
-                        .unwrap_or(rust_decimal::Decimal::ZERO),
-                ));
-            }
+            return Ok(Value::numeric(decimal_op(l, r)));
         }
         let l = left
             .as_f64()
@@ -2228,7 +2230,7 @@ impl<'a> Evaluator<'a> {
             }));
         }
 
-        self.numeric_op(left, right, |a, b| a + b, |a, b| a + b)
+        self.numeric_op(left, right, |a, b| a + b, |a, b| a + b, |a, b| a + b)
     }
 
     fn sub_op(&self, left: &Value, right: &Value) -> Result<Value> {
@@ -2292,7 +2294,7 @@ impl<'a> Evaluator<'a> {
             }));
         }
 
-        self.numeric_op(left, right, |a, b| a - b, |a, b| a - b)
+        self.numeric_op(left, right, |a, b| a - b, |a, b| a - b, |a, b| a - b)
     }
 
     fn mul_op(&self, left: &Value, right: &Value) -> Result<Value> {
@@ -2318,7 +2320,7 @@ impl<'a> Evaluator<'a> {
             }
         }
 
-        self.numeric_op(left, right, |a, b| a * b, |a, b| a * b)
+        self.numeric_op(left, right, |a, b| a * b, |a, b| a * b, |a, b| a * b)
     }
 
     fn evaluate_unary_op(&self, op: &UnaryOperator, val: &Value) -> Result<Value> {
@@ -5703,7 +5705,14 @@ impl<'a> Evaluator<'a> {
                 }
                 Ok(Value::bool_val(false))
             }
-            "RANGE" => Ok(Value::string("RANGE".to_string())),
+            "RANGE" => {
+                let start = args.first().cloned().unwrap_or(Value::null());
+                let end = args.get(1).cloned().unwrap_or(Value::null());
+                Ok(Value::struct_val(vec![
+                    ("start".to_string(), start),
+                    ("end".to_string(), end),
+                ]))
+            }
             "JSON_ARRAY" => {
                 let json_arr: Vec<serde_json::Value> =
                     args.iter().map(|v| self.value_to_json(v)).collect();
@@ -6615,7 +6624,38 @@ impl<'a> Evaluator<'a> {
                 }
             }
             "RANGE_OVERLAPS" | "RANGE_CONTAINS" | "RANGE_INTERSECTS" => Ok(Value::bool_val(false)),
-            "RANGE_START" | "RANGE_END" => Ok(Value::null()),
+            "RANGE_START" => {
+                if args.is_empty() {
+                    return Ok(Value::null());
+                }
+                match &args[0] {
+                    Value::Struct(fields) => {
+                        for (name, val) in fields {
+                            if name == "start" {
+                                return Ok(val.clone());
+                            }
+                        }
+                        Ok(Value::null())
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
+            "RANGE_END" => {
+                if args.is_empty() {
+                    return Ok(Value::null());
+                }
+                match &args[0] {
+                    Value::Struct(fields) => {
+                        for (name, val) in fields {
+                            if name == "end" {
+                                return Ok(val.clone());
+                            }
+                        }
+                        Ok(Value::null())
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
             "ROW_NUMBER" | "RANK" | "DENSE_RANK" | "PERCENT_RANK" | "CUME_DIST" | "NTILE" => {
                 Ok(Value::int64(1))
             }
