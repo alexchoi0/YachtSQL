@@ -173,3 +173,80 @@ fn test_count_distinct() {
 
     assert_table_eq!(result, [[2]]);
 }
+
+#[test]
+fn test_count_if() {
+    let mut executor = create_executor();
+    setup_table(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT COUNT_IF(value > 20) FROM numbers")
+        .unwrap();
+
+    assert_table_eq!(result, [[3]]);
+}
+
+#[test]
+fn test_countif() {
+    let mut executor = create_executor();
+    setup_table(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT COUNTIF(value > 20) FROM numbers")
+        .unwrap();
+
+    assert_table_eq!(result, [[3]]);
+}
+
+#[test]
+fn test_sum_if() {
+    let mut executor = create_executor();
+    setup_table(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT SUM_IF(value, value > 20) FROM numbers")
+        .unwrap();
+
+    assert_table_eq!(result, [[120]]);
+}
+
+#[test]
+fn test_sumif() {
+    let mut executor = create_executor();
+    setup_table(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT SUMIF(value, value > 20) FROM numbers")
+        .unwrap();
+
+    assert_table_eq!(result, [[120]]);
+}
+
+#[test]
+fn test_listagg() {
+    let mut executor = create_executor();
+    setup_table(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT LISTAGG(category, ',') FROM numbers")
+        .unwrap();
+
+    assert_table_eq!(result, [["A,A,B,B,B"]]);
+}
+
+#[test]
+fn test_xmlagg() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE xml_data (content STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO xml_data VALUES ('<item>1</item>'), ('<item>2</item>'), ('<item>3</item>')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT XMLAGG(content) FROM xml_data")
+        .unwrap();
+
+    assert_table_eq!(result, [["<item>1</item><item>2</item><item>3</item>"]]);
+}

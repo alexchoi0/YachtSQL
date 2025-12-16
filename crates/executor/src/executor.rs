@@ -3233,40 +3233,7 @@ impl QueryExecutor {
                     return false;
                 }
                 let name = func.name.to_string().to_uppercase();
-                if matches!(
-                    name.as_str(),
-                    "COUNT"
-                        | "SUM"
-                        | "AVG"
-                        | "MIN"
-                        | "MAX"
-                        | "ARRAY_AGG"
-                        | "STRING_AGG"
-                        | "GROUP_CONCAT"
-                        | "STDDEV"
-                        | "STDDEV_POP"
-                        | "STDDEV_SAMP"
-                        | "VARIANCE"
-                        | "VAR_POP"
-                        | "VAR_SAMP"
-                        | "COVAR_POP"
-                        | "COVAR_SAMP"
-                        | "CORR"
-                        | "BIT_AND"
-                        | "BIT_OR"
-                        | "BIT_XOR"
-                        | "BOOL_AND"
-                        | "BOOL_OR"
-                        | "EVERY"
-                        | "ANY_VALUE"
-                        | "APPROX_COUNT_DISTINCT"
-                        | "APPROX_QUANTILES"
-                        | "APPROX_TOP_COUNT"
-                        | "APPROX_TOP_SUM"
-                        | "HLL_COUNT_INIT"
-                        | "HLL_COUNT_MERGE"
-                        | "HLL_COUNT_MERGE_PARTIAL"
-                ) {
+                if self.is_aggregate_function(&name) {
                     return true;
                 }
                 if let ast::FunctionArguments::List(arg_list) = &func.args {
@@ -4374,6 +4341,7 @@ impl QueryExecutor {
                 | "ARRAY_AGG"
                 | "STRING_AGG"
                 | "GROUP_CONCAT"
+                | "LISTAGG"
                 | "STDDEV"
                 | "STDDEV_POP"
                 | "STDDEV_SAMP"
@@ -4397,6 +4365,11 @@ impl QueryExecutor {
                 | "HLL_COUNT_INIT"
                 | "HLL_COUNT_MERGE"
                 | "HLL_COUNT_MERGE_PARTIAL"
+                | "COUNTIF"
+                | "COUNT_IF"
+                | "SUMIF"
+                | "SUM_IF"
+                | "XMLAGG"
         )
     }
 
@@ -5131,6 +5104,100 @@ impl QueryExecutor {
                     &merged_registers,
                 );
                 Ok(Value::string(format!("HLL_SKETCH:p14:{}", encoded)))
+            }
+            "LISTAGG" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("LISTAGG requires an argument".to_string())
+                })?;
+                let separator = self
+                    .extract_second_function_arg(func)
+                    .and_then(|e| {
+                        if let Some(row) = group_rows.first() {
+                            evaluator
+                                .evaluate(&e, row)
+                                .ok()
+                                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default();
+
+                let mut parts = Vec::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        parts.push(val.to_string());
+                    }
+                }
+
+                Ok(Value::string(parts.join(&separator)))
+            }
+            "COUNTIF" | "COUNT_IF" => {
+                let condition_expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("COUNT_IF requires a condition argument".to_string())
+                })?;
+                let mut count = 0i64;
+                for row in group_rows {
+                    let cond = evaluator.evaluate(&condition_expr, row)?;
+                    if let Some(b) = cond.as_bool() {
+                        if b {
+                            count += 1;
+                        }
+                    }
+                }
+                Ok(Value::int64(count))
+            }
+            "SUMIF" | "SUM_IF" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("SUM_IF requires an expression argument".to_string())
+                })?;
+                let condition_expr = self.extract_second_function_arg(func).ok_or_else(|| {
+                    Error::InvalidQuery("SUM_IF requires a condition argument".to_string())
+                })?;
+
+                let mut sum_int: Option<i64> = None;
+                let mut sum_float: Option<f64> = None;
+
+                for row in group_rows {
+                    let cond = evaluator.evaluate(&condition_expr, row)?;
+                    let cond_true = cond.as_bool().unwrap_or(false);
+                    if !cond_true {
+                        continue;
+                    }
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        sum_int = Some(sum_int.unwrap_or(0) + i);
+                    } else if let Some(f) = val.as_f64() {
+                        sum_float = Some(sum_float.unwrap_or(0.0) + f);
+                    }
+                }
+
+                if let Some(s) = sum_float {
+                    Ok(Value::float64(s + sum_int.unwrap_or(0) as f64))
+                } else if let Some(s) = sum_int {
+                    Ok(Value::int64(s))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "XMLAGG" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("XMLAGG requires an argument".to_string())
+                })?;
+
+                let mut parts = Vec::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        parts.push(val.to_string());
+                    }
+                }
+
+                Ok(Value::string(parts.join("")))
             }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Aggregate function {} not yet supported",
@@ -6825,6 +6892,12 @@ impl QueryExecutor {
                 };
                 Ok(Value::interval(interval_val))
             }
+            Expr::Function(_) => {
+                let schema = Schema::default();
+                let record = Record::from_values(vec![]);
+                let evaluator = Evaluator::new(&schema);
+                evaluator.evaluate(expr, &record)
+            }
             Expr::BinaryOp { left, op, right } => {
                 let left_val = self.evaluate_literal_expr(left)?;
                 let right_val = self.evaluate_literal_expr(right)?;
@@ -7204,6 +7277,16 @@ impl QueryExecutor {
                 Ok(DataType::Struct(struct_fields))
             }
             ast::DataType::Interval { .. } => Ok(DataType::Interval),
+            ast::DataType::Custom(name, _) => {
+                let type_name = name.to_string().to_uppercase();
+                match type_name.as_str() {
+                    "GEOGRAPHY" => Ok(DataType::Geography),
+                    _ => Err(Error::UnsupportedFeature(format!(
+                        "Data type not yet supported: {:?}",
+                        sql_type
+                    ))),
+                }
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Data type not yet supported: {:?}",
                 sql_type
