@@ -80,6 +80,17 @@ pub enum Expr {
     },
 
     Subquery(Box<crate::plan::LogicalPlan>),
+
+    InSubquery {
+        expr: Box<Expr>,
+        subquery: Box<crate::plan::LogicalPlan>,
+        negated: bool,
+    },
+
+    Exists {
+        subquery: Box<crate::plan::LogicalPlan>,
+        negated: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

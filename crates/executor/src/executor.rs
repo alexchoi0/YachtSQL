@@ -1467,16 +1467,31 @@ impl QueryExecutor {
 
         let filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
             let substituted_selection = self.substitute_variables(selection);
-            let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
-            input_rows
-                .iter()
-                .filter(|row| {
-                    evaluator
-                        .evaluate_to_bool(&resolved_selection, row)
-                        .unwrap_or(false)
-                })
-                .cloned()
-                .collect()
+            if self.has_correlated_subqueries(&substituted_selection) {
+                let mut result_rows = Vec::new();
+                for row in &input_rows {
+                    let resolved = self.resolve_subqueries_with_context(
+                        &substituted_selection,
+                        &input_schema,
+                        row,
+                    )?;
+                    if evaluator.evaluate_to_bool(&resolved, row).unwrap_or(false) {
+                        result_rows.push(row.clone());
+                    }
+                }
+                result_rows
+            } else {
+                let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
+                input_rows
+                    .iter()
+                    .filter(|row| {
+                        evaluator
+                            .evaluate_to_bool(&resolved_selection, row)
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+                    .collect()
+            }
         } else {
             input_rows.clone()
         };
@@ -1534,16 +1549,31 @@ impl QueryExecutor {
 
         let filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
             let substituted_selection = self.substitute_variables(selection);
-            let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
-            input_rows
-                .iter()
-                .filter(|row| {
-                    evaluator
-                        .evaluate_to_bool(&resolved_selection, row)
-                        .unwrap_or(false)
-                })
-                .cloned()
-                .collect()
+            if self.has_correlated_subqueries(&substituted_selection) {
+                let mut result_rows = Vec::new();
+                for row in &input_rows {
+                    let resolved = self.resolve_subqueries_with_context(
+                        &substituted_selection,
+                        &input_schema,
+                        row,
+                    )?;
+                    if evaluator.evaluate_to_bool(&resolved, row).unwrap_or(false) {
+                        result_rows.push(row.clone());
+                    }
+                }
+                result_rows
+            } else {
+                let resolved_selection = self.resolve_scalar_subqueries(&substituted_selection)?;
+                input_rows
+                    .iter()
+                    .filter(|row| {
+                        evaluator
+                            .evaluate_to_bool(&resolved_selection, row)
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+                    .collect()
+            }
         } else {
             input_rows.clone()
         };
@@ -5418,7 +5448,285 @@ impl QueryExecutor {
                 let resolved = self.resolve_scalar_subqueries(inner)?;
                 Ok(Expr::IsNotNull(Box::new(resolved)))
             }
+            Expr::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_scalar_subqueries(expr)?;
+                let result = self.execute_query(subquery)?;
+                let rows = result.to_records()?;
+
+                if result.schema().field_count() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "IN subquery must return exactly one column".to_string(),
+                    ));
+                }
+
+                let list: Vec<Expr> = rows
+                    .iter()
+                    .map(|row| self.value_to_expr(&row.values()[0]))
+                    .collect();
+
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list,
+                    negated: *negated,
+                })
+            }
+            Expr::Exists { subquery, negated } => {
+                let result = self.execute_query(subquery)?;
+                let rows = result.to_records()?;
+                let exists = !rows.is_empty();
+                let bool_result = if *negated { !exists } else { exists };
+                Ok(Expr::Value(SqlValue::Boolean(bool_result).into()))
+            }
+            Expr::InList {
+                expr,
+                list,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_scalar_subqueries(expr)?;
+                let resolved_list: Result<Vec<Expr>> = list
+                    .iter()
+                    .map(|e| self.resolve_scalar_subqueries(e))
+                    .collect();
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list: resolved_list?,
+                    negated: *negated,
+                })
+            }
             _ => Ok(expr.clone()),
+        }
+    }
+
+    fn resolve_subqueries_with_context(
+        &self,
+        expr: &Expr,
+        schema: &Schema,
+        row: &Record,
+    ) -> Result<Expr> {
+        match expr {
+            Expr::Subquery(query) => {
+                let substituted = self.substitute_outer_refs_in_query(query, schema, row);
+                let result = self.execute_query(&substituted)?;
+                let rows = result.to_records()?;
+                if rows.len() != 1 || result.schema().field_count() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "Scalar subquery must return exactly one row and one column".to_string(),
+                    ));
+                }
+                let value = rows[0].values()[0].clone();
+                Ok(self.value_to_expr(&value))
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let resolved_left = self.resolve_subqueries_with_context(left, schema, row)?;
+                let resolved_right = self.resolve_subqueries_with_context(right, schema, row)?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(resolved_left),
+                    op: op.clone(),
+                    right: Box::new(resolved_right),
+                })
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                let resolved = self.resolve_subqueries_with_context(inner, schema, row)?;
+                Ok(Expr::UnaryOp {
+                    op: *op,
+                    expr: Box::new(resolved),
+                })
+            }
+            Expr::Nested(inner) => {
+                let resolved = self.resolve_subqueries_with_context(inner, schema, row)?;
+                Ok(Expr::Nested(Box::new(resolved)))
+            }
+            Expr::InSubquery {
+                expr: in_expr,
+                subquery,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_subqueries_with_context(in_expr, schema, row)?;
+                let substituted = self.substitute_outer_refs_in_query(subquery, schema, row);
+                let result = self.execute_query(&substituted)?;
+                let rows = result.to_records()?;
+
+                if result.schema().field_count() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "IN subquery must return exactly one column".to_string(),
+                    ));
+                }
+
+                let list: Vec<Expr> = rows
+                    .iter()
+                    .map(|r| self.value_to_expr(&r.values()[0]))
+                    .collect();
+
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list,
+                    negated: *negated,
+                })
+            }
+            Expr::Exists { subquery, negated } => {
+                let substituted = self.substitute_outer_refs_in_query(subquery, schema, row);
+                let result = self.execute_query(&substituted)?;
+                let rows = result.to_records()?;
+                let exists = !rows.is_empty();
+                let bool_result = if *negated { !exists } else { exists };
+                Ok(Expr::Value(SqlValue::Boolean(bool_result).into()))
+            }
+            Expr::InList {
+                expr: in_expr,
+                list,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_subqueries_with_context(in_expr, schema, row)?;
+                let resolved_list: Result<Vec<Expr>> = list
+                    .iter()
+                    .map(|e| self.resolve_subqueries_with_context(e, schema, row))
+                    .collect();
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list: resolved_list?,
+                    negated: *negated,
+                })
+            }
+            Expr::Between {
+                expr: between_expr,
+                low,
+                high,
+                negated,
+            } => {
+                let resolved_expr =
+                    self.resolve_subqueries_with_context(between_expr, schema, row)?;
+                let resolved_low = self.resolve_subqueries_with_context(low, schema, row)?;
+                let resolved_high = self.resolve_subqueries_with_context(high, schema, row)?;
+                Ok(Expr::Between {
+                    expr: Box::new(resolved_expr),
+                    low: Box::new(resolved_low),
+                    high: Box::new(resolved_high),
+                    negated: *negated,
+                })
+            }
+            Expr::IsNull(inner) => {
+                let resolved = self.resolve_subqueries_with_context(inner, schema, row)?;
+                Ok(Expr::IsNull(Box::new(resolved)))
+            }
+            Expr::IsNotNull(inner) => {
+                let resolved = self.resolve_subqueries_with_context(inner, schema, row)?;
+                Ok(Expr::IsNotNull(Box::new(resolved)))
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    fn substitute_outer_refs_in_query(
+        &self,
+        query: &Query,
+        outer_schema: &Schema,
+        outer_row: &Record,
+    ) -> Query {
+        let mut query = query.clone();
+        self.substitute_outer_refs_in_set_expr(&mut query.body, outer_schema, outer_row);
+        query
+    }
+
+    fn substitute_outer_refs_in_set_expr(
+        &self,
+        set_expr: &mut SetExpr,
+        outer_schema: &Schema,
+        outer_row: &Record,
+    ) {
+        match set_expr {
+            SetExpr::Select(select) => {
+                if let Some(ref mut selection) = select.selection {
+                    *selection =
+                        self.substitute_outer_refs_in_expr(selection, outer_schema, outer_row);
+                }
+            }
+            SetExpr::Query(query) => {
+                self.substitute_outer_refs_in_set_expr(&mut query.body, outer_schema, outer_row);
+            }
+            _ => {}
+        }
+    }
+
+    fn substitute_outer_refs_in_expr(
+        &self,
+        expr: &Expr,
+        outer_schema: &Schema,
+        outer_row: &Record,
+    ) -> Expr {
+        match expr {
+            Expr::CompoundIdentifier(parts) => {
+                if parts.len() == 2 {
+                    let table = parts[0].value.to_uppercase();
+                    let column = parts[1].value.to_uppercase();
+                    for (i, field) in outer_schema.fields().iter().enumerate() {
+                        let field_upper = field.name.to_uppercase();
+                        if field_upper == format!("{}.{}", table, column)
+                            || field_upper.ends_with(&format!(".{}", column))
+                                && field_upper.contains(&table)
+                        {
+                            if let Some(val) = outer_row.values().get(i) {
+                                return self.value_to_expr(val);
+                            }
+                        }
+                        let parts_vec: Vec<&str> = field_upper.split('.').collect();
+                        if parts_vec.len() >= 2 {
+                            let field_table = parts_vec[parts_vec.len() - 2];
+                            let field_col = parts_vec[parts_vec.len() - 1];
+                            if field_table == table && field_col == column {
+                                if let Some(val) = outer_row.values().get(i) {
+                                    return self.value_to_expr(val);
+                                }
+                            }
+                        }
+                    }
+                }
+                expr.clone()
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(self.substitute_outer_refs_in_expr(left, outer_schema, outer_row)),
+                op: op.clone(),
+                right: Box::new(self.substitute_outer_refs_in_expr(right, outer_schema, outer_row)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: *op,
+                expr: Box::new(self.substitute_outer_refs_in_expr(inner, outer_schema, outer_row)),
+            },
+            Expr::Nested(inner) => Expr::Nested(Box::new(self.substitute_outer_refs_in_expr(
+                inner,
+                outer_schema,
+                outer_row,
+            ))),
+            Expr::IsNull(inner) => Expr::IsNull(Box::new(self.substitute_outer_refs_in_expr(
+                inner,
+                outer_schema,
+                outer_row,
+            ))),
+            Expr::IsNotNull(inner) => Expr::IsNotNull(Box::new(
+                self.substitute_outer_refs_in_expr(inner, outer_schema, outer_row),
+            )),
+            _ => expr.clone(),
+        }
+    }
+
+    fn has_correlated_subqueries(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Exists { .. } => true,
+            Expr::InSubquery { .. } => true,
+            Expr::Subquery(_) => true,
+            Expr::BinaryOp { left, right, .. } => {
+                self.has_correlated_subqueries(left) || self.has_correlated_subqueries(right)
+            }
+            Expr::UnaryOp { expr, .. } => self.has_correlated_subqueries(expr),
+            Expr::Nested(inner) => self.has_correlated_subqueries(inner),
+            Expr::InList { expr, list, .. } => {
+                self.has_correlated_subqueries(expr)
+                    || list.iter().any(|e| self.has_correlated_subqueries(e))
+            }
+            _ => false,
         }
     }
 

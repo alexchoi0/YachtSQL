@@ -100,7 +100,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let mut plan = self.plan_from(&select.from)?;
 
         if let Some(ref selection) = select.selection {
-            let predicate = ExprPlanner::plan_expr(selection, plan.schema())?;
+            let predicate = self.plan_expr_with_subquery(selection, plan.schema())?;
             plan = LogicalPlan::Filter {
                 input: Box::new(plan),
                 predicate,
@@ -118,7 +118,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         }
 
         if let Some(ref having) = select.having {
-            let predicate = ExprPlanner::plan_expr(having, plan.schema())?;
+            let predicate = self.plan_expr_with_subquery(having, plan.schema())?;
             plan = LogicalPlan::Filter {
                 input: Box::new(plan),
                 predicate,
@@ -274,7 +274,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         match constraint {
             ast::JoinConstraint::On(expr) => {
                 let combined_schema = left.schema().clone().merge(right.schema().clone());
-                Ok(Some(ExprPlanner::plan_expr(expr, &combined_schema)?))
+                Ok(Some(self.plan_expr_with_subquery(expr, &combined_schema)?))
             }
             ast::JoinConstraint::None => Ok(None),
             _ => Err(Error::unsupported(format!(
@@ -495,7 +495,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         }
 
         let filter = selection
-            .map(|s| ExprPlanner::plan_expr(s, &schema))
+            .map(|s| self.plan_expr_with_subquery(s, &schema))
             .transpose()?;
 
         Ok(LogicalPlan::Update {
@@ -531,7 +531,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let filter = delete
             .selection
             .as_ref()
-            .map(|s| ExprPlanner::plan_expr(s, &schema))
+            .map(|s| self.plan_expr_with_subquery(s, &schema))
             .transpose()?;
 
         Ok(LogicalPlan::Delete { table_name, filter })
@@ -840,6 +840,92 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             | Expr::Like { .. } => DataType::Bool,
             Expr::Alias { expr, .. } => Self::compute_expr_type(expr, schema),
             _ => DataType::Unknown,
+        }
+    }
+
+    fn plan_expr_with_subquery(&self, sql_expr: &ast::Expr, schema: &PlanSchema) -> Result<Expr> {
+        match sql_expr {
+            ast::Expr::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => {
+                let expr = self.plan_expr_with_subquery(expr, schema)?;
+                let subquery_plan = self.plan_query(subquery)?;
+                Ok(Expr::InSubquery {
+                    expr: Box::new(expr),
+                    subquery: Box::new(subquery_plan),
+                    negated: *negated,
+                })
+            }
+            ast::Expr::Exists { subquery, negated } => {
+                let subquery_plan = self.plan_query(subquery)?;
+                Ok(Expr::Exists {
+                    subquery: Box::new(subquery_plan),
+                    negated: *negated,
+                })
+            }
+            ast::Expr::Subquery(subquery) => {
+                let subquery_plan = self.plan_query(subquery)?;
+                Ok(Expr::Subquery(Box::new(subquery_plan)))
+            }
+            ast::Expr::BinaryOp { left, op, right } => {
+                let left = self.plan_expr_with_subquery(left, schema)?;
+                let right = self.plan_expr_with_subquery(right, schema)?;
+                let op = match op {
+                    ast::BinaryOperator::Plus => yachtsql_ir::BinaryOp::Add,
+                    ast::BinaryOperator::Minus => yachtsql_ir::BinaryOp::Sub,
+                    ast::BinaryOperator::Multiply => yachtsql_ir::BinaryOp::Mul,
+                    ast::BinaryOperator::Divide => yachtsql_ir::BinaryOp::Div,
+                    ast::BinaryOperator::Modulo => yachtsql_ir::BinaryOp::Mod,
+                    ast::BinaryOperator::Eq => yachtsql_ir::BinaryOp::Eq,
+                    ast::BinaryOperator::NotEq => yachtsql_ir::BinaryOp::NotEq,
+                    ast::BinaryOperator::Lt => yachtsql_ir::BinaryOp::Lt,
+                    ast::BinaryOperator::LtEq => yachtsql_ir::BinaryOp::LtEq,
+                    ast::BinaryOperator::Gt => yachtsql_ir::BinaryOp::Gt,
+                    ast::BinaryOperator::GtEq => yachtsql_ir::BinaryOp::GtEq,
+                    ast::BinaryOperator::And => yachtsql_ir::BinaryOp::And,
+                    ast::BinaryOperator::Or => yachtsql_ir::BinaryOp::Or,
+                    ast::BinaryOperator::StringConcat => yachtsql_ir::BinaryOp::Concat,
+                    ast::BinaryOperator::BitwiseAnd => yachtsql_ir::BinaryOp::BitwiseAnd,
+                    ast::BinaryOperator::BitwiseOr => yachtsql_ir::BinaryOp::BitwiseOr,
+                    ast::BinaryOperator::BitwiseXor => yachtsql_ir::BinaryOp::BitwiseXor,
+                    ast::BinaryOperator::PGBitwiseShiftLeft => yachtsql_ir::BinaryOp::ShiftLeft,
+                    ast::BinaryOperator::PGBitwiseShiftRight => yachtsql_ir::BinaryOp::ShiftRight,
+                    _ => {
+                        return Err(Error::unsupported(format!(
+                            "Unsupported binary operator: {:?}",
+                            op
+                        )));
+                    }
+                };
+                Ok(Expr::BinaryOp {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
+            }
+            ast::Expr::UnaryOp { op, expr } => {
+                let expr = self.plan_expr_with_subquery(expr, schema)?;
+                let op = match op {
+                    ast::UnaryOperator::Not => yachtsql_ir::UnaryOp::Not,
+                    ast::UnaryOperator::Minus => yachtsql_ir::UnaryOp::Minus,
+                    ast::UnaryOperator::Plus => yachtsql_ir::UnaryOp::Plus,
+                    ast::UnaryOperator::PGBitwiseNot => yachtsql_ir::UnaryOp::BitwiseNot,
+                    _ => {
+                        return Err(Error::unsupported(format!(
+                            "Unsupported unary operator: {:?}",
+                            op
+                        )));
+                    }
+                };
+                Ok(Expr::UnaryOp {
+                    op,
+                    expr: Box::new(expr),
+                })
+            }
+            ast::Expr::Nested(inner) => self.plan_expr_with_subquery(inner, schema),
+            _ => ExprPlanner::plan_expr(sql_expr, schema),
         }
     }
 
