@@ -110,6 +110,13 @@ futures = { version = "0.3", optional = true }
 thiserror = "2.0"
 anyhow = "1.0"
 
+# Geography/GIS support
+geo = "0.28"
+geo-types = "0.7"
+wkt = { version = "0.11", features = ["geo-types"] }
+geojson = { version = "0.24", features = ["geo-types"] }
+geohash = "0.13"
+
 # Features
 [features]
 default = []

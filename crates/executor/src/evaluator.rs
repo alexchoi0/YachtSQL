@@ -6,8 +6,19 @@
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::ptr_arg)]
 
+use std::str::FromStr;
+
 use chrono::{Datelike, Timelike};
+use geo::{
+    Area, BooleanOps, Centroid, Contains, ConvexHull, EuclideanDistance, GeodesicArea,
+    GeodesicDistance, GeodesicLength, Intersects, Simplify, Within,
+};
+use geo_types::{
+    Coord, Geometry, GeometryCollection, LineString, MultiLineString, MultiPoint, MultiPolygon,
+    Point, Polygon,
+};
 use sqlparser::ast::{BinaryOperator, Expr, UnaryOperator, Value as SqlValue};
+use wkt::TryFromWkt;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_storage::{Record, Schema};
@@ -68,6 +79,285 @@ pub fn parse_byte_string_escapes(s: &str) -> Vec<u8> {
         }
     }
     result
+}
+
+fn parse_geography(wkt_str: &str) -> std::result::Result<Geometry<f64>, String> {
+    if wkt_str.starts_with("GEOGRAPHY") {
+        return Err("Cannot parse GEOGRAPHY placeholder".to_string());
+    }
+
+    let upper = wkt_str.trim().to_uppercase();
+
+    if upper.starts_with("POINT") {
+        return Point::try_from_wkt_str(wkt_str)
+            .map(Geometry::Point)
+            .map_err(|e| e.to_string());
+    }
+    if upper.starts_with("LINESTRING") {
+        return LineString::try_from_wkt_str(wkt_str)
+            .map(Geometry::LineString)
+            .map_err(|e| e.to_string());
+    }
+    if upper.starts_with("POLYGON") {
+        return Polygon::try_from_wkt_str(wkt_str)
+            .map(Geometry::Polygon)
+            .map_err(|e| e.to_string());
+    }
+    if upper.starts_with("MULTIPOINT") {
+        return MultiPoint::try_from_wkt_str(wkt_str)
+            .map(Geometry::MultiPoint)
+            .map_err(|e| e.to_string());
+    }
+    if upper.starts_with("MULTILINESTRING") {
+        return MultiLineString::try_from_wkt_str(wkt_str)
+            .map(Geometry::MultiLineString)
+            .map_err(|e| e.to_string());
+    }
+    if upper.starts_with("MULTIPOLYGON") {
+        return MultiPolygon::try_from_wkt_str(wkt_str)
+            .map(Geometry::MultiPolygon)
+            .map_err(|e| e.to_string());
+    }
+    if upper.starts_with("GEOMETRYCOLLECTION") {
+        if upper.contains("EMPTY") {
+            return Ok(Geometry::GeometryCollection(GeometryCollection::new_from(
+                vec![],
+            )));
+        }
+        return GeometryCollection::try_from_wkt_str(wkt_str)
+            .map(Geometry::GeometryCollection)
+            .map_err(|e| e.to_string());
+    }
+
+    Geometry::try_from_wkt_str(wkt_str).map_err(|e| e.to_string())
+}
+
+fn geometry_to_wkt(geom: &Geometry<f64>) -> String {
+    use wkt::ToWkt;
+    geom.wkt_string()
+}
+
+fn format_coord(val: f64) -> String {
+    let rounded = (val * 1000000.0).round() / 1000000.0;
+    if rounded.fract() == 0.0 {
+        format!("{:.0}", rounded)
+    } else {
+        let s = format!("{}", rounded);
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+}
+
+fn format_wkt_number(geom: &Geometry<f64>) -> String {
+    match geom {
+        Geometry::Point(p) => {
+            format!("POINT({} {})", format_coord(p.x()), format_coord(p.y()))
+        }
+        Geometry::LineString(ls) => {
+            let coords: Vec<String> =
+                ls.0.iter()
+                    .map(|c| format!("{} {}", format_coord(c.x), format_coord(c.y)))
+                    .collect();
+            format!("LINESTRING({})", coords.join(", "))
+        }
+        Geometry::Polygon(poly) => {
+            let exterior: Vec<String> = poly
+                .exterior()
+                .0
+                .iter()
+                .map(|c| format!("{} {}", format_coord(c.x), format_coord(c.y)))
+                .collect();
+            let mut rings = vec![format!("({})", exterior.join(", "))];
+            for interior in poly.interiors() {
+                let int_coords: Vec<String> = interior
+                    .0
+                    .iter()
+                    .map(|c| format!("{} {}", format_coord(c.x), format_coord(c.y)))
+                    .collect();
+                rings.push(format!("({})", int_coords.join(", ")));
+            }
+            format!("POLYGON({})", rings.join(", "))
+        }
+        Geometry::MultiPoint(mp) => {
+            let points: Vec<String> =
+                mp.0.iter()
+                    .map(|p| format!("{} {}", format_coord(p.x()), format_coord(p.y())))
+                    .collect();
+            format!("MULTIPOINT({})", points.join(", "))
+        }
+        Geometry::MultiLineString(mls) => {
+            let lines: Vec<String> = mls
+                .0
+                .iter()
+                .map(|ls| {
+                    let coords: Vec<String> =
+                        ls.0.iter()
+                            .map(|c| format!("{} {}", format_coord(c.x), format_coord(c.y)))
+                            .collect();
+                    format!("({})", coords.join(", "))
+                })
+                .collect();
+            format!("MULTILINESTRING({})", lines.join(", "))
+        }
+        Geometry::MultiPolygon(mpoly) => {
+            let polys: Vec<String> = mpoly
+                .0
+                .iter()
+                .map(|poly| {
+                    let exterior: Vec<String> = poly
+                        .exterior()
+                        .0
+                        .iter()
+                        .map(|c| format!("{} {}", format_coord(c.x), format_coord(c.y)))
+                        .collect();
+                    format!("(({}))", exterior.join(", "))
+                })
+                .collect();
+            format!("MULTIPOLYGON({})", polys.join(", "))
+        }
+        Geometry::GeometryCollection(gc) => {
+            if gc.0.is_empty() {
+                "GEOMETRYCOLLECTION EMPTY".to_string()
+            } else {
+                let geoms: Vec<String> = gc.0.iter().map(format_wkt_number).collect();
+                format!("GEOMETRYCOLLECTION({})", geoms.join(", "))
+            }
+        }
+        _ => geometry_to_wkt(geom),
+    }
+}
+
+fn geometry_to_geojson(geom: &Geometry<f64>) -> String {
+    let geojson_geom: geojson::Geometry = geojson::Geometry::from(geom);
+    serde_json::to_string(&geojson_geom).unwrap_or_default()
+}
+
+fn geometry_from_geojson(json_str: &str) -> std::result::Result<Geometry<f64>, String> {
+    let geojson: geojson::GeoJson = json_str
+        .parse()
+        .map_err(|e: geojson::Error| e.to_string())?;
+    match geojson {
+        geojson::GeoJson::Geometry(geom) => {
+            use std::convert::TryFrom;
+            Geometry::try_from(geom).map_err(|e| e.to_string())
+        }
+        _ => Err("Expected GeoJSON geometry".to_string()),
+    }
+}
+
+fn geometry_type_name(geom: &Geometry<f64>) -> &'static str {
+    match geom {
+        Geometry::Point(_) => "Point",
+        Geometry::LineString(_) => "LineString",
+        Geometry::Polygon(_) => "Polygon",
+        Geometry::MultiPoint(_) => "MultiPoint",
+        Geometry::MultiLineString(_) => "MultiLineString",
+        Geometry::MultiPolygon(_) => "MultiPolygon",
+        Geometry::GeometryCollection(_) => "GeometryCollection",
+        _ => "Unknown",
+    }
+}
+
+fn geometry_dimension(geom: &Geometry<f64>) -> i64 {
+    match geom {
+        Geometry::Point(_) | Geometry::MultiPoint(_) => 0,
+        Geometry::LineString(_) | Geometry::MultiLineString(_) => 1,
+        Geometry::Polygon(_) | Geometry::MultiPolygon(_) => 2,
+        Geometry::GeometryCollection(gc) => gc.0.iter().map(geometry_dimension).max().unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn geometry_num_points(geom: &Geometry<f64>) -> i64 {
+    match geom {
+        Geometry::Point(_) => 1,
+        Geometry::LineString(ls) => ls.0.len() as i64,
+        Geometry::Polygon(poly) => {
+            let mut count = poly.exterior().0.len();
+            for interior in poly.interiors() {
+                count += interior.0.len();
+            }
+            count as i64
+        }
+        Geometry::MultiPoint(mp) => mp.0.len() as i64,
+        Geometry::MultiLineString(mls) => mls.0.iter().map(|ls| ls.0.len()).sum::<usize>() as i64,
+        Geometry::MultiPolygon(mpoly) => mpoly
+            .0
+            .iter()
+            .map(|poly| {
+                let mut count = poly.exterior().0.len();
+                for interior in poly.interiors() {
+                    count += interior.0.len();
+                }
+                count
+            })
+            .sum::<usize>() as i64,
+        Geometry::GeometryCollection(gc) => gc.0.iter().map(geometry_num_points).sum(),
+        _ => 0,
+    }
+}
+
+fn geometry_is_empty(geom: &Geometry<f64>) -> bool {
+    match geom {
+        Geometry::Point(_) => false,
+        Geometry::LineString(ls) => ls.0.is_empty(),
+        Geometry::Polygon(poly) => poly.exterior().0.is_empty(),
+        Geometry::MultiPoint(mp) => mp.0.is_empty(),
+        Geometry::MultiLineString(mls) => mls.0.is_empty(),
+        Geometry::MultiPolygon(mpoly) => mpoly.0.is_empty(),
+        Geometry::GeometryCollection(gc) => gc.0.is_empty(),
+        _ => true,
+    }
+}
+
+fn geometry_is_collection(geom: &Geometry<f64>) -> bool {
+    matches!(
+        geom,
+        Geometry::MultiPoint(_)
+            | Geometry::MultiLineString(_)
+            | Geometry::MultiPolygon(_)
+            | Geometry::GeometryCollection(_)
+    )
+}
+
+fn snap_coord_to_grid(val: f64, grid_size: f64) -> f64 {
+    (val / grid_size).round() * grid_size
+}
+
+fn geometry_geodesic_distance(geom1: &Geometry<f64>, geom2: &Geometry<f64>) -> f64 {
+    fn get_centroid_point(geom: &Geometry<f64>) -> Option<Point<f64>> {
+        match geom {
+            Geometry::Point(p) => Some(*p),
+            Geometry::LineString(ls) => ls.centroid(),
+            Geometry::Polygon(poly) => poly.centroid(),
+            Geometry::MultiPoint(mp) => mp.centroid(),
+            Geometry::MultiLineString(mls) => mls.centroid(),
+            Geometry::MultiPolygon(mpoly) => mpoly.centroid(),
+            Geometry::GeometryCollection(gc) => gc.centroid(),
+            _ => None,
+        }
+    }
+
+    match (geom1, geom2) {
+        (Geometry::Point(p1), Geometry::Point(p2)) => p1.geodesic_distance(p2),
+        (Geometry::Point(p1), other) => {
+            if let Some(p2) = get_centroid_point(other) {
+                p1.geodesic_distance(&p2)
+            } else {
+                0.0
+            }
+        }
+        (other, Geometry::Point(p2)) => {
+            if let Some(p1) = get_centroid_point(other) {
+                p1.geodesic_distance(p2)
+            } else {
+                0.0
+            }
+        }
+        (g1, g2) => match (get_centroid_point(g1), get_centroid_point(g2)) {
+            (Some(p1), Some(p2)) => p1.geodesic_distance(&p2),
+            _ => 0.0,
+        },
+    }
 }
 
 pub struct Evaluator<'a> {
@@ -3594,20 +3884,478 @@ impl<'a> Evaluator<'a> {
                 Ok(Value::array(result))
             }
             "ST_GEOGFROMTEXT" | "ST_GEOGRAPHYFROMTEXT" => {
-                Ok(Value::string("GEOGRAPHY".to_string()))
-            }
-            "ST_GEOGPOINT" => Ok(Value::string("GEOGRAPHY_POINT".to_string())),
-            "ST_GEOGFROMGEOJSON" => Ok(Value::string("GEOGRAPHY".to_string())),
-            "ST_DISTANCE" | "ST_LENGTH" | "ST_PERIMETER" | "ST_AREA" => Ok(Value::float64(0.0)),
-            "ST_ASTEXT" | "ST_ASGEOJSON" | "ST_ASBINARY" => {
                 if args.is_empty() || args[0].is_null() {
                     return Ok(Value::null());
                 }
-                Ok(Value::string(args[0].to_string()))
+                let wkt_str = args[0].as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                match parse_geography(wkt_str) {
+                    Ok(geom) => Ok(Value::geography(format_wkt_number(&geom))),
+                    Err(e) => Err(Error::InvalidQuery(format!("Invalid WKT: {}", e))),
+                }
             }
-            "ST_X" | "ST_Y" => Ok(Value::float64(0.0)),
-            "ST_CONTAINS" | "ST_WITHIN" | "ST_INTERSECTS" | "ST_DWITHIN" | "ST_COVERS"
-            | "ST_COVEREDBY" => Ok(Value::bool_val(false)),
+            "ST_GEOGPOINT" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_GEOGPOINT requires 2 arguments (longitude, latitude)".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let lng = args[0].as_f64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "FLOAT64".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let lat = args[1].as_f64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "FLOAT64".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+                let point = Point::new(lng, lat);
+                Ok(Value::geography(format_wkt_number(&Geometry::Point(point))))
+            }
+            "ST_GEOGFROMGEOJSON" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_str = args[0].as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                match geometry_from_geojson(json_str) {
+                    Ok(geom) => Ok(Value::geography(format_wkt_number(&geom))),
+                    Err(e) => Err(Error::InvalidQuery(format!("Invalid GeoJSON: {}", e))),
+                }
+            }
+            "ST_DISTANCE" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_DISTANCE requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let dist = geometry_geodesic_distance(&geom1, &geom2);
+                Ok(Value::float64(dist))
+            }
+            "ST_LENGTH" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let length = match &geom {
+                    Geometry::LineString(ls) => ls.geodesic_length(),
+                    Geometry::MultiLineString(mls) => mls.geodesic_length(),
+                    _ => 0.0,
+                };
+                Ok(Value::float64(length))
+            }
+            "ST_PERIMETER" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let perimeter = match &geom {
+                    Geometry::Polygon(poly) => poly.exterior().geodesic_length(),
+                    Geometry::MultiPolygon(mpoly) => {
+                        mpoly.0.iter().map(|p| p.exterior().geodesic_length()).sum()
+                    }
+                    _ => 0.0,
+                };
+                Ok(Value::float64(perimeter))
+            }
+            "ST_AREA" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let area = match &geom {
+                    Geometry::Polygon(poly) => poly.geodesic_area_unsigned(),
+                    Geometry::MultiPolygon(mpoly) => mpoly.geodesic_area_unsigned(),
+                    _ => 0.0,
+                };
+                Ok(Value::float64(area))
+            }
+            "ST_ASTEXT" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                Ok(Value::string(format_wkt_number(&geom)))
+            }
+            "ST_ASGEOJSON" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                Ok(Value::string(geometry_to_geojson(&geom)))
+            }
+            "ST_ASBINARY" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                use wkt::ToWkt;
+                let wkb = geom.wkt_string();
+                Ok(Value::bytes(wkb.into_bytes()))
+            }
+            "ST_X" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::Point(p) => Ok(Value::float64(p.x())),
+                    _ => Err(Error::TypeMismatch {
+                        expected: "POINT".to_string(),
+                        actual: geometry_type_name(&geom).to_string(),
+                    }),
+                }
+            }
+            "ST_Y" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::Point(p) => Ok(Value::float64(p.y())),
+                    _ => Err(Error::TypeMismatch {
+                        expected: "POINT".to_string(),
+                        actual: geometry_type_name(&geom).to_string(),
+                    }),
+                }
+            }
+            "ST_CONTAINS" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_CONTAINS requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let result = geom1.contains(&geom2);
+                Ok(Value::bool_val(result))
+            }
+            "ST_WITHIN" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_WITHIN requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let result = geom1.is_within(&geom2);
+                Ok(Value::bool_val(result))
+            }
+            "ST_INTERSECTS" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_INTERSECTS requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let result = geom1.intersects(&geom2);
+                Ok(Value::bool_val(result))
+            }
+            "ST_DWITHIN" => {
+                if args.len() < 3 {
+                    return Err(Error::InvalidQuery(
+                        "ST_DWITHIN requires 3 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() || args[2].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let distance = args[2].as_f64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "FLOAT64".to_string(),
+                    actual: args[2].data_type().to_string(),
+                })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let actual_distance = geometry_geodesic_distance(&geom1, &geom2);
+                Ok(Value::bool_val(actual_distance <= distance))
+            }
+            "ST_COVERS" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_COVERS requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let result = geom1.contains(&geom2);
+                Ok(Value::bool_val(result))
+            }
+            "ST_COVEREDBY" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_COVEREDBY requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let result = geom1.is_within(&geom2);
+                Ok(Value::bool_val(result))
+            }
+            "ST_TOUCHES" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_TOUCHES requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let intersects = geom1.intersects(&geom2);
+                let contains1 = geom1.contains(&geom2);
+                let contains2 = geom2.contains(&geom1);
+                Ok(Value::bool_val(intersects && !contains1 && !contains2))
+            }
+            "ST_DISJOINT" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_DISJOINT requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let result = !geom1.intersects(&geom2);
+                Ok(Value::bool_val(result))
+            }
             "NET.IP_FROM_STRING" | "NET.SAFE_IP_FROM_STRING" => {
                 if args.is_empty() || args[0].is_null() {
                     return Ok(Value::null());
@@ -3692,13 +4440,865 @@ impl<'a> Evaluator<'a> {
                 }
                 Ok(args[0].clone())
             }
-            "ST_MAKELINE" | "ST_BUFFER" | "ST_CENTROID" | "ST_CLOSESTPOINT" | "ST_CONVEXHULL"
-            | "ST_DIFFERENCE" | "ST_INTERSECTION" | "ST_SIMPLIFY" | "ST_SNAPTOGRID"
-            | "ST_UNION" => Ok(Value::string("GEOGRAPHY".to_string())),
-            "ST_DIMENSION" | "ST_NUMPOINTS" | "ST_NUMGEOMETRIES" | "ST_NPOINTS" => {
-                Ok(Value::int64(0))
+            "ST_MAKELINE" => {
+                if args.is_empty() {
+                    return Err(Error::InvalidQuery(
+                        "ST_MAKELINE requires at least 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(arr) = args[0].as_array() {
+                    let mut coords = Vec::new();
+                    for val in arr {
+                        if val.is_null() {
+                            continue;
+                        }
+                        let wkt = val.as_geography().or_else(|| val.as_str()).ok_or_else(|| {
+                            Error::TypeMismatch {
+                                expected: "GEOGRAPHY".to_string(),
+                                actual: val.data_type().to_string(),
+                            }
+                        })?;
+                        let geom = parse_geography(wkt)
+                            .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                        if let Geometry::Point(p) = geom {
+                            coords.push(Coord { x: p.x(), y: p.y() });
+                        }
+                    }
+                    if coords.is_empty() {
+                        return Ok(Value::null());
+                    }
+                    let line = LineString::new(coords);
+                    return Ok(Value::geography(format_wkt_number(&Geometry::LineString(
+                        line,
+                    ))));
+                }
+                if args.len() == 2 {
+                    if args[1].is_null() {
+                        return Ok(Value::null());
+                    }
+                    let wkt1 = args[0]
+                        .as_geography()
+                        .or_else(|| args[0].as_str())
+                        .ok_or_else(|| Error::TypeMismatch {
+                            expected: "GEOGRAPHY".to_string(),
+                            actual: args[0].data_type().to_string(),
+                        })?;
+                    let wkt2 = args[1]
+                        .as_geography()
+                        .or_else(|| args[1].as_str())
+                        .ok_or_else(|| Error::TypeMismatch {
+                            expected: "GEOGRAPHY".to_string(),
+                            actual: args[1].data_type().to_string(),
+                        })?;
+                    let geom1 = parse_geography(wkt1)
+                        .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                    let geom2 = parse_geography(wkt2)
+                        .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                    let (p1, p2) = match (&geom1, &geom2) {
+                        (Geometry::Point(a), Geometry::Point(b)) => (*a, *b),
+                        _ => {
+                            return Err(Error::TypeMismatch {
+                                expected: "POINT".to_string(),
+                                actual: "other geometry".to_string(),
+                            });
+                        }
+                    };
+                    let line = LineString::new(vec![
+                        Coord {
+                            x: p1.x(),
+                            y: p1.y(),
+                        },
+                        Coord {
+                            x: p2.x(),
+                            y: p2.y(),
+                        },
+                    ]);
+                    return Ok(Value::geography(format_wkt_number(&Geometry::LineString(
+                        line,
+                    ))));
+                }
+                Err(Error::InvalidQuery(
+                    "ST_MAKELINE requires either an array or 2 points".to_string(),
+                ))
             }
-            "ST_ISEMPTY" | "ST_ISCOLLECTION" | "ST_ISRING" => Ok(Value::bool_val(false)),
+            "ST_MAKEPOLYGON" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::LineString(ls) => {
+                        let poly = Polygon::new(ls, vec![]);
+                        Ok(Value::geography(format_wkt_number(&Geometry::Polygon(
+                            poly,
+                        ))))
+                    }
+                    _ => Err(Error::TypeMismatch {
+                        expected: "LINESTRING".to_string(),
+                        actual: geometry_type_name(&geom).to_string(),
+                    }),
+                }
+            }
+            "ST_BUFFER" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let distance = if args.len() > 1 {
+                    args[1].as_f64().unwrap_or(0.0)
+                } else {
+                    0.0
+                };
+                let degrees = distance / 111195.0;
+                if let Geometry::Point(p) = geom {
+                    let mut coords = Vec::new();
+                    for i in 0..=32 {
+                        let angle = 2.0 * std::f64::consts::PI * (i as f64) / 32.0;
+                        let x = p.x() + degrees * angle.cos();
+                        let y = p.y() + degrees * angle.sin() * (p.y().to_radians().cos());
+                        coords.push(Coord { x, y });
+                    }
+                    let poly = Polygon::new(LineString::new(coords), vec![]);
+                    return Ok(Value::geography(format_wkt_number(&Geometry::Polygon(
+                        poly,
+                    ))));
+                }
+                Ok(Value::geography(format_wkt_number(&geom)))
+            }
+            "ST_BUFFERWITHTOLERANCE" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let distance = if args.len() > 1 {
+                    args[1].as_f64().unwrap_or(0.0)
+                } else {
+                    0.0
+                };
+                let degrees = distance / 111195.0;
+                if let Geometry::Point(p) = geom {
+                    let mut coords = Vec::new();
+                    for i in 0..=16 {
+                        let angle = 2.0 * std::f64::consts::PI * (i as f64) / 16.0;
+                        let x = p.x() + degrees * angle.cos();
+                        let y = p.y() + degrees * angle.sin() * (p.y().to_radians().cos());
+                        coords.push(Coord { x, y });
+                    }
+                    let poly = Polygon::new(LineString::new(coords), vec![]);
+                    return Ok(Value::geography(format_wkt_number(&Geometry::Polygon(
+                        poly,
+                    ))));
+                }
+                Ok(Value::geography(format_wkt_number(&geom)))
+            }
+            "ST_CENTROID" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                if let Some(centroid) = geom.centroid() {
+                    Ok(Value::geography(format_wkt_number(&Geometry::Point(
+                        centroid,
+                    ))))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "ST_CLOSESTPOINT" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_CLOSESTPOINT requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                use geo::ClosestPoint;
+                if let Geometry::Point(target) = &geom2 {
+                    match geom1.closest_point(target) {
+                        geo::Closest::Intersection(p) | geo::Closest::SinglePoint(p) => {
+                            Ok(Value::geography(format_wkt_number(&Geometry::Point(p))))
+                        }
+                        geo::Closest::Indeterminate => Ok(Value::null()),
+                    }
+                } else if let Some(centroid) = geom2.centroid() {
+                    match geom1.closest_point(&centroid) {
+                        geo::Closest::Intersection(p) | geo::Closest::SinglePoint(p) => {
+                            Ok(Value::geography(format_wkt_number(&Geometry::Point(p))))
+                        }
+                        geo::Closest::Indeterminate => Ok(Value::null()),
+                    }
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "ST_CONVEXHULL" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let hull = geom.convex_hull();
+                Ok(Value::geography(format_wkt_number(&Geometry::Polygon(
+                    hull,
+                ))))
+            }
+            "ST_DIFFERENCE" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_DIFFERENCE requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                fn to_multipoly(geom: &Geometry<f64>) -> Option<MultiPolygon<f64>> {
+                    match geom {
+                        Geometry::Polygon(p) => Some(MultiPolygon::new(vec![p.clone()])),
+                        Geometry::MultiPolygon(mp) => Some(mp.clone()),
+                        _ => None,
+                    }
+                }
+                match (to_multipoly(&geom1), to_multipoly(&geom2)) {
+                    (Some(mp1), Some(mp2)) => {
+                        let result = mp1.difference(&mp2);
+                        Ok(Value::geography(format_wkt_number(
+                            &Geometry::MultiPolygon(result),
+                        )))
+                    }
+                    _ => Ok(Value::geography(format_wkt_number(&geom1))),
+                }
+            }
+            "ST_INTERSECTION" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_INTERSECTION requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                fn to_multipoly(geom: &Geometry<f64>) -> Option<MultiPolygon<f64>> {
+                    match geom {
+                        Geometry::Polygon(p) => Some(MultiPolygon::new(vec![p.clone()])),
+                        Geometry::MultiPolygon(mp) => Some(mp.clone()),
+                        _ => None,
+                    }
+                }
+                match (to_multipoly(&geom1), to_multipoly(&geom2)) {
+                    (Some(mp1), Some(mp2)) => {
+                        let result = mp1.intersection(&mp2);
+                        Ok(Value::geography(format_wkt_number(
+                            &Geometry::MultiPolygon(result),
+                        )))
+                    }
+                    _ => Ok(Value::geography(format_wkt_number(&geom1))),
+                }
+            }
+            "ST_SIMPLIFY" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let tolerance = if args.len() > 1 {
+                    args[1].as_f64().unwrap_or(0.0) / 111195.0
+                } else {
+                    0.0
+                };
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let simplified = match &geom {
+                    Geometry::LineString(ls) => Geometry::LineString(ls.simplify(&tolerance)),
+                    Geometry::Polygon(poly) => Geometry::Polygon(poly.simplify(&tolerance)),
+                    Geometry::MultiLineString(mls) => {
+                        Geometry::MultiLineString(mls.simplify(&tolerance))
+                    }
+                    Geometry::MultiPolygon(mpoly) => {
+                        Geometry::MultiPolygon(mpoly.simplify(&tolerance))
+                    }
+                    other => other.clone(),
+                };
+                Ok(Value::geography(format_wkt_number(&simplified)))
+            }
+            "ST_SNAPTOGRID" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let grid_size = if args.len() > 1 {
+                    args[1].as_f64().unwrap_or(0.0001)
+                } else {
+                    0.0001
+                };
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let snapped = match geom {
+                    Geometry::Point(p) => {
+                        let x = snap_coord_to_grid(p.x(), grid_size);
+                        let y = snap_coord_to_grid(p.y(), grid_size);
+                        Geometry::Point(Point::new(x, y))
+                    }
+                    Geometry::LineString(ls) => {
+                        let coords: Vec<Coord<f64>> =
+                            ls.0.iter()
+                                .map(|c| Coord {
+                                    x: snap_coord_to_grid(c.x, grid_size),
+                                    y: snap_coord_to_grid(c.y, grid_size),
+                                })
+                                .collect();
+                        Geometry::LineString(LineString::new(coords))
+                    }
+                    other => other,
+                };
+                Ok(Value::geography(format_wkt_number(&snapped)))
+            }
+            "ST_UNION" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_UNION requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                fn to_multipoly(geom: &Geometry<f64>) -> Option<MultiPolygon<f64>> {
+                    match geom {
+                        Geometry::Polygon(p) => Some(MultiPolygon::new(vec![p.clone()])),
+                        Geometry::MultiPolygon(mp) => Some(mp.clone()),
+                        _ => None,
+                    }
+                }
+                match (to_multipoly(&geom1), to_multipoly(&geom2)) {
+                    (Some(mp1), Some(mp2)) => {
+                        let result = mp1.union(&mp2);
+                        Ok(Value::geography(format_wkt_number(
+                            &Geometry::MultiPolygon(result),
+                        )))
+                    }
+                    _ => Ok(Value::geography(format_wkt_number(&geom1))),
+                }
+            }
+            "ST_DIMENSION" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                Ok(Value::int64(geometry_dimension(&geom)))
+            }
+            "ST_NUMPOINTS" | "ST_NPOINTS" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                Ok(Value::int64(geometry_num_points(&geom)))
+            }
+            "ST_NUMGEOMETRIES" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let count = match &geom {
+                    Geometry::GeometryCollection(gc) => gc.0.len() as i64,
+                    Geometry::MultiPoint(mp) => mp.0.len() as i64,
+                    Geometry::MultiLineString(mls) => mls.0.len() as i64,
+                    Geometry::MultiPolygon(mpoly) => mpoly.0.len() as i64,
+                    _ => 1,
+                };
+                Ok(Value::int64(count))
+            }
+            "ST_ISEMPTY" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                Ok(Value::bool_val(geometry_is_empty(&geom)))
+            }
+            "ST_ISCOLLECTION" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                Ok(Value::bool_val(geometry_is_collection(&geom)))
+            }
+            "ST_ISRING" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::LineString(ls) => {
+                        let is_ring = ls.is_closed() && ls.0.len() >= 4;
+                        Ok(Value::bool_val(is_ring))
+                    }
+                    _ => Ok(Value::bool_val(false)),
+                }
+            }
+            "ST_ISCLOSED" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::LineString(ls) => Ok(Value::bool_val(ls.is_closed())),
+                    Geometry::MultiLineString(mls) => {
+                        let all_closed = mls.0.iter().all(|ls| ls.is_closed());
+                        Ok(Value::bool_val(all_closed))
+                    }
+                    _ => Ok(Value::bool_val(true)),
+                }
+            }
+            "ST_GEOMETRYTYPE" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                Ok(Value::string(geometry_type_name(&geom)))
+            }
+            "ST_POINTN" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_POINTN requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let n = args[1].as_i64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "INT64".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::LineString(ls) => {
+                        let idx = (n - 1) as usize;
+                        if idx < ls.0.len() {
+                            let coord = &ls.0[idx];
+                            Ok(Value::geography(format_wkt_number(&Geometry::Point(
+                                Point::new(coord.x, coord.y),
+                            ))))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
+            "ST_STARTPOINT" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::LineString(ls) => {
+                        if let Some(coord) = ls.0.first() {
+                            Ok(Value::geography(format_wkt_number(&Geometry::Point(
+                                Point::new(coord.x, coord.y),
+                            ))))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
+            "ST_ENDPOINT" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::LineString(ls) => {
+                        if let Some(coord) = ls.0.last() {
+                            Ok(Value::geography(format_wkt_number(&Geometry::Point(
+                                Point::new(coord.x, coord.y),
+                            ))))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
+            "ST_BOUNDARY" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                match geom {
+                    Geometry::Polygon(poly) => Ok(Value::geography(format_wkt_number(
+                        &Geometry::LineString(poly.exterior().clone()),
+                    ))),
+                    _ => Ok(Value::geography(format_wkt_number(&geom))),
+                }
+            }
+            "ST_MAXDISTANCE" => {
+                if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "ST_MAXDISTANCE requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt1 = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let wkt2 = args[1]
+                    .as_geography()
+                    .or_else(|| args[1].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[1].data_type().to_string(),
+                    })?;
+                let geom1 = parse_geography(wkt1)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let geom2 = parse_geography(wkt2)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                fn get_points(geom: &Geometry<f64>) -> Vec<Point<f64>> {
+                    match geom {
+                        Geometry::Point(p) => vec![*p],
+                        Geometry::LineString(ls) => {
+                            ls.0.iter().map(|c| Point::new(c.x, c.y)).collect()
+                        }
+                        Geometry::Polygon(poly) => poly
+                            .exterior()
+                            .0
+                            .iter()
+                            .map(|c| Point::new(c.x, c.y))
+                            .collect(),
+                        Geometry::MultiPoint(mp) => mp.0.clone(),
+                        _ => vec![],
+                    }
+                }
+                let points1 = get_points(&geom1);
+                let points2 = get_points(&geom2);
+                let mut max_dist = 0.0f64;
+                for p1 in &points1 {
+                    for p2 in &points2 {
+                        let dist = p1.geodesic_distance(p2);
+                        if dist > max_dist {
+                            max_dist = dist;
+                        }
+                    }
+                }
+                Ok(Value::float64(max_dist))
+            }
+            "ST_GEOHASH" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                let precision = if args.len() > 1 {
+                    args[1].as_i64().unwrap_or(20) as usize
+                } else {
+                    20
+                };
+                match geom {
+                    Geometry::Point(p) => {
+                        let hash =
+                            geohash::encode(geohash::Coord { x: p.x(), y: p.y() }, precision)
+                                .map_err(|e| {
+                                    Error::InvalidQuery(format!("Geohash error: {:?}", e))
+                                })?;
+                        Ok(Value::string(hash))
+                    }
+                    _ => {
+                        if let Some(centroid) = geom.centroid() {
+                            let hash = geohash::encode(
+                                geohash::Coord {
+                                    x: centroid.x(),
+                                    y: centroid.y(),
+                                },
+                                precision,
+                            )
+                            .map_err(|e| Error::InvalidQuery(format!("Geohash error: {:?}", e)))?;
+                            Ok(Value::string(hash))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                }
+            }
+            "ST_GEOGPOINTFROMGEOHASH" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let hash = args[0].as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let (coord, _, _) = geohash::decode(hash)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geohash: {:?}", e)))?;
+                Ok(Value::geography(format_wkt_number(&Geometry::Point(
+                    Point::new(coord.x, coord.y),
+                ))))
+            }
+            "ST_BOUNDINGBOX" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let wkt = args[0]
+                    .as_geography()
+                    .or_else(|| args[0].as_str())
+                    .ok_or_else(|| Error::TypeMismatch {
+                        expected: "GEOGRAPHY".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    })?;
+                let geom = parse_geography(wkt)
+                    .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
+                use geo::BoundingRect;
+                if let Some(rect) = geom.bounding_rect() {
+                    let min = rect.min();
+                    let max = rect.max();
+                    let coords = vec![
+                        Coord { x: min.x, y: min.y },
+                        Coord { x: min.x, y: max.y },
+                        Coord { x: max.x, y: max.y },
+                        Coord { x: max.x, y: min.y },
+                        Coord { x: min.x, y: min.y },
+                    ];
+                    let poly = Polygon::new(LineString::new(coords), vec![]);
+                    Ok(Value::geography(format_wkt_number(&Geometry::Polygon(
+                        poly,
+                    ))))
+                } else {
+                    Ok(Value::null())
+                }
+            }
             "RANGE_OVERLAPS" | "RANGE_CONTAINS" | "RANGE_INTERSECTS" => Ok(Value::bool_val(false)),
             "RANGE_START" | "RANGE_END" => Ok(Value::null()),
             "ROW_NUMBER" | "RANK" | "DENSE_RANK" | "PERCENT_RANK" | "CUME_DIST" | "NTILE" => {
