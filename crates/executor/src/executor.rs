@@ -7,7 +7,20 @@
 #![allow(clippy::ptr_arg)]
 
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::sync::Arc;
 
+use arrow::array::{
+    ArrayRef, BooleanBuilder, Date32Builder, Float64Builder, Int64Builder, StringBuilder,
+    TimestampMicrosecondBuilder,
+};
+use arrow::datatypes::{
+    DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema, TimeUnit,
+};
+use arrow::record_batch::RecordBatch;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::arrow_writer::ArrowWriter;
 use sqlparser::ast::{
     self, Expr, LimitClause, ObjectName, OrderBy, OrderByExpr, OrderByKind, Query, Select,
     SelectItem, SetExpr, Statement, TableFactor, TableWithJoins, Value as SqlValue,
@@ -20,6 +33,255 @@ use yachtsql_storage::{Column, Field, Record, Schema, Table, TableSchemaOps};
 
 use crate::catalog::Catalog;
 use crate::evaluator::{Evaluator, parse_byte_string_escapes};
+
+#[derive(Debug, Clone)]
+struct LoadDataInfo {
+    table_name: String,
+    overwrite: bool,
+    format: String,
+    uris: Vec<String>,
+    is_temp_table: bool,
+    column_defs: Vec<(String, String)>,
+}
+
+fn parse_load_data(sql: &str) -> Option<LoadDataInfo> {
+    let upper = sql.to_uppercase();
+    if !upper.trim_start().starts_with("LOAD DATA") {
+        return None;
+    }
+
+    let overwrite = upper.contains("OVERWRITE");
+    let is_temp_table = upper.contains("TEMP TABLE");
+
+    let (table_name, column_defs) = if overwrite {
+        let after_overwrite = &sql[upper.find("OVERWRITE").unwrap() + 9..];
+        let trimmed = after_overwrite.trim_start();
+        let end = trimmed
+            .find(|c: char| c.is_whitespace())
+            .unwrap_or(trimmed.len());
+        (trimmed[..end].to_string(), Vec::new())
+    } else {
+        let into_pos = upper.find("INTO")?;
+        let after_into = &sql[into_pos + 4..];
+        let trimmed = after_into.trim_start();
+
+        if is_temp_table {
+            let after_temp = trimmed
+                .strip_prefix("TEMP TABLE")
+                .or_else(|| trimmed.strip_prefix("temp table"))
+                .unwrap_or(trimmed)
+                .trim_start();
+
+            let paren_pos = after_temp.find('(');
+            let space_pos = after_temp.find(|c: char| c.is_whitespace());
+            let table_end = match (paren_pos, space_pos) {
+                (Some(p), Some(s)) => p.min(s),
+                (Some(p), None) => p,
+                (None, Some(s)) => s,
+                (None, None) => after_temp.len(),
+            };
+
+            let table_name = after_temp[..table_end].to_string();
+            let cols = if let Some(start) = after_temp.find('(') {
+                let col_section = &after_temp[start..];
+                if let Some(end) = find_matching_paren(col_section) {
+                    parse_column_defs(&col_section[1..end])
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+            (table_name, cols)
+        } else {
+            let end = trimmed
+                .find(|c: char| c.is_whitespace())
+                .unwrap_or(trimmed.len());
+            (trimmed[..end].to_string(), Vec::new())
+        }
+    };
+
+    let files_pos = upper.find("FROM FILES")?;
+    let options_start = sql[files_pos..].find('(')? + files_pos + 1;
+    let options_end = find_matching_paren(&sql[options_start - 1..])? + options_start - 1;
+    let options_str = &sql[options_start..options_end];
+
+    let format = extract_option(options_str, "FORMAT")
+        .or_else(|| extract_option(options_str, "format"))
+        .unwrap_or_else(|| "PARQUET".to_string())
+        .trim_matches(|c| c == '\'' || c == '"')
+        .to_uppercase();
+
+    let uris_str =
+        extract_option(options_str, "URIS").or_else(|| extract_option(options_str, "uris"))?;
+    let uris = parse_uri_array(&uris_str);
+
+    Some(LoadDataInfo {
+        table_name,
+        overwrite,
+        format,
+        uris,
+        is_temp_table,
+        column_defs,
+    })
+}
+
+fn parse_column_defs(s: &str) -> Vec<(String, String)> {
+    let mut cols = Vec::new();
+    for part in s.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let mut iter = part.split_whitespace();
+        if let (Some(name), Some(dtype)) = (iter.next(), iter.next()) {
+            cols.push((name.to_string(), dtype.to_string()));
+        }
+    }
+    cols
+}
+
+fn parse_simple_data_type(s: &str) -> DataType {
+    match s.to_uppercase().as_str() {
+        "BOOL" | "BOOLEAN" => DataType::Bool,
+        "INT64" | "INTEGER" | "INT" => DataType::Int64,
+        "FLOAT64" | "FLOAT" | "DOUBLE" => DataType::Float64,
+        "STRING" | "VARCHAR" | "TEXT" => DataType::String,
+        "BYTES" => DataType::Bytes,
+        "DATE" => DataType::Date,
+        "DATETIME" => DataType::DateTime,
+        "TIME" => DataType::Time,
+        "TIMESTAMP" => DataType::Timestamp,
+        "NUMERIC" => DataType::Numeric(None),
+        "JSON" => DataType::Json,
+        _ => DataType::String,
+    }
+}
+
+fn find_matching_paren(s: &str) -> Option<usize> {
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut string_char = ' ';
+
+    for (i, c) in s.chars().enumerate() {
+        if in_string {
+            if c == string_char {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match c {
+            '\'' | '"' => {
+                in_string = true;
+                string_char = c;
+            }
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn extract_option(options_str: &str, key: &str) -> Option<String> {
+    let upper = options_str.to_uppercase();
+    let key_upper = key.to_uppercase();
+    let key_pos = upper.find(&key_upper)?;
+
+    let after_key = &options_str[key_pos + key.len()..];
+    let after_eq = after_key.trim_start().strip_prefix('=')?;
+    let trimmed = after_eq.trim_start();
+
+    if trimmed.starts_with('[') {
+        let end = find_matching_bracket(trimmed)?;
+        Some(trimmed[..=end].to_string())
+    } else if trimmed.starts_with('\'') || trimmed.starts_with('"') {
+        let quote = trimmed.chars().next()?;
+        let end = trimmed[1..].find(quote)? + 1;
+        Some(trimmed[1..end].to_string())
+    } else {
+        let end = trimmed.find([',', ')']).unwrap_or(trimmed.len());
+        Some(trimmed[..end].trim().to_string())
+    }
+}
+
+fn find_matching_bracket(s: &str) -> Option<usize> {
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut string_char = ' ';
+
+    for (i, c) in s.chars().enumerate() {
+        if in_string {
+            if c == string_char {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match c {
+            '\'' | '"' => {
+                in_string = true;
+                string_char = c;
+            }
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn parse_uri_array(s: &str) -> Vec<String> {
+    let trimmed = s.trim();
+    let inner = if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        &trimmed[1..trimmed.len() - 1]
+    } else {
+        trimmed
+    };
+
+    let mut uris = Vec::new();
+    let mut current = String::new();
+    let mut in_string = false;
+    let mut string_char = ' ';
+
+    for c in inner.chars() {
+        if in_string {
+            if c == string_char {
+                in_string = false;
+                uris.push(current.clone());
+                current.clear();
+            } else {
+                current.push(c);
+            }
+        } else {
+            match c {
+                '\'' | '"' => {
+                    in_string = true;
+                    string_char = c;
+                }
+                ',' | ' ' | '\n' | '\t' => {}
+                _ => current.push(c),
+            }
+        }
+    }
+
+    if !current.is_empty() {
+        uris.push(current);
+    }
+
+    uris
+}
 
 #[derive(Debug, Clone)]
 struct WindowFunctionInfo {
@@ -41,6 +303,10 @@ impl QueryExecutor {
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> Result<Table> {
+        if let Some(load_info) = parse_load_data(sql) {
+            return self.execute_load_data(&load_info);
+        }
+
         let dialect = BigQueryDialect {};
         let statements =
             Parser::parse_sql(&dialect, sql).map_err(|e| Error::ParseError(e.to_string()))?;
@@ -90,6 +356,7 @@ impl QueryExecutor {
             Statement::AlterTable {
                 name, operations, ..
             } => self.execute_alter_table(name, operations),
+            Statement::ExportData(export_data) => self.execute_export_data(export_data),
             _ => Err(Error::UnsupportedFeature(format!(
                 "Statement type not yet supported: {:?}",
                 stmt
@@ -4371,6 +4638,915 @@ impl QueryExecutor {
             }
             _ => evaluator.evaluate(expr, record),
         }
+    }
+
+    fn execute_export_data(&self, export_data: &ast::ExportData) -> Result<Table> {
+        let query_result = self.execute_query(&export_data.query)?;
+
+        let mut uri = String::new();
+        let mut format = "PARQUET".to_string();
+
+        for option in &export_data.options {
+            if let ast::SqlOption::KeyValue { key, value } = option {
+                let key_str = key.value.to_uppercase();
+                let value_str = self.expr_to_string(value);
+
+                match key_str.as_str() {
+                    "URI" => uri = value_str,
+                    "FORMAT" => format = value_str.to_uppercase(),
+                    _ => {}
+                }
+            }
+        }
+
+        if uri.is_empty() {
+            return Err(Error::InvalidQuery(
+                "EXPORT DATA requires uri option".to_string(),
+            ));
+        }
+
+        let path = if uri.starts_with("file://") {
+            uri.strip_prefix("file://").unwrap().to_string()
+        } else if uri.starts_with("gs://") {
+            let cloud_path = uri.strip_prefix("gs://").unwrap();
+            cloud_path.replace('*', "data")
+        } else if uri.starts_with("s3://") {
+            let cloud_path = uri.strip_prefix("s3://").unwrap();
+            cloud_path.replace('*', "data")
+        } else {
+            uri.replace('*', "data")
+        };
+
+        match format.as_str() {
+            "PARQUET" => self.export_to_parquet(&query_result, &path),
+            "JSON" => self.export_to_json(&query_result, &path),
+            "CSV" => self.export_to_csv(&query_result, &path, &export_data.options),
+            "AVRO" => self.export_to_avro(&query_result, &path),
+            _ => Err(Error::UnsupportedFeature(format!(
+                "Export format '{}' not supported",
+                format
+            ))),
+        }
+    }
+
+    fn expr_to_string(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Value(v) => match &v.value {
+                SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s) => s.clone(),
+                other => other.to_string(),
+            },
+            Expr::Identifier(ident) => ident.value.clone(),
+            other => other.to_string(),
+        }
+    }
+
+    fn export_to_parquet(&self, table: &Table, path: &str) -> Result<Table> {
+        use std::path::Path;
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+
+        let arrow_schema = self.table_schema_to_arrow_schema(table.schema());
+        let record_batch = self.table_to_record_batch(table, &arrow_schema)?;
+
+        let file = File::create(path)
+            .map_err(|e| Error::internal(format!("Failed to create file: {}", e)))?;
+        let mut writer = ArrowWriter::try_new(file, Arc::new(arrow_schema), None)
+            .map_err(|e| Error::internal(format!("Failed to create Parquet writer: {}", e)))?;
+
+        writer
+            .write(&record_batch)
+            .map_err(|e| Error::internal(format!("Failed to write Parquet: {}", e)))?;
+        writer
+            .close()
+            .map_err(|e| Error::internal(format!("Failed to close Parquet writer: {}", e)))?;
+
+        let result_schema = Schema::from_fields(vec![]);
+        Ok(Table::empty(result_schema))
+    }
+
+    fn export_to_json(&self, table: &Table, path: &str) -> Result<Table> {
+        use std::path::Path;
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+
+        let file = File::create(path)
+            .map_err(|e| Error::internal(format!("Failed to create file: {}", e)))?;
+        let mut writer = BufWriter::new(file);
+
+        let schema = table.schema();
+        let num_rows = table.num_rows();
+
+        for row_idx in 0..num_rows {
+            let mut json_obj = serde_json::Map::new();
+            for (col_idx, field) in schema.fields().iter().enumerate() {
+                let col = table
+                    .column(col_idx)
+                    .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                let value = col.get_value(row_idx);
+                let json_val = self.value_to_json(&value);
+                json_obj.insert(field.name.clone(), json_val);
+            }
+            let line = serde_json::to_string(&serde_json::Value::Object(json_obj))
+                .map_err(|e| Error::internal(format!("JSON serialization error: {}", e)))?;
+            writeln!(writer, "{}", line)
+                .map_err(|e| Error::internal(format!("Write error: {}", e)))?;
+        }
+
+        writer
+            .flush()
+            .map_err(|e| Error::internal(format!("Flush error: {}", e)))?;
+
+        let result_schema = Schema::from_fields(vec![]);
+        Ok(Table::empty(result_schema))
+    }
+
+    fn export_to_csv(
+        &self,
+        table: &Table,
+        path: &str,
+        options: &[ast::SqlOption],
+    ) -> Result<Table> {
+        use std::path::Path;
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+
+        let file = File::create(path)
+            .map_err(|e| Error::internal(format!("Failed to create file: {}", e)))?;
+        let mut writer = BufWriter::new(file);
+
+        let mut field_delimiter = ",";
+        let mut include_header = false;
+
+        for option in options {
+            if let ast::SqlOption::KeyValue { key, value } = option {
+                let key_str = key.value.to_uppercase();
+                let value_str = self.expr_to_string(value);
+                match key_str.as_str() {
+                    "FIELD_DELIMITER" => field_delimiter = if value_str == "|" { "|" } else { "," },
+                    "HEADER" => include_header = value_str.to_uppercase() == "TRUE",
+                    _ => {}
+                }
+            }
+        }
+
+        let schema = table.schema();
+        let num_rows = table.num_rows();
+
+        if include_header {
+            let header: Vec<String> = schema.fields().iter().map(|f| f.name.clone()).collect();
+            writeln!(writer, "{}", header.join(field_delimiter))
+                .map_err(|e| Error::internal(format!("Write error: {}", e)))?;
+        }
+
+        for row_idx in 0..num_rows {
+            let mut values = Vec::new();
+            for col_idx in 0..schema.fields().len() {
+                let col = table
+                    .column(col_idx)
+                    .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                let value = col.get_value(row_idx);
+                let csv_val = self.value_to_csv(&value);
+                values.push(csv_val);
+            }
+            writeln!(writer, "{}", values.join(field_delimiter))
+                .map_err(|e| Error::internal(format!("Write error: {}", e)))?;
+        }
+
+        writer
+            .flush()
+            .map_err(|e| Error::internal(format!("Flush error: {}", e)))?;
+
+        let result_schema = Schema::from_fields(vec![]);
+        Ok(Table::empty(result_schema))
+    }
+
+    fn value_to_csv(&self, value: &Value) -> String {
+        if value.is_null() {
+            return String::new();
+        }
+
+        match value {
+            Value::Bool(b) => b.to_string(),
+            Value::Int64(i) => i.to_string(),
+            Value::Float64(f) => f.0.to_string(),
+            Value::String(s) => {
+                if s.contains(',') || s.contains('"') || s.contains('\n') {
+                    format!("\"{}\"", s.replace('"', "\"\""))
+                } else {
+                    s.clone()
+                }
+            }
+            Value::Date(d) => d.format("%Y-%m-%d").to_string(),
+            Value::DateTime(dt) => dt.format("%Y-%m-%dT%H:%M:%S%.6f").to_string(),
+            _ => format!("{}", value),
+        }
+    }
+
+    fn export_to_avro(&self, table: &Table, path: &str) -> Result<Table> {
+        use std::path::Path;
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+
+        let file = File::create(path)
+            .map_err(|e| Error::internal(format!("Failed to create file: {}", e)))?;
+        let mut writer = BufWriter::new(file);
+
+        let schema = table.schema();
+        let num_rows = table.num_rows();
+
+        for row_idx in 0..num_rows {
+            let mut json_obj = serde_json::Map::new();
+            for (col_idx, field) in schema.fields().iter().enumerate() {
+                let col = table
+                    .column(col_idx)
+                    .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                let value = col.get_value(row_idx);
+                let json_val = self.value_to_json(&value);
+                json_obj.insert(field.name.clone(), json_val);
+            }
+            let line = serde_json::to_string(&serde_json::Value::Object(json_obj))
+                .map_err(|e| Error::internal(format!("JSON serialization error: {}", e)))?;
+            writeln!(writer, "{}", line)
+                .map_err(|e| Error::internal(format!("Write error: {}", e)))?;
+        }
+
+        writer
+            .flush()
+            .map_err(|e| Error::internal(format!("Flush error: {}", e)))?;
+
+        let result_schema = Schema::from_fields(vec![]);
+        Ok(Table::empty(result_schema))
+    }
+
+    fn value_to_json(&self, value: &Value) -> serde_json::Value {
+        if value.is_null() {
+            return serde_json::Value::Null;
+        }
+
+        match value {
+            Value::Bool(b) => serde_json::Value::Bool(*b),
+            Value::Int64(i) => serde_json::Value::Number((*i).into()),
+            Value::Float64(f) => serde_json::Number::from_f64(f.0)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null),
+            Value::String(s) => serde_json::Value::String(s.clone()),
+            Value::Date(d) => serde_json::Value::String(d.format("%Y-%m-%d").to_string()),
+            Value::DateTime(dt) => {
+                serde_json::Value::String(dt.format("%Y-%m-%dT%H:%M:%S%.6f").to_string())
+            }
+            _ => serde_json::Value::String(format!("{}", value)),
+        }
+    }
+
+    fn table_schema_to_arrow_schema(&self, schema: &Schema) -> ArrowSchema {
+        let fields: Vec<ArrowField> = schema
+            .fields()
+            .iter()
+            .map(|f| {
+                let arrow_type = match &f.data_type {
+                    DataType::Bool => ArrowDataType::Boolean,
+                    DataType::Int64 => ArrowDataType::Int64,
+                    DataType::Float64 => ArrowDataType::Float64,
+                    DataType::String => ArrowDataType::Utf8,
+                    DataType::Date => ArrowDataType::Date32,
+                    DataType::DateTime => ArrowDataType::Timestamp(TimeUnit::Microsecond, None),
+                    DataType::Timestamp => ArrowDataType::Timestamp(TimeUnit::Microsecond, None),
+                    _ => ArrowDataType::Utf8,
+                };
+                ArrowField::new(&f.name, arrow_type, f.is_nullable())
+            })
+            .collect();
+        ArrowSchema::new(fields)
+    }
+
+    fn table_to_record_batch(
+        &self,
+        table: &Table,
+        arrow_schema: &ArrowSchema,
+    ) -> Result<RecordBatch> {
+        let num_rows = table.num_rows();
+        let schema = table.schema();
+
+        let mut arrays: Vec<ArrayRef> = Vec::new();
+
+        for (col_idx, field) in schema.fields().iter().enumerate() {
+            let array: ArrayRef = match &field.data_type {
+                DataType::Bool => {
+                    let mut builder = BooleanBuilder::new();
+                    let col = table
+                        .column(col_idx)
+                        .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                    for row_idx in 0..num_rows {
+                        let val = col.get_value(row_idx);
+                        if val.is_null() {
+                            builder.append_null();
+                        } else if let Some(b) = val.as_bool() {
+                            builder.append_value(b);
+                        } else {
+                            builder.append_null();
+                        }
+                    }
+                    Arc::new(builder.finish())
+                }
+                DataType::Int64 => {
+                    let mut builder = Int64Builder::new();
+                    let col = table
+                        .column(col_idx)
+                        .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                    for row_idx in 0..num_rows {
+                        let val = col.get_value(row_idx);
+                        if val.is_null() {
+                            builder.append_null();
+                        } else if let Some(i) = val.as_i64() {
+                            builder.append_value(i);
+                        } else {
+                            builder.append_null();
+                        }
+                    }
+                    Arc::new(builder.finish())
+                }
+                DataType::Float64 => {
+                    let mut builder = Float64Builder::new();
+                    let col = table
+                        .column(col_idx)
+                        .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                    for row_idx in 0..num_rows {
+                        let val = col.get_value(row_idx);
+                        if val.is_null() {
+                            builder.append_null();
+                        } else if let Some(f) = val.as_f64() {
+                            builder.append_value(f);
+                        } else {
+                            builder.append_null();
+                        }
+                    }
+                    Arc::new(builder.finish())
+                }
+                DataType::String => {
+                    let mut builder = StringBuilder::new();
+                    let col = table
+                        .column(col_idx)
+                        .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                    for row_idx in 0..num_rows {
+                        let val = col.get_value(row_idx);
+                        if val.is_null() {
+                            builder.append_null();
+                        } else if let Some(s) = val.as_str() {
+                            builder.append_value(s);
+                        } else {
+                            builder.append_value(val.to_string());
+                        }
+                    }
+                    Arc::new(builder.finish())
+                }
+                DataType::Date => {
+                    use chrono::Datelike;
+                    let mut builder = Date32Builder::new();
+                    let col = table
+                        .column(col_idx)
+                        .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                    for row_idx in 0..num_rows {
+                        let val = col.get_value(row_idx);
+                        if val.is_null() {
+                            builder.append_null();
+                        } else if let Value::Date(d) = val {
+                            let days = d.num_days_from_ce() - 719163;
+                            builder.append_value(days);
+                        } else {
+                            builder.append_null();
+                        }
+                    }
+                    Arc::new(builder.finish())
+                }
+                DataType::DateTime | DataType::Timestamp => {
+                    let mut builder = TimestampMicrosecondBuilder::new();
+                    let col = table
+                        .column(col_idx)
+                        .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                    for row_idx in 0..num_rows {
+                        let val = col.get_value(row_idx);
+                        if val.is_null() {
+                            builder.append_null();
+                        } else if let Value::DateTime(dt) = val {
+                            let micros = dt.and_utc().timestamp_micros();
+                            builder.append_value(micros);
+                        } else if let Value::Timestamp(ts) = val {
+                            let micros = ts.timestamp_micros();
+                            builder.append_value(micros);
+                        } else {
+                            builder.append_null();
+                        }
+                    }
+                    Arc::new(builder.finish())
+                }
+                _ => {
+                    let mut builder = StringBuilder::new();
+                    let col = table
+                        .column(col_idx)
+                        .ok_or_else(|| Error::internal(format!("Column {} not found", col_idx)))?;
+                    for row_idx in 0..num_rows {
+                        let val = col.get_value(row_idx);
+                        if val.is_null() {
+                            builder.append_null();
+                        } else {
+                            builder.append_value(val.to_string());
+                        }
+                    }
+                    Arc::new(builder.finish())
+                }
+            };
+            arrays.push(array);
+        }
+
+        RecordBatch::try_new(Arc::new(arrow_schema.clone()), arrays)
+            .map_err(|e| Error::internal(format!("Failed to create RecordBatch: {}", e)))
+    }
+
+    fn execute_load_data(&mut self, load_info: &LoadDataInfo) -> Result<Table> {
+        if load_info.is_temp_table && !load_info.column_defs.is_empty() {
+            let fields: Vec<Field> = load_info
+                .column_defs
+                .iter()
+                .map(|(name, dtype)| {
+                    let data_type = parse_simple_data_type(dtype);
+                    Field::nullable(name.clone(), data_type)
+                })
+                .collect();
+            let schema = Schema::from_fields(fields);
+            self.catalog
+                .create_table(&load_info.table_name, schema)
+                .ok();
+        }
+
+        let table = self
+            .catalog
+            .get_table_mut(&load_info.table_name)
+            .ok_or_else(|| Error::table_not_found(&load_info.table_name))?;
+
+        if load_info.overwrite {
+            table.clear();
+        }
+
+        let schema = table.schema().clone();
+
+        for uri in &load_info.uris {
+            let (path, is_cloud_uri) = if uri.starts_with("file://") {
+                (uri.strip_prefix("file://").unwrap().to_string(), false)
+            } else if uri.starts_with("gs://") {
+                (
+                    uri.strip_prefix("gs://").unwrap().replace('*', "data"),
+                    true,
+                )
+            } else if uri.starts_with("s3://") {
+                (
+                    uri.strip_prefix("s3://").unwrap().replace('*', "data"),
+                    true,
+                )
+            } else {
+                (uri.clone(), false)
+            };
+
+            if is_cloud_uri && !std::path::Path::new(&path).exists() {
+                continue;
+            }
+
+            let rows = match load_info.format.as_str() {
+                "PARQUET" => self.load_parquet(&path, &schema)?,
+                "JSON" => self.load_json(&path, &schema)?,
+                "CSV" => self.load_csv(&path, &schema)?,
+                _ => {
+                    return Err(Error::UnsupportedFeature(format!(
+                        "Load format '{}' not supported",
+                        load_info.format
+                    )));
+                }
+            };
+
+            let table = self
+                .catalog
+                .get_table_mut(&load_info.table_name)
+                .ok_or_else(|| Error::table_not_found(&load_info.table_name))?;
+
+            for row in rows {
+                table.push_row(row)?;
+            }
+        }
+
+        let result_schema = Schema::from_fields(vec![]);
+        Ok(Table::empty(result_schema))
+    }
+
+    fn load_parquet(&self, path: &str, schema: &Schema) -> Result<Vec<Vec<Value>>> {
+        let file = File::open(path)
+            .map_err(|e| Error::internal(format!("Failed to open file '{}': {}", path, e)))?;
+
+        let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+            .map_err(|e| Error::internal(format!("Failed to read Parquet: {}", e)))?
+            .build()
+            .map_err(|e| Error::internal(format!("Failed to build Parquet reader: {}", e)))?;
+
+        let mut rows = Vec::new();
+        let target_columns: Vec<String> = schema.fields().iter().map(|f| f.name.clone()).collect();
+        let target_types: Vec<DataType> = schema
+            .fields()
+            .iter()
+            .map(|f| f.data_type.clone())
+            .collect();
+
+        for batch_result in reader {
+            let batch = batch_result
+                .map_err(|e| Error::internal(format!("Failed to read batch: {}", e)))?;
+
+            let parquet_schema = batch.schema();
+            let parquet_columns: Vec<String> = parquet_schema
+                .fields()
+                .iter()
+                .map(|f| f.name().to_string())
+                .collect();
+
+            let column_mapping: Vec<Option<usize>> = target_columns
+                .iter()
+                .map(|target_col| {
+                    parquet_columns
+                        .iter()
+                        .position(|pc| pc.eq_ignore_ascii_case(target_col))
+                })
+                .collect();
+
+            for row_idx in 0..batch.num_rows() {
+                let mut row_values = Vec::with_capacity(target_columns.len());
+
+                for (col_idx, parquet_col_idx) in column_mapping.iter().enumerate() {
+                    let value = match parquet_col_idx {
+                        Some(pci) => {
+                            let array = batch.column(*pci);
+                            self.arrow_array_to_value(array, row_idx, &target_types[col_idx])?
+                        }
+                        None => Value::null(),
+                    };
+                    row_values.push(value);
+                }
+                rows.push(row_values);
+            }
+        }
+
+        Ok(rows)
+    }
+
+    fn arrow_array_to_value(
+        &self,
+        array: &ArrayRef,
+        row_idx: usize,
+        target_type: &DataType,
+    ) -> Result<Value> {
+        use arrow::array::{Array, AsArray};
+
+        if array.is_null(row_idx) {
+            return Ok(Value::null());
+        }
+
+        let value = match array.data_type() {
+            ArrowDataType::Boolean => {
+                let arr = array.as_boolean();
+                Value::bool_val(arr.value(row_idx))
+            }
+            ArrowDataType::Int64 => {
+                let arr = array.as_primitive::<arrow::datatypes::Int64Type>();
+                Value::int64(arr.value(row_idx))
+            }
+            ArrowDataType::Int32 => {
+                let arr = array.as_primitive::<arrow::datatypes::Int32Type>();
+                Value::int64(arr.value(row_idx) as i64)
+            }
+            ArrowDataType::Float64 => {
+                let arr = array.as_primitive::<arrow::datatypes::Float64Type>();
+                Value::float64(arr.value(row_idx))
+            }
+            ArrowDataType::Float32 => {
+                let arr = array.as_primitive::<arrow::datatypes::Float32Type>();
+                Value::float64(arr.value(row_idx) as f64)
+            }
+            ArrowDataType::Utf8 => {
+                let arr = array.as_string::<i32>();
+                Value::string(arr.value(row_idx).to_string())
+            }
+            ArrowDataType::LargeUtf8 => {
+                let arr = array.as_string::<i64>();
+                Value::string(arr.value(row_idx).to_string())
+            }
+            ArrowDataType::Date32 => {
+                let arr = array.as_primitive::<arrow::datatypes::Date32Type>();
+                let days = arr.value(row_idx);
+                let date =
+                    chrono::NaiveDate::from_num_days_from_ce_opt(days + 719163).unwrap_or_default();
+                Value::date(date)
+            }
+            ArrowDataType::Timestamp(TimeUnit::Microsecond, _) => {
+                let arr = array.as_primitive::<arrow::datatypes::TimestampMicrosecondType>();
+                let ts = arr.value(row_idx);
+                let datetime = chrono::DateTime::from_timestamp_micros(ts)
+                    .map(|dt| dt.naive_utc())
+                    .unwrap_or_default();
+                match target_type {
+                    DataType::DateTime => Value::datetime(datetime),
+                    DataType::Timestamp => {
+                        let utc_dt =
+                            chrono::DateTime::from_timestamp_micros(ts).unwrap_or_default();
+                        Value::timestamp(utc_dt)
+                    }
+                    _ => Value::datetime(datetime),
+                }
+            }
+            ArrowDataType::Timestamp(TimeUnit::Second, _) => {
+                let arr = array.as_primitive::<arrow::datatypes::TimestampSecondType>();
+                let ts = arr.value(row_idx);
+                let datetime = chrono::DateTime::from_timestamp(ts, 0)
+                    .map(|dt| dt.naive_utc())
+                    .unwrap_or_default();
+                Value::datetime(datetime)
+            }
+            ArrowDataType::Timestamp(TimeUnit::Millisecond, _) => {
+                let arr = array.as_primitive::<arrow::datatypes::TimestampMillisecondType>();
+                let ts = arr.value(row_idx);
+                let datetime = chrono::DateTime::from_timestamp_millis(ts)
+                    .map(|dt| dt.naive_utc())
+                    .unwrap_or_default();
+                Value::datetime(datetime)
+            }
+            ArrowDataType::Timestamp(TimeUnit::Nanosecond, _) => {
+                let arr = array.as_primitive::<arrow::datatypes::TimestampNanosecondType>();
+                let ts = arr.value(row_idx);
+                let datetime = chrono::DateTime::from_timestamp_nanos(ts).naive_utc();
+                Value::datetime(datetime)
+            }
+            _ => Value::null(),
+        };
+
+        Ok(value)
+    }
+
+    fn load_json(&self, path: &str, schema: &Schema) -> Result<Vec<Vec<Value>>> {
+        let file = File::open(path)
+            .map_err(|e| Error::internal(format!("Failed to open file '{}': {}", path, e)))?;
+        let reader = BufReader::new(file);
+
+        let target_columns: Vec<String> = schema.fields().iter().map(|f| f.name.clone()).collect();
+        let target_types: Vec<DataType> = schema
+            .fields()
+            .iter()
+            .map(|f| f.data_type.clone())
+            .collect();
+
+        let mut rows = Vec::new();
+
+        for line_result in reader.lines() {
+            let line =
+                line_result.map_err(|e| Error::internal(format!("Failed to read line: {}", e)))?;
+
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            let json_obj: serde_json::Value = serde_json::from_str(&line)
+                .map_err(|e| Error::internal(format!("Invalid JSON: {}", e)))?;
+
+            let json_map = match json_obj {
+                serde_json::Value::Object(m) => m,
+                _ => continue,
+            };
+
+            let mut row_values = Vec::with_capacity(target_columns.len());
+
+            for (col_idx, target_col) in target_columns.iter().enumerate() {
+                let json_val = json_map
+                    .iter()
+                    .find(|(k, _)| k.eq_ignore_ascii_case(target_col))
+                    .map(|(_, v)| v);
+
+                let value = match json_val {
+                    Some(v) => self.json_to_value(v, &target_types[col_idx])?,
+                    None => Value::null(),
+                };
+                row_values.push(value);
+            }
+            rows.push(row_values);
+        }
+
+        Ok(rows)
+    }
+
+    fn load_csv(&self, path: &str, schema: &Schema) -> Result<Vec<Vec<Value>>> {
+        let file = File::open(path)
+            .map_err(|e| Error::internal(format!("Failed to open file '{}': {}", path, e)))?;
+        let reader = BufReader::new(file);
+
+        let target_columns: Vec<String> = schema.fields().iter().map(|f| f.name.clone()).collect();
+        let target_types: Vec<DataType> = schema
+            .fields()
+            .iter()
+            .map(|f| f.data_type.clone())
+            .collect();
+
+        let mut rows = Vec::new();
+
+        for line_result in reader.lines() {
+            let line =
+                line_result.map_err(|e| Error::internal(format!("Failed to read line: {}", e)))?;
+
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            let values = self.parse_csv_line(&line);
+            let mut row_values = Vec::with_capacity(target_columns.len());
+
+            for (col_idx, _) in target_columns.iter().enumerate() {
+                let csv_val = values.get(col_idx).map(|s| s.as_str()).unwrap_or("");
+                let value = self.csv_to_value(csv_val, &target_types[col_idx])?;
+                row_values.push(value);
+            }
+            rows.push(row_values);
+        }
+
+        Ok(rows)
+    }
+
+    fn parse_csv_line(&self, line: &str) -> Vec<String> {
+        let mut values = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let mut chars = line.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if in_quotes {
+                if c == '"' {
+                    if chars.peek() == Some(&'"') {
+                        chars.next();
+                        current.push('"');
+                    } else {
+                        in_quotes = false;
+                    }
+                } else {
+                    current.push(c);
+                }
+            } else {
+                match c {
+                    '"' => in_quotes = true,
+                    ',' => {
+                        values.push(current.clone());
+                        current.clear();
+                    }
+                    _ => current.push(c),
+                }
+            }
+        }
+        values.push(current);
+        values
+    }
+
+    fn csv_to_value(&self, csv_val: &str, target_type: &DataType) -> Result<Value> {
+        let trimmed = csv_val.trim();
+        if trimmed.is_empty() {
+            return Ok(Value::null());
+        }
+
+        let value = match target_type {
+            DataType::Bool => {
+                Value::bool_val(trimmed.eq_ignore_ascii_case("true") || trimmed == "1")
+            }
+            DataType::Int64 => trimmed
+                .parse::<i64>()
+                .map(Value::int64)
+                .unwrap_or(Value::null()),
+            DataType::Float64 => trimmed
+                .parse::<f64>()
+                .map(Value::float64)
+                .unwrap_or(Value::null()),
+            DataType::String => Value::string(trimmed.to_string()),
+            DataType::Date => {
+                if let Ok(date) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
+                    Value::date(date)
+                } else {
+                    Value::null()
+                }
+            }
+            DataType::DateTime => {
+                if let Ok(dt) =
+                    chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%dT%H:%M:%S%.f")
+                {
+                    Value::datetime(dt)
+                } else if let Ok(dt) =
+                    chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S")
+                {
+                    Value::datetime(dt)
+                } else {
+                    Value::null()
+                }
+            }
+            _ => Value::null(),
+        };
+
+        Ok(value)
+    }
+
+    fn json_to_value(&self, json_val: &serde_json::Value, target_type: &DataType) -> Result<Value> {
+        if json_val.is_null() {
+            return Ok(Value::null());
+        }
+
+        let value = match target_type {
+            DataType::Bool => match json_val {
+                serde_json::Value::Bool(b) => Value::bool_val(*b),
+                serde_json::Value::Number(n) => Value::bool_val(n.as_i64().unwrap_or(0) != 0),
+                serde_json::Value::String(s) => {
+                    Value::bool_val(s.eq_ignore_ascii_case("true") || s == "1")
+                }
+                _ => Value::null(),
+            },
+            DataType::Int64 => match json_val {
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        Value::int64(i)
+                    } else if let Some(f) = n.as_f64() {
+                        Value::int64(f as i64)
+                    } else {
+                        Value::null()
+                    }
+                }
+                serde_json::Value::String(s) => {
+                    s.parse::<i64>().map(Value::int64).unwrap_or(Value::null())
+                }
+                _ => Value::null(),
+            },
+            DataType::Float64 => match json_val {
+                serde_json::Value::Number(n) => {
+                    n.as_f64().map(Value::float64).unwrap_or(Value::null())
+                }
+                serde_json::Value::String(s) => s
+                    .parse::<f64>()
+                    .map(Value::float64)
+                    .unwrap_or(Value::null()),
+                _ => Value::null(),
+            },
+            DataType::String => match json_val {
+                serde_json::Value::String(s) => Value::string(s.clone()),
+                serde_json::Value::Number(n) => Value::string(n.to_string()),
+                serde_json::Value::Bool(b) => Value::string(b.to_string()),
+                _ => Value::null(),
+            },
+            DataType::Date => match json_val {
+                serde_json::Value::String(s) => {
+                    if let Ok(date) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+                        Value::date(date)
+                    } else {
+                        Value::null()
+                    }
+                }
+                serde_json::Value::Number(n) => {
+                    if let Some(days) = n.as_i64() {
+                        let date =
+                            chrono::NaiveDate::from_num_days_from_ce_opt((days as i32) + 719163)
+                                .unwrap_or_default();
+                        Value::date(date)
+                    } else {
+                        Value::null()
+                    }
+                }
+                _ => Value::null(),
+            },
+            DataType::DateTime => match json_val {
+                serde_json::Value::String(s) => {
+                    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")
+                    {
+                        Value::datetime(dt)
+                    } else if let Ok(dt) =
+                        chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                    {
+                        Value::datetime(dt)
+                    } else {
+                        Value::null()
+                    }
+                }
+                serde_json::Value::Number(n) => {
+                    if let Some(ts) = n.as_i64() {
+                        let datetime = chrono::DateTime::from_timestamp_micros(ts)
+                            .map(|dt| dt.naive_utc())
+                            .unwrap_or_default();
+                        Value::datetime(datetime)
+                    } else {
+                        Value::null()
+                    }
+                }
+                _ => Value::null(),
+            },
+            _ => Value::null(),
+        };
+
+        Ok(value)
     }
 }
 
