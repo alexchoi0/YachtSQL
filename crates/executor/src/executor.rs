@@ -9904,8 +9904,9 @@ impl QueryExecutor {
                     Ok(v) => Ok(v.data_type()),
                     Err(_) => match &val.value {
                         ast::Value::Number(_, _) => Ok(DataType::Float64),
-                        ast::Value::SingleQuotedString(_)
-                        | ast::Value::DoubleQuotedString(_) => Ok(DataType::String),
+                        ast::Value::SingleQuotedString(_) | ast::Value::DoubleQuotedString(_) => {
+                            Ok(DataType::String)
+                        }
                         ast::Value::Boolean(_) => Ok(DataType::Bool),
                         ast::Value::Null => Ok(DataType::Unknown),
                         _ => Ok(DataType::Unknown),
