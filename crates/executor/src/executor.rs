@@ -652,6 +652,21 @@ impl QueryExecutor {
             Expr::Identifier(ident) if ident.value.to_uppercase() == "NULL" => {
                 Ok(Value::null())
             }
+            Expr::Array(arr) => {
+                let mut values = Vec::with_capacity(arr.elem.len());
+                for elem in &arr.elem {
+                    values.push(self.evaluate_literal_expr(elem)?);
+                }
+                Ok(Value::array(values))
+            }
+            Expr::Nested(inner) => self.evaluate_literal_expr(inner),
+            Expr::Tuple(exprs) => {
+                let mut values = Vec::with_capacity(exprs.len());
+                for e in exprs {
+                    values.push(self.evaluate_literal_expr(e)?);
+                }
+                Ok(Value::array(values))
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression not supported in this context: {:?}",
                 expr
