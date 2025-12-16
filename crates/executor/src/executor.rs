@@ -32,7 +32,7 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField, Value};
 use yachtsql_storage::{Column, Field, Record, Schema, Table, TableSchemaOps};
 
-use crate::catalog::{Catalog, ColumnDefault, UserFunction, UserProcedure};
+use crate::catalog::{Catalog, ColumnDefault, FunctionBody, UserFunction, UserProcedure};
 use crate::evaluator::{Evaluator, parse_byte_string_escapes};
 
 #[derive(Debug, Clone)]
@@ -5865,13 +5865,46 @@ impl QueryExecutor {
     fn execute_create_function(&mut self, create: &ast::CreateFunction) -> Result<Table> {
         let name = create.name.to_string();
 
-        let body = match &create.function_body {
-            Some(CreateFunctionBody::AsBeforeOptions(expr)) => expr.clone(),
-            Some(CreateFunctionBody::AsAfterOptions(expr)) => expr.clone(),
+        let language = create
+            .language
+            .as_ref()
+            .map(|l| l.value.to_uppercase())
+            .unwrap_or_else(|| "SQL".to_string());
+
+        let body = match language.as_str() {
+            "JAVASCRIPT" | "JS" => {
+                let js_code = match &create.function_body {
+                    Some(CreateFunctionBody::AsBeforeOptions(expr)) => {
+                        self.extract_string_from_expr(expr)?
+                    }
+                    Some(CreateFunctionBody::AsAfterOptions(expr)) => {
+                        self.extract_string_from_expr(expr)?
+                    }
+                    _ => {
+                        return Err(Error::InvalidQuery(
+                            "JavaScript UDF requires AS 'code' body".to_string(),
+                        ));
+                    }
+                };
+                FunctionBody::JavaScript(js_code)
+            }
+            "SQL" | "" => {
+                let expr = match &create.function_body {
+                    Some(CreateFunctionBody::AsBeforeOptions(expr)) => expr.clone(),
+                    Some(CreateFunctionBody::AsAfterOptions(expr)) => expr.clone(),
+                    _ => {
+                        return Err(Error::UnsupportedFeature(
+                            "SQL UDF requires AS (expr) body".to_string(),
+                        ));
+                    }
+                };
+                FunctionBody::Sql(Box::new(expr))
+            }
             _ => {
-                return Err(Error::UnsupportedFeature(
-                    "Only SQL UDFs with AS (expr) are supported".to_string(),
-                ));
+                return Err(Error::UnsupportedFeature(format!(
+                    "Unsupported function language: {}. Supported: SQL, JAVASCRIPT",
+                    language
+                )));
             }
         };
 
@@ -5900,6 +5933,29 @@ impl QueryExecutor {
 
         self.catalog.create_function(func, create.or_replace)?;
         Ok(Table::empty(Schema::new()))
+    }
+
+    fn extract_string_from_expr(&self, expr: &Expr) -> Result<String> {
+        match expr {
+            Expr::Value(val_with_span) => match &val_with_span.value {
+                SqlValue::SingleQuotedString(s)
+                | SqlValue::DoubleQuotedString(s)
+                | SqlValue::TripleSingleQuotedString(s)
+                | SqlValue::TripleDoubleQuotedString(s)
+                | SqlValue::TripleSingleQuotedRawStringLiteral(s)
+                | SqlValue::TripleDoubleQuotedRawStringLiteral(s)
+                | SqlValue::SingleQuotedRawStringLiteral(s)
+                | SqlValue::DoubleQuotedRawStringLiteral(s) => Ok(s.clone()),
+                _ => Err(Error::InvalidQuery(format!(
+                    "Expected string literal for function body, got: {:?}",
+                    expr
+                ))),
+            },
+            _ => Err(Error::InvalidQuery(format!(
+                "Expected string literal for function body, got: {:?}",
+                expr
+            ))),
+        }
     }
 
     fn execute_drop_function(

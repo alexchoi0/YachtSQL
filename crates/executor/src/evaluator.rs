@@ -83,7 +83,8 @@ pub fn parse_byte_string_escapes(s: &str) -> Vec<u8> {
 
 use std::collections::HashMap;
 
-use crate::catalog::UserFunction;
+use crate::catalog::{FunctionBody, UserFunction};
+use crate::js_udf::evaluate_js_function;
 
 fn parse_geography(wkt_str: &str) -> std::result::Result<Geometry<f64>, String> {
     if wkt_str.starts_with("GEOGRAPHY") {
@@ -6564,9 +6565,30 @@ impl<'a> Evaluator<'a> {
             )));
         }
 
-        let substituted_body = self.substitute_udf_params(&udf.body, &udf.parameters, &args);
+        match &udf.body {
+            FunctionBody::Sql(body_expr) => {
+                let substituted_body =
+                    self.substitute_udf_params(body_expr, &udf.parameters, &args);
+                Ok(Some(self.evaluate(&substituted_body, record)?))
+            }
+            FunctionBody::JavaScript(js_code) => {
+                let param_names: Vec<String> = udf
+                    .parameters
+                    .iter()
+                    .filter_map(|p| p.name.as_ref().map(|n| n.value.clone()))
+                    .collect();
 
-        Ok(Some(self.evaluate(&substituted_body, record)?))
+                let arg_values: Vec<Value> = args
+                    .iter()
+                    .map(|arg| self.evaluate(arg, record))
+                    .collect::<Result<Vec<_>>>()?;
+
+                let result = evaluate_js_function(js_code, &param_names, &arg_values)
+                    .map_err(|e| Error::InvalidQuery(format!("JavaScript UDF error: {}", e)))?;
+
+                Ok(Some(result))
+            }
+        }
     }
 
     fn extract_udf_arg_exprs(&self, func: &sqlparser::ast::Function) -> Result<Vec<Expr>> {
