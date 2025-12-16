@@ -2291,40 +2291,7 @@ impl QueryExecutor {
                     return false;
                 }
                 let name = func.name.to_string().to_uppercase();
-                if matches!(
-                    name.as_str(),
-                    "COUNT"
-                        | "SUM"
-                        | "AVG"
-                        | "MIN"
-                        | "MAX"
-                        | "ARRAY_AGG"
-                        | "STRING_AGG"
-                        | "GROUP_CONCAT"
-                        | "STDDEV"
-                        | "STDDEV_POP"
-                        | "STDDEV_SAMP"
-                        | "VARIANCE"
-                        | "VAR_POP"
-                        | "VAR_SAMP"
-                        | "COVAR_POP"
-                        | "COVAR_SAMP"
-                        | "CORR"
-                        | "BIT_AND"
-                        | "BIT_OR"
-                        | "BIT_XOR"
-                        | "BOOL_AND"
-                        | "BOOL_OR"
-                        | "EVERY"
-                        | "ANY_VALUE"
-                        | "APPROX_COUNT_DISTINCT"
-                        | "APPROX_QUANTILES"
-                        | "APPROX_TOP_COUNT"
-                        | "APPROX_TOP_SUM"
-                        | "HLL_COUNT_INIT"
-                        | "HLL_COUNT_MERGE"
-                        | "HLL_COUNT_MERGE_PARTIAL"
-                ) {
+                if self.is_aggregate_function(&name) {
                     return true;
                 }
                 if let ast::FunctionArguments::List(arg_list) = &func.args {
@@ -3213,6 +3180,7 @@ impl QueryExecutor {
                 | "ARRAY_AGG"
                 | "STRING_AGG"
                 | "GROUP_CONCAT"
+                | "LISTAGG"
                 | "STDDEV"
                 | "STDDEV_POP"
                 | "STDDEV_SAMP"
@@ -3236,6 +3204,11 @@ impl QueryExecutor {
                 | "HLL_COUNT_INIT"
                 | "HLL_COUNT_MERGE"
                 | "HLL_COUNT_MERGE_PARTIAL"
+                | "COUNTIF"
+                | "COUNT_IF"
+                | "SUMIF"
+                | "SUM_IF"
+                | "XMLAGG"
         )
     }
 
@@ -3971,6 +3944,100 @@ impl QueryExecutor {
                 );
                 Ok(Value::string(format!("HLL_SKETCH:p14:{}", encoded)))
             }
+            "LISTAGG" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("LISTAGG requires an argument".to_string())
+                })?;
+                let separator = self
+                    .extract_second_function_arg(func)
+                    .and_then(|e| {
+                        if let Some(row) = group_rows.first() {
+                            evaluator
+                                .evaluate(&e, row)
+                                .ok()
+                                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default();
+
+                let mut parts = Vec::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        parts.push(val.to_string());
+                    }
+                }
+
+                Ok(Value::string(parts.join(&separator)))
+            }
+            "COUNTIF" | "COUNT_IF" => {
+                let condition_expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("COUNT_IF requires a condition argument".to_string())
+                })?;
+                let mut count = 0i64;
+                for row in group_rows {
+                    let cond = evaluator.evaluate(&condition_expr, row)?;
+                    if let Some(b) = cond.as_bool() {
+                        if b {
+                            count += 1;
+                        }
+                    }
+                }
+                Ok(Value::int64(count))
+            }
+            "SUMIF" | "SUM_IF" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("SUM_IF requires an expression argument".to_string())
+                })?;
+                let condition_expr = self.extract_second_function_arg(func).ok_or_else(|| {
+                    Error::InvalidQuery("SUM_IF requires a condition argument".to_string())
+                })?;
+
+                let mut sum_int: Option<i64> = None;
+                let mut sum_float: Option<f64> = None;
+
+                for row in group_rows {
+                    let cond = evaluator.evaluate(&condition_expr, row)?;
+                    let cond_true = cond.as_bool().unwrap_or(false);
+                    if !cond_true {
+                        continue;
+                    }
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        sum_int = Some(sum_int.unwrap_or(0) + i);
+                    } else if let Some(f) = val.as_f64() {
+                        sum_float = Some(sum_float.unwrap_or(0.0) + f);
+                    }
+                }
+
+                if let Some(s) = sum_float {
+                    Ok(Value::float64(s + sum_int.unwrap_or(0) as f64))
+                } else if let Some(s) = sum_int {
+                    Ok(Value::int64(s))
+                } else {
+                    Ok(Value::null())
+                }
+            }
+            "XMLAGG" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("XMLAGG requires an argument".to_string())
+                })?;
+
+                let mut parts = Vec::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        parts.push(val.to_string());
+                    }
+                }
+
+                Ok(Value::string(parts.join("")))
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Aggregate function {} not yet supported",
                 name
@@ -4088,20 +4155,54 @@ impl QueryExecutor {
         }
 
         let evaluator = Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
+        let sample_record = rows.first().cloned().unwrap_or_else(|| {
+            Record::from_values(vec![Value::null(); input_schema.field_count()])
+        });
 
         let mut all_cols: Vec<(String, DataType)> = Vec::new();
 
         for (idx, item) in projection.iter().enumerate() {
             match item {
-                SelectItem::Wildcard(_) => {
+                SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
+                    let replace_map = Self::get_replace_map(opts);
                     for field in input_schema.fields() {
-                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            if let Some(replace_expr) = replace_map.get(&field.name.to_lowercase())
+                            {
+                                let val = evaluator
+                                    .evaluate(replace_expr, &sample_record)
+                                    .unwrap_or(Value::null());
+                                all_cols.push((field.name.clone(), val.data_type()));
+                            } else {
+                                all_cols.push((field.name.clone(), field.data_type.clone()));
+                            }
+                        }
+                    }
+                }
+                SelectItem::QualifiedWildcard(name, opts) => {
+                    let table_name = name.to_string();
+                    let except_cols = Self::get_except_columns(opts);
+                    let replace_map = Self::get_replace_map(opts);
+                    for field in input_schema.fields() {
+                        let matches_table = field
+                            .source_table
+                            .as_ref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                        if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                            if let Some(replace_expr) = replace_map.get(&field.name.to_lowercase())
+                            {
+                                let val = evaluator
+                                    .evaluate(replace_expr, &sample_record)
+                                    .unwrap_or(Value::null());
+                                all_cols.push((field.name.clone(), val.data_type()));
+                            } else {
+                                all_cols.push((field.name.clone(), field.data_type.clone()));
+                            }
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
-                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
-                        Record::from_values(vec![Value::null(); input_schema.field_count()])
-                    });
                     let val = evaluator
                         .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
@@ -4109,18 +4210,10 @@ impl QueryExecutor {
                     all_cols.push((name, val.data_type()));
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
-                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
-                        Record::from_values(vec![Value::null(); input_schema.field_count()])
-                    });
                     let val = evaluator
                         .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
                     all_cols.push((alias.value.clone(), val.data_type()));
-                }
-                _ => {
-                    return Err(Error::UnsupportedFeature(
-                        "Unsupported projection item".to_string(),
-                    ));
                 }
             }
         }
@@ -4136,14 +4229,47 @@ impl QueryExecutor {
             let mut values = Vec::new();
             for item in projection {
                 match item {
-                    SelectItem::Wildcard(_) => {
-                        values.extend(row.values().iter().cloned());
+                    SelectItem::Wildcard(opts) => {
+                        let except_cols = Self::get_except_columns(opts);
+                        let replace_map = Self::get_replace_map(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            if !except_cols.contains(&field.name.to_lowercase()) {
+                                if let Some(replace_expr) =
+                                    replace_map.get(&field.name.to_lowercase())
+                                {
+                                    let val = evaluator.evaluate(replace_expr, row)?;
+                                    values.push(val);
+                                } else {
+                                    values.push(row.values()[i].clone());
+                                }
+                            }
+                        }
+                    }
+                    SelectItem::QualifiedWildcard(name, opts) => {
+                        let table_name = name.to_string();
+                        let except_cols = Self::get_except_columns(opts);
+                        let replace_map = Self::get_replace_map(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            let matches_table = field
+                                .source_table
+                                .as_ref()
+                                .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                            if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                                if let Some(replace_expr) =
+                                    replace_map.get(&field.name.to_lowercase())
+                                {
+                                    let val = evaluator.evaluate(replace_expr, row)?;
+                                    values.push(val);
+                                } else {
+                                    values.push(row.values()[i].clone());
+                                }
+                            }
+                        }
                     }
                     SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
                         let val = evaluator.evaluate(expr, row)?;
                         values.push(val);
                     }
-                    _ => {}
                 }
             }
             output_rows.push(Record::from_values(values));
@@ -4165,9 +4291,25 @@ impl QueryExecutor {
 
         for (idx, item) in projection.iter().enumerate() {
             match item {
-                SelectItem::Wildcard(_) => {
+                SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
                     for field in input_schema.fields() {
-                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
+                    }
+                }
+                SelectItem::QualifiedWildcard(name, opts) => {
+                    let table_name = name.to_string();
+                    let except_cols = Self::get_except_columns(opts);
+                    for field in input_schema.fields() {
+                        let matches_table = field
+                            .source_table
+                            .as_ref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                        if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
@@ -4207,11 +4349,6 @@ impl QueryExecutor {
                         all_cols.push((alias.value.clone(), val.data_type()));
                     }
                 }
-                _ => {
-                    return Err(Error::UnsupportedFeature(
-                        "Unsupported projection item".to_string(),
-                    ));
-                }
             }
         }
 
@@ -4228,8 +4365,26 @@ impl QueryExecutor {
 
             for item in projection {
                 match item {
-                    SelectItem::Wildcard(_) => {
-                        base_values.extend(row.values().iter().cloned());
+                    SelectItem::Wildcard(opts) => {
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            if !except_cols.contains(&field.name.to_lowercase()) {
+                                base_values.push(row.values()[i].clone());
+                            }
+                        }
+                    }
+                    SelectItem::QualifiedWildcard(name, opts) => {
+                        let table_name = name.to_string();
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            let matches_table = field
+                                .source_table
+                                .as_ref()
+                                .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                            if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                                base_values.push(row.values()[i].clone());
+                            }
+                        }
                     }
                     SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
                         let val = evaluator.evaluate(expr, row)?;
@@ -4244,7 +4399,6 @@ impl QueryExecutor {
                             base_values.push(val);
                         }
                     }
-                    _ => {}
                 }
             }
 
@@ -6352,9 +6506,25 @@ impl QueryExecutor {
 
         for (idx, item) in projection.iter().enumerate() {
             match item {
-                SelectItem::Wildcard(_) => {
+                SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
                     for field in input_schema.fields() {
-                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
+                    }
+                }
+                SelectItem::QualifiedWildcard(name, opts) => {
+                    let table_name = name.to_string();
+                    let except_cols = Self::get_except_columns(opts);
+                    for field in input_schema.fields() {
+                        let matches_table = field
+                            .source_table
+                            .as_ref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                        if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
@@ -6376,11 +6546,6 @@ impl QueryExecutor {
                     )?;
                     all_cols.push((alias.value.clone(), data_type));
                 }
-                _ => {
-                    return Err(Error::UnsupportedFeature(
-                        "Unsupported projection item".to_string(),
-                    ));
-                }
             }
         }
 
@@ -6395,8 +6560,26 @@ impl QueryExecutor {
             let mut values = Vec::new();
             for item in projection {
                 match item {
-                    SelectItem::Wildcard(_) => {
-                        values.extend(row.values().iter().cloned());
+                    SelectItem::Wildcard(opts) => {
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            if !except_cols.contains(&field.name.to_lowercase()) {
+                                values.push(row.values()[i].clone());
+                            }
+                        }
+                    }
+                    SelectItem::QualifiedWildcard(name, opts) => {
+                        let table_name = name.to_string();
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            let matches_table = field
+                                .source_table
+                                .as_ref()
+                                .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                            if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                                values.push(row.values()[i].clone());
+                            }
+                        }
                     }
                     SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
                         let val = self.evaluate_expr_with_window_results(
@@ -6408,7 +6591,6 @@ impl QueryExecutor {
                         )?;
                         values.push(val);
                     }
-                    _ => {}
                 }
             }
             output_rows.push(Record::from_values(values));
@@ -8537,6 +8719,35 @@ impl QueryExecutor {
             })
             .collect::<Vec<_>>()
             .join(".")
+    }
+
+    fn get_except_columns(
+        opts: &ast::WildcardAdditionalOptions,
+    ) -> std::collections::HashSet<String> {
+        opts.opt_except
+            .as_ref()
+            .map(|except| {
+                let mut cols = std::collections::HashSet::new();
+                cols.insert(except.first_element.value.to_lowercase());
+                for ident in &except.additional_elements {
+                    cols.insert(ident.value.to_lowercase());
+                }
+                cols
+            })
+            .unwrap_or_default()
+    }
+
+    fn get_replace_map(opts: &ast::WildcardAdditionalOptions) -> HashMap<String, Expr> {
+        opts.opt_replace
+            .as_ref()
+            .map(|replace| {
+                replace
+                    .items
+                    .iter()
+                    .map(|item| (item.column_name.value.to_lowercase(), item.expr.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 
