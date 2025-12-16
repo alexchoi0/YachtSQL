@@ -61,7 +61,6 @@ fn test_array_to_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_contains() {
     let mut executor = create_executor();
     executor

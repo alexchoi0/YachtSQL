@@ -1322,7 +1322,12 @@ impl QueryExecutor {
         stmt: &Statement,
     ) -> Result<(Table, Option<LoopControl>)> {
         match stmt {
-            Statement::Query(query) => self.execute_query(query).map(|t| (t, None)),
+            Statement::Query(query) => match query.body.as_ref() {
+                SetExpr::Insert(_) | SetExpr::Update(_) | SetExpr::Delete(_) => {
+                    self.execute_query_dml(query).map(|t| (t, None))
+                }
+                _ => self.execute_query(query).map(|t| (t, None)),
+            },
             Statement::CreateTable(create) => self.execute_create_table(create).map(|t| (t, None)),
             Statement::CreateView {
                 name,
@@ -1491,6 +1496,30 @@ impl QueryExecutor {
     fn execute_query(&self, query: &Query) -> Result<Table> {
         let cte_tables = self.materialize_ctes(&query.with)?;
         self.execute_query_with_ctes(query, &cte_tables)
+    }
+
+    fn execute_query_dml(&mut self, query: &Query) -> Result<Table> {
+        let cte_tables = self.materialize_ctes(&query.with)?;
+        match query.body.as_ref() {
+            SetExpr::Insert(Statement::Insert(insert)) => {
+                self.execute_insert_with_ctes(insert, &cte_tables)
+            }
+            SetExpr::Update(Statement::Update {
+                table,
+                assignments,
+                selection,
+                ..
+            }) => {
+                self.execute_update_with_ctes(table, assignments, selection.as_ref(), &cte_tables)
+            }
+            SetExpr::Delete(Statement::Delete(delete)) => {
+                self.execute_delete_with_ctes(delete, &cte_tables)
+            }
+            _ => Err(Error::UnsupportedFeature(format!(
+                "DML type not supported in query: {:?}",
+                query.body
+            ))),
+        }
     }
 
     fn execute_view_query(&self, query_sql: &str) -> Result<Table> {
@@ -2025,7 +2054,7 @@ impl QueryExecutor {
         cte_tables: &HashMap<String, Table>,
     ) -> Result<Table> {
         let (pre_projection_schema, mut rows, do_projection) = if select.from.is_empty() {
-            let (schema, rows) = self.evaluate_select_without_from(select)?;
+            let (schema, rows) = self.evaluate_select_without_from(select, cte_tables)?;
             (schema, rows, false)
         } else {
             self.evaluate_select_with_from_for_ordering_ctes(select, order_by, cte_tables)?
@@ -2096,7 +2125,11 @@ impl QueryExecutor {
         Table::from_values(schema, values)
     }
 
-    fn evaluate_select_without_from(&self, select: &Select) -> Result<(Schema, Vec<Record>)> {
+    fn evaluate_select_without_from(
+        &self,
+        select: &Select,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<(Schema, Vec<Record>)> {
         let empty_schema = Schema::new();
         let empty_record = Record::from_values(vec![]);
         let evaluator = Evaluator::with_user_functions(&empty_schema, self.catalog.get_functions());
@@ -2107,12 +2140,18 @@ impl QueryExecutor {
         for (idx, item) in select.projection.iter().enumerate() {
             match item {
                 SelectItem::UnnamedExpr(expr) => {
-                    let val = self.evaluate_with_variables(&evaluator, expr, &empty_record)?;
+                    let resolved_expr =
+                        self.resolve_scalar_subqueries_with_ctes(expr, cte_tables)?;
+                    let val =
+                        self.evaluate_with_variables(&evaluator, &resolved_expr, &empty_record)?;
                     result_values.push(val.clone());
                     field_names.push(self.expr_to_alias(expr, idx));
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
-                    let val = self.evaluate_with_variables(&evaluator, expr, &empty_record)?;
+                    let resolved_expr =
+                        self.resolve_scalar_subqueries_with_ctes(expr, cte_tables)?;
+                    let val =
+                        self.evaluate_with_variables(&evaluator, &resolved_expr, &empty_record)?;
                     result_values.push(val.clone());
                     field_names.push(alias.value.clone());
                 }
@@ -4994,13 +5033,25 @@ impl QueryExecutor {
                         .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
                     let name = self.expr_to_alias(expr, idx);
-                    all_cols.push((name, val.data_type()));
+                    let data_type = if val.data_type() == DataType::Unknown {
+                        self.infer_expr_type(expr, input_schema)
+                            .unwrap_or(DataType::Unknown)
+                    } else {
+                        val.data_type()
+                    };
+                    all_cols.push((name, data_type));
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
                     let val = evaluator
                         .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
-                    all_cols.push((alias.value.clone(), val.data_type()));
+                    let data_type = if val.data_type() == DataType::Unknown {
+                        self.infer_expr_type(expr, input_schema)
+                            .unwrap_or(DataType::Unknown)
+                    } else {
+                        val.data_type()
+                    };
+                    all_cols.push((alias.value.clone(), data_type));
                 }
             }
         }
@@ -5768,6 +5819,94 @@ impl QueryExecutor {
         self.evaluate_literal_expr(expr)
     }
 
+    fn execute_insert_with_ctes(
+        &mut self,
+        insert: &ast::Insert,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<Table> {
+        let table_name = insert.table.to_string();
+        let table_data = self
+            .catalog
+            .get_table_mut(&table_name)
+            .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
+
+        let schema = table_data.schema().clone();
+
+        let column_indices: Vec<usize> = if insert.columns.is_empty() {
+            (0..schema.field_count()).collect()
+        } else {
+            insert
+                .columns
+                .iter()
+                .map(|col| {
+                    schema
+                        .fields()
+                        .iter()
+                        .position(|f| f.name.to_uppercase() == col.value.to_uppercase())
+                        .ok_or_else(|| Error::ColumnNotFound(col.value.clone()))
+                })
+                .collect::<Result<Vec<_>>>()?
+        };
+
+        let source = insert
+            .source
+            .as_ref()
+            .ok_or_else(|| Error::InvalidQuery("INSERT requires VALUES or SELECT".to_string()))?;
+
+        match source.body.as_ref() {
+            SetExpr::Values(values) => {
+                for row_exprs in &values.rows {
+                    if row_exprs.len() != column_indices.len() {
+                        return Err(Error::InvalidQuery(format!(
+                            "Expected {} values, got {}",
+                            column_indices.len(),
+                            row_exprs.len()
+                        )));
+                    }
+
+                    let mut row_values = vec![Value::null(); schema.field_count()];
+                    for (expr_idx, &col_idx) in column_indices.iter().enumerate() {
+                        let val = self.evaluate_literal_expr(&row_exprs[expr_idx])?;
+                        let target_type = &schema.fields()[col_idx].data_type;
+                        let coerced = self.coerce_value_to_type(val, target_type)?;
+                        row_values[col_idx] = coerced;
+                    }
+
+                    let table_data = self.catalog.get_table_mut(&table_name).unwrap();
+                    table_data.push_row(row_values)?;
+                }
+            }
+            SetExpr::Select(select) => {
+                let result = self.execute_select_with_ctes(select, &None, &None, cte_tables)?;
+                let rows = result.to_records()?;
+                let table_data = self.catalog.get_table_mut(&table_name).unwrap();
+                for row in rows {
+                    let values = row.values();
+                    if values.len() != column_indices.len() {
+                        return Err(Error::InvalidQuery(format!(
+                            "Expected {} values, got {}",
+                            column_indices.len(),
+                            values.len()
+                        )));
+                    }
+
+                    let mut row_values = vec![Value::null(); schema.field_count()];
+                    for (val_idx, &col_idx) in column_indices.iter().enumerate() {
+                        row_values[col_idx] = values[val_idx].clone();
+                    }
+                    table_data.push_row(row_values)?;
+                }
+            }
+            _ => {
+                return Err(Error::UnsupportedFeature(
+                    "INSERT source type not supported".to_string(),
+                ));
+            }
+        }
+
+        Ok(Table::empty(Schema::new()))
+    }
+
     fn execute_update(
         &mut self,
         table: &ast::TableWithJoins,
@@ -5928,6 +6067,113 @@ impl QueryExecutor {
         Ok(exprs)
     }
 
+    fn execute_update_with_ctes(
+        &mut self,
+        table: &ast::TableWithJoins,
+        assignments: &[ast::Assignment],
+        selection: Option<&Expr>,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<Table> {
+        let table_name = self.extract_single_table_name(table)?;
+        let user_functions = self.catalog.get_functions().clone();
+
+        let resolved_selection = match selection {
+            Some(sel) => Some(self.resolve_scalar_subqueries_with_ctes(sel, cte_tables)?),
+            None => None,
+        };
+
+        let table_data = self
+            .catalog
+            .get_table_mut(&table_name)
+            .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
+
+        let schema = table_data.schema().clone();
+        let evaluator = Evaluator::with_user_functions(&schema, &user_functions);
+
+        let assignment_indices: Vec<(usize, &Expr)> = assignments
+            .iter()
+            .map(|a| {
+                let col_name = match &a.target {
+                    ast::AssignmentTarget::ColumnName(obj_name) => obj_name.to_string(),
+                    ast::AssignmentTarget::Tuple(_) => {
+                        return Err(Error::UnsupportedFeature(
+                            "Tuple assignment not supported".to_string(),
+                        ));
+                    }
+                };
+                let idx = schema
+                    .fields()
+                    .iter()
+                    .position(|f| f.name.to_uppercase() == col_name.to_uppercase())
+                    .ok_or_else(|| Error::ColumnNotFound(col_name.clone()))?;
+                Ok((idx, &a.value))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let num_rows = table_data.row_count();
+        for row_idx in 0..num_rows {
+            let row = table_data.get_row(row_idx)?;
+            let should_update = match &resolved_selection {
+                Some(sel) => evaluator.evaluate_to_bool(sel, &row)?,
+                None => true,
+            };
+
+            if should_update {
+                let mut values = row.values().to_vec();
+                for (col_idx, expr) in &assignment_indices {
+                    let new_val = evaluator.evaluate(expr, &row)?;
+                    values[*col_idx] = new_val;
+                }
+                table_data.update_row(row_idx, values)?;
+            }
+        }
+
+        Ok(Table::empty(Schema::new()))
+    }
+
+    fn execute_delete_with_ctes(
+        &mut self,
+        delete: &ast::Delete,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<Table> {
+        let table_name = self.extract_delete_table_name(delete)?;
+        let user_functions = self.catalog.get_functions().clone();
+
+        let resolved_selection = match &delete.selection {
+            Some(sel) => Some(self.resolve_scalar_subqueries_with_ctes(sel, cte_tables)?),
+            None => None,
+        };
+
+        let table_data = self
+            .catalog
+            .get_table_mut(&table_name)
+            .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
+
+        let schema = table_data.schema().clone();
+        let evaluator = Evaluator::with_user_functions(&schema, &user_functions);
+
+        match &resolved_selection {
+            Some(selection) => {
+                let num_rows = table_data.row_count();
+                let mut indices_to_delete = Vec::new();
+                for row_idx in 0..num_rows {
+                    let row = table_data.get_row(row_idx)?;
+                    if evaluator.evaluate_to_bool(selection, &row).unwrap_or(false) {
+                        indices_to_delete.push(row_idx);
+                    }
+                }
+                for idx in indices_to_delete.into_iter().rev() {
+                    table_data.remove_row(idx);
+                }
+            }
+            None => {
+                table_data.clear();
+            }
+        }
+
+        Ok(Table::empty(Schema::new()))
+    }
+
     fn execute_truncate(&mut self, table_names: &[ast::TruncateTableTarget]) -> Result<Table> {
         for target in table_names {
             let table_name = target.name.to_string();
@@ -6076,9 +6322,20 @@ impl QueryExecutor {
     }
 
     fn resolve_scalar_subqueries(&self, expr: &Expr) -> Result<Expr> {
+        self.resolve_scalar_subqueries_with_ctes(expr, &HashMap::new())
+    }
+
+    fn resolve_scalar_subqueries_with_ctes(
+        &self,
+        expr: &Expr,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<Expr> {
         match expr {
             Expr::Subquery(query) => {
-                let result = self.execute_query(query)?;
+                let mut merged_ctes = cte_tables.clone();
+                let inner_ctes = self.materialize_ctes(&query.with)?;
+                merged_ctes.extend(inner_ctes);
+                let result = self.execute_query_with_ctes(query, &merged_ctes)?;
                 let rows = result.to_records()?;
                 if rows.len() != 1 || result.schema().field_count() != 1 {
                     return Err(Error::InvalidQuery(
@@ -6089,8 +6346,8 @@ impl QueryExecutor {
                 Ok(self.value_to_expr(&value))
             }
             Expr::BinaryOp { left, op, right } => {
-                let resolved_left = self.resolve_scalar_subqueries(left)?;
-                let resolved_right = self.resolve_scalar_subqueries(right)?;
+                let resolved_left = self.resolve_scalar_subqueries_with_ctes(left, cte_tables)?;
+                let resolved_right = self.resolve_scalar_subqueries_with_ctes(right, cte_tables)?;
                 Ok(Expr::BinaryOp {
                     left: Box::new(resolved_left),
                     op: op.clone(),
@@ -6098,14 +6355,14 @@ impl QueryExecutor {
                 })
             }
             Expr::UnaryOp { op, expr: inner } => {
-                let resolved = self.resolve_scalar_subqueries(inner)?;
+                let resolved = self.resolve_scalar_subqueries_with_ctes(inner, cte_tables)?;
                 Ok(Expr::UnaryOp {
                     op: *op,
                     expr: Box::new(resolved),
                 })
             }
             Expr::Nested(inner) => {
-                let resolved = self.resolve_scalar_subqueries(inner)?;
+                let resolved = self.resolve_scalar_subqueries_with_ctes(inner, cte_tables)?;
                 Ok(Expr::Nested(Box::new(resolved)))
             }
             Expr::Between {
@@ -6114,9 +6371,9 @@ impl QueryExecutor {
                 high,
                 negated,
             } => {
-                let resolved_expr = self.resolve_scalar_subqueries(expr)?;
-                let resolved_low = self.resolve_scalar_subqueries(low)?;
-                let resolved_high = self.resolve_scalar_subqueries(high)?;
+                let resolved_expr = self.resolve_scalar_subqueries_with_ctes(expr, cte_tables)?;
+                let resolved_low = self.resolve_scalar_subqueries_with_ctes(low, cte_tables)?;
+                let resolved_high = self.resolve_scalar_subqueries_with_ctes(high, cte_tables)?;
                 Ok(Expr::Between {
                     expr: Box::new(resolved_expr),
                     low: Box::new(resolved_low),
@@ -6125,12 +6382,38 @@ impl QueryExecutor {
                 })
             }
             Expr::IsNull(inner) => {
-                let resolved = self.resolve_scalar_subqueries(inner)?;
+                let resolved = self.resolve_scalar_subqueries_with_ctes(inner, cte_tables)?;
                 Ok(Expr::IsNull(Box::new(resolved)))
             }
             Expr::IsNotNull(inner) => {
-                let resolved = self.resolve_scalar_subqueries(inner)?;
+                let resolved = self.resolve_scalar_subqueries_with_ctes(inner, cte_tables)?;
                 Ok(Expr::IsNotNull(Box::new(resolved)))
+            }
+            Expr::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_scalar_subqueries_with_ctes(expr, cte_tables)?;
+                let mut merged_ctes = cte_tables.clone();
+                let inner_ctes = self.materialize_ctes(&subquery.with)?;
+                merged_ctes.extend(inner_ctes);
+                let result = self.execute_query_with_ctes(subquery, &merged_ctes)?;
+                let rows = result.to_records()?;
+                if result.schema().field_count() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "IN subquery must return exactly one column".to_string(),
+                    ));
+                }
+                let list: Vec<Expr> = rows
+                    .iter()
+                    .map(|row| self.value_to_expr(&row.values()[0]))
+                    .collect();
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list,
+                    negated: *negated,
+                })
             }
             _ => Ok(expr.clone()),
         }
@@ -6141,7 +6424,15 @@ impl QueryExecutor {
             Value::Null => SqlValue::Null,
             Value::Bool(b) => SqlValue::Boolean(*b),
             Value::Int64(i) => SqlValue::Number(i.to_string(), false),
-            Value::Float64(f) => SqlValue::Number(f.to_string(), false),
+            Value::Float64(f) => {
+                let s = f.to_string();
+                let s = if s.contains('.') || s.contains('e') || s.contains('E') {
+                    s
+                } else {
+                    format!("{}.0", s)
+                };
+                SqlValue::Number(s, false)
+            }
             Value::String(s) => SqlValue::SingleQuotedString(s.clone()),
             Value::Numeric(n) => SqlValue::Number(n.to_string(), false),
             _ => SqlValue::Null,
@@ -6157,6 +6448,41 @@ impl QueryExecutor {
                 .map(|i| i.value.clone())
                 .unwrap_or_else(|| format!("_col{}", idx)),
             _ => format!("_col{}", idx),
+        }
+    }
+
+    fn infer_expr_type(&self, expr: &Expr, schema: &Schema) -> Option<DataType> {
+        match expr {
+            Expr::Identifier(ident) => {
+                let col_name = ident.value.to_uppercase();
+                schema
+                    .fields()
+                    .iter()
+                    .find(|f| {
+                        f.name.to_uppercase() == col_name
+                            || f.name.to_uppercase().ends_with(&format!(".{}", col_name))
+                    })
+                    .map(|f| f.data_type.clone())
+            }
+            Expr::CompoundIdentifier(parts) => {
+                let full_name = parts
+                    .iter()
+                    .map(|p| p.value.clone())
+                    .collect::<Vec<_>>()
+                    .join(".")
+                    .to_uppercase();
+                let col_name = parts.last().map(|p| p.value.to_uppercase())?;
+                schema
+                    .fields()
+                    .iter()
+                    .find(|f| {
+                        f.name.to_uppercase() == full_name
+                            || f.name.to_uppercase() == col_name
+                            || f.name.to_uppercase().ends_with(&format!(".{}", col_name))
+                    })
+                    .map(|f| f.data_type.clone())
+            }
+            _ => None,
         }
     }
 

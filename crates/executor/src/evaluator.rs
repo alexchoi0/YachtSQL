@@ -593,6 +593,29 @@ impl<'a> Evaluator<'a> {
                 "IN subquery not yet supported in evaluator".to_string(),
             )),
 
+            Expr::InUnnest {
+                expr,
+                array_expr,
+                negated,
+            } => {
+                let val = self.evaluate(expr, record)?;
+                let array_val = self.evaluate(array_expr, record)?;
+
+                let found = match &array_val {
+                    Value::Array(arr) => arr.iter().any(|item| item == &val),
+                    Value::Null => return Ok(Value::null()),
+                    _ => {
+                        return Err(Error::TypeMismatch {
+                            expected: "ARRAY".to_string(),
+                            actual: array_val.data_type().to_string(),
+                        });
+                    }
+                };
+
+                let result = if *negated { !found } else { found };
+                Ok(Value::Bool(result))
+            }
+
             Expr::Subquery(_) => Err(Error::UnsupportedFeature(
                 "Subquery not yet supported in evaluator".to_string(),
             )),
