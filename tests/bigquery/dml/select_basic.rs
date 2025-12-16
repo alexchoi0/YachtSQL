@@ -2,7 +2,7 @@
 
 use yachtsql::QueryExecutor;
 
-use super::super::common::{create_executor, n};
+use super::super::common::create_executor;
 use crate::assert_table_eq;
 
 fn setup_users_table(executor: &mut QueryExecutor) {
@@ -252,7 +252,7 @@ fn test_select_literal_values() {
         .execute_sql("SELECT 1, 'hello', CAST(3.14 AS FLOAT64), true")
         .unwrap();
 
-    assert_table_eq!(result, [[1, "hello", n("3.14"), true,]]);
+    assert_table_eq!(result, [[1, "hello", 3.14, true,]]);
 }
 
 #[test]

@@ -91,6 +91,22 @@ fn value_to_js(mv8: &MiniV8, value: &Value) -> Result<JsValue, String> {
                 .map_err(|e| format!("Failed to set interval nanos: {}", e))?;
             Ok(JsValue::Object(obj))
         }
+        Value::Range(r) => {
+            let obj = mv8.create_object();
+            let start_js = match &r.start {
+                Some(v) => value_to_js(mv8, v)?,
+                None => JsValue::Null,
+            };
+            let end_js = match &r.end {
+                Some(v) => value_to_js(mv8, v)?,
+                None => JsValue::Null,
+            };
+            obj.set("start", start_js)
+                .map_err(|e| format!("Failed to set range start: {}", e))?;
+            obj.set("end", end_js)
+                .map_err(|e| format!("Failed to set range end: {}", e))?;
+            Ok(JsValue::Object(obj))
+        }
     }
 }
 
@@ -263,7 +279,8 @@ mod tests {
             | Value::Json(_)
             | Value::Array(_)
             | Value::Geography(_)
-            | Value::Interval(_) => panic!("Expected struct result"),
+            | Value::Interval(_)
+            | Value::Range(_) => panic!("Expected struct result"),
         }
     }
 

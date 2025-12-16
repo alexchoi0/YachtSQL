@@ -1,5 +1,5 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, d, n, ts};
+use crate::common::{create_executor, d, ts};
 
 fn setup_sales_data(executor: &mut yachtsql::QueryExecutor) {
     executor
@@ -463,10 +463,10 @@ fn test_year_over_year_comparison() {
     assert_table_eq!(
         result,
         [
-            [1, 1000, 1100, 100, n("10.00")],
-            [2, 1200, 1400, 200, n("16.67")],
-            [3, 1100, 1300, 200, n("18.18")],
-            [4, 1500, 1700, 200, n("13.33")],
+            [1, 1000, 1100, 100, 10.0],
+            [2, 1200, 1400, 200, 16.67],
+            [3, 1100, 1300, 200, 18.18],
+            [4, 1500, 1700, 200, 13.33],
         ]
     );
 }
@@ -1067,24 +1067,10 @@ fn test_variance_analysis() {
     assert_table_eq!(
         result,
         [
-            [
-                "Engineering",
-                200000,
-                210000,
-                10000,
-                n("5.00"),
-                "Over Budget"
-            ],
-            ["Marketing", 50000, 55000, 5000, n("10.00"), "Over Budget"],
-            ["Sales", 100000, 95000, -5000, n("-5.00"), "Under Budget"],
-            [
-                "Operations",
-                75000,
-                70000,
-                -5000,
-                n("-6.67"),
-                "Under Budget"
-            ],
+            ["Engineering", 200000, 210000, 10000, 5.0, "Over Budget"],
+            ["Marketing", 50000, 55000, 5000, 10.0, "Over Budget"],
+            ["Sales", 100000, 95000, -5000, -5.0, "Under Budget"],
+            ["Operations", 75000, 70000, -5000, -6.67, "Under Budget"],
         ]
     );
 }

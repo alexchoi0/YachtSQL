@@ -1,5 +1,5 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, d, n};
+use crate::common::{create_executor, d};
 
 fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
     executor
@@ -196,11 +196,11 @@ fn test_category_performance() {
     assert_table_eq!(
         result,
         [
-            ["Electronics", "Computers", 3, 3600, 1200, n("33.33")],
-            ["Furniture", "Desks", 1, 600, 250, n("41.67")],
-            ["Electronics", "Accessories", 7, 500, 250, n("50.00")],
-            ["Office", "Supplies", 20, 450, 275, n("61.11")],
-            ["Furniture", "Seating", 1, 350, 150, n("42.86")],
+            ["Electronics", "Computers", 3, 3600, 1200, 33.33],
+            ["Furniture", "Desks", 1, 600, 250, 41.67],
+            ["Electronics", "Accessories", 7, 500, 250, 50.0],
+            ["Office", "Supplies", 20, 450, 275, 61.11],
+            ["Furniture", "Seating", 1, 350, 150, 42.86],
         ]
     );
 }
@@ -871,12 +871,12 @@ fn test_category_share_of_wallet() {
     assert_table_eq!(
         result,
         [
-            [1, "Electronics", 2900, 3025, n("95.87")],
-            [1, "Office", 125, 3025, n("4.13")],
-            [2, "Furniture", 350, 350, n("100.00")],
-            [3, "Electronics", 1200, 1800, n("66.67")],
-            [3, "Furniture", 600, 1800, n("33.33")],
-            [5, "Office", 325, 325, n("100.00")],
+            [1, "Electronics", 2900, 3025, 95.87],
+            [1, "Office", 125, 3025, 4.13],
+            [2, "Furniture", 350, 350, 100.0],
+            [3, "Electronics", 1200, 1800, 66.67],
+            [3, "Furniture", 600, 1800, 33.33],
+            [5, "Office", 325, 325, 100.0],
         ]
     );
 }

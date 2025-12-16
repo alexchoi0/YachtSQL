@@ -1,7 +1,7 @@
 use yachtsql::QueryExecutor;
 
 use crate::assert_table_eq;
-use crate::common::{create_executor, d, n};
+use crate::common::{create_executor, d};
 
 fn setup_tables(executor: &mut QueryExecutor) {
     executor
@@ -67,7 +67,7 @@ fn test_cte_used_multiple_times() {
         )
         .unwrap();
 
-    assert_table_eq!(result, [[4, n("132500")]]);
+    assert_table_eq!(result, [[4, 132500.0]]);
 }
 
 #[test]

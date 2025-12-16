@@ -4565,21 +4565,6 @@ impl QueryExecutor {
                 )?;
                 Ok(Value::Bool(!val.is_null()))
             }
-            Expr::Cast {
-                expr: inner_expr,
-                data_type,
-                ..
-            } => {
-                let val = self.evaluate_aggregate_expr_with_grouping(
-                    inner_expr,
-                    input_schema,
-                    group_rows,
-                    group_key,
-                    group_exprs,
-                    active_indices,
-                )?;
-                evaluator.cast_value(&val, data_type, false)
-            }
             Expr::Between {
                 expr: inner_expr,
                 low,
@@ -7656,6 +7641,41 @@ impl QueryExecutor {
                 let left_val = self.evaluate_literal_expr(left)?;
                 let right_val = self.evaluate_literal_expr(right)?;
                 self.evaluate_binary_op_values(&left_val, op, &right_val)
+            }
+            Expr::Function(func) => {
+                let func_name = func.name.to_string().to_uppercase();
+                let args: Vec<Value> = match &func.args {
+                    ast::FunctionArguments::List(list) => list
+                        .args
+                        .iter()
+                        .filter_map(|arg| {
+                            if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)) = arg {
+                                self.evaluate_literal_expr(e).ok()
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                let empty_schema = Schema::new();
+                let evaluator =
+                    Evaluator::with_user_functions(&empty_schema, self.catalog.get_functions());
+                let empty_record = Record::new();
+                evaluator.evaluate_function(&func_name, &args, func, &empty_record)
+            }
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                kind,
+                ..
+            } => {
+                let val = self.evaluate_literal_expr(inner)?;
+                let is_safe = matches!(kind, ast::CastKind::SafeCast);
+                let empty_schema = Schema::new();
+                let evaluator =
+                    Evaluator::with_user_functions(&empty_schema, self.catalog.get_functions());
+                evaluator.cast_value(&val, data_type, is_safe)
             }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression not supported in this context: {:?}",
