@@ -395,8 +395,8 @@ pub fn json_keys(json: &Value, path: Option<String>) -> Result<Value> {
 
     match &json_val {
         JsonValue::Object(map) => {
-            let keys: Vec<JsonValue> = map.keys().map(|k| JsonValue::String(k.clone())).collect();
-            Ok(Value::json(JsonValue::Array(keys)))
+            let keys: Vec<Value> = map.keys().map(|k| Value::string(k.clone())).collect();
+            Ok(Value::array(keys))
         }
         _ => Ok(Value::null()),
     }

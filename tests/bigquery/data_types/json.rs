@@ -86,7 +86,6 @@ fn test_json_access_field() {
 }
 
 #[test]
-#[ignore = "JSON path array index type checking needs work"]
 fn test_json_access_array_element() {
     let mut executor = create_executor();
 
@@ -133,7 +132,6 @@ fn test_json_subscript_notation() {
 }
 
 #[test]
-#[ignore = "PARSE_JSON type inference with nested JSON_VALUE needs work"]
 fn test_parse_json() {
     let mut executor = create_executor();
 
@@ -294,7 +292,6 @@ fn test_json_array_func() {
 }
 
 #[test]
-#[ignore = "JSON_SET with non-string third argument needs type coercion"]
 fn test_json_set() {
     let mut executor = create_executor();
 
@@ -361,7 +358,6 @@ fn test_json_in_table() {
 }
 
 #[test]
-#[ignore = "JSON_KEYS returns JSON but ARRAY_LENGTH expects ARRAY type"]
 fn test_json_keys() {
     let mut executor = create_executor();
 

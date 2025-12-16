@@ -1808,7 +1808,9 @@ impl ProjectionWithExprExec {
             | FunctionName::JsonbDeletePath
             | FunctionName::JsonbSet => Some(DataType::Json),
             FunctionName::JsonLength | FunctionName::JsonArrayLength => Some(DataType::Int64),
-            FunctionName::JsonKeys | FunctionName::JsonExtractKeys => Some(DataType::Json),
+            FunctionName::JsonKeys | FunctionName::JsonExtractKeys => {
+                Some(DataType::Array(Box::new(DataType::String)))
+            }
 
             FunctionName::JsonExtractString | FunctionName::JsonExtractRaw => {
                 Some(DataType::String)

@@ -187,15 +187,17 @@ impl JsonValueEvalOptions {
 
         match self.returning.as_deref() {
             None => {
-                if value.as_i64().is_some()
-                    || value.as_f64().is_some()
-                    || value.as_numeric().is_some()
-                {
-                    return Ok(value);
+                if let Some(s) = value.as_str() {
+                    return Ok(Value::string(s.to_string()));
                 }
-
-                if value.as_str().is_some() {
-                    return Ok(value);
+                if let Some(i) = value.as_i64() {
+                    return Ok(Value::string(i.to_string()));
+                }
+                if let Some(f) = value.as_f64() {
+                    return Ok(Value::string(f.to_string()));
+                }
+                if let Some(n) = value.as_numeric() {
+                    return Ok(Value::string(n.to_string()));
                 }
                 if let Some(b) = value.as_bool() {
                     return Ok(Value::string(b.to_string()));
