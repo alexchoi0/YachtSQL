@@ -305,6 +305,663 @@ enum LoopControl {
     Return,
 }
 
+#[derive(Debug, Clone)]
+struct LoopStatement {
+    label: Option<String>,
+    body: String,
+}
+
+#[derive(Debug, Clone)]
+struct WhileDoStatement {
+    label: Option<String>,
+    condition: String,
+    body: String,
+}
+
+#[derive(Debug, Clone)]
+struct RepeatStatement {
+    label: Option<String>,
+    body: String,
+    until_condition: String,
+}
+
+#[derive(Debug, Clone)]
+struct ForStatement {
+    label: Option<String>,
+    loop_var: String,
+    query: String,
+    body: String,
+}
+
+fn parse_loop_statement(sql: &str) -> Option<LoopStatement> {
+    let trimmed = sql.trim();
+    let upper = trimmed.to_uppercase();
+
+    let (label, rest) = if upper.starts_with("LOOP") {
+        (None, trimmed)
+    } else if let Some(colon_pos) = trimmed.find(':') {
+        let potential_label = trimmed[..colon_pos].trim();
+        if potential_label
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            let after_colon = trimmed[colon_pos + 1..].trim();
+            if after_colon.to_uppercase().starts_with("LOOP") {
+                (Some(potential_label.to_string()), after_colon)
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    if !rest.to_uppercase().starts_with("LOOP") {
+        return None;
+    }
+
+    let after_loop = rest[4..].trim();
+
+    let end_loop_pattern = if label.is_some() {
+        format!("END LOOP {}", label.as_ref().unwrap())
+    } else {
+        "END LOOP".to_string()
+    };
+
+    let end_pos = find_end_loop_position(after_loop, &label)?;
+    let body = after_loop[..end_pos].trim().to_string();
+
+    Some(LoopStatement { label, body })
+}
+
+fn find_end_loop_position(s: &str, label: &Option<String>) -> Option<usize> {
+    let upper = s.to_uppercase();
+    let mut search_pos = 0;
+    let mut depth = 1;
+
+    while search_pos < upper.len() {
+        let remaining = &upper[search_pos..];
+
+        if remaining.starts_with("LOOP")
+            && !remaining[..4]
+                .chars()
+                .last()
+                .map(|c| c.is_alphanumeric())
+                .unwrap_or(false)
+        {
+            if search_pos == 0
+                || !s[..search_pos]
+                    .chars()
+                    .last()
+                    .map(|c| c.is_alphanumeric() || c == '_')
+                    .unwrap_or(false)
+            {
+                depth += 1;
+            }
+        }
+
+        if let Some(after_end_loop) = remaining.strip_prefix("END LOOP") {
+            let is_end = after_end_loop.is_empty()
+                || after_end_loop.starts_with(';')
+                || after_end_loop.starts_with(char::is_whitespace);
+
+            if is_end {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(search_pos);
+                }
+            }
+        }
+
+        search_pos += 1;
+    }
+    None
+}
+
+fn parse_while_do_statement(sql: &str) -> Option<WhileDoStatement> {
+    let trimmed = sql.trim();
+    let upper = trimmed.to_uppercase();
+
+    let (label, rest) = if upper.starts_with("WHILE") {
+        (None, trimmed)
+    } else if let Some(colon_pos) = trimmed.find(':') {
+        let potential_label = trimmed[..colon_pos].trim();
+        if potential_label
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            let after_colon = trimmed[colon_pos + 1..].trim();
+            if after_colon.to_uppercase().starts_with("WHILE") {
+                (Some(potential_label.to_string()), after_colon)
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    if !rest.to_uppercase().starts_with("WHILE") {
+        return None;
+    }
+
+    let after_while = rest[5..].trim();
+    let rest_upper = after_while.to_uppercase();
+    let do_pos = find_do_position(&rest_upper)?;
+
+    let condition = after_while[..do_pos].trim().to_string();
+    let after_do = after_while[do_pos + 2..].trim();
+
+    let end_pos = find_end_while_position(after_do, &label)?;
+    let body = after_do[..end_pos].trim().to_string();
+
+    Some(WhileDoStatement {
+        label,
+        condition,
+        body,
+    })
+}
+
+fn find_do_position(s: &str) -> Option<usize> {
+    let mut i = 0;
+    while i < s.len() {
+        if s[i..].starts_with("DO") {
+            let before_ok = i == 0
+                || !s[..i]
+                    .chars()
+                    .last()
+                    .map(|c| c.is_alphanumeric() || c == '_')
+                    .unwrap_or(false);
+            let after_ok = s.len() <= i + 2
+                || !s[i + 2..]
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphanumeric() || c == '_')
+                    .unwrap_or(false);
+            if before_ok && after_ok {
+                return Some(i);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+fn find_end_while_position(s: &str, label: &Option<String>) -> Option<usize> {
+    let upper = s.to_uppercase();
+    let mut search_pos = 0;
+    let mut depth = 1;
+
+    while search_pos < upper.len() {
+        let remaining = &upper[search_pos..];
+
+        if let Some(after) = remaining.strip_prefix("WHILE") {
+            if after.is_empty() || after.starts_with(char::is_whitespace) {
+                if search_pos == 0
+                    || !s[..search_pos]
+                        .chars()
+                        .last()
+                        .map(|c| c.is_alphanumeric() || c == '_')
+                        .unwrap_or(false)
+                {
+                    depth += 1;
+                }
+            }
+        }
+
+        if let Some(after_end) = remaining.strip_prefix("END WHILE") {
+            let is_end = after_end.is_empty()
+                || after_end.starts_with(';')
+                || after_end.starts_with(char::is_whitespace);
+
+            if is_end {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(search_pos);
+                }
+            }
+        }
+
+        search_pos += 1;
+    }
+    None
+}
+
+fn parse_repeat_statement(sql: &str) -> Option<RepeatStatement> {
+    let trimmed = sql.trim();
+    let upper = trimmed.to_uppercase();
+
+    let (label, rest) = if upper.starts_with("REPEAT") {
+        (None, trimmed)
+    } else if let Some(colon_pos) = trimmed.find(':') {
+        let potential_label = trimmed[..colon_pos].trim();
+        if potential_label
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            let after_colon = trimmed[colon_pos + 1..].trim();
+            if after_colon.to_uppercase().starts_with("REPEAT") {
+                (Some(potential_label.to_string()), after_colon)
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    if !rest.to_uppercase().starts_with("REPEAT") {
+        return None;
+    }
+
+    let after_repeat = rest[6..].trim();
+
+    let until_pos = find_until_position(after_repeat)?;
+    let body = after_repeat[..until_pos].trim().to_string();
+    let after_until = after_repeat[until_pos + 5..].trim();
+
+    let end_repeat_pos = find_end_repeat_position(after_until)?;
+    let until_condition = after_until[..end_repeat_pos].trim().to_string();
+
+    Some(RepeatStatement {
+        label,
+        body,
+        until_condition,
+    })
+}
+
+fn find_until_position(s: &str) -> Option<usize> {
+    let upper = s.to_uppercase();
+    let mut i = 0;
+    let mut depth = 1;
+
+    while i < upper.len() {
+        let remaining = &upper[i..];
+
+        if let Some(after) = remaining.strip_prefix("REPEAT") {
+            if after.is_empty() || after.starts_with(char::is_whitespace) {
+                if i == 0
+                    || !s[..i]
+                        .chars()
+                        .last()
+                        .map(|c| c.is_alphanumeric() || c == '_')
+                        .unwrap_or(false)
+                {
+                    depth += 1;
+                }
+            }
+        }
+
+        if remaining.starts_with("END REPEAT") {
+            depth -= 1;
+        }
+
+        if remaining.starts_with("UNTIL") && depth == 1 {
+            let after = &remaining[5..];
+            if after.is_empty() || after.starts_with(char::is_whitespace) {
+                if i == 0
+                    || !s[..i]
+                        .chars()
+                        .last()
+                        .map(|c| c.is_alphanumeric() || c == '_')
+                        .unwrap_or(false)
+                {
+                    return Some(i);
+                }
+            }
+        }
+
+        i += 1;
+    }
+    None
+}
+
+fn find_end_repeat_position(s: &str) -> Option<usize> {
+    let upper = s.to_uppercase();
+    let mut i = 0;
+    while i < upper.len() {
+        if upper[i..].starts_with("END REPEAT") {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn parse_for_statement(sql: &str) -> Option<ForStatement> {
+    let trimmed = sql.trim();
+    let upper = trimmed.to_uppercase();
+
+    let (label, rest) = if upper.starts_with("FOR") {
+        (None, trimmed)
+    } else if let Some(colon_pos) = trimmed.find(':') {
+        let potential_label = trimmed[..colon_pos].trim();
+        if potential_label
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_')
+        {
+            let after_colon = trimmed[colon_pos + 1..].trim();
+            if after_colon.to_uppercase().starts_with("FOR") {
+                (Some(potential_label.to_string()), after_colon)
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    if !rest.to_uppercase().starts_with("FOR") {
+        return None;
+    }
+
+    let after_for = rest[3..].trim();
+    let rest_upper = after_for.to_uppercase();
+
+    let in_pos = find_in_keyword_position(&rest_upper)?;
+    let loop_var = after_for[..in_pos].trim().to_string();
+    let after_in = after_for[in_pos + 2..].trim();
+
+    let do_pos = find_do_position(&after_in.to_uppercase())?;
+    let query = after_in[..do_pos].trim().to_string();
+    let after_do = after_in[do_pos + 2..].trim();
+
+    let end_pos = find_end_for_position(after_do)?;
+    let body = after_do[..end_pos].trim().to_string();
+
+    Some(ForStatement {
+        label,
+        loop_var,
+        query,
+        body,
+    })
+}
+
+fn find_in_keyword_position(s: &str) -> Option<usize> {
+    let mut i = 0;
+    while i < s.len() {
+        if s[i..].starts_with("IN") {
+            let before_ok = i == 0
+                || !s[..i]
+                    .chars()
+                    .last()
+                    .map(|c| c.is_alphanumeric() || c == '_')
+                    .unwrap_or(false);
+            let after_ok = s.len() <= i + 2
+                || !s[i + 2..]
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphanumeric() || c == '_')
+                    .unwrap_or(false);
+            if before_ok && after_ok {
+                return Some(i);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+fn find_end_for_position(s: &str) -> Option<usize> {
+    let upper = s.to_uppercase();
+    let mut search_pos = 0;
+    let mut depth = 1;
+
+    while search_pos < upper.len() {
+        let remaining = &upper[search_pos..];
+
+        if let Some(after) = remaining.strip_prefix("FOR") {
+            if after.is_empty() || after.starts_with(char::is_whitespace) {
+                if search_pos == 0
+                    || !s[..search_pos]
+                        .chars()
+                        .last()
+                        .map(|c| c.is_alphanumeric() || c == '_')
+                        .unwrap_or(false)
+                {
+                    depth += 1;
+                }
+            }
+        }
+
+        if let Some(after_end) = remaining.strip_prefix("END FOR") {
+            let is_end = after_end.is_empty()
+                || after_end.starts_with(';')
+                || after_end.starts_with(char::is_whitespace);
+
+            if is_end {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(search_pos);
+                }
+            }
+        }
+
+        search_pos += 1;
+    }
+    None
+}
+
+fn is_leave_or_iterate_statement(sql: &str) -> Option<(bool, Option<String>)> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let upper = trimmed.to_uppercase();
+
+    if upper.starts_with("LEAVE") {
+        let label = trimmed[5..].trim();
+        if label.is_empty() {
+            Some((true, None))
+        } else {
+            Some((true, Some(label.to_string())))
+        }
+    } else if upper.starts_with("ITERATE") {
+        let label = trimmed[7..].trim();
+        if label.is_empty() {
+            Some((false, None))
+        } else {
+            Some((false, Some(label.to_string())))
+        }
+    } else if upper == "BREAK" {
+        Some((true, None))
+    } else if upper == "CONTINUE" {
+        Some((false, None))
+    } else {
+        None
+    }
+}
+
+fn preprocess_loop_control_statements(sql: &str) -> String {
+    let mut result = String::with_capacity(sql.len());
+    let chars: Vec<char> = sql.chars().collect();
+    let mut i = 0;
+    let mut in_string = false;
+    let mut string_char = ' ';
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        if in_string {
+            result.push(c);
+            if c == string_char {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        match c {
+            '\'' | '"' => {
+                in_string = true;
+                string_char = c;
+                result.push(c);
+                i += 1;
+            }
+            _ => {
+                let remaining = &sql[i..];
+                let remaining_upper = remaining.to_uppercase();
+
+                let is_word_boundary =
+                    i == 0 || !chars[i - 1].is_alphanumeric() && chars[i - 1] != '_';
+
+                if is_word_boundary {
+                    if let Some(after) = remaining_upper.strip_prefix("LEAVE") {
+                        if after.is_empty()
+                            || after.starts_with(';')
+                            || after.starts_with(char::is_whitespace)
+                        {
+                            result.push_str("RAISE USING MESSAGE = '__LOOP_LEAVE__'");
+                            i += 5;
+                            while i < chars.len()
+                                && (chars[i].is_whitespace()
+                                    || chars[i].is_alphanumeric()
+                                    || chars[i] == '_')
+                                && chars[i] != ';'
+                            {
+                                i += 1;
+                            }
+                            continue;
+                        }
+                    }
+                    if let Some(after) = remaining_upper.strip_prefix("ITERATE") {
+                        if after.is_empty()
+                            || after.starts_with(';')
+                            || after.starts_with(char::is_whitespace)
+                        {
+                            result.push_str("RAISE USING MESSAGE = '__LOOP_ITERATE__'");
+                            i += 7;
+                            while i < chars.len()
+                                && (chars[i].is_whitespace()
+                                    || chars[i].is_alphanumeric()
+                                    || chars[i] == '_')
+                                && chars[i] != ';'
+                            {
+                                i += 1;
+                            }
+                            continue;
+                        }
+                    }
+                    if let Some(after) = remaining_upper.strip_prefix("BREAK") {
+                        if after.is_empty()
+                            || after.starts_with(';')
+                            || after.starts_with(char::is_whitespace)
+                        {
+                            result.push_str("RAISE USING MESSAGE = '__LOOP_LEAVE__'");
+                            i += 5;
+                            continue;
+                        }
+                    }
+                    if let Some(after) = remaining_upper.strip_prefix("CONTINUE") {
+                        if after.is_empty()
+                            || after.starts_with(';')
+                            || after.starts_with(char::is_whitespace)
+                        {
+                            result.push_str("RAISE USING MESSAGE = '__LOOP_ITERATE__'");
+                            i += 8;
+                            continue;
+                        }
+                    }
+                }
+                result.push(c);
+                i += 1;
+            }
+        }
+    }
+
+    result
+}
+
+fn split_script_statements(body: &str) -> Vec<String> {
+    let mut statements = Vec::new();
+    let mut current = String::new();
+    let mut in_string = false;
+    let mut string_char = ' ';
+    let mut depth = 0;
+    let chars: Vec<char> = body.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        if in_string {
+            current.push(c);
+            if c == string_char {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        match c {
+            '\'' | '"' => {
+                in_string = true;
+                string_char = c;
+                current.push(c);
+            }
+            ';' if depth == 0 => {
+                let trimmed = current.trim();
+                if !trimmed.is_empty() {
+                    statements.push(current.clone());
+                }
+                current.clear();
+            }
+            _ => {
+                let remaining = body[i..].to_uppercase();
+                if remaining.starts_with("IF ")
+                    || remaining.starts_with("IF\n")
+                    || remaining.starts_with("IF\t")
+                    || remaining.starts_with("BEGIN")
+                    || remaining.starts_with("LOOP")
+                    || remaining.starts_with("WHILE")
+                    || remaining.starts_with("REPEAT")
+                    || remaining.starts_with("FOR ")
+                    || remaining.starts_with("CASE ")
+                    || remaining.starts_with("CASE\n")
+                {
+                    let prev_word_boundary =
+                        i == 0 || !chars[i - 1].is_alphanumeric() && chars[i - 1] != '_';
+                    if prev_word_boundary {
+                        depth += 1;
+                    }
+                }
+
+                if remaining.starts_with("END IF")
+                    || remaining.starts_with("END;")
+                    || remaining.starts_with("END ")
+                    || remaining.starts_with("END\n")
+                    || remaining.starts_with("END LOOP")
+                    || remaining.starts_with("END WHILE")
+                    || remaining.starts_with("END REPEAT")
+                    || remaining.starts_with("END FOR")
+                    || remaining.starts_with("END CASE")
+                {
+                    let prev_word_boundary =
+                        i == 0 || !chars[i - 1].is_alphanumeric() && chars[i - 1] != '_';
+                    if prev_word_boundary && depth > 0 {
+                        depth -= 1;
+                    }
+                }
+
+                current.push(c);
+            }
+        }
+        i += 1;
+    }
+
+    let trimmed = current.trim();
+    if !trimmed.is_empty() {
+        statements.push(current);
+    }
+
+    statements
+}
+
 pub struct QueryExecutor {
     catalog: Catalog,
     variables: Vec<HashMap<String, ScriptVariable>>,
@@ -551,6 +1208,24 @@ impl QueryExecutor {
         }
         if let Some(load_info) = parse_load_data(sql) {
             return self.execute_load_data(&load_info);
+        }
+
+        if let Some(loop_stmt) = parse_loop_statement(trimmed) {
+            return self.execute_loop(&loop_stmt).map(|(t, _)| t);
+        }
+        if let Some(while_stmt) = parse_while_do_statement(trimmed) {
+            return self.execute_while_do(&while_stmt).map(|(t, _)| t);
+        }
+        if let Some(repeat_stmt) = parse_repeat_statement(trimmed) {
+            return self.execute_repeat(&repeat_stmt).map(|(t, _)| t);
+        }
+        if let Some(for_stmt) = parse_for_statement(trimmed) {
+            return self.execute_for(&for_stmt).map(|(t, _)| t);
+        }
+        if let Some((is_leave, label)) = is_leave_or_iterate_statement(trimmed) {
+            return self
+                .execute_leave_iterate(is_leave, label.as_deref())
+                .map(|(t, _)| t);
         }
 
         let dialect = BigQueryDialect {};
@@ -7272,6 +7947,230 @@ impl QueryExecutor {
         }
 
         Ok((last_result, None))
+    }
+
+    fn execute_loop(&mut self, loop_stmt: &LoopStatement) -> Result<(Table, Option<LoopControl>)> {
+        let max_iterations = 10000;
+        let mut iterations = 0;
+        let mut last_result = Table::empty(Schema::new());
+
+        while iterations < max_iterations {
+            let (result, control) = self.execute_script_body(&loop_stmt.body)?;
+            last_result = result;
+
+            match control {
+                Some(LoopControl::Break) => break,
+                Some(LoopControl::Return) => return Ok((last_result, Some(LoopControl::Return))),
+                Some(LoopControl::Continue) | None => {}
+            }
+
+            iterations += 1;
+        }
+
+        Ok((last_result, None))
+    }
+
+    fn execute_while_do(
+        &mut self,
+        while_stmt: &WhileDoStatement,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        let max_iterations = 10000;
+        let mut iterations = 0;
+        let mut last_result = Table::empty(Schema::new());
+
+        while iterations < max_iterations {
+            let cond_result = self.execute_sql(&format!("SELECT {}", while_stmt.condition))?;
+            let records = cond_result.to_records()?;
+            let cond_val = records
+                .first()
+                .and_then(|r| r.values().first())
+                .cloned()
+                .unwrap_or(Value::null());
+
+            if !cond_val.as_bool().unwrap_or(false) {
+                break;
+            }
+
+            let (result, control) = self.execute_script_body(&while_stmt.body)?;
+            last_result = result;
+
+            match control {
+                Some(LoopControl::Break) => break,
+                Some(LoopControl::Return) => return Ok((last_result, Some(LoopControl::Return))),
+                Some(LoopControl::Continue) | None => {}
+            }
+
+            iterations += 1;
+        }
+
+        Ok((last_result, None))
+    }
+
+    fn execute_repeat(
+        &mut self,
+        repeat_stmt: &RepeatStatement,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        let max_iterations = 10000;
+        let mut iterations = 0;
+        let mut last_result = Table::empty(Schema::new());
+
+        loop {
+            if iterations >= max_iterations {
+                break;
+            }
+
+            let (result, control) = self.execute_script_body(&repeat_stmt.body)?;
+            last_result = result;
+
+            match control {
+                Some(LoopControl::Break) => break,
+                Some(LoopControl::Return) => return Ok((last_result, Some(LoopControl::Return))),
+                Some(LoopControl::Continue) | None => {}
+            }
+
+            let cond_result =
+                self.execute_sql(&format!("SELECT {}", repeat_stmt.until_condition))?;
+            let records = cond_result.to_records()?;
+            let cond_val = records
+                .first()
+                .and_then(|r| r.values().first())
+                .cloned()
+                .unwrap_or(Value::null());
+
+            if cond_val.as_bool().unwrap_or(false) {
+                break;
+            }
+
+            iterations += 1;
+        }
+
+        Ok((last_result, None))
+    }
+
+    fn execute_for(&mut self, for_stmt: &ForStatement) -> Result<(Table, Option<LoopControl>)> {
+        let query_str = for_stmt.query.trim();
+        let query_to_execute = if query_str.starts_with('(') && query_str.ends_with(')') {
+            &query_str[1..query_str.len() - 1]
+        } else {
+            query_str
+        };
+        let query_result = self.execute_sql(query_to_execute)?;
+        let records = query_result.to_records()?;
+        let schema = query_result.schema();
+        let mut last_result = Table::empty(Schema::new());
+
+        self.push_scope();
+
+        let loop_var_name = for_stmt.loop_var.to_uppercase();
+
+        for record in records {
+            let struct_fields: Vec<(String, Value)> = schema
+                .fields()
+                .iter()
+                .zip(record.values().iter())
+                .map(|(f, v)| (f.name.clone(), v.clone()))
+                .collect();
+
+            let struct_value = Value::Struct(struct_fields);
+
+            self.declare_variable(&loop_var_name, DataType::Unknown, Some(struct_value));
+
+            let (result, control) = self.execute_script_body(&for_stmt.body)?;
+            last_result = result;
+
+            match control {
+                Some(LoopControl::Break) => break,
+                Some(LoopControl::Return) => {
+                    self.pop_scope();
+                    return Ok((last_result, Some(LoopControl::Return)));
+                }
+                Some(LoopControl::Continue) | None => {}
+            }
+        }
+
+        self.pop_scope();
+        Ok((last_result, None))
+    }
+
+    fn execute_leave_iterate(
+        &mut self,
+        is_leave: bool,
+        _label: Option<&str>,
+    ) -> Result<(Table, Option<LoopControl>)> {
+        if is_leave {
+            Ok((Table::empty(Schema::new()), Some(LoopControl::Break)))
+        } else {
+            Ok((Table::empty(Schema::new()), Some(LoopControl::Continue)))
+        }
+    }
+
+    fn execute_script_body(&mut self, body: &str) -> Result<(Table, Option<LoopControl>)> {
+        let statements = split_script_statements(body);
+        let mut last_result = Table::empty(Schema::new());
+        let mut control = None;
+
+        for stmt_sql in statements {
+            let stmt_sql = stmt_sql.trim();
+            if stmt_sql.is_empty() {
+                continue;
+            }
+
+            if let Some(loop_stmt) = parse_loop_statement(stmt_sql) {
+                let (result, ctrl) = self.execute_loop(&loop_stmt)?;
+                last_result = result;
+                control = ctrl;
+            } else if let Some(while_stmt) = parse_while_do_statement(stmt_sql) {
+                let (result, ctrl) = self.execute_while_do(&while_stmt)?;
+                last_result = result;
+                control = ctrl;
+            } else if let Some(repeat_stmt) = parse_repeat_statement(stmt_sql) {
+                let (result, ctrl) = self.execute_repeat(&repeat_stmt)?;
+                last_result = result;
+                control = ctrl;
+            } else if let Some(for_stmt) = parse_for_statement(stmt_sql) {
+                let (result, ctrl) = self.execute_for(&for_stmt)?;
+                last_result = result;
+                control = ctrl;
+            } else if let Some((is_leave, label)) = is_leave_or_iterate_statement(stmt_sql) {
+                let (result, ctrl) = self.execute_leave_iterate(is_leave, label.as_deref())?;
+                last_result = result;
+                control = ctrl;
+            } else {
+                let preprocessed = preprocess_loop_control_statements(stmt_sql);
+                let dialect = BigQueryDialect {};
+                match Parser::parse_sql(&dialect, &preprocessed) {
+                    Ok(parsed_stmts) => {
+                        if let Some(stmt) = parsed_stmts.first() {
+                            let exec_result = self.execute_statement_internal(stmt);
+                            match exec_result {
+                                Ok((result, ctrl)) => {
+                                    last_result = result;
+                                    control = ctrl;
+                                }
+                                Err(Error::InvalidQuery(msg)) if msg.contains("__LOOP_LEAVE__") => {
+                                    control = Some(LoopControl::Break);
+                                }
+                                Err(Error::InvalidQuery(msg))
+                                    if msg.contains("__LOOP_ITERATE__") =>
+                                {
+                                    control = Some(LoopControl::Continue);
+                                }
+                                Err(e) => return Err(e),
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err(Error::ParseError(e.to_string()));
+                    }
+                }
+            }
+
+            if control.is_some() {
+                break;
+            }
+        }
+
+        Ok((last_result, control))
     }
 
     fn execute_begin_block(

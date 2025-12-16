@@ -153,7 +153,6 @@ fn test_if_elseif_else() {
 }
 
 #[test]
-#[ignore = "sqlparser 0.59 doesn't support LOOP"]
 fn test_loop_basic() {
     let mut executor = create_executor();
 
@@ -177,7 +176,6 @@ fn test_loop_basic() {
 }
 
 #[test]
-#[ignore = "sqlparser 0.59 doesn't support WHILE...DO syntax"]
 fn test_while_loop() {
     let mut executor = create_executor();
 
@@ -198,7 +196,6 @@ fn test_while_loop() {
 }
 
 #[test]
-#[ignore = "sqlparser 0.59 doesn't support REPEAT"]
 fn test_repeat_loop() {
     let mut executor = create_executor();
 
@@ -218,7 +215,6 @@ fn test_repeat_loop() {
 }
 
 #[test]
-#[ignore = "sqlparser 0.59 doesn't support FOR"]
 fn test_for_loop() {
     let mut executor = create_executor();
 
@@ -237,7 +233,6 @@ fn test_for_loop() {
 }
 
 #[test]
-#[ignore = "sqlparser 0.59 doesn't support LOOP/BREAK/CONTINUE"]
 fn test_break_continue() {
     let mut executor = create_executor();
 
@@ -441,7 +436,6 @@ fn test_return_statement() {
 }
 
 #[test]
-#[ignore = "sqlparser 0.59 doesn't support labeled LOOP"]
 fn test_labeled_block() {
     let mut executor = create_executor();
 
