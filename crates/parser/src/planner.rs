@@ -722,6 +722,13 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 DataType::Array(Box::new(element_type))
             }
             ast::DataType::Interval { .. } => DataType::Interval,
+            ast::DataType::Custom(name, _) => {
+                let type_name = name.to_string().to_uppercase();
+                match type_name.as_str() {
+                    "GEOGRAPHY" => DataType::Geography,
+                    _ => DataType::Unknown,
+                }
+            }
             _ => DataType::Unknown,
         }
     }

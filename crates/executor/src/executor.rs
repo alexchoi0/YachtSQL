@@ -6629,6 +6629,12 @@ impl QueryExecutor {
                 };
                 Ok(Value::interval(interval_val))
             }
+            Expr::Function(_) => {
+                let schema = Schema::default();
+                let record = Record::from_values(vec![]);
+                let evaluator = Evaluator::new(&schema);
+                evaluator.evaluate(expr, &record)
+            }
             Expr::BinaryOp { left, op, right } => {
                 let left_val = self.evaluate_literal_expr(left)?;
                 let right_val = self.evaluate_literal_expr(right)?;
@@ -7008,6 +7014,16 @@ impl QueryExecutor {
                 Ok(DataType::Struct(struct_fields))
             }
             ast::DataType::Interval { .. } => Ok(DataType::Interval),
+            ast::DataType::Custom(name, _) => {
+                let type_name = name.to_string().to_uppercase();
+                match type_name.as_str() {
+                    "GEOGRAPHY" => Ok(DataType::Geography),
+                    _ => Err(Error::UnsupportedFeature(format!(
+                        "Data type not yet supported: {:?}",
+                        sql_type
+                    ))),
+                }
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Data type not yet supported: {:?}",
                 sql_type

@@ -4610,8 +4610,8 @@ impl<'a> Evaluator<'a> {
                 let geom = parse_geography(wkt)
                     .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
                 let area = match &geom {
-                    Geometry::Polygon(poly) => poly.geodesic_area_unsigned(),
-                    Geometry::MultiPolygon(mpoly) => mpoly.geodesic_area_unsigned(),
+                    Geometry::Polygon(poly) => poly.geodesic_area_signed().abs(),
+                    Geometry::MultiPolygon(mpoly) => mpoly.geodesic_area_signed().abs(),
                     _ => 0.0,
                 };
                 Ok(Value::float64(area))
@@ -6077,9 +6077,9 @@ impl<'a> Evaluator<'a> {
                 let geom = parse_geography(wkt)
                     .map_err(|e| Error::InvalidQuery(format!("Invalid geometry: {}", e)))?;
                 let precision = if args.len() > 1 {
-                    args[1].as_i64().unwrap_or(20) as usize
+                    args[1].as_i64().unwrap_or(12).min(12) as usize
                 } else {
-                    20
+                    12
                 };
                 match geom {
                     Geometry::Point(p) => {
