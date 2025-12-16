@@ -1419,6 +1419,9 @@ impl QueryExecutor {
         if let (Some(an), Some(bn)) = (a.as_numeric(), b.as_numeric()) {
             return an.cmp(&bn);
         }
+        if let (Some(ab), Some(bb)) = (a.as_bytes(), b.as_bytes()) {
+            return ab.cmp(bb);
+        }
         std::cmp::Ordering::Equal
     }
 
@@ -1561,6 +1564,9 @@ impl QueryExecutor {
         }
         if let (Some(a_n), Some(b_n)) = (a.as_numeric(), b.as_numeric()) {
             return a_n.cmp(&b_n);
+        }
+        if let (Some(a_b), Some(b_b)) = (a.as_bytes(), b.as_bytes()) {
+            return a_b.cmp(b_b);
         }
 
         std::cmp::Ordering::Equal

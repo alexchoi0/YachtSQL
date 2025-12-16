@@ -146,6 +146,98 @@ impl<'a> Evaluator<'a> {
 
             Expr::Named { expr, name } => self.evaluate(expr, row),
 
+            Expr::Trim {
+                expr: inner,
+                trim_where,
+                trim_what,
+                trim_characters,
+            } => {
+                let val = self.evaluate(inner, row)?;
+                if val.is_null() {
+                    return Ok(Value::null());
+                }
+                let s = val.as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: val.data_type().to_string(),
+                })?;
+
+                let chars_to_trim: Option<Vec<char>> = if let Some(chars_expr) = trim_characters {
+                    if !chars_expr.is_empty() {
+                        let first = self.evaluate(&chars_expr[0], row)?;
+                        first.as_str().map(|s| s.chars().collect())
+                    } else {
+                        None
+                    }
+                } else if let Some(what_expr) = trim_what {
+                    let what_val = self.evaluate(what_expr, row)?;
+                    what_val.as_str().map(|s| s.chars().collect())
+                } else {
+                    None
+                };
+
+                let result = match (trim_where, &chars_to_trim) {
+                    (Some(sqlparser::ast::TrimWhereField::Leading), Some(chars)) => {
+                        s.trim_start_matches(|c| chars.contains(&c)).to_string()
+                    }
+                    (Some(sqlparser::ast::TrimWhereField::Trailing), Some(chars)) => {
+                        s.trim_end_matches(|c| chars.contains(&c)).to_string()
+                    }
+                    (Some(sqlparser::ast::TrimWhereField::Both), Some(chars)) => {
+                        s.trim_matches(|c| chars.contains(&c)).to_string()
+                    }
+                    (Some(sqlparser::ast::TrimWhereField::Leading), None) => {
+                        s.trim_start().to_string()
+                    }
+                    (Some(sqlparser::ast::TrimWhereField::Trailing), None) => {
+                        s.trim_end().to_string()
+                    }
+                    (Some(sqlparser::ast::TrimWhereField::Both), None) | (None, None) => {
+                        s.trim().to_string()
+                    }
+                    (None, Some(chars)) => s.trim_matches(|c| chars.contains(&c)).to_string(),
+                };
+                Ok(Value::string(result))
+            }
+
+            Expr::Substring {
+                expr: inner,
+                substring_from,
+                substring_for,
+                special: _,
+                shorthand: _,
+            } => {
+                let val = self.evaluate(inner, row)?;
+                if val.is_null() {
+                    return Ok(Value::null());
+                }
+                let s = val.as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: val.data_type().to_string(),
+                })?;
+
+                let start = if let Some(from_expr) = substring_from {
+                    let from_val = self.evaluate(from_expr, row)?;
+                    from_val.as_i64().unwrap_or(1) as usize
+                } else {
+                    1
+                };
+                let start_idx = if start > 0 { start - 1 } else { 0 };
+
+                let chars: Vec<char> = s.chars().collect();
+                if start_idx >= chars.len() {
+                    return Ok(Value::string(String::new()));
+                }
+
+                let result = if let Some(for_expr) = substring_for {
+                    let len_val = self.evaluate(for_expr, row)?;
+                    let len = len_val.as_i64().unwrap_or(0) as usize;
+                    chars[start_idx..].iter().take(len).collect()
+                } else {
+                    chars[start_idx..].iter().collect()
+                };
+                Ok(Value::string(result))
+            }
+
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression type not yet supported: {:?}",
                 expr
@@ -840,6 +932,21 @@ impl<'a> Evaluator<'a> {
                         .unwrap_or(std::cmp::Ordering::Equal),
                 )));
             }
+        }
+        if let (Some(l), Some(r)) = (left.as_date(), right.as_date()) {
+            return Ok(Value::bool_val(pred(l.cmp(&r))));
+        }
+        if let (Some(l), Some(r)) = (left.as_timestamp(), right.as_timestamp()) {
+            return Ok(Value::bool_val(pred(l.cmp(&r))));
+        }
+        if let (Some(l), Some(r)) = (left.as_time(), right.as_time()) {
+            return Ok(Value::bool_val(pred(l.cmp(&r))));
+        }
+        if let (Some(l), Some(r)) = (left.as_numeric(), right.as_numeric()) {
+            return Ok(Value::bool_val(pred(l.cmp(&r))));
+        }
+        if let (Some(l), Some(r)) = (left.as_bytes(), right.as_bytes()) {
+            return Ok(Value::bool_val(pred(l.cmp(r))));
         }
         Err(Error::TypeMismatch {
             expected: "comparable types".to_string(),
