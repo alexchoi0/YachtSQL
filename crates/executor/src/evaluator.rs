@@ -610,15 +610,17 @@ impl<'a> Evaluator<'a> {
                 expr,
                 pattern,
                 negated,
+                any,
                 ..
-            } => self.evaluate_like(expr, pattern, *negated, record),
+            } => self.evaluate_like_with_quantifier(expr, pattern, *negated, *any, record),
 
             Expr::ILike {
                 expr,
                 pattern,
                 negated,
+                any,
                 ..
-            } => self.evaluate_ilike(expr, pattern, *negated, record),
+            } => self.evaluate_ilike_with_quantifier(expr, pattern, *negated, *any, record),
 
             Expr::Cast {
                 expr,
@@ -1445,56 +1447,154 @@ impl<'a> Evaluator<'a> {
         Ok(Value::bool_val(if negated { !in_range } else { in_range }))
     }
 
-    fn evaluate_like(
+    fn extract_pattern_list(&self, pattern: &Expr, record: &Record) -> Result<Option<Vec<String>>> {
+        match pattern {
+            Expr::Function(func) => {
+                let func_name = func.name.to_string().to_uppercase();
+                match func_name.as_str() {
+                    "ALL" | "ANY" => {
+                        let args = self.extract_function_args(func, record)?;
+                        let patterns: Result<Vec<String>> = args
+                            .into_iter()
+                            .map(|v| {
+                                v.as_str().map(|s| s.to_string()).ok_or_else(|| {
+                                    Error::TypeMismatch {
+                                        expected: "STRING".to_string(),
+                                        actual: v.data_type().to_string(),
+                                    }
+                                })
+                            })
+                            .collect();
+                        Ok(Some(patterns?))
+                    }
+                    _ => Ok(None),
+                }
+            }
+            Expr::Tuple(exprs) => {
+                let patterns: Result<Vec<String>> = exprs
+                    .iter()
+                    .map(|e| {
+                        let v = self.evaluate(e, record)?;
+                        v.as_str()
+                            .map(|s| s.to_string())
+                            .ok_or_else(|| Error::TypeMismatch {
+                                expected: "STRING".to_string(),
+                                actual: v.data_type().to_string(),
+                            })
+                    })
+                    .collect();
+                Ok(Some(patterns?))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn is_like_all_pattern(&self, pattern: &Expr) -> bool {
+        match pattern {
+            Expr::Function(func) => {
+                let func_name = func.name.to_string().to_uppercase();
+                func_name == "ALL"
+            }
+            _ => false,
+        }
+    }
+
+    fn evaluate_like_with_quantifier(
         &self,
         expr: &Expr,
         pattern: &Expr,
         negated: bool,
+        any: bool,
         record: &Record,
     ) -> Result<Value> {
         let val = self.evaluate(expr, record)?;
-        let pat = self.evaluate(pattern, record)?;
-
-        if val.is_null() || pat.is_null() {
+        if val.is_null() {
             return Ok(Value::null());
         }
-
         let val_str = val.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: val.data_type().to_string(),
         })?;
+
+        let is_all = self.is_like_all_pattern(pattern);
+
+        if let Some(patterns) = self.extract_pattern_list(pattern, record)? {
+            if any {
+                let any_match = patterns.iter().any(|p| self.like_match(val_str, p, false));
+                return Ok(Value::bool_val(if negated {
+                    !any_match
+                } else {
+                    any_match
+                }));
+            }
+            if is_all {
+                let all_match = patterns.iter().all(|p| self.like_match(val_str, p, false));
+                return Ok(Value::bool_val(if negated {
+                    !all_match
+                } else {
+                    all_match
+                }));
+            }
+        }
+
+        let pat = self.evaluate(pattern, record)?;
+        if pat.is_null() {
+            return Ok(Value::null());
+        }
         let pat_str = pat.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: pat.data_type().to_string(),
         })?;
-
         let matches = self.like_match(val_str, pat_str, false);
         Ok(Value::bool_val(if negated { !matches } else { matches }))
     }
 
-    fn evaluate_ilike(
+    fn evaluate_ilike_with_quantifier(
         &self,
         expr: &Expr,
         pattern: &Expr,
         negated: bool,
+        any: bool,
         record: &Record,
     ) -> Result<Value> {
         let val = self.evaluate(expr, record)?;
-        let pat = self.evaluate(pattern, record)?;
-
-        if val.is_null() || pat.is_null() {
+        if val.is_null() {
             return Ok(Value::null());
         }
-
         let val_str = val.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: val.data_type().to_string(),
         })?;
+
+        let is_all = self.is_like_all_pattern(pattern);
+
+        if let Some(patterns) = self.extract_pattern_list(pattern, record)? {
+            if any {
+                let any_match = patterns.iter().any(|p| self.like_match(val_str, p, true));
+                return Ok(Value::bool_val(if negated {
+                    !any_match
+                } else {
+                    any_match
+                }));
+            }
+            if is_all {
+                let all_match = patterns.iter().all(|p| self.like_match(val_str, p, true));
+                return Ok(Value::bool_val(if negated {
+                    !all_match
+                } else {
+                    all_match
+                }));
+            }
+        }
+
+        let pat = self.evaluate(pattern, record)?;
+        if pat.is_null() {
+            return Ok(Value::null());
+        }
         let pat_str = pat.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: pat.data_type().to_string(),
         })?;
-
         let matches = self.like_match(val_str, pat_str, true);
         Ok(Value::bool_val(if negated { !matches } else { matches }))
     }

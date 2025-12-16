@@ -73,7 +73,6 @@ fn test_in_list_with_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_in_empty_result() {
     let mut executor = create_executor();
     executor

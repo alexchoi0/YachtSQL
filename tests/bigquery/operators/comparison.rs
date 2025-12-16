@@ -127,7 +127,6 @@ fn test_greater_than_or_equal() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_comparison_with_null_equals() {
     let mut executor = create_executor();
     setup_nullable_numbers(&mut executor);
