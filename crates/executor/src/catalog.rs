@@ -77,6 +77,20 @@ impl Catalog {
         Ok(())
     }
 
+    pub fn replace_table(&mut self, name: &str, table: Table) -> Result<()> {
+        let key = name.to_uppercase();
+        if !self.tables.contains_key(&key) {
+            return Err(Error::TableNotFound(name.to_string()));
+        }
+        self.tables.insert(key, table);
+        Ok(())
+    }
+
+    pub fn create_or_replace_table(&mut self, name: &str, table: Table) {
+        let key = name.to_uppercase();
+        self.tables.insert(key, table);
+    }
+
     pub fn create_view(
         &mut self,
         name: &str,

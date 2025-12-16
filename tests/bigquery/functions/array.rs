@@ -290,3 +290,37 @@ fn test_array_transform() {
         .unwrap();
     assert_table_eq!(result, [[[2, 4, 6]]]);
 }
+
+#[test]
+fn test_array_enumerate() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT arrayEnumerate(['a', 'b', 'c'])")
+        .unwrap();
+    assert_table_eq!(result, [[[1, 2, 3]]]);
+}
+
+#[test]
+fn test_array_enumerate_empty() {
+    let mut executor = create_executor();
+    let result = executor.execute_sql("SELECT arrayEnumerate([])").unwrap();
+    assert_table_eq!(result, [[[]]]);
+}
+
+#[test]
+fn test_map_keys() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT mapKeys(map('a', 1, 'b', 2))")
+        .unwrap();
+    assert_table_eq!(result, [[["a", "b"]]]);
+}
+
+#[test]
+fn test_map_values() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT mapValues(map('a', 1, 'b', 2))")
+        .unwrap();
+    assert_table_eq!(result, [[[1, 2]]]);
+}

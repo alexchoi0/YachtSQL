@@ -5814,6 +5814,95 @@ impl<'a> Evaluator<'a> {
                 }
                 Ok(args[0].clone())
             }
+            "ARRAYENUMERATE" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "arrayEnumerate requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(arr) = args[0].as_array() {
+                    let indices: Vec<Value> =
+                        (1..=arr.len()).map(|i| Value::int64(i as i64)).collect();
+                    return Ok(Value::array(indices));
+                }
+                Err(Error::TypeMismatch {
+                    expected: "ARRAY".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })
+            }
+            "MAPKEYS" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "mapKeys requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(struct_val) = args[0].as_struct() {
+                    let keys: Vec<Value> = struct_val
+                        .iter()
+                        .map(|(k, _)| Value::string(k.clone()))
+                        .collect();
+                    return Ok(Value::array(keys));
+                }
+                Err(Error::TypeMismatch {
+                    expected: "MAP".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })
+            }
+            "MAPVALUES" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "mapValues requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                if let Some(struct_val) = args[0].as_struct() {
+                    let values: Vec<Value> = struct_val.iter().map(|(_, v)| v.clone()).collect();
+                    return Ok(Value::array(values));
+                }
+                Err(Error::TypeMismatch {
+                    expected: "MAP".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })
+            }
+            "MAP" => {
+                if !args.len().is_multiple_of(2) {
+                    return Err(Error::InvalidQuery(
+                        "map() requires an even number of arguments (key-value pairs)".to_string(),
+                    ));
+                }
+                let mut pairs: Vec<(String, Value)> = Vec::new();
+                let mut i = 0;
+                while i < args.len() {
+                    let key = args[i].as_str().ok_or_else(|| Error::TypeMismatch {
+                        expected: "STRING".to_string(),
+                        actual: args[i].data_type().to_string(),
+                    })?;
+                    pairs.push((key.to_string(), args[i + 1].clone()));
+                    i += 2;
+                }
+                Ok(Value::struct_val(pairs))
+            }
+            "NUMBERS" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "numbers requires 1 argument".to_string(),
+                    ));
+                }
+                let n = args[0].as_i64().ok_or_else(|| Error::TypeMismatch {
+                    expected: "INT64".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let values: Vec<Value> = (0..n).map(Value::int64).collect();
+                Ok(Value::array(values))
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Function not yet supported: {}",
                 name
