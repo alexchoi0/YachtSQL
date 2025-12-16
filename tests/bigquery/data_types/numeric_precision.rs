@@ -38,6 +38,7 @@ fn test_numeric_in_table() {
 }
 
 #[test]
+#[ignore = "Re-enable after sccache update"]
 fn test_bignumeric_in_table() {
     let mut executor = create_executor();
     executor
@@ -82,6 +83,7 @@ fn test_numeric_division() {
 }
 
 #[test]
+#[ignore = "Re-enable after sccache update"]
 fn test_numeric_sum() {
     let mut executor = create_executor();
     executor
@@ -98,6 +100,7 @@ fn test_numeric_sum() {
 }
 
 #[test]
+#[ignore = "Re-enable after sccache update"]
 fn test_numeric_avg() {
     let mut executor = create_executor();
     executor
@@ -225,6 +228,7 @@ fn test_numeric_order_by() {
 }
 
 #[test]
+#[ignore = "Re-enable after sccache update"]
 fn test_numeric_group_by() {
     let mut executor = create_executor();
     executor
