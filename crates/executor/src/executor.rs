@@ -403,11 +403,275 @@ impl QueryExecutor {
         if let Some(with) = with_clause {
             for cte in &with.cte_tables {
                 let name = cte.alias.name.value.to_uppercase();
-                let cte_result = self.execute_query_with_ctes(&cte.query, &cte_tables)?;
+                let column_aliases: Vec<String> = cte
+                    .alias
+                    .columns
+                    .iter()
+                    .map(|c| c.name.value.clone())
+                    .collect();
+
+                let cte_result = if with.recursive && self.is_recursive_cte(&cte.query, &name) {
+                    self.execute_recursive_cte(&cte.query, &name, &cte_tables)?
+                } else {
+                    self.execute_query_with_ctes(&cte.query, &cte_tables)?
+                };
+
+                let cte_result = if !column_aliases.is_empty() {
+                    self.rename_columns(cte_result, &column_aliases)?
+                } else {
+                    cte_result
+                };
+
                 cte_tables.insert(name, cte_result);
             }
         }
         Ok(cte_tables)
+    }
+
+    fn rename_columns(&self, table: Table, new_names: &[String]) -> Result<Table> {
+        let old_schema = table.schema();
+        if new_names.len() != old_schema.field_count() {
+            return Err(Error::InvalidQuery(format!(
+                "CTE column list has {} names but query returns {} columns",
+                new_names.len(),
+                old_schema.field_count()
+            )));
+        }
+
+        let new_fields: Vec<Field> = old_schema
+            .fields()
+            .iter()
+            .zip(new_names.iter())
+            .map(|(f, new_name)| Field::nullable(new_name.clone(), f.data_type.clone()))
+            .collect();
+        let new_schema = Schema::from_fields(new_fields);
+
+        let rows = table.to_records()?;
+        let values: Vec<Vec<Value>> = rows.into_iter().map(|r| r.into_values()).collect();
+        Table::from_values(new_schema, values)
+    }
+
+    fn is_recursive_cte(&self, query: &Query, cte_name: &str) -> bool {
+        self.set_expr_references_cte(query.body.as_ref(), cte_name)
+    }
+
+    fn set_expr_references_cte(&self, set_expr: &SetExpr, cte_name: &str) -> bool {
+        match set_expr {
+            SetExpr::Select(select) => self.select_references_cte(select, cte_name),
+            SetExpr::SetOperation { left, right, .. } => {
+                self.set_expr_references_cte(left, cte_name)
+                    || self.set_expr_references_cte(right, cte_name)
+            }
+            SetExpr::Query(q) => self.set_expr_references_cte(q.body.as_ref(), cte_name),
+            _ => false,
+        }
+    }
+
+    fn select_references_cte(&self, select: &Select, cte_name: &str) -> bool {
+        for table_with_joins in &select.from {
+            if self.table_factor_references_cte(&table_with_joins.relation, cte_name) {
+                return true;
+            }
+            for join in &table_with_joins.joins {
+                if self.table_factor_references_cte(&join.relation, cte_name) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn table_factor_references_cte(&self, table_factor: &TableFactor, cte_name: &str) -> bool {
+        match table_factor {
+            TableFactor::Table { name, .. } => name.to_string().to_uppercase() == cte_name,
+            TableFactor::NestedJoin {
+                table_with_joins, ..
+            } => {
+                self.table_factor_references_cte(&table_with_joins.relation, cte_name)
+                    || table_with_joins
+                        .joins
+                        .iter()
+                        .any(|j| self.table_factor_references_cte(&j.relation, cte_name))
+            }
+            TableFactor::Derived { subquery, .. } => {
+                self.set_expr_references_cte(subquery.body.as_ref(), cte_name)
+            }
+            _ => false,
+        }
+    }
+
+    fn execute_recursive_cte(
+        &self,
+        query: &Query,
+        cte_name: &str,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<Table> {
+        const MAX_ITERATIONS: usize = 500;
+
+        let (anchor_exprs, recursive_exprs) =
+            self.split_recursive_cte(query.body.as_ref(), cte_name)?;
+
+        if anchor_exprs.is_empty() {
+            return Err(Error::InvalidQuery(
+                "Recursive CTE must have an anchor member".to_string(),
+            ));
+        }
+
+        let mut combined_result: Option<Table> = None;
+        for anchor_expr in &anchor_exprs {
+            let anchor_result = self.execute_set_expr(anchor_expr, cte_tables)?;
+            combined_result = Some(match combined_result {
+                None => anchor_result,
+                Some(existing) => self.union_tables(existing, anchor_result)?,
+            });
+        }
+
+        let anchor_schema = combined_result
+            .as_ref()
+            .ok_or_else(|| Error::InvalidQuery("Anchor produced no result".to_string()))?
+            .schema()
+            .clone();
+
+        let mut working_table = combined_result.clone().unwrap();
+
+        for iteration in 0..MAX_ITERATIONS {
+            let mut new_rows: Option<Table> = None;
+            let mut cte_tables_with_self = cte_tables.clone();
+            cte_tables_with_self.insert(cte_name.to_string(), working_table.clone());
+
+            for recursive_expr in &recursive_exprs {
+                let iter_result = self.execute_set_expr(recursive_expr, &cte_tables_with_self)?;
+                let iter_result = self.coerce_table_schema(iter_result, &anchor_schema)?;
+                new_rows = Some(match new_rows {
+                    None => iter_result,
+                    Some(existing) => self.union_tables(existing, iter_result)?,
+                });
+            }
+
+            let new_rows = match new_rows {
+                Some(t) if t.row_count() > 0 => t,
+                _ => break,
+            };
+
+            combined_result = Some(match combined_result {
+                None => new_rows.clone(),
+                Some(existing) => self.union_tables(existing, new_rows.clone())?,
+            });
+
+            working_table = new_rows;
+
+            if iteration == MAX_ITERATIONS - 1 {
+                return Err(Error::InvalidQuery(format!(
+                    "Recursive CTE exceeded maximum iterations ({})",
+                    MAX_ITERATIONS
+                )));
+            }
+        }
+
+        combined_result
+            .ok_or_else(|| Error::InvalidQuery("Recursive CTE produced no result".to_string()))
+    }
+
+    fn coerce_table_schema(&self, table: Table, target_schema: &Schema) -> Result<Table> {
+        let source_schema = table.schema();
+        if source_schema.field_count() != target_schema.field_count() {
+            return Err(Error::InvalidQuery(format!(
+                "Recursive CTE member has {} columns but anchor has {}",
+                source_schema.field_count(),
+                target_schema.field_count()
+            )));
+        }
+
+        let merged_fields: Vec<Field> = target_schema
+            .fields()
+            .iter()
+            .zip(source_schema.fields().iter())
+            .map(|(tgt_field, src_field)| {
+                let data_type = match &tgt_field.data_type {
+                    DataType::Unknown => src_field.data_type.clone(),
+                    dt => dt.clone(),
+                };
+                Field::nullable(tgt_field.name.clone(), data_type)
+            })
+            .collect();
+        let merged_schema = Schema::from_fields(merged_fields);
+
+        let rows = table.to_records()?;
+        let values: Vec<Vec<Value>> = rows.into_iter().map(|r| r.into_values()).collect();
+        Table::from_values(merged_schema, values)
+    }
+
+    fn types_compatible(&self, src: &DataType, tgt: &DataType) -> bool {
+        match (src, tgt) {
+            (DataType::Unknown, _) | (_, DataType::Unknown) => true,
+            (a, b) => a == b,
+        }
+    }
+
+    fn split_recursive_cte<'a>(
+        &self,
+        set_expr: &'a SetExpr,
+        cte_name: &str,
+    ) -> Result<(Vec<&'a SetExpr>, Vec<&'a SetExpr>)> {
+        let mut anchor_parts = Vec::new();
+        let mut recursive_parts = Vec::new();
+
+        self.collect_union_parts(set_expr, cte_name, &mut anchor_parts, &mut recursive_parts);
+
+        Ok((anchor_parts, recursive_parts))
+    }
+
+    fn collect_union_parts<'a>(
+        &self,
+        set_expr: &'a SetExpr,
+        cte_name: &str,
+        anchor_parts: &mut Vec<&'a SetExpr>,
+        recursive_parts: &mut Vec<&'a SetExpr>,
+    ) {
+        match set_expr {
+            SetExpr::SetOperation {
+                op: ast::SetOperator::Union,
+                left,
+                right,
+                ..
+            } => {
+                self.collect_union_parts(left, cte_name, anchor_parts, recursive_parts);
+                self.collect_union_parts(right, cte_name, anchor_parts, recursive_parts);
+            }
+            _ => {
+                if self.set_expr_references_cte(set_expr, cte_name) {
+                    recursive_parts.push(set_expr);
+                } else {
+                    anchor_parts.push(set_expr);
+                }
+            }
+        }
+    }
+
+    fn union_tables(&self, left: Table, right: Table) -> Result<Table> {
+        let left_schema = left.schema();
+        let right_schema = right.schema();
+
+        let merged_fields: Vec<Field> = left_schema
+            .fields()
+            .iter()
+            .zip(right_schema.fields().iter())
+            .map(|(left_field, right_field)| {
+                let data_type = match &left_field.data_type {
+                    DataType::Unknown => right_field.data_type.clone(),
+                    dt => dt.clone(),
+                };
+                Field::nullable(left_field.name.clone(), data_type)
+            })
+            .collect();
+        let merged_schema = Schema::from_fields(merged_fields);
+
+        let mut left_rows = left.to_records()?;
+        let right_rows = right.to_records()?;
+        left_rows.extend(right_rows);
+
+        let values: Vec<Vec<Value>> = left_rows.into_iter().map(|r| r.into_values()).collect();
+        Table::from_values(merged_schema, values)
     }
 
     fn execute_query_with_ctes(
@@ -423,9 +687,189 @@ impl QueryExecutor {
                 cte_tables,
             ),
             SetExpr::Values(values) => self.execute_values(values),
+            SetExpr::SetOperation {
+                op,
+                set_quantifier,
+                left,
+                right,
+            } => {
+                let result =
+                    self.execute_set_operation(op, set_quantifier, left, right, cte_tables)?;
+                self.apply_order_and_limit(result, &query.order_by, &query.limit_clause)
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Query type not yet supported: {:?}",
                 query.body
+            ))),
+        }
+    }
+
+    fn apply_order_and_limit(
+        &self,
+        table: Table,
+        order_by: &Option<OrderBy>,
+        limit_clause: &Option<LimitClause>,
+    ) -> Result<Table> {
+        let schema = table.schema().clone();
+        let mut rows = table.to_records()?;
+
+        if let Some(order_by) = order_by {
+            self.sort_rows(&schema, &mut rows, order_by)?;
+        }
+
+        if let Some(limit_clause) = limit_clause {
+            match limit_clause {
+                LimitClause::LimitOffset { limit, offset, .. } => {
+                    if let Some(offset_expr) = offset {
+                        let offset_val = self.evaluate_literal_expr(&offset_expr.value)?;
+                        let offset_num = offset_val.as_i64().ok_or_else(|| {
+                            Error::InvalidQuery("OFFSET must be an integer".to_string())
+                        })? as usize;
+                        if offset_num < rows.len() {
+                            rows = rows.into_iter().skip(offset_num).collect();
+                        } else {
+                            rows.clear();
+                        }
+                    }
+                    if let Some(limit_expr) = limit {
+                        let limit_val = self.evaluate_literal_expr(limit_expr)?;
+                        let limit_num = limit_val.as_i64().ok_or_else(|| {
+                            Error::InvalidQuery("LIMIT must be an integer".to_string())
+                        })? as usize;
+                        rows.truncate(limit_num);
+                    }
+                }
+                LimitClause::OffsetCommaLimit { offset, limit } => {
+                    let offset_val = self.evaluate_literal_expr(offset)?;
+                    let offset_num = offset_val.as_i64().ok_or_else(|| {
+                        Error::InvalidQuery("OFFSET must be an integer".to_string())
+                    })? as usize;
+                    if offset_num < rows.len() {
+                        rows = rows.into_iter().skip(offset_num).collect();
+                    } else {
+                        rows.clear();
+                    }
+                    let limit_val = self.evaluate_literal_expr(limit)?;
+                    let limit_num = limit_val.as_i64().ok_or_else(|| {
+                        Error::InvalidQuery("LIMIT must be an integer".to_string())
+                    })? as usize;
+                    rows.truncate(limit_num);
+                }
+            }
+        }
+
+        let values: Vec<Vec<Value>> = rows.into_iter().map(|r| r.into_values()).collect();
+        Table::from_values(schema, values)
+    }
+
+    fn execute_set_operation(
+        &self,
+        op: &ast::SetOperator,
+        set_quantifier: &ast::SetQuantifier,
+        left: &SetExpr,
+        right: &SetExpr,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<Table> {
+        let left_result = self.execute_set_expr(left, cte_tables)?;
+        let right_result = self.execute_set_expr(right, cte_tables)?;
+
+        let left_schema = left_result.schema().clone();
+        let right_schema = right_result.schema().clone();
+
+        if left_schema.field_count() != right_schema.field_count() {
+            return Err(Error::InvalidQuery(format!(
+                "UNION operands have different column counts: {} vs {}",
+                left_schema.field_count(),
+                right_schema.field_count()
+            )));
+        }
+
+        let mut left_rows = left_result.to_records()?;
+        let right_rows = right_result.to_records()?;
+
+        match op {
+            ast::SetOperator::Union => {
+                left_rows.extend(right_rows);
+                match set_quantifier {
+                    ast::SetQuantifier::All | ast::SetQuantifier::ByName => {}
+                    ast::SetQuantifier::Distinct
+                    | ast::SetQuantifier::None
+                    | ast::SetQuantifier::DistinctByName
+                    | ast::SetQuantifier::AllByName => {
+                        let mut seen = std::collections::HashSet::new();
+                        left_rows.retain(|row| {
+                            let key = format!("{:?}", row.values());
+                            seen.insert(key)
+                        });
+                    }
+                }
+            }
+            ast::SetOperator::Intersect => {
+                let right_set: std::collections::HashSet<String> = right_rows
+                    .iter()
+                    .map(|row| format!("{:?}", row.values()))
+                    .collect();
+                left_rows.retain(|row| {
+                    let key = format!("{:?}", row.values());
+                    right_set.contains(&key)
+                });
+                match set_quantifier {
+                    ast::SetQuantifier::All | ast::SetQuantifier::ByName => {}
+                    _ => {
+                        let mut seen = std::collections::HashSet::new();
+                        left_rows.retain(|row| {
+                            let key = format!("{:?}", row.values());
+                            seen.insert(key)
+                        });
+                    }
+                }
+            }
+            ast::SetOperator::Except | ast::SetOperator::Minus => {
+                let right_set: std::collections::HashSet<String> = right_rows
+                    .iter()
+                    .map(|row| format!("{:?}", row.values()))
+                    .collect();
+                left_rows.retain(|row| {
+                    let key = format!("{:?}", row.values());
+                    !right_set.contains(&key)
+                });
+                match set_quantifier {
+                    ast::SetQuantifier::All | ast::SetQuantifier::ByName => {}
+                    _ => {
+                        let mut seen = std::collections::HashSet::new();
+                        left_rows.retain(|row| {
+                            let key = format!("{:?}", row.values());
+                            seen.insert(key)
+                        });
+                    }
+                }
+            }
+        }
+
+        let values: Vec<Vec<Value>> = left_rows.into_iter().map(|r| r.into_values()).collect();
+        Table::from_values(left_schema, values)
+    }
+
+    fn execute_set_expr(
+        &self,
+        set_expr: &SetExpr,
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<Table> {
+        match set_expr {
+            SetExpr::Select(select) => {
+                self.execute_select_with_ctes(select, &None, &None, cte_tables)
+            }
+            SetExpr::Values(values) => self.execute_values(values),
+            SetExpr::SetOperation {
+                op,
+                set_quantifier,
+                left,
+                right,
+            } => self.execute_set_operation(op, set_quantifier, left, right, cte_tables),
+            SetExpr::Query(query) => self.execute_query_with_ctes(query, cte_tables),
+            _ => Err(Error::UnsupportedFeature(format!(
+                "SetExpr type not yet supported: {:?}",
+                set_expr
             ))),
         }
     }
