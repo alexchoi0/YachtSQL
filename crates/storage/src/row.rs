@@ -58,6 +58,18 @@ impl Row {
         self.values
     }
 
+    pub fn push(&mut self, value: Value) {
+        self.values.push(value);
+        self.initialized.push(true);
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        if index < self.values.len() {
+            self.values.remove(index);
+            self.initialized.remove(index);
+        }
+    }
+
     pub fn align_with_schema(&mut self, schema: &Schema) {
         let len = schema.field_count();
         if self.values.len() != len {

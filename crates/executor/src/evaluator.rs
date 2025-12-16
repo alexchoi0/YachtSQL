@@ -36,16 +36,26 @@ impl<'a> Evaluator<'a> {
             }
 
             Expr::CompoundIdentifier(parts) => {
-                let name = parts
+                let full_name = parts
+                    .iter()
+                    .map(|i| i.value.clone())
+                    .collect::<Vec<_>>()
+                    .join(".");
+                let last_name = parts
                     .last()
                     .map(|i| i.value.to_uppercase())
                     .unwrap_or_default();
+
                 let idx = self
                     .schema
                     .fields()
                     .iter()
-                    .position(|f| f.name.to_uppercase() == name)
-                    .ok_or_else(|| Error::ColumnNotFound(name.clone()))?;
+                    .position(|f| {
+                        f.name.to_uppercase() == full_name.to_uppercase()
+                            || f.name.to_uppercase() == last_name
+                            || f.name.to_uppercase().ends_with(&format!(".{}", last_name))
+                    })
+                    .ok_or_else(|| Error::ColumnNotFound(full_name.clone()))?;
                 Ok(row.values().get(idx).cloned().unwrap_or(Value::null()))
             }
 

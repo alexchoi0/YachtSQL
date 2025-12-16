@@ -317,6 +317,18 @@ impl Schema {
         self.fields.push(field);
     }
 
+    pub fn remove_field(&mut self, index: usize) {
+        if index < self.fields.len() {
+            self.fields.remove(index);
+        }
+    }
+
+    pub fn rename_field(&mut self, index: usize, new_name: String) {
+        if let Some(field) = self.fields.get_mut(index) {
+            field.name = new_name;
+        }
+    }
+
     pub fn fields(&self) -> &[Field] {
         &self.fields
     }

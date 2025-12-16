@@ -63,4 +63,24 @@ impl Catalog {
     pub fn table_exists(&self, name: &str) -> bool {
         self.tables.contains_key(&name.to_uppercase())
     }
+
+    pub fn rename_table(&mut self, old_name: &str, new_name: &str) -> Result<()> {
+        let old_key = old_name.to_uppercase();
+        let new_key = new_name.to_uppercase();
+
+        if !self.tables.contains_key(&old_key) {
+            return Err(Error::TableNotFound(old_name.to_string()));
+        }
+        if self.tables.contains_key(&new_key) {
+            return Err(Error::invalid_query(format!(
+                "Table already exists: {}",
+                new_name
+            )));
+        }
+
+        if let Some(table_data) = self.tables.remove(&old_key) {
+            self.tables.insert(new_key, table_data);
+        }
+        Ok(())
+    }
 }

@@ -74,6 +74,9 @@ impl QueryExecutor {
             } => self.execute_update(table, assignments, selection.as_ref()),
             Statement::Delete(delete) => self.execute_delete(delete),
             Statement::Truncate { table_names, .. } => self.execute_truncate(table_names),
+            Statement::AlterTable {
+                name, operations, ..
+            } => self.execute_alter_table(name, operations),
             _ => Err(Error::UnsupportedFeature(format!(
                 "Statement type not yet supported: {:?}",
                 stmt
@@ -1849,6 +1852,90 @@ impl QueryExecutor {
                 table_data.rows.clear();
             } else {
                 return Err(Error::TableNotFound(table_name));
+            }
+        }
+        Ok(Table::empty(Schema::new()))
+    }
+
+    fn execute_alter_table(
+        &mut self,
+        name: &ast::ObjectName,
+        operations: &[ast::AlterTableOperation],
+    ) -> Result<Table> {
+        let table_name = name.to_string();
+        for op in operations {
+            match op {
+                ast::AlterTableOperation::AddColumn { column_def, .. } => {
+                    let col_name = column_def.name.value.clone();
+                    let data_type = self.sql_type_to_data_type(&column_def.data_type)?;
+                    let table_data = self
+                        .catalog
+                        .get_table_mut(&table_name)
+                        .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
+
+                    table_data
+                        .schema
+                        .add_field(Field::nullable(col_name, data_type));
+
+                    for row in &mut table_data.rows {
+                        row.push(Value::null());
+                    }
+                }
+                ast::AlterTableOperation::DropColumn { column_names, .. } => {
+                    let column_name = column_names.first().ok_or_else(|| {
+                        Error::InvalidQuery("DROP COLUMN requires a column name".to_string())
+                    })?;
+                    let col_name = column_name.value.to_uppercase();
+                    let table_data = self
+                        .catalog
+                        .get_table_mut(&table_name)
+                        .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
+
+                    let idx = table_data
+                        .schema
+                        .fields()
+                        .iter()
+                        .position(|f| f.name.to_uppercase() == col_name)
+                        .ok_or_else(|| Error::ColumnNotFound(column_name.value.clone()))?;
+
+                    table_data.schema.remove_field(idx);
+                    for row in &mut table_data.rows {
+                        row.remove(idx);
+                    }
+                }
+                ast::AlterTableOperation::RenameColumn {
+                    old_column_name,
+                    new_column_name,
+                } => {
+                    let old_name = old_column_name.value.to_uppercase();
+                    let table_data = self
+                        .catalog
+                        .get_table_mut(&table_name)
+                        .ok_or_else(|| Error::TableNotFound(table_name.clone()))?;
+
+                    let idx = table_data
+                        .schema
+                        .fields()
+                        .iter()
+                        .position(|f| f.name.to_uppercase() == old_name)
+                        .ok_or_else(|| Error::ColumnNotFound(old_column_name.value.clone()))?;
+
+                    table_data
+                        .schema
+                        .rename_field(idx, new_column_name.value.clone());
+                }
+                ast::AlterTableOperation::RenameTable {
+                    table_name: new_name,
+                } => {
+                    let new_table_name = new_name.to_string();
+                    self.catalog.rename_table(&table_name, &new_table_name)?;
+                }
+                _ => {
+                    return Err(Error::UnsupportedFeature(format!(
+                        "ALTER TABLE operation not supported: {:?}",
+                        op
+                    )));
+                }
             }
         }
         Ok(Table::empty(Schema::new()))
