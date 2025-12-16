@@ -8,11 +8,17 @@ use yachtsql_common::types::DataType;
 use yachtsql_storage::{Schema, Table};
 
 #[derive(Debug, Clone)]
+pub enum FunctionBody {
+    Sql(Box<Expr>),
+    JavaScript(String),
+}
+
+#[derive(Debug, Clone)]
 pub struct UserFunction {
     pub name: String,
     pub parameters: Vec<OperateFunctionArg>,
     pub return_type: DataType,
-    pub body: Expr,
+    pub body: FunctionBody,
     pub is_temporary: bool,
 }
 

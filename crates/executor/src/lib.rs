@@ -9,6 +9,7 @@ mod clickhouse;
 mod error;
 mod evaluator;
 mod executor;
+mod js_udf;
 
 pub use catalog::Catalog;
 pub use clickhouse::ClickHouseExecutor;
