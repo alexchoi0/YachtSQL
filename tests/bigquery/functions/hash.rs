@@ -9,7 +9,6 @@ fn test_md5() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sha256() {
     let mut executor = create_executor();
     let result = executor
@@ -19,7 +18,6 @@ fn test_sha256() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sha512() {
     let mut executor = create_executor();
     let result = executor

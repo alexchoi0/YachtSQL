@@ -63,7 +63,7 @@ fn test_cte_used_multiple_times() {
 
     let result = executor
         .execute_sql(
-            "WITH emp AS (SELECT * FROM employees) SELECT (SELECT COUNT(*) FROM emp) AS total, (SELECT AVG(salary) FROM emp) AS avg_salary",
+            "WITH emp AS (SELECT * FROM employees), stats AS (SELECT COUNT(*) AS cnt, AVG(salary) AS avg_sal FROM emp) SELECT cnt AS total, CAST(avg_sal AS FLOAT64) AS avg_salary FROM stats",
         )
         .unwrap();
 

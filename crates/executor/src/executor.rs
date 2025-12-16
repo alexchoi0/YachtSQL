@@ -5194,6 +5194,63 @@ impl QueryExecutor {
 
                 Ok(Value::string(parts.join("")))
             }
+            "BIT_AND" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("BIT_AND requires an argument".to_string())
+                })?;
+                let mut result: Option<i64> = None;
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        result = Some(match result {
+                            None => i,
+                            Some(r) => r & i,
+                        });
+                    }
+                }
+                Ok(result.map(Value::int64).unwrap_or_else(Value::null))
+            }
+            "BIT_OR" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("BIT_OR requires an argument".to_string())
+                })?;
+                let mut result: Option<i64> = None;
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        result = Some(match result {
+                            None => i,
+                            Some(r) => r | i,
+                        });
+                    }
+                }
+                Ok(result.map(Value::int64).unwrap_or_else(Value::null))
+            }
+            "BIT_XOR" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("BIT_XOR requires an argument".to_string())
+                })?;
+                let mut result: Option<i64> = None;
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if val.is_null() {
+                        continue;
+                    }
+                    if let Some(i) = val.as_i64() {
+                        result = Some(match result {
+                            None => i,
+                            Some(r) => r ^ i,
+                        });
+                    }
+                }
+                Ok(result.map(Value::int64).unwrap_or_else(Value::null))
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Aggregate function {} not yet supported",
                 name

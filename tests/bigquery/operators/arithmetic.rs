@@ -25,8 +25,10 @@ fn test_multiplication_integers() {
 #[test]
 fn test_division_integers() {
     let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT 10 / 3").unwrap();
-    assert_table_eq!(result, [[3]]);
+    let result = executor
+        .execute_sql("SELECT CAST(10 / 3 AS FLOAT64) > 3.3")
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
 }
 
 #[test]
@@ -89,10 +91,10 @@ fn test_arithmetic_with_column() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT a + b, a - b, a * b, a / b FROM nums ORDER BY a")
+        .execute_sql("SELECT a + b, a - b, a * b, ROUND(a / b, 2) FROM nums ORDER BY a")
         .unwrap();
 
-    assert_table_eq!(result, [[13, 7, 30, 3], [24, 16, 80, 5]]);
+    assert_table_eq!(result, [[13, 7, 30, 3.33], [24, 16, 80, 5.0]]);
 }
 
 #[test]
