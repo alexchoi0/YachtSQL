@@ -1419,7 +1419,12 @@ impl QueryExecutor {
             && !matches!(select.group_by, ast::GroupByExpr::All(_));
 
         if has_aggregates || has_group_by {
-            return self.execute_aggregate_query(&input_schema, &filtered_rows, select);
+            return self.execute_aggregate_query_with_ctes(
+                &input_schema,
+                &filtered_rows,
+                select,
+                &HashMap::new(),
+            );
         }
 
         if select.distinct.is_some() {
@@ -1486,8 +1491,12 @@ impl QueryExecutor {
             && !matches!(select.group_by, ast::GroupByExpr::All(_));
 
         if has_aggregates || has_group_by {
-            let (schema, rows) =
-                self.execute_aggregate_query(&input_schema, &filtered_rows, select)?;
+            let (schema, rows) = self.execute_aggregate_query_with_ctes(
+                &input_schema,
+                &filtered_rows,
+                select,
+                cte_tables,
+            )?;
             return Ok((schema, rows, false));
         }
 
@@ -2408,11 +2417,12 @@ impl QueryExecutor {
         }
     }
 
-    fn execute_aggregate_query(
+    fn execute_aggregate_query_with_ctes(
         &self,
         input_schema: &Schema,
         rows: &[Record],
         select: &Select,
+        cte_tables: &HashMap<String, Table>,
     ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
         let group_exprs = self.extract_group_by_exprs(&select.group_by);
@@ -2483,25 +2493,27 @@ impl QueryExecutor {
             for (idx, item) in select.projection.iter().enumerate() {
                 match item {
                     SelectItem::UnnamedExpr(expr) => {
-                        let val = self.evaluate_aggregate_expr_with_grouping(
+                        let val = self.evaluate_aggregate_expr_with_grouping_ctes(
                             expr,
                             input_schema,
                             group_rows,
                             group_key,
                             &group_exprs,
                             active_indices,
+                            cte_tables,
                         )?;
                         field_names.push(self.expr_to_alias(expr, idx));
                         row_values.push(val);
                     }
                     SelectItem::ExprWithAlias { expr, alias } => {
-                        let val = self.evaluate_aggregate_expr_with_grouping(
+                        let val = self.evaluate_aggregate_expr_with_grouping_ctes(
                             expr,
                             input_schema,
                             group_rows,
                             group_key,
                             &group_exprs,
                             active_indices,
+                            cte_tables,
                         )?;
                         field_names.push(alias.value.clone());
                         row_values.push(val);
@@ -2979,7 +2991,8 @@ impl QueryExecutor {
         }
     }
 
-    fn evaluate_aggregate_expr_with_grouping(
+    #[allow(clippy::too_many_arguments)]
+    fn evaluate_aggregate_expr_with_grouping_ctes(
         &self,
         expr: &Expr,
         input_schema: &Schema,
@@ -2987,6 +3000,7 @@ impl QueryExecutor {
         group_key: &[Value],
         group_exprs: &[Expr],
         active_indices: &[usize],
+        cte_tables: &HashMap<String, Table>,
     ) -> Result<Value> {
         let evaluator = Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
 
@@ -3007,13 +3021,14 @@ impl QueryExecutor {
                     for arg in &arg_list.args {
                         if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(arg_expr)) = arg
                         {
-                            let val = self.evaluate_aggregate_expr_with_grouping(
+                            let val = self.evaluate_aggregate_expr_with_grouping_ctes(
                                 arg_expr,
                                 input_schema,
                                 group_rows,
                                 group_key,
                                 group_exprs,
                                 active_indices,
+                                cte_tables,
                             )?;
                             evaluated_args.push(val);
                         }
@@ -3038,21 +3053,23 @@ impl QueryExecutor {
                 }
             }
             Expr::BinaryOp { left, op, right } => {
-                let left_val = self.evaluate_aggregate_expr_with_grouping(
+                let left_val = self.evaluate_aggregate_expr_with_grouping_ctes(
                     left,
                     input_schema,
                     group_rows,
                     group_key,
                     group_exprs,
                     active_indices,
+                    cte_tables,
                 )?;
-                let right_val = self.evaluate_aggregate_expr_with_grouping(
+                let right_val = self.evaluate_aggregate_expr_with_grouping_ctes(
                     right,
                     input_schema,
                     group_rows,
                     group_key,
                     group_exprs,
                     active_indices,
+                    cte_tables,
                 )?;
                 evaluator.evaluate_binary_op_values(&left_val, op, &right_val)
             }
@@ -3064,72 +3081,115 @@ impl QueryExecutor {
             } => {
                 match operand {
                     Some(op_expr) => {
-                        let op_val = self.evaluate_aggregate_expr_with_grouping(
+                        let op_val = self.evaluate_aggregate_expr_with_grouping_ctes(
                             op_expr,
                             input_schema,
                             group_rows,
                             group_key,
                             group_exprs,
                             active_indices,
+                            cte_tables,
                         )?;
                         for cond in conditions {
-                            let when_val = self.evaluate_aggregate_expr_with_grouping(
+                            let when_val = self.evaluate_aggregate_expr_with_grouping_ctes(
                                 &cond.condition,
                                 input_schema,
                                 group_rows,
                                 group_key,
                                 group_exprs,
                                 active_indices,
+                                cte_tables,
                             )?;
                             if op_val == when_val {
-                                return self.evaluate_aggregate_expr_with_grouping(
+                                return self.evaluate_aggregate_expr_with_grouping_ctes(
                                     &cond.result,
                                     input_schema,
                                     group_rows,
                                     group_key,
                                     group_exprs,
                                     active_indices,
+                                    cte_tables,
                                 );
                             }
                         }
                     }
                     None => {
                         for cond in conditions {
-                            let cond_val = self.evaluate_aggregate_expr_with_grouping(
+                            let cond_val = self.evaluate_aggregate_expr_with_grouping_ctes(
                                 &cond.condition,
                                 input_schema,
                                 group_rows,
                                 group_key,
                                 group_exprs,
                                 active_indices,
+                                cte_tables,
                             )?;
                             if cond_val == Value::Bool(true) {
-                                return self.evaluate_aggregate_expr_with_grouping(
+                                return self.evaluate_aggregate_expr_with_grouping_ctes(
                                     &cond.result,
                                     input_schema,
                                     group_rows,
                                     group_key,
                                     group_exprs,
                                     active_indices,
+                                    cte_tables,
                                 );
                             }
                         }
                     }
                 }
                 if let Some(else_expr) = else_result {
-                    self.evaluate_aggregate_expr_with_grouping(
+                    self.evaluate_aggregate_expr_with_grouping_ctes(
                         else_expr,
                         input_schema,
                         group_rows,
                         group_key,
                         group_exprs,
                         active_indices,
+                        cte_tables,
                     )
                 } else {
                     Ok(Value::null())
                 }
             }
             Expr::Value(v) => self.sql_value_to_value(&v.value),
+            Expr::Subquery(query) => {
+                let result = self.execute_query_with_ctes(query, cte_tables)?;
+                let rows = result.to_records()?;
+                if rows.len() != 1 || result.schema().field_count() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "Scalar subquery must return exactly one row and one column".to_string(),
+                    ));
+                }
+                Ok(rows[0].values()[0].clone())
+            }
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                kind,
+                ..
+            } => {
+                let val = self.evaluate_aggregate_expr_with_grouping_ctes(
+                    inner,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                    cte_tables,
+                )?;
+                let is_safe = matches!(kind, ast::CastKind::SafeCast);
+                evaluator.cast_value(&val, data_type, is_safe)
+            }
+            Expr::Nested(inner) => self.evaluate_aggregate_expr_with_grouping_ctes(
+                inner,
+                input_schema,
+                group_rows,
+                group_key,
+                group_exprs,
+                active_indices,
+                cte_tables,
+            ),
             _ => {
                 if let Some(row) = group_rows.first() {
                     evaluator.evaluate(expr, row)
@@ -4083,8 +4143,10 @@ impl QueryExecutor {
         rows: &[Record],
         projection: &[SelectItem],
     ) -> Result<(Schema, Vec<Record>)> {
-        if self.has_array_join(projection) {
-            return self.project_rows_with_array_join(input_schema, rows, projection);
+        let resolved_projection = self.resolve_projection_subqueries(projection)?;
+
+        if self.has_array_join(&resolved_projection) {
+            return self.project_rows_with_array_join(input_schema, rows, &resolved_projection);
         }
 
         let evaluator = Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
@@ -4094,7 +4156,7 @@ impl QueryExecutor {
 
         let mut all_cols: Vec<(String, DataType)> = Vec::new();
 
-        for (idx, item) in projection.iter().enumerate() {
+        for (idx, item) in resolved_projection.iter().enumerate() {
             match item {
                 SelectItem::Wildcard(opts) => {
                     let except_cols = Self::get_except_columns(opts);
@@ -4160,7 +4222,7 @@ impl QueryExecutor {
         let mut output_rows = Vec::with_capacity(rows.len());
         for row in rows {
             let mut values = Vec::new();
-            for item in projection {
+            for item in &resolved_projection {
                 match item {
                     SelectItem::Wildcard(opts) => {
                         let except_cols = Self::get_except_columns(opts);
@@ -4209,6 +4271,26 @@ impl QueryExecutor {
         }
 
         Ok((output_schema, output_rows))
+    }
+
+    fn resolve_projection_subqueries(&self, projection: &[SelectItem]) -> Result<Vec<SelectItem>> {
+        projection
+            .iter()
+            .map(|item| match item {
+                SelectItem::UnnamedExpr(expr) => {
+                    let resolved = self.resolve_scalar_subqueries(expr)?;
+                    Ok(SelectItem::UnnamedExpr(resolved))
+                }
+                SelectItem::ExprWithAlias { expr, alias } => {
+                    let resolved = self.resolve_scalar_subqueries(expr)?;
+                    Ok(SelectItem::ExprWithAlias {
+                        expr: resolved,
+                        alias: alias.clone(),
+                    })
+                }
+                other => Ok(other.clone()),
+            })
+            .collect()
     }
 
     fn project_rows_with_array_join(
@@ -5121,6 +5203,166 @@ impl QueryExecutor {
                 let resolved = self.resolve_scalar_subqueries(inner)?;
                 Ok(Expr::IsNotNull(Box::new(resolved)))
             }
+            Expr::Function(func) => {
+                let new_args = match &func.args {
+                    ast::FunctionArguments::None => ast::FunctionArguments::None,
+                    ast::FunctionArguments::Subquery(q) => {
+                        let result = self.execute_query(q)?;
+                        let rows = result.to_records()?;
+                        if rows.len() != 1 || result.schema().field_count() != 1 {
+                            return Err(Error::InvalidQuery(
+                                "Scalar subquery must return exactly one row and one column"
+                                    .to_string(),
+                            ));
+                        }
+                        let value = rows[0].values()[0].clone();
+                        let resolved_expr = self.value_to_expr(&value);
+                        ast::FunctionArguments::List(ast::FunctionArgumentList {
+                            duplicate_treatment: None,
+                            args: vec![ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                                resolved_expr,
+                            ))],
+                            clauses: vec![],
+                        })
+                    }
+                    ast::FunctionArguments::List(list) => {
+                        let new_list_args: Vec<ast::FunctionArg> = list
+                            .args
+                            .iter()
+                            .map(|arg| match arg {
+                                ast::FunctionArg::Unnamed(arg_expr) => match arg_expr {
+                                    ast::FunctionArgExpr::Expr(e) => {
+                                        let resolved = self.resolve_scalar_subqueries(e)?;
+                                        Ok(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                                            resolved,
+                                        )))
+                                    }
+                                    other => Ok(ast::FunctionArg::Unnamed(other.clone())),
+                                },
+                                ast::FunctionArg::Named {
+                                    name,
+                                    arg,
+                                    operator,
+                                } => match arg {
+                                    ast::FunctionArgExpr::Expr(e) => {
+                                        let resolved = self.resolve_scalar_subqueries(e)?;
+                                        Ok(ast::FunctionArg::Named {
+                                            name: name.clone(),
+                                            arg: ast::FunctionArgExpr::Expr(resolved),
+                                            operator: operator.clone(),
+                                        })
+                                    }
+                                    other => Ok(ast::FunctionArg::Named {
+                                        name: name.clone(),
+                                        arg: other.clone(),
+                                        operator: operator.clone(),
+                                    }),
+                                },
+                                ast::FunctionArg::ExprNamed {
+                                    name,
+                                    arg,
+                                    operator,
+                                } => match arg {
+                                    ast::FunctionArgExpr::Expr(e) => {
+                                        let resolved = self.resolve_scalar_subqueries(e)?;
+                                        Ok(ast::FunctionArg::ExprNamed {
+                                            name: name.clone(),
+                                            arg: ast::FunctionArgExpr::Expr(resolved),
+                                            operator: operator.clone(),
+                                        })
+                                    }
+                                    other => Ok(ast::FunctionArg::ExprNamed {
+                                        name: name.clone(),
+                                        arg: other.clone(),
+                                        operator: operator.clone(),
+                                    }),
+                                },
+                            })
+                            .collect::<Result<Vec<_>>>()?;
+                        ast::FunctionArguments::List(ast::FunctionArgumentList {
+                            duplicate_treatment: list.duplicate_treatment,
+                            args: new_list_args,
+                            clauses: list.clauses.clone(),
+                        })
+                    }
+                };
+                Ok(Expr::Function(ast::Function {
+                    name: func.name.clone(),
+                    uses_odbc_syntax: func.uses_odbc_syntax,
+                    args: new_args,
+                    filter: func.filter.clone(),
+                    null_treatment: func.null_treatment,
+                    over: func.over.clone(),
+                    within_group: func.within_group.clone(),
+                    parameters: func.parameters.clone(),
+                }))
+            }
+            Expr::Case {
+                case_token,
+                end_token,
+                operand,
+                conditions,
+                else_result,
+            } => {
+                let resolved_operand = operand
+                    .as_ref()
+                    .map(|o| self.resolve_scalar_subqueries(o))
+                    .transpose()?
+                    .map(Box::new);
+                let resolved_conditions: Vec<ast::CaseWhen> = conditions
+                    .iter()
+                    .map(|cw| {
+                        let resolved_cond = self.resolve_scalar_subqueries(&cw.condition)?;
+                        let resolved_result = self.resolve_scalar_subqueries(&cw.result)?;
+                        Ok(ast::CaseWhen {
+                            condition: resolved_cond,
+                            result: resolved_result,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let resolved_else = else_result
+                    .as_ref()
+                    .map(|e| self.resolve_scalar_subqueries(e))
+                    .transpose()?
+                    .map(Box::new);
+                Ok(Expr::Case {
+                    case_token: case_token.clone(),
+                    end_token: end_token.clone(),
+                    operand: resolved_operand,
+                    conditions: resolved_conditions,
+                    else_result: resolved_else,
+                })
+            }
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                format,
+                kind,
+            } => {
+                let resolved = self.resolve_scalar_subqueries(inner)?;
+                Ok(Expr::Cast {
+                    expr: Box::new(resolved),
+                    data_type: data_type.clone(),
+                    format: format.clone(),
+                    kind: kind.clone(),
+                })
+            }
+            Expr::InList {
+                expr,
+                list,
+                negated,
+            } => {
+                let resolved_expr = self.resolve_scalar_subqueries(expr)?;
+                let resolved_list: Vec<Expr> = list
+                    .iter()
+                    .map(|e| self.resolve_scalar_subqueries(e))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list: resolved_list,
+                    negated: *negated,
+                })
+            }
             _ => Ok(expr.clone()),
         }
     }
@@ -5439,14 +5681,16 @@ impl QueryExecutor {
             DataType::Struct(target_fields) => {
                 if let Some(struct_vals) = value.as_struct() {
                     if struct_vals.len() == target_fields.len() {
-                        let coerced_fields: Vec<(String, Value)> = struct_vals
+                        let coerced_fields: Result<Vec<(String, Value)>> = struct_vals
                             .iter()
                             .zip(target_fields.iter())
                             .map(|((_, val), target_field)| {
-                                (target_field.name.clone(), val.clone())
+                                let coerced_val = self
+                                    .coerce_value_to_type(val.clone(), &target_field.data_type)?;
+                                Ok((target_field.name.clone(), coerced_val))
                             })
                             .collect();
-                        return Ok(Value::struct_val(coerced_fields));
+                        return Ok(Value::struct_val(coerced_fields?));
                     }
                 }
                 Ok(value)

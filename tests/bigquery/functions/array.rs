@@ -206,6 +206,123 @@ fn test_unnest_struct_positional_fields() {
 }
 
 #[test]
+fn test_unnest_struct_nested_array_in_cte() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE orders_with_items (
+                order_id INT64,
+                items ARRAY<STRUCT<name STRING, discounts ARRAY<STRUCT<code STRING, amount FLOAT64>>>>
+            )",
+        )
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO orders_with_items VALUES
+            (1, [STRUCT('Laptop', [STRUCT('SAVE10', 100.0), STRUCT('VIP', 50.0)]),
+                 STRUCT('Mouse', [STRUCT('BUNDLE', 5.0)])])",
+        )
+        .unwrap();
+    let result = executor
+        .execute_sql(
+            "WITH items_flat AS (
+                SELECT o.order_id, item.name, item.discounts
+                FROM orders_with_items o, UNNEST(o.items) AS item
+            )
+            SELECT f.order_id, f.name, d.code, d.amount
+            FROM items_flat f, UNNEST(f.discounts) AS d
+            ORDER BY f.name, d.code",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [
+            [1, "Laptop", "SAVE10", 100.0],
+            [1, "Laptop", "VIP", 50.0],
+            [1, "Mouse", "BUNDLE", 5.0],
+        ]
+    );
+}
+
+#[test]
+fn test_array_agg_unqualified_column_in_cte() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE items_with_tags (
+                item_id INT64,
+                item_name STRING,
+                tag STRING
+            )",
+        )
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO items_with_tags VALUES
+            (1, 'Laptop', 'tech'),
+            (1, 'Laptop', 'portable'),
+            (2, 'Mouse', 'tech'),
+            (2, 'Mouse', 'accessory')",
+        )
+        .unwrap();
+    let result = executor
+        .execute_sql(
+            "WITH tagged AS (
+                SELECT item_id, item_name, tag
+                FROM items_with_tags
+            )
+            SELECT item_id, item_name, ARRAY_AGG(tag) AS tags
+            FROM tagged
+            GROUP BY item_id, item_name
+            ORDER BY item_id",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [
+            [1, "Laptop", ["tech", "portable"]],
+            [2, "Mouse", ["tech", "accessory"]],
+        ]
+    );
+}
+
+#[test]
+fn test_array_agg_with_order_by_in_cte() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE items_with_scores (
+                item_id INT64,
+                item_name STRING,
+                score INT64
+            )",
+        )
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO items_with_scores VALUES
+            (1, 'Laptop', 90),
+            (1, 'Laptop', 85),
+            (2, 'Mouse', 70),
+            (2, 'Mouse', 95)",
+        )
+        .unwrap();
+    let result = executor
+        .execute_sql(
+            "WITH scored AS (
+                SELECT item_id, item_name, score
+                FROM items_with_scores
+            )
+            SELECT item_id, item_name, ARRAY_AGG(score) AS scores
+            FROM scored
+            GROUP BY item_id, item_name
+            ORDER BY item_id",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[1, "Laptop", [90, 85]], [2, "Mouse", [70, 95]],]);
+}
+
+#[test]
 fn test_array_concat_multiple() {
     let mut executor = create_executor();
     let result = executor

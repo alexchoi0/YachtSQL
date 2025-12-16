@@ -433,6 +433,44 @@ impl<'a> Evaluator<'a> {
                     return Ok(record.values().get(idx).cloned().unwrap_or(Value::null()));
                 }
 
+                if parts.len() >= 3 {
+                    let first_two = format!(
+                        "{}.{}",
+                        parts[0].value.to_uppercase(),
+                        parts[1].value.to_uppercase()
+                    );
+                    if let Some(base_idx) = self
+                        .schema
+                        .fields()
+                        .iter()
+                        .position(|f| f.name.to_uppercase() == first_two)
+                    {
+                        let base_val = record
+                            .values()
+                            .get(base_idx)
+                            .cloned()
+                            .unwrap_or(Value::null());
+                        if let Some(struct_fields) = base_val.as_struct() {
+                            let field_name = parts[2].value.to_uppercase();
+                            for (name, val) in struct_fields {
+                                if name.to_uppercase() == field_name {
+                                    if parts.len() == 3 {
+                                        return Ok(val.clone());
+                                    }
+                                    if let Some(nested) = val.as_struct() {
+                                        let nested_field = parts[3].value.to_uppercase();
+                                        for (n, v) in nested {
+                                            if n.to_uppercase() == nested_field {
+                                                return Ok(v.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if parts.len() >= 2 {
                     let first = parts[0].value.to_uppercase();
                     if let Some(base_idx) = self
