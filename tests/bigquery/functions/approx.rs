@@ -214,7 +214,7 @@ fn test_hll_count_extract() {
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT COUNT(*) FROM (SELECT category, HLL_COUNT_EXTRACT(sketch) AS count FROM sketches GROUP BY category, sketch) AS t WHERE count >= 3")
+        .execute_sql("SELECT COUNT(*) FROM (SELECT category, HLL_COUNT_EXTRACT(sketch) AS cnt FROM sketches GROUP BY category, sketch) WHERE cnt >= 3")
         .unwrap();
     assert_table_eq!(result, [[2]]);
 }

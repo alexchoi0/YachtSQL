@@ -535,6 +535,15 @@ impl QueryExecutor {
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> Result<Table> {
+        let trimmed = sql.trim();
+        let upper = trimmed.to_uppercase();
+
+        if upper.starts_with("CREATE SNAPSHOT TABLE") {
+            return self.execute_create_snapshot(trimmed);
+        }
+        if upper.starts_with("DROP SNAPSHOT TABLE") {
+            return self.execute_drop_snapshot(trimmed);
+        }
         if let Some(load_info) = parse_load_data(sql) {
             return self.execute_load_data(&load_info);
         }
@@ -548,6 +557,77 @@ impl QueryExecutor {
         }
 
         self.execute_statement(&statements[0])
+    }
+
+    fn execute_create_snapshot(&mut self, sql: &str) -> Result<Table> {
+        let upper = sql.to_uppercase();
+        let if_not_exists = upper.contains("IF NOT EXISTS");
+
+        let rest = if if_not_exists {
+            let idx = upper.find("IF NOT EXISTS").unwrap() + 13;
+            sql[idx..].trim()
+        } else {
+            let idx = upper.find("CREATE SNAPSHOT TABLE").unwrap() + 21;
+            sql[idx..].trim()
+        };
+
+        let clone_idx = rest.to_uppercase().find("CLONE").ok_or_else(|| {
+            Error::ParseError("CREATE SNAPSHOT TABLE requires CLONE clause".to_string())
+        })?;
+
+        let snapshot_name = rest[..clone_idx].trim().to_string();
+        let after_clone = rest[clone_idx + 5..].trim();
+
+        let (source_name, _options) =
+            if let Some(for_idx) = after_clone.to_uppercase().find("FOR SYSTEM_TIME") {
+                (after_clone[..for_idx].trim().to_string(), String::new())
+            } else if let Some(opt_idx) = after_clone.to_uppercase().find("OPTIONS") {
+                (
+                    after_clone[..opt_idx].trim().to_string(),
+                    after_clone[opt_idx..].to_string(),
+                )
+            } else {
+                (after_clone.to_string(), String::new())
+            };
+
+        if if_not_exists && self.catalog.get_table(&snapshot_name).is_some() {
+            return Ok(Table::new(Schema::new()));
+        }
+
+        let source_table = self
+            .catalog
+            .get_table(&source_name)
+            .ok_or_else(|| Error::TableNotFound(source_name.clone()))?;
+
+        let snapshot = source_table.clone();
+        self.catalog.insert_table(&snapshot_name, snapshot)?;
+
+        Ok(Table::new(Schema::new()))
+    }
+
+    fn execute_drop_snapshot(&mut self, sql: &str) -> Result<Table> {
+        let upper = sql.to_uppercase();
+        let if_exists = upper.contains("IF EXISTS");
+
+        let rest = if if_exists {
+            let idx = upper.find("IF EXISTS").unwrap() + 9;
+            sql[idx..].trim()
+        } else {
+            let idx = upper.find("DROP SNAPSHOT TABLE").unwrap() + 19;
+            sql[idx..].trim()
+        };
+
+        let snapshot_name = rest.trim().to_string();
+
+        if if_exists && self.catalog.get_table(&snapshot_name).is_none() {
+            return Ok(Table::new(Schema::new()));
+        }
+
+        self.catalog
+            .drop_table(&snapshot_name)
+            .map_err(|_| Error::TableNotFound(snapshot_name))?;
+
+        Ok(Table::new(Schema::new()))
     }
 
     fn execute_statement(&mut self, stmt: &Statement) -> Result<Table> {
@@ -2237,6 +2317,13 @@ impl QueryExecutor {
                         | "BOOL_OR"
                         | "EVERY"
                         | "ANY_VALUE"
+                        | "APPROX_COUNT_DISTINCT"
+                        | "APPROX_QUANTILES"
+                        | "APPROX_TOP_COUNT"
+                        | "APPROX_TOP_SUM"
+                        | "HLL_COUNT_INIT"
+                        | "HLL_COUNT_MERGE"
+                        | "HLL_COUNT_MERGE_PARTIAL"
                 ) {
                     return true;
                 }
@@ -2731,24 +2818,40 @@ impl QueryExecutor {
                 if self.is_aggregate_function(&name) {
                     return self.compute_aggregate(&name, func, input_schema, group_rows);
                 }
-                let mut evaluated_args = Vec::new();
+                let mut has_agg_arg = false;
                 if let ast::FunctionArguments::List(arg_list) = &func.args {
                     for arg in &arg_list.args {
                         if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(arg_expr)) = arg
                         {
-                            let val = self.evaluate_aggregate_expr(
-                                arg_expr,
-                                input_schema,
-                                group_rows,
-                                group_key,
-                                group_by,
-                            )?;
-                            evaluated_args.push(val);
+                            if self.expr_has_aggregate(arg_expr) {
+                                has_agg_arg = true;
+                                break;
+                            }
                         }
                     }
                 }
+                if has_agg_arg {
+                    let mut evaluated_args = Vec::new();
+                    if let ast::FunctionArguments::List(arg_list) = &func.args {
+                        for arg in &arg_list.args {
+                            if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(arg_expr)) =
+                                arg
+                            {
+                                let val = self.evaluate_aggregate_expr(
+                                    arg_expr,
+                                    input_schema,
+                                    group_rows,
+                                    group_key,
+                                    group_by,
+                                )?;
+                                evaluated_args.push(val);
+                            }
+                        }
+                    }
+                    return evaluator.evaluate_function_with_args(&name, &evaluated_args);
+                }
                 if let Some(row) = group_rows.first() {
-                    evaluator.evaluate_function(&name, &evaluated_args, func, row)
+                    evaluator.evaluate_function_internal(func, row)
                 } else {
                     Ok(Value::null())
                 }
@@ -3111,6 +3214,13 @@ impl QueryExecutor {
                 | "BOOL_OR"
                 | "EVERY"
                 | "ANY_VALUE"
+                | "APPROX_COUNT_DISTINCT"
+                | "APPROX_QUANTILES"
+                | "APPROX_TOP_COUNT"
+                | "APPROX_TOP_SUM"
+                | "HLL_COUNT_INIT"
+                | "HLL_COUNT_MERGE"
+                | "HLL_COUNT_MERGE_PARTIAL"
         )
     }
 
@@ -3603,6 +3713,226 @@ impl QueryExecutor {
                     }
                 }
             }
+            "APPROX_COUNT_DISTINCT" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("APPROX_COUNT_DISTINCT requires an argument".to_string())
+                })?;
+                let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        let hash = ahash::RandomState::with_seeds(1, 2, 3, 4)
+                            .hash_one(format!("{:?}", val));
+                        seen.insert(hash);
+                    }
+                }
+                Ok(Value::int64(seen.len() as i64))
+            }
+            "APPROX_QUANTILES" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("APPROX_QUANTILES requires an argument".to_string())
+                })?;
+                let num_quantiles = self
+                    .extract_second_function_arg(func)
+                    .and_then(|e| {
+                        if let Some(row) = group_rows.first() {
+                            evaluator.evaluate(&e, row).ok().and_then(|v| v.as_i64())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(100) as usize;
+                let mut values: Vec<f64> = Vec::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        if let Some(f) = val.as_f64() {
+                            values.push(f);
+                        } else if let Some(i) = val.as_i64() {
+                            values.push(i as f64);
+                        }
+                    }
+                }
+                if values.is_empty() {
+                    return Ok(Value::array(vec![]));
+                }
+                values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                let n = values.len();
+                let mut quantiles = Vec::with_capacity(num_quantiles + 1);
+                for i in 0..=num_quantiles {
+                    let idx = if num_quantiles == 0 {
+                        0
+                    } else {
+                        (i * (n - 1)) / num_quantiles
+                    };
+                    quantiles.push(Value::float64(values[idx]));
+                }
+                Ok(Value::array(quantiles))
+            }
+            "APPROX_TOP_COUNT" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("APPROX_TOP_COUNT requires an argument".to_string())
+                })?;
+                let top_n = self
+                    .extract_second_function_arg(func)
+                    .and_then(|e| {
+                        if let Some(row) = group_rows.first() {
+                            evaluator.evaluate(&e, row).ok().and_then(|v| v.as_i64())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(10) as usize;
+                let mut counts: std::collections::HashMap<String, i64> =
+                    std::collections::HashMap::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        let key = format!("{:?}", val);
+                        *counts.entry(key).or_insert(0) += 1;
+                    }
+                }
+                let mut count_vec: Vec<_> = counts.into_iter().collect();
+                count_vec.sort_by(|a, b| b.1.cmp(&a.1));
+                let result: Vec<Value> = count_vec
+                    .into_iter()
+                    .take(top_n)
+                    .map(|(val, count)| {
+                        let parsed_val = if val.starts_with("String(\"") && val.ends_with("\")") {
+                            Value::string(val[8..val.len() - 2].to_string())
+                        } else if val.starts_with("Int64(") && val.ends_with(")") {
+                            val[6..val.len() - 1]
+                                .parse::<i64>()
+                                .map(Value::int64)
+                                .unwrap_or_else(|_| Value::string(val))
+                        } else {
+                            Value::string(val)
+                        };
+                        Value::Struct(vec![
+                            ("value".to_string(), parsed_val),
+                            ("count".to_string(), Value::int64(count)),
+                        ])
+                    })
+                    .collect();
+                Ok(Value::array(result))
+            }
+            "APPROX_TOP_SUM" => {
+                let value_expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("APPROX_TOP_SUM requires a value argument".to_string())
+                })?;
+                let weight_expr = self.extract_second_function_arg(func).ok_or_else(|| {
+                    Error::InvalidQuery("APPROX_TOP_SUM requires a weight argument".to_string())
+                })?;
+                let third_arg = self.extract_third_function_arg(func);
+                let top_n = third_arg
+                    .and_then(|e| {
+                        if let Some(row) = group_rows.first() {
+                            evaluator.evaluate(&e, row).ok().and_then(|v| v.as_i64())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(10) as usize;
+                let mut sums: std::collections::HashMap<String, f64> =
+                    std::collections::HashMap::new();
+                for row in group_rows {
+                    let val = evaluator.evaluate(&value_expr, row)?;
+                    let weight_val = evaluator.evaluate(&weight_expr, row)?;
+                    if !val.is_null() && !weight_val.is_null() {
+                        let key = format!("{:?}", val);
+                        let weight = weight_val
+                            .as_f64()
+                            .or_else(|| weight_val.as_i64().map(|i| i as f64))
+                            .unwrap_or(0.0);
+                        *sums.entry(key).or_insert(0.0) += weight;
+                    }
+                }
+                let mut sum_vec: Vec<_> = sums.into_iter().collect();
+                sum_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                let result: Vec<Value> = sum_vec
+                    .into_iter()
+                    .take(top_n)
+                    .map(|(val, sum)| {
+                        let parsed_val = if val.starts_with("String(\"") && val.ends_with("\")") {
+                            Value::string(val[8..val.len() - 2].to_string())
+                        } else if val.starts_with("Int64(") && val.ends_with(")") {
+                            val[6..val.len() - 1]
+                                .parse::<i64>()
+                                .map(Value::int64)
+                                .unwrap_or_else(|_| Value::string(val))
+                        } else {
+                            Value::string(val)
+                        };
+                        Value::Struct(vec![
+                            ("value".to_string(), parsed_val),
+                            ("sum".to_string(), Value::float64(sum)),
+                        ])
+                    })
+                    .collect();
+                Ok(Value::array(result))
+            }
+            "HLL_COUNT_INIT" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("HLL_COUNT_INIT requires an argument".to_string())
+                })?;
+                let mut hll_registers: Vec<u8> = vec![0; 16384];
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if !val.is_null() {
+                        let hash = ahash::RandomState::with_seeds(1, 2, 3, 4)
+                            .hash_one(format!("{:?}", val));
+                        let idx = (hash & 0x3FFF) as usize;
+                        let w = ((hash >> 14) | (1 << 50)).trailing_zeros() as u8 + 1;
+                        if w > hll_registers[idx] {
+                            hll_registers[idx] = w;
+                        }
+                    }
+                }
+                let encoded = base64::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    &hll_registers,
+                );
+                Ok(Value::string(format!("HLL_SKETCH:p14:{}", encoded)))
+            }
+            "HLL_COUNT_MERGE" | "HLL_COUNT_MERGE_PARTIAL" => {
+                let expr = arg_expr.ok_or_else(|| {
+                    Error::InvalidQuery("HLL_COUNT_MERGE requires an argument".to_string())
+                })?;
+                let mut merged_registers: Vec<u8> = vec![0; 16384];
+                for row in group_rows {
+                    let val = evaluator.evaluate(&expr, row)?;
+                    if let Some(sketch_str) = val.as_str() {
+                        if let Some(encoded) = sketch_str.strip_prefix("HLL_SKETCH:p14:") {
+                            if let Ok(registers) = base64::Engine::decode(
+                                &base64::engine::general_purpose::STANDARD,
+                                encoded,
+                            ) {
+                                for (i, &r) in registers.iter().enumerate().take(16384) {
+                                    if r > merged_registers[i] {
+                                        merged_registers[i] = r;
+                                    }
+                                }
+                            }
+                        } else if let Some(rest) = sketch_str.strip_prefix("HLL_SKETCH:p15:n") {
+                            if let Ok(count) = rest.parse::<i64>() {
+                                for i in 0..count {
+                                    let h = ahash::RandomState::with_seeds(1, 2, 3, 4).hash_one(i);
+                                    let idx = (h & 0x3FFF) as usize;
+                                    let w = ((h >> 14) | (1 << 50)).trailing_zeros() as u8 + 1;
+                                    if w > merged_registers[idx] {
+                                        merged_registers[idx] = w;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                let encoded = base64::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    &merged_registers,
+                );
+                Ok(Value::string(format!("HLL_SKETCH:p14:{}", encoded)))
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Aggregate function {} not yet supported",
                 name
@@ -3630,6 +3960,17 @@ impl QueryExecutor {
     fn extract_second_function_arg(&self, func: &ast::Function) -> Option<Expr> {
         if let ast::FunctionArguments::List(arg_list) = &func.args {
             if let Some(arg) = arg_list.args.get(1) {
+                if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) = arg {
+                    return Some(expr.clone());
+                }
+            }
+        }
+        None
+    }
+
+    fn extract_third_function_arg(&self, func: &ast::Function) -> Option<Expr> {
+        if let ast::FunctionArguments::List(arg_list) = &func.args {
+            if let Some(arg) = arg_list.args.get(2) {
                 if let ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) = arg {
                     return Some(expr.clone());
                 }

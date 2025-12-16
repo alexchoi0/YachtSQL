@@ -2062,10 +2062,10 @@ impl<'a> Evaluator<'a> {
         func: &sqlparser::ast::Function,
         _record: &Record,
     ) -> Result<Value> {
-        self.evaluate_function_impl(name, args.to_vec(), func)
+        self.evaluate_function_impl(name, args)
     }
 
-    fn evaluate_function_internal(
+    pub fn evaluate_function_internal(
         &self,
         func: &sqlparser::ast::Function,
         record: &Record,
@@ -2078,20 +2078,15 @@ impl<'a> Evaluator<'a> {
             return self.evaluate_make_interval(func, record);
         }
         let args = self.extract_function_args(func, record)?;
-        self.evaluate_function_impl(&name, args, func)
+        self.evaluate_function_impl(&name, &args)
     }
 
-    fn evaluate_function_impl(
-        &self,
-        name: &str,
-        args: Vec<Value>,
-        func: &sqlparser::ast::Function,
-    ) -> Result<Value> {
+    fn evaluate_function_impl(&self, name: &str, args: &[Value]) -> Result<Value> {
         match name {
             "COALESCE" => {
                 for val in args {
                     if !val.is_null() {
-                        return Ok(val);
+                        return Ok(val.clone());
                     }
                 }
                 Ok(Value::null())
@@ -2237,7 +2232,7 @@ impl<'a> Evaluator<'a> {
                 let all_bytes = args.iter().all(|v| v.is_null() || v.as_bytes().is_some());
                 if all_bytes && args.iter().any(|v| v.as_bytes().is_some()) {
                     let mut result = Vec::new();
-                    for val in &args {
+                    for val in args {
                         if let Some(b) = val.as_bytes() {
                             result.extend(b);
                         }
@@ -2245,7 +2240,7 @@ impl<'a> Evaluator<'a> {
                     Ok(Value::bytes(result))
                 } else {
                     let mut result = String::new();
-                    for val in &args {
+                    for val in args {
                         if !val.is_null() {
                             result.push_str(&val.to_string());
                         }
@@ -2438,10 +2433,10 @@ impl<'a> Evaluator<'a> {
                         continue;
                     }
                     match &max {
-                        None => max = Some(val),
+                        None => max = Some(val.clone()),
                         Some(m) => {
-                            if self.compare_for_ordering(&val, m) == std::cmp::Ordering::Greater {
-                                max = Some(val);
+                            if self.compare_for_ordering(val, m) == std::cmp::Ordering::Greater {
+                                max = Some(val.clone());
                             }
                         }
                     }
@@ -2460,10 +2455,10 @@ impl<'a> Evaluator<'a> {
                         continue;
                     }
                     match &min {
-                        None => min = Some(val),
+                        None => min = Some(val.clone()),
                         Some(m) => {
-                            if self.compare_for_ordering(&val, m) == std::cmp::Ordering::Less {
-                                min = Some(val);
+                            if self.compare_for_ordering(val, m) == std::cmp::Ordering::Less {
+                                min = Some(val.clone());
                             }
                         }
                     }
@@ -6007,6 +6002,48 @@ impl<'a> Evaluator<'a> {
                 }
                 Ok(args[0].clone())
             }
+            "HLL_COUNT_EXTRACT" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "HLL_COUNT_EXTRACT requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let sketch_str = args[0].as_str().ok_or_else(|| Error::TypeMismatch {
+                    expected: "STRING".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                if let Some(encoded) = sketch_str.strip_prefix("HLL_SKETCH:p14:") {
+                    if let Ok(registers) =
+                        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded)
+                    {
+                        let m = registers.len() as f64;
+                        let mut sum: f64 = 0.0;
+                        let mut zeros = 0;
+                        for &r in &registers {
+                            sum += 2.0_f64.powi(-(r as i32));
+                            if r == 0 {
+                                zeros += 1;
+                            }
+                        }
+                        let alpha = 0.7213 / (1.0 + 1.079 / m);
+                        let raw_estimate = alpha * m * m / sum;
+                        let estimate = if raw_estimate <= 2.5 * m && zeros > 0 {
+                            m * (m / zeros as f64).ln()
+                        } else {
+                            raw_estimate
+                        };
+                        return Ok(Value::int64(estimate as i64));
+                    }
+                } else if let Some(rest) = sketch_str.strip_prefix("HLL_SKETCH:p15:n") {
+                    if let Ok(count) = rest.parse::<i64>() {
+                        return Ok(Value::int64(count));
+                    }
+                }
+                Ok(Value::int64(0))
+            }
             "TRANSFORM" => {
                 if args.len() != 4 {
                     return Err(Error::InvalidQuery(
@@ -6721,5 +6758,9 @@ impl<'a> Evaluator<'a> {
         right: &Value,
     ) -> Result<Value> {
         self.evaluate_binary_op(left, op, right)
+    }
+
+    pub fn evaluate_function_with_args(&self, name: &str, args: &[Value]) -> Result<Value> {
+        self.evaluate_function_impl(name, args)
     }
 }

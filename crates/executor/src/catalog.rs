@@ -192,6 +192,18 @@ impl Catalog {
         Ok(())
     }
 
+    pub fn insert_table(&mut self, name: &str, table: Table) -> Result<()> {
+        let key = name.to_uppercase();
+        if self.tables.contains_key(&key) {
+            return Err(Error::invalid_query(format!(
+                "Table already exists: {}",
+                name
+            )));
+        }
+        self.tables.insert(key, table);
+        Ok(())
+    }
+
     pub fn drop_table(&mut self, name: &str) -> Result<()> {
         let key = self.resolve_table_name(name);
         if self.tables.remove(&key).is_none() {
