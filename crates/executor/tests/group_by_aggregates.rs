@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_count_star_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, category STRING, price FLOAT64)")
@@ -30,7 +30,7 @@ fn test_count_star_basic() {
 
 #[test]
 fn test_sum_aggregate() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (id INT64, product STRING, amount INT64)")
@@ -54,7 +54,7 @@ fn test_sum_aggregate() {
 
 #[test]
 fn test_avg_aggregate() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (student STRING, score INT64)")
@@ -78,7 +78,7 @@ fn test_avg_aggregate() {
 
 #[test]
 fn test_min_aggregate() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE temps (city STRING, temperature INT64)")
@@ -102,7 +102,7 @@ fn test_min_aggregate() {
 
 #[test]
 fn test_max_aggregate() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE prices (item STRING, price INT64)")
@@ -126,7 +126,7 @@ fn test_max_aggregate() {
 
 #[test]
 fn test_multiple_aggregates() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (customer STRING, amount INT64)")
@@ -152,7 +152,7 @@ fn test_multiple_aggregates() {
 
 #[test]
 fn test_group_by_with_where() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE transactions (type STRING, amount INT64)")
@@ -180,7 +180,7 @@ fn test_group_by_with_where() {
 
 #[test]
 fn test_count_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (category STRING, value INT64)")
@@ -204,7 +204,7 @@ fn test_count_with_nulls() {
 
 #[test]
 fn test_group_by_multiple_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE metrics (region STRING, product STRING, sales INT64)")
@@ -236,7 +236,7 @@ fn test_group_by_multiple_columns() {
 
 #[test]
 fn test_aggregate_with_alias() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE inventory (item STRING, quantity INT64)")
@@ -258,7 +258,7 @@ fn test_aggregate_with_alias() {
 
 #[test]
 fn test_group_by_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty (category STRING, value INT64)")
@@ -276,7 +276,7 @@ fn test_group_by_empty_table() {
 
 #[test]
 fn test_group_by_single_group() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE single (category STRING, value INT64)")

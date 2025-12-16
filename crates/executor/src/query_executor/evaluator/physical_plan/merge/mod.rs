@@ -1,5 +1,4 @@
 mod expressions;
-mod foreign_keys;
 mod hash_index;
 mod join_predicates;
 mod mutations;
@@ -13,7 +12,6 @@ use std::rc::Rc;
 
 use debug_print::debug_eprintln;
 use expressions::{evaluate_condition_row, evaluate_expr_row};
-use foreign_keys::validate_merge_foreign_keys;
 use join_predicates::extract_equijoin_predicates;
 use mutations::MergeMutations;
 use row_building::{build_join_row, extract_source_row};
@@ -47,7 +45,6 @@ pub struct MergeExec {
     when_not_matched: Vec<crate::optimizer::plan::MergeWhenNotMatched>,
     when_not_matched_by_source: Vec<crate::optimizer::plan::MergeWhenNotMatchedBySource>,
     storage: Rc<RefCell<crate::storage::Storage>>,
-    fk_enforcer: Rc<crate::query_executor::enforcement::ForeignKeyEnforcer>,
 }
 
 impl MergeExec {
@@ -63,7 +60,6 @@ impl MergeExec {
         when_not_matched_by_source: Vec<crate::optimizer::plan::MergeWhenNotMatchedBySource>,
         returning_spec: ReturningSpec,
         storage: Rc<RefCell<crate::storage::Storage>>,
-        fk_enforcer: Rc<crate::query_executor::enforcement::ForeignKeyEnforcer>,
     ) -> Result<Self> {
         let schema = if matches!(returning_spec, ReturningSpec::None) {
             Schema::from_fields(vec![Field::required("rows_affected", DataType::Int64)])
@@ -87,7 +83,6 @@ impl MergeExec {
             when_not_matched,
             when_not_matched_by_source,
             storage,
-            fk_enforcer,
         })
     }
 
@@ -474,24 +469,8 @@ impl ExecutionPlan for MergeExec {
             self.compute_merge_mutations(&source_batches, &context, capture_returning)?
         };
 
-        {
-            let target_table = storage_lock
-                .get_table(&self.target_table)
-                .ok_or_else(|| Error::table_not_found(self.target_table.clone()))?;
-            validate_merge_foreign_keys(
-                &mutations,
-                target_table,
-                &storage_lock,
-                &self.target_table,
-            )?;
-        }
-
         let (rows_affected, returning_rows, target_schema) = {
-            let (count, rows) = mutations.apply_to_table(
-                &mut storage_lock,
-                &self.target_table,
-                &self.fk_enforcer,
-            )?;
+            let (count, rows) = mutations.apply_to_table(&mut storage_lock, &self.target_table)?;
             let target_table = storage_lock
                 .get_table(&self.target_table)
                 .ok_or_else(|| Error::table_not_found(self.target_table.clone()))?;

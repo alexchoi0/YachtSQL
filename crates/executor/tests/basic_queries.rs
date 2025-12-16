@@ -8,7 +8,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_create_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)");
 
@@ -17,7 +17,7 @@ fn test_create_table() {
 
 #[test]
 fn test_create_and_insert() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
@@ -30,7 +30,7 @@ fn test_create_and_insert() {
 
 #[test]
 fn test_insert_multiple_rows() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
@@ -55,7 +55,7 @@ fn test_insert_multiple_rows() {
 
 #[test]
 fn test_select_all() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, name STRING, price FLOAT64)")
@@ -76,7 +76,7 @@ fn test_select_all() {
 
 #[test]
 fn test_select_specific_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql(
@@ -98,7 +98,7 @@ fn test_select_specific_columns() {
 
 #[test]
 fn test_where_clause_equality() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
@@ -123,7 +123,7 @@ fn test_where_clause_equality() {
 
 #[test]
 fn test_where_clause_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, name STRING, price FLOAT64)")
@@ -152,7 +152,7 @@ fn test_where_clause_comparison() {
 
 #[test]
 fn test_where_clause_and() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE employees (id INT64, name STRING, age INT64, salary INT64)")
@@ -177,7 +177,7 @@ fn test_where_clause_and() {
 
 #[test]
 fn test_where_clause_or() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, city STRING)")
@@ -202,7 +202,7 @@ fn test_where_clause_or() {
 
 #[test]
 fn test_order_by_asc() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
@@ -227,7 +227,7 @@ fn test_order_by_asc() {
 
 #[test]
 fn test_order_by_desc() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
@@ -252,7 +252,7 @@ fn test_order_by_desc() {
 
 #[test]
 fn test_limit() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (value INT64)")
@@ -273,7 +273,7 @@ fn test_limit() {
 
 #[test]
 fn test_order_by_with_limit() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (name STRING, price FLOAT64)")
@@ -305,7 +305,7 @@ fn test_order_by_with_limit() {
 
 #[test]
 fn test_empty_table_select() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, name STRING)")
@@ -318,7 +318,7 @@ fn test_empty_table_select() {
 
 #[test]
 fn test_multiple_statements() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE table1 (id INT64)")
@@ -344,7 +344,7 @@ fn test_multiple_statements() {
 
 #[test]
 fn test_null_values() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -364,7 +364,7 @@ fn test_null_values() {
 
 #[test]
 fn test_where_is_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -389,7 +389,7 @@ fn test_where_is_null() {
 
 #[test]
 fn test_where_is_not_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -414,7 +414,7 @@ fn test_where_is_not_null() {
 
 #[test]
 fn test_coalesce_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_coalesce (id INT64, val1 STRING, val2 STRING, val3 STRING)")
@@ -444,7 +444,7 @@ fn test_coalesce_function() {
 
 #[test]
 fn test_ifnull_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_ifnull (id INT64, value STRING)")
@@ -466,7 +466,7 @@ fn test_ifnull_function() {
 
 #[test]
 fn test_nullif_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_nullif (id INT64, val1 STRING, val2 STRING)")
@@ -488,7 +488,7 @@ fn test_nullif_function() {
 
 #[test]
 fn test_trim_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_trim (id INT64, value STRING)")
@@ -512,7 +512,7 @@ fn test_trim_function() {
 
 #[test]
 fn test_ltrim_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_ltrim (id INT64, value STRING)")
@@ -533,7 +533,7 @@ fn test_ltrim_function() {
 
 #[test]
 fn test_rtrim_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_rtrim (id INT64, value STRING)")
@@ -554,7 +554,7 @@ fn test_rtrim_function() {
 
 #[test]
 fn test_replace_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_replace (id INT64, value STRING)")
@@ -580,7 +580,7 @@ fn test_replace_function() {
 
 #[test]
 fn test_current_date_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_date (id INT64)")
@@ -598,7 +598,7 @@ fn test_current_date_function() {
 
 #[test]
 fn test_current_timestamp_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_timestamp (id INT64)")
@@ -616,7 +616,7 @@ fn test_current_timestamp_function() {
 
 #[test]
 fn test_starts_with_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_starts_with (id INT64, value STRING)")
@@ -642,7 +642,7 @@ fn test_starts_with_function() {
 
 #[test]
 fn test_ends_with_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_ends_with (id INT64, value STRING)")
@@ -666,7 +666,7 @@ fn test_ends_with_function() {
 
 #[test]
 fn test_sign_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_sign (id INT64, value INT64)")
@@ -699,7 +699,7 @@ fn test_sign_function() {
 
 #[test]
 fn test_greatest_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_greatest (id INT64, val1 INT64, val2 INT64, val3 INT64)")
@@ -732,7 +732,7 @@ fn test_greatest_function() {
 
 #[test]
 fn test_least_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_least (id INT64, val1 INT64, val2 INT64, val3 INT64)")
@@ -765,7 +765,7 @@ fn test_least_function() {
 
 #[test]
 fn test_date_add_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_date (id INT64)")
@@ -781,7 +781,7 @@ fn test_date_add_function() {
 
 #[test]
 fn test_date_diff_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_date (id INT64)")
@@ -797,7 +797,7 @@ fn test_date_diff_function() {
 
 #[test]
 fn test_extract_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_date (id INT64)")
@@ -813,7 +813,7 @@ fn test_extract_function() {
 
 #[test]
 fn test_regexp_contains_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_regex (id INT64, email STRING)")
@@ -837,7 +837,7 @@ fn test_regexp_contains_function() {
 
 #[test]
 fn test_regexp_replace_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_regex (id INT64, phone STRING)")
@@ -860,7 +860,7 @@ fn test_regexp_replace_function() {
 
 #[test]
 fn test_regexp_extract_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_regex (id INT64, code STRING)")
@@ -886,7 +886,7 @@ fn test_regexp_extract_function() {
 
 #[test]
 fn test_date_trunc_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test_dates (id INT64)")
@@ -904,7 +904,7 @@ fn test_date_trunc_function() {
 
 #[test]
 fn test_format_date_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_dates (id INT64)")
         .unwrap();
@@ -921,7 +921,7 @@ fn test_format_date_function() {
 
 #[test]
 fn test_format_timestamp_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_timestamps (id INT64)")
         .unwrap();
@@ -938,7 +938,7 @@ fn test_format_timestamp_function() {
 
 #[test]
 fn test_parse_date_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_dates (id INT64, date_str STRING)")
         .unwrap();
@@ -955,7 +955,7 @@ fn test_parse_date_function() {
 
 #[test]
 fn test_parse_timestamp_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_timestamps (id INT64, ts_str STRING)")
         .unwrap();
@@ -972,7 +972,7 @@ fn test_parse_timestamp_function() {
 
 #[test]
 fn test_split_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_split (id INT64, text STRING)")
         .unwrap();
@@ -992,7 +992,7 @@ fn test_split_function() {
 
 #[test]
 fn test_split_with_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_split_null (id INT64, text STRING)")
         .unwrap();
@@ -1012,7 +1012,7 @@ fn test_split_with_null() {
 
 #[test]
 fn test_array_length_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_arrays (id INT64, text STRING)")
         .unwrap();
@@ -1035,7 +1035,7 @@ fn test_array_length_function() {
 
 #[test]
 fn test_split_and_array_length_together() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE test_combined (id INT64, csv STRING)")
         .unwrap();

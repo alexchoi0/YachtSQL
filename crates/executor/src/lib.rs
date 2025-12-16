@@ -59,10 +59,8 @@ pub mod temporal_queries;
 pub mod temporal_tables;
 
 pub mod information_schema;
-pub mod pg_catalog;
 pub mod query_executor;
 pub mod system_schema;
-pub mod trigger_execution;
 
 pub(crate) mod sql {}
 pub(crate) mod functions {
@@ -99,7 +97,6 @@ pub use sql_normalizer::{hash_sql, normalize_sql};
 pub use table::Table;
 pub use temporal_queries::{TemporalClause, TemporalQueryBuilder, TemporalTableRef};
 pub use temporal_tables::{TemporalQueryType, TemporalTableMetadata, TemporalTableRegistry};
-pub use trigger_execution::{TriggerContext, TriggerExecutionResult};
 pub use yachtsql_optimizer::Optimizer;
 
 #[cfg(test)]

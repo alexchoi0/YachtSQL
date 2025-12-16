@@ -11,7 +11,7 @@ fn parse_interval_string(s: &str) -> Result<Interval> {
         return parse_iso_interval(s);
     }
 
-    parse_pg_interval(s)
+    parse_sql_interval(s)
 }
 
 fn parse_time_component(s: &str) -> Result<i64> {
@@ -62,7 +62,7 @@ fn parse_time_component(s: &str) -> Result<i64> {
     }
 }
 
-fn parse_pg_interval(s: &str) -> Result<Interval> {
+fn parse_sql_interval(s: &str) -> Result<Interval> {
     let mut months = 0i32;
     let mut days = 0i32;
     let mut micros = 0i64;
@@ -674,8 +674,6 @@ impl CoercionRules {
             (DataType::String, DataType::Inet) => true,
             (DataType::String, DataType::Cidr) => true,
 
-            (DataType::String, DataType::Hstore) => true,
-
             (DataType::String, DataType::Enum { .. }) => true,
 
             (DataType::String, DataType::FixedString(_)) => true,
@@ -701,7 +699,6 @@ impl CoercionRules {
             (DataType::Custom(from_name), DataType::Custom(to_name)) => from_name == to_name,
 
             (DataType::Point, DataType::Point) => true,
-            (DataType::PgBox, DataType::PgBox) => true,
             (DataType::Circle, DataType::Circle) => true,
 
             (DataType::String, DataType::IPv4) => true,
@@ -1143,20 +1140,6 @@ impl CoercionRules {
                 if let Some(s) = value.as_str() {
                     Value::cidr_from_str(s).map_err(|e| {
                         Error::invalid_query(format!("Invalid CIDR string '{}': {}", s, e))
-                    })
-                } else {
-                    Err(Error::type_coercion_error(
-                        &source_type,
-                        target_type,
-                        "value extraction failed",
-                    ))
-                }
-            }
-
-            (DataType::String, DataType::Hstore) => {
-                if let Some(s) = value.as_str() {
-                    Value::hstore_from_str(s).map_err(|e| {
-                        Error::invalid_query(format!("Invalid HSTORE string '{}': {}", s, e))
                     })
                 } else {
                     Err(Error::type_coercion_error(

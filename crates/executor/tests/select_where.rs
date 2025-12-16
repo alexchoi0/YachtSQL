@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_select_where_equality() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
@@ -25,7 +25,7 @@ fn test_select_where_equality() {
 
 #[test]
 fn test_select_where_not_equal() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (id INT64, value INT64)")
@@ -48,7 +48,7 @@ fn test_select_where_not_equal() {
 
 #[test]
 fn test_select_where_less_than() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (id INT64, value INT64)")
@@ -71,7 +71,7 @@ fn test_select_where_less_than() {
 
 #[test]
 fn test_select_where_greater_than() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (id INT64, score INT64)")
@@ -94,7 +94,7 @@ fn test_select_where_greater_than() {
 
 #[test]
 fn test_select_where_and() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, price FLOAT64, stock INT64)")
@@ -117,7 +117,7 @@ fn test_select_where_and() {
 
 #[test]
 fn test_select_where_or() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, category STRING)")
@@ -140,7 +140,7 @@ fn test_select_where_or() {
 
 #[test]
 fn test_select_where_is_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -163,7 +163,7 @@ fn test_select_where_is_null() {
 
 #[test]
 fn test_select_where_is_not_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -190,7 +190,7 @@ fn test_select_where_is_not_null() {
 
 #[test]
 fn test_select_where_string_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE names (id INT64, name STRING)")
@@ -213,7 +213,7 @@ fn test_select_where_string_comparison() {
 
 #[test]
 fn test_select_where_no_matches() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (id INT64, value INT64)")
@@ -237,7 +237,7 @@ fn test_select_where_no_matches() {
 
 #[test]
 fn test_select_where_all_match() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE all_match (id INT64, status STRING)")
@@ -264,7 +264,7 @@ fn test_select_where_all_match() {
 
 #[test]
 fn test_select_where_float_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE floats (id INT64, price FLOAT64)")
@@ -287,7 +287,7 @@ fn test_select_where_float_comparison() {
 
 #[test]
 fn test_select_where_projection() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE full (id INT64, name STRING, age INT64, city STRING)")

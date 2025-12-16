@@ -43,21 +43,6 @@ impl TableSchemaOps for Table {
             )));
         }
 
-        if field.is_auto_increment {
-            if self.auto_increment_counter.is_some() {
-                return Err(Error::InvalidOperation(
-                    "Table already has an AUTO_INCREMENT column".to_string(),
-                ));
-            }
-
-            let start_value = if current_row_count > 0 {
-                (current_row_count as i64) + 1
-            } else {
-                1
-            };
-            self.init_auto_increment(field.name.clone(), start_value)?;
-        }
-
         let value_to_insert = default_value.unwrap_or(Value::null());
 
         let current_row_count = self.row_count();
@@ -111,10 +96,6 @@ impl TableSchemaOps for Table {
             }
         }
 
-        if self.auto_increment_column.as_deref() == Some(column_name) {
-            self.remove_auto_increment()?;
-        }
-
         let new_fields: Vec<Field> = self
             .schema
             .fields()
@@ -152,10 +133,6 @@ impl TableSchemaOps for Table {
             storage.columns_mut().insert(new_name.to_string(), column);
         }
 
-        if self.auto_increment_column.as_deref() == Some(old_name) {
-            self.auto_increment_column = Some(new_name.to_string());
-        }
-
         let new_fields: Vec<Field> = self
             .schema
             .fields()
@@ -172,7 +149,6 @@ impl TableSchemaOps for Table {
                         identity_generation: f.identity_generation,
                         identity_sequence_name: f.identity_sequence_name.clone(),
                         identity_sequence_config: f.identity_sequence_config.clone(),
-                        is_auto_increment: f.is_auto_increment,
                         generated_expression: f.generated_expression.clone(),
                         collation: f.collation.clone(),
                         source_table: f.source_table.clone(),

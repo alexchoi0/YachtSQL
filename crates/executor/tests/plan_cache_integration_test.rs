@@ -18,8 +18,8 @@ fn test_cache_statistics() {
     let mut cache = PlanCache::new();
 
     let sql = "SELECT * FROM cache_stats_test_unique_12345";
-    let hash = hash_sql(sql, DialectType::PostgreSQL);
-    let key = PlanCacheKey::new(hash, DialectType::PostgreSQL);
+    let hash = hash_sql(sql, DialectType::BigQuery);
+    let key = PlanCacheKey::new(hash, DialectType::BigQuery);
 
     let plan = PlanNode::Scan {
         table_name: "cache_stats_test".to_string(),
@@ -41,9 +41,9 @@ fn test_cache_statistics() {
 
     let hash2 = hash_sql(
         "SELECT * FROM cache_stats_nonexistent_99999",
-        DialectType::PostgreSQL,
+        DialectType::BigQuery,
     );
-    let key2 = PlanCacheKey::new(hash2, DialectType::PostgreSQL);
+    let key2 = PlanCacheKey::new(hash2, DialectType::BigQuery);
     let result2 = cache.get(&key2);
     assert!(result2.is_none(), "Should not find non-existent entry");
 
@@ -182,25 +182,18 @@ fn test_drop_index_invalidates_cache() {
 }
 
 #[test]
-fn test_dialect_isolation() {
+fn test_sql_hashing_consistency() {
     let sql = "SELECT * FROM dialect_test_unique";
 
-    let pg_hash = hash_sql(sql, DialectType::PostgreSQL);
-    let bq_hash = hash_sql(sql, DialectType::BigQuery);
-    let ch_hash = hash_sql(sql, DialectType::ClickHouse);
+    let hash1 = hash_sql(sql, DialectType::BigQuery);
+    let hash2 = hash_sql(sql, DialectType::BigQuery);
 
-    assert_ne!(
-        pg_hash, bq_hash,
-        "PostgreSQL and BigQuery should have different hashes"
-    );
-    assert_ne!(
-        pg_hash, ch_hash,
-        "PostgreSQL and ClickHouse should have different hashes"
-    );
-    assert_ne!(
-        bq_hash, ch_hash,
-        "BigQuery and ClickHouse should have different hashes"
-    );
+    assert_eq!(hash1, hash2, "Same SQL should have the same hash");
+
+    let different_sql = "SELECT * FROM other_table";
+    let hash3 = hash_sql(different_sql, DialectType::BigQuery);
+
+    assert_ne!(hash1, hash3, "Different SQL should have different hashes");
 }
 
 #[test]

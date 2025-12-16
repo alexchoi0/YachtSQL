@@ -4,201 +4,18 @@ use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_parser::Sql2023Types;
 use yachtsql_storage::{
-    DefaultValue, Field, PostgresPartitionInfo, PostgresPartitionStrategy, Schema, TableEngine,
-    TableIndexOps, TableSchemaOps,
+    DefaultValue, Field, Schema, TableEngine, TableIndexOps, TablePartitionInfo,
+    TablePartitionStrategy, TableSchemaOps,
 };
 
 fn parse_engine_from_sql(
-    sql: &str,
-    order_by: Option<&sqlparser::ast::OneOrManyWithParens<sqlparser::ast::Expr>>,
+    _sql: &str,
+    _order_by: Option<&sqlparser::ast::OneOrManyWithParens<sqlparser::ast::Expr>>,
 ) -> TableEngine {
-    let upper = sql.to_uppercase();
-
-    let order_by_cols: Vec<String> = order_by
-        .map(|o| match o {
-            sqlparser::ast::OneOrManyWithParens::One(expr) => vec![expr.to_string()],
-            sqlparser::ast::OneOrManyWithParens::Many(exprs) => {
-                exprs.iter().map(|e| e.to_string()).collect()
-            }
-        })
-        .unwrap_or_default();
-
-    if let Some(engine_pos) = upper.find("ENGINE") {
-        let after_engine = &sql[engine_pos + 6..].trim_start();
-        if let Some(after_eq) = after_engine.strip_prefix('=').or(Some(after_engine)) {
-            let after_eq = after_eq.trim_start();
-
-            let engine_with_params: &str = after_eq.split_whitespace().next().unwrap_or("");
-            let engine_upper = engine_with_params.to_uppercase();
-
-            if engine_upper.starts_with("SUMMINGMERGETREE") {
-                let sum_columns = extract_parenthesized_params(after_eq);
-                return TableEngine::SummingMergeTree {
-                    order_by: order_by_cols,
-                    sum_columns,
-                };
-            }
-            if engine_upper.starts_with("REPLACINGMERGETREE") {
-                let params = extract_parenthesized_params(after_eq);
-                let version_column = params.first().cloned();
-                return TableEngine::ReplacingMergeTree {
-                    order_by: order_by_cols,
-                    version_column,
-                };
-            }
-            if engine_upper.starts_with("COLLAPSINGMERGETREE") {
-                let params = extract_parenthesized_params(after_eq);
-                let sign_column = params
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "sign".to_string());
-                return TableEngine::CollapsingMergeTree {
-                    order_by: order_by_cols,
-                    sign_column,
-                };
-            }
-            if engine_upper.starts_with("VERSIONEDCOLLAPSINGMERGETREE") {
-                let params = extract_parenthesized_params(after_eq);
-                let sign_column = params
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "sign".to_string());
-                let version_column = params
-                    .get(1)
-                    .cloned()
-                    .unwrap_or_else(|| "version".to_string());
-                return TableEngine::VersionedCollapsingMergeTree {
-                    order_by: order_by_cols,
-                    sign_column,
-                    version_column,
-                };
-            }
-            if engine_upper.starts_with("AGGREGATINGMERGETREE") {
-                return TableEngine::AggregatingMergeTree {
-                    order_by: order_by_cols,
-                };
-            }
-            if engine_upper.starts_with("MERGETREE") {
-                return TableEngine::MergeTree {
-                    order_by: order_by_cols,
-                };
-            }
-            if engine_upper.starts_with("DISTRIBUTED") {
-                let params = extract_parenthesized_params(after_eq);
-                return TableEngine::Distributed {
-                    cluster: params.first().cloned().unwrap_or_default(),
-                    database: params.get(1).cloned().unwrap_or_default(),
-                    table: params.get(2).cloned().unwrap_or_default(),
-                    sharding_key: params.get(3).cloned(),
-                };
-            }
-            if engine_upper.starts_with("BUFFER") {
-                let params = extract_parenthesized_params(after_eq);
-                return TableEngine::Buffer {
-                    database: params.first().cloned().unwrap_or_default(),
-                    table: params.get(1).cloned().unwrap_or_default(),
-                };
-            }
-            if engine_upper.starts_with("LOG") {
-                return TableEngine::Log;
-            }
-            if engine_upper.starts_with("TINYLOG") {
-                return TableEngine::TinyLog;
-            }
-            if engine_upper.starts_with("STRIPELOG") {
-                return TableEngine::StripeLog;
-            }
-            if engine_upper.starts_with("MEMORY") {
-                return TableEngine::Memory;
-            }
-            if engine_upper.starts_with("NULL") {
-                return TableEngine::Null;
-            }
-            if engine_upper.starts_with("SET") {
-                return TableEngine::Set;
-            }
-            if engine_upper.starts_with("MERGE") && !engine_upper.starts_with("MERGETREE") {
-                let params = extract_parenthesized_params(after_eq);
-                let database = params
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "currentDatabase()".to_string());
-                let pattern = params.get(1).cloned().unwrap_or_default();
-                return TableEngine::Merge { database, pattern };
-            }
-            if engine_upper.starts_with("GENERATERANDOM") {
-                let params = extract_parenthesized_params(after_eq);
-                let random_seed = params.first().and_then(|s| s.parse().ok());
-                let max_string_length = params.get(1).and_then(|s| s.parse().ok());
-                let max_array_length = params.get(2).and_then(|s| s.parse().ok());
-                return TableEngine::GenerateRandom {
-                    random_seed,
-                    max_string_length,
-                    max_array_length,
-                };
-            }
-        }
-    }
     TableEngine::Memory
 }
 
-fn extract_parenthesized_params(s: &str) -> Vec<String> {
-    if let Some(start) = s.find('(') {
-        let mut depth = 0;
-        let mut end = None;
-        for (i, c) in s.char_indices().skip(start) {
-            match c {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = Some(i);
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        if let Some(end_pos) = end {
-            let params_str = &s[start + 1..end_pos];
-            let mut params = Vec::new();
-            let mut current = String::new();
-            let mut paren_depth = 0;
-
-            for c in params_str.chars() {
-                match c {
-                    '(' => {
-                        paren_depth += 1;
-                        current.push(c);
-                    }
-                    ')' => {
-                        paren_depth -= 1;
-                        current.push(c);
-                    }
-                    ',' if paren_depth == 0 => {
-                        let param = current.trim().trim_matches('\'').to_string();
-                        if !param.is_empty() {
-                            params.push(param);
-                        }
-                        current = String::new();
-                    }
-                    _ => current.push(c),
-                }
-            }
-
-            let param = current.trim().trim_matches('\'').to_string();
-            if !param.is_empty() {
-                params.push(param);
-            }
-
-            return params;
-        }
-    }
-    Vec::new()
-}
-
-fn parse_partition_strategy_from_sql(sql: &str) -> Option<PostgresPartitionStrategy> {
+fn parse_partition_strategy_from_sql(sql: &str) -> Option<TablePartitionStrategy> {
     let upper = sql.to_uppercase();
 
     let partition_by_idx = upper.find("PARTITION BY")?;
@@ -233,21 +50,14 @@ fn parse_partition_strategy_from_sql(sql: &str) -> Option<PostgresPartitionStrat
     }
 
     match strategy_type {
-        "RANGE" => Some(PostgresPartitionStrategy::Range { columns }),
-        "LIST" => Some(PostgresPartitionStrategy::List { columns }),
-        "HASH" => Some(PostgresPartitionStrategy::Hash { columns }),
+        "RANGE" => Some(TablePartitionStrategy::Range { columns }),
+        "LIST" => Some(TablePartitionStrategy::List { columns }),
+        "HASH" => Some(TablePartitionStrategy::Hash { columns }),
         _ => None,
     }
 }
 
 use super::super::QueryExecutor;
-
-#[derive(Debug, Clone, Copy)]
-enum SerialType {
-    SmallSerial,
-    Serial,
-    BigSerial,
-}
 
 pub trait DdlExecutor {
     fn execute_create_table(
@@ -273,7 +83,6 @@ pub trait DdlExecutor {
     fn parse_columns_to_schema(
         &self,
         dataset_id: &str,
-        table_name: &str,
         columns: &[ColumnDef],
     ) -> Result<(Schema, Vec<sqlparser::ast::TableConstraint>)>;
 
@@ -298,10 +107,12 @@ impl DdlExecutor for QueryExecutor {
         let (dataset_id, table_id) = self.parse_ddl_table_name(&table_name)?;
 
         let (mut schema, column_level_fks) =
-            self.parse_columns_to_schema(&dataset_id, &table_id, &create_table.columns)?;
+            self.parse_columns_to_schema(&dataset_id, &create_table.columns)?;
 
-        if let Some(ref inherits) = create_table.inherits {
-            self.apply_inheritance(&dataset_id, &table_id, &mut schema, inherits)?;
+        if create_table.inherits.is_some() {
+            return Err(Error::unsupported_feature(
+                "Table inheritance (INHERITS) is not supported in BigQuery".to_string(),
+            ));
         }
 
         let engine = parse_engine_from_sql(original_sql, create_table.order_by.as_ref());
@@ -316,42 +127,7 @@ impl DdlExecutor for QueryExecutor {
             schema.fields().iter().map(|f| &f.name).collect::<Vec<_>>()
         );
 
-        if needs_schema_inference {
-            if let TableEngine::Merge { database, pattern } = &engine {
-                let storage = self.storage.borrow();
-                let target_db = if database == "currentDatabase()" {
-                    &dataset_id
-                } else {
-                    database
-                };
-                debug_eprintln!(
-                    "[executor::ddl::create] Merge engine - target_db: {}, pattern: {}",
-                    target_db,
-                    pattern
-                );
-                if let Some(dataset) = storage.get_dataset(target_db) {
-                    if let Ok(regex) = regex::Regex::new(pattern) {
-                        for (table_name, table) in dataset.tables() {
-                            debug_eprintln!(
-                                "[executor::ddl::create] Checking table: {}, matches: {}",
-                                table_name,
-                                regex.is_match(&table_name)
-                            );
-                            if regex.is_match(&table_name) {
-                                schema = table.schema().clone();
-                                debug_eprintln!(
-                                    "[executor::ddl::create] Copied schema with fields: {:?}",
-                                    schema.fields().iter().map(|f| &f.name).collect::<Vec<_>>()
-                                );
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    debug_eprintln!("[executor::ddl::create] Dataset '{}' not found", target_db);
-                }
-            }
-        }
+        let _ = needs_schema_inference;
 
         if schema.fields().is_empty() {
             return Err(Error::InvalidQuery(
@@ -365,90 +141,44 @@ impl DdlExecutor for QueryExecutor {
         self.parse_table_constraints(&mut schema, &all_constraints)?;
 
         if let Some(partition_strategy) = parse_partition_strategy_from_sql(original_sql) {
-            let partition_info = PostgresPartitionInfo {
+            let partition_info = TablePartitionInfo {
                 parent_table: None,
                 bound: None,
                 strategy: Some(partition_strategy),
                 child_partitions: Vec::new(),
                 row_movement_enabled: false,
             };
-            schema.set_postgres_partition(partition_info);
+            schema.set_table_partition(partition_info);
         }
 
-        let table_full_name = format!("{}.{}", dataset_id, table_id);
+        let mut storage = self.storage.borrow_mut();
 
-        let in_transaction = {
-            let tm = self.transaction_manager.borrow();
-            tm.get_active_transaction().is_some()
-        };
+        if storage.get_dataset(&dataset_id).is_none() {
+            storage.create_dataset(dataset_id.clone())?;
+        }
 
-        {
-            let mut storage = self.storage.borrow_mut();
+        let dataset = storage
+            .get_dataset_mut(&dataset_id)
+            .ok_or_else(|| Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id)))?;
 
-            if storage.get_dataset(&dataset_id).is_none() {
-                storage.create_dataset(dataset_id.clone())?;
-            }
-
-            let dataset = storage.get_dataset_mut(&dataset_id).ok_or_else(|| {
-                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
-            })?;
-
-            if dataset.get_table(&table_id).is_some() {
-                if create_table.if_not_exists {
-                    return Ok(());
-                } else {
-                    return Err(Error::InvalidQuery(format!(
-                        "Table '{}.{}' already exists",
-                        dataset_id, table_id
-                    )));
-                }
-            }
-
-            dataset.create_table(table_id.clone(), schema.clone())?;
-
-            if let Some(table) = dataset.get_table_mut(&table_id) {
-                table.set_engine(engine.clone());
-            }
-
-            for field in schema.fields() {
-                if let (Some(seq_name), Some(config)) = (
-                    &field.identity_sequence_name,
-                    &field.identity_sequence_config,
-                ) {
-                    dataset.sequences_mut().create_sequence(
-                        seq_name.clone(),
-                        config.clone(),
-                        true,
-                    )?;
-                    dataset.sequences_mut().set_owned_by(
-                        seq_name,
-                        table_id.clone(),
-                        field.name.clone(),
-                    )?;
-                }
-            }
-
-            let child_full_name = format!("{}.{}", dataset_id, table_id);
-            for parent_name in schema.parent_tables() {
-                let (parent_dataset_id, parent_table_id) =
-                    self.parse_ddl_table_name(parent_name)?;
-                if let Some(parent_dataset) = storage.get_dataset_mut(&parent_dataset_id) {
-                    if let Some(parent_table) = parent_dataset.get_table_mut(&parent_table_id) {
-                        parent_table
-                            .schema_mut()
-                            .add_child_table(child_full_name.clone());
-                    }
-                }
+        if dataset.get_table(&table_id).is_some() {
+            if create_table.if_not_exists {
+                return Ok(());
+            } else {
+                return Err(Error::InvalidQuery(format!(
+                    "Table '{}.{}' already exists",
+                    dataset_id, table_id
+                )));
             }
         }
 
-        if in_transaction {
-            let mut tm = self.transaction_manager.borrow_mut();
-            if let Some(txn) = tm.get_active_transaction_mut() {
-                txn.track_create_table(table_full_name, schema);
-            }
+        dataset.create_table(table_id.clone(), schema.clone())?;
+
+        if let Some(table) = dataset.get_table_mut(&table_id) {
+            table.set_engine(engine.clone());
         }
 
+        drop(storage);
         self.plan_cache.borrow_mut().invalidate_all();
 
         Ok(())
@@ -457,7 +187,7 @@ impl DdlExecutor for QueryExecutor {
     fn execute_create_view(
         &mut self,
         stmt: &sqlparser::ast::Statement,
-        original_sql: &str,
+        _original_sql: &str,
     ) -> Result<()> {
         use sqlparser::ast::Statement;
 
@@ -489,15 +219,12 @@ impl DdlExecutor for QueryExecutor {
             where_clause
         );
 
-        let is_clickhouse = matches!(self.dialect(), crate::DialectType::ClickHouse);
-        let has_populate = original_sql.to_uppercase().contains("POPULATE");
-        let should_populate = !is_clickhouse || has_populate;
+        let should_populate = true;
 
         let mut view_def = if *materialized {
             debug_eprintln!(
-                "[executor::ddl::create] Creating materialized view '{}', has_populate: {}",
-                view_id,
-                has_populate
+                "[executor::ddl::create] Creating materialized view '{}'",
+                view_id
             );
             yachtsql_storage::ViewDefinition::new_materialized(
                 view_id.clone(),
@@ -734,12 +461,11 @@ impl DdlExecutor for QueryExecutor {
     fn parse_columns_to_schema(
         &self,
         dataset_id: &str,
-        table_name: &str,
         columns: &[ColumnDef],
     ) -> Result<(Schema, Vec<sqlparser::ast::TableConstraint>)> {
         let mut fields = Vec::new();
         let mut check_constraints = Vec::new();
-        let mut column_level_fks = Vec::new();
+        let column_level_fks = Vec::new();
         let mut column_names = std::collections::HashSet::new();
         let mut inline_pk_columns = Vec::new();
 
@@ -772,10 +498,6 @@ impl DdlExecutor for QueryExecutor {
             }
             let data_type = self.sql_type_to_data_type(dataset_id, &col.data_type)?;
 
-            let serial_type = self.detect_serial_type(&col.data_type);
-
-            let domain_name = self.extract_domain_name(&col.data_type)?;
-
             let mut is_nullable = true;
             let mut is_unique = false;
             let mut is_primary_key = false;
@@ -785,10 +507,6 @@ impl DdlExecutor for QueryExecutor {
                 yachtsql_storage::schema::GenerationMode,
             )> = None;
             let mut default_value: Option<DefaultValue> = None;
-            let mut identity_info: Option<(
-                yachtsql_storage::IdentityGeneration,
-                yachtsql_storage::sequence::SequenceConfig,
-            )> = None;
 
             for opt in &col.options {
                 match &opt.option {
@@ -828,45 +546,15 @@ impl DdlExecutor for QueryExecutor {
 
                         generated_expr = Some((expr_sql, Vec::new(), mode));
                     }
-                    ColumnOption::Generated {
-                        generated_as,
-                        sequence_options,
-                        generation_expr: None,
-                        ..
-                    } => {
-                        use sqlparser::ast::GeneratedAs;
-
-                        let identity_mode = match generated_as {
-                            GeneratedAs::Always => yachtsql_storage::IdentityGeneration::Always,
-                            GeneratedAs::ByDefault => {
-                                yachtsql_storage::IdentityGeneration::ByDefault
-                            }
-                            GeneratedAs::ExpStored => continue,
-                        };
-
-                        let seq_config = parse_sequence_options(sequence_options);
-                        identity_info = Some((identity_mode, seq_config));
+                    ColumnOption::Generated { .. } => {
+                        return Err(Error::unsupported_feature(
+                            "IDENTITY columns are not supported in BigQuery".to_string(),
+                        ));
                     }
-                    ColumnOption::ForeignKey {
-                        foreign_table,
-                        referred_columns,
-                        on_delete,
-                        on_update,
-                        characteristics,
-                    } => {
-                        use sqlparser::ast::{Ident, TableConstraint};
-
-                        let fk_constraint = TableConstraint::ForeignKey {
-                            name: opt.name.clone(),
-                            index_name: None,
-                            columns: vec![Ident::new(name.clone())],
-                            foreign_table: foreign_table.clone(),
-                            referred_columns: referred_columns.clone(),
-                            on_delete: *on_delete,
-                            on_update: *on_update,
-                            characteristics: characteristics.clone(),
-                        };
-                        column_level_fks.push(fk_constraint);
+                    ColumnOption::ForeignKey { .. } => {
+                        return Err(Error::unsupported_feature(
+                            "FOREIGN KEY constraints are not supported in BigQuery".to_string(),
+                        ));
                     }
                     ColumnOption::Default(expr) => {
                         default_value = Some(parse_column_default(expr)?);
@@ -877,22 +565,6 @@ impl DdlExecutor for QueryExecutor {
 
             if is_primary_key {
                 inline_pk_columns.push(name.clone());
-            }
-
-            if let Some(ref domain) = domain_name {
-                let domain_constraints = self.get_domain_constraints(domain)?;
-                for constraint in domain_constraints {
-                    let column_constraint = constraint.expression.replace("VALUE", &name);
-                    check_constraints.push(yachtsql_storage::CheckConstraint {
-                        name: constraint.name.map(|n| format!("{}_{}", name, n)),
-                        expression: column_constraint,
-                        enforced: constraint.enforced,
-                    });
-                }
-
-                if self.is_domain_not_null(domain)? {
-                    is_nullable = false;
-                }
             }
 
             let mut field = if is_nullable {
@@ -911,42 +583,6 @@ impl DdlExecutor for QueryExecutor {
 
             if let Some(default) = default_value {
                 field = field.with_default(default);
-            }
-
-            if let Some(domain) = domain_name {
-                field = field.with_domain(domain);
-            }
-
-            if let Some(serial) = serial_type {
-                let seq_name = format!("{}_{}_seq", table_name, field.name);
-                field = field.with_identity_by_default(
-                    seq_name,
-                    Some(yachtsql_storage::sequence::SequenceConfig {
-                        start_value: 1,
-                        increment: 1,
-                        min_value: Some(1),
-                        max_value: match serial {
-                            SerialType::SmallSerial => Some(i16::MAX as i64),
-                            SerialType::Serial => Some(i32::MAX as i64),
-                            SerialType::BigSerial => None,
-                        },
-                        cycle: false,
-                        cache: 1,
-                    }),
-                );
-                field.is_auto_increment = true;
-            }
-
-            if let Some((identity_mode, seq_config)) = identity_info {
-                let seq_name = format!("{}_{}_seq", table_name, field.name);
-                field = match identity_mode {
-                    yachtsql_storage::IdentityGeneration::Always => {
-                        field.with_identity_always(seq_name, Some(seq_config))
-                    }
-                    yachtsql_storage::IdentityGeneration::ByDefault => {
-                        field.with_identity_by_default(seq_name, Some(seq_config))
-                    }
-                };
             }
 
             fields.push(field);
@@ -1034,7 +670,7 @@ impl DdlExecutor for QueryExecutor {
                     Box::new(value_data_type),
                 ))
             }
-            SqlDataType::JSON | SqlDataType::JSONB => Ok(DataType::Json),
+            SqlDataType::JSON => Ok(DataType::Json),
             SqlDataType::Uuid => Ok(DataType::Uuid),
             SqlDataType::Nullable(inner) => self.sql_type_to_data_type(dataset_id, inner),
             SqlDataType::LowCardinality(inner) => self.sql_type_to_data_type(dataset_id, inner),
@@ -1110,23 +746,10 @@ impl DdlExecutor for QueryExecutor {
                 })
             }
             SqlDataType::Interval { .. } => Ok(DataType::Interval),
-            SqlDataType::TsVector => Ok(DataType::TsVector),
-            SqlDataType::TsQuery => Ok(DataType::TsQuery),
-            SqlDataType::GeometricType(kind) => {
-                use sqlparser::ast::GeometricTypeKind;
-                match kind {
-                    GeometricTypeKind::Point => Ok(DataType::Point),
-                    GeometricTypeKind::GeometricBox => Ok(DataType::PgBox),
-                    GeometricTypeKind::Circle => Ok(DataType::Circle),
-                    GeometricTypeKind::Line
-                    | GeometricTypeKind::LineSegment
-                    | GeometricTypeKind::GeometricPath
-                    | GeometricTypeKind::Polygon => Err(Error::unsupported_feature(format!(
-                        "Geometric type {:?} not yet supported",
-                        kind
-                    ))),
-                }
-            }
+            SqlDataType::GeometricType(kind) => Err(Error::unsupported_feature(format!(
+                "Geometric type {:?} is not supported in BigQuery",
+                kind
+            ))),
             SqlDataType::Custom(name, modifiers) => {
                 let type_name = name
                     .0
@@ -1136,6 +759,8 @@ impl DdlExecutor for QueryExecutor {
                     .unwrap_or_default();
                 let canonical = Sql2023Types::normalize_type_name(&type_name);
                 let type_upper = type_name.to_uppercase();
+
+                let _ = canonical;
 
                 if type_upper == "VECTOR" {
                     let dims = modifiers
@@ -1197,74 +822,12 @@ impl DdlExecutor for QueryExecutor {
                     }
                 }
 
-                let (domain_dataset_id, domain_name) = if type_name.contains('.') {
-                    let parts: Vec<&str> = type_name.splitn(2, '.').collect();
-                    (parts[0].to_string(), parts[1].to_string())
-                } else {
-                    ("default".to_string(), type_name.clone())
-                };
-
-                let base_type_opt = {
-                    let storage = self.storage.borrow_mut();
-                    if let Some(dataset) = storage.get_dataset(&domain_dataset_id) {
-                        dataset
-                            .domains()
-                            .get_domain(&domain_name)
-                            .map(|d| d.base_type.clone())
-                    } else {
-                        None
-                    }
-                };
-
-                if let Some(base_type) = base_type_opt {
-                    return self.parse_domain_base_type(&base_type);
-                }
-
                 match type_upper.as_str() {
                     "GEOGRAPHY" => Ok(DataType::Geography),
                     "JSON" => Ok(DataType::Json),
-                    "HSTORE" => Ok(DataType::Hstore),
-                    "MACADDR" => Ok(DataType::MacAddr),
-                    "MACADDR8" => Ok(DataType::MacAddr8),
-                    "POINT" => Ok(DataType::Point),
-                    "BOX" => Ok(DataType::PgBox),
-                    "CIRCLE" => Ok(DataType::Circle),
-                    "INET" => Ok(DataType::Inet),
-                    "CIDR" => Ok(DataType::Cidr),
-                    "SERIAL" | "SERIAL4" => Ok(DataType::Int64),
-                    "BIGSERIAL" | "SERIAL8" => Ok(DataType::Int64),
-                    "SMALLSERIAL" | "SERIAL2" => Ok(DataType::Int64),
                     "IPV4" => Ok(DataType::IPv4),
                     "IPV6" => Ok(DataType::IPv6),
                     "DATE32" => Ok(DataType::Date32),
-                    "RING" => Ok(DataType::GeoRing),
-                    "POLYGON" => Ok(DataType::GeoPolygon),
-                    "MULTIPOLYGON" => Ok(DataType::GeoMultiPolygon),
-                    "INT4RANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::Int4Range)),
-                    "INT8RANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::Int8Range)),
-                    "NUMRANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::NumRange)),
-                    "TSRANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::TsRange)),
-                    "TSTZRANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::TsTzRange)),
-                    "DATERANGE" => Ok(DataType::Range(yachtsql_core::types::RangeType::DateRange)),
-                    "INT4MULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::Int4Multirange,
-                    )),
-                    "INT8MULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::Int8Multirange,
-                    )),
-                    "NUMMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::NumMultirange,
-                    )),
-                    "TSMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::TsMultirange,
-                    )),
-                    "TSTZMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::TsTzMultirange,
-                    )),
-                    "DATEMULTIRANGE" => Ok(DataType::Multirange(
-                        yachtsql_core::types::MultirangeType::DateMultirange,
-                    )),
-
                     _ => Ok(DataType::Custom(type_name)),
                 }
             }
@@ -1272,28 +835,6 @@ impl DdlExecutor for QueryExecutor {
                 "Unsupported data type: {:?}",
                 sql_type
             ))),
-        }
-    }
-}
-
-impl QueryExecutor {
-    fn detect_serial_type(&self, sql_type: &SqlDataType) -> Option<SerialType> {
-        if let SqlDataType::Custom(name, _) = sql_type {
-            let type_name = name
-                .0
-                .last()
-                .and_then(|part| part.as_ident())
-                .map(|ident| ident.value.to_uppercase())
-                .unwrap_or_default();
-
-            match type_name.as_str() {
-                "SERIAL" | "SERIAL4" => Some(SerialType::Serial),
-                "BIGSERIAL" | "SERIAL8" => Some(SerialType::BigSerial),
-                "SMALLSERIAL" | "SERIAL2" => Some(SerialType::SmallSerial),
-                _ => None,
-            }
-        } else {
-            None
         }
     }
 }
@@ -1357,68 +898,6 @@ fn parse_column_default(expr: &sqlparser::ast::Expr) -> Result<DefaultValue> {
             expr
         ))),
     }
-}
-
-fn expr_to_i64(expr: &sqlparser::ast::Expr) -> Option<i64> {
-    use sqlparser::ast::{Expr, Value as SqlValue, ValueWithSpan as SqlValueWithSpan};
-
-    match expr {
-        Expr::Value(SqlValueWithSpan {
-            value: SqlValue::Number(n, _),
-            ..
-        }) => n.parse::<i64>().ok(),
-        Expr::UnaryOp {
-            op: sqlparser::ast::UnaryOperator::Minus,
-            expr,
-        } => expr_to_i64(expr).map(|v| -v),
-        _ => None,
-    }
-}
-
-fn parse_sequence_options(
-    options: &Option<Vec<sqlparser::ast::SequenceOptions>>,
-) -> yachtsql_storage::sequence::SequenceConfig {
-    use sqlparser::ast::SequenceOptions;
-
-    let mut config = yachtsql_storage::sequence::SequenceConfig::default();
-
-    if let Some(opts) = options {
-        for opt in opts {
-            match opt {
-                SequenceOptions::StartWith(start, _) => {
-                    if let Some(value) = expr_to_i64(start) {
-                        config.start_value = value;
-                    }
-                }
-                SequenceOptions::IncrementBy(inc, _) => {
-                    if let Some(value) = expr_to_i64(inc) {
-                        config.increment = value;
-                    }
-                }
-                SequenceOptions::MinValue(Some(min)) => {
-                    if let Some(value) = expr_to_i64(min) {
-                        config.min_value = Some(value);
-                    }
-                }
-                SequenceOptions::MaxValue(Some(max)) => {
-                    if let Some(value) = expr_to_i64(max) {
-                        config.max_value = Some(value);
-                    }
-                }
-                SequenceOptions::Cycle(cycle) => {
-                    config.cycle = *cycle;
-                }
-                SequenceOptions::Cache(cache) => {
-                    if let Some(value) = expr_to_i64(cache) {
-                        config.cache = value as u32;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    config
 }
 
 impl QueryExecutor {
@@ -1511,102 +990,16 @@ impl QueryExecutor {
                         nulls_distinct: is_nulls_distinct,
                     });
                 }
-                TableConstraint::ForeignKey {
-                    name,
-                    columns,
-                    foreign_table,
-                    referred_columns,
-                    on_delete,
-                    on_update,
-                    characteristics,
-                    ..
-                } => {
-                    let child_columns: Vec<String> =
-                        columns.iter().map(|ident| ident.value.clone()).collect();
-
-                    for col_name in &child_columns {
-                        if schema.field(col_name).is_none() {
-                            return Err(Error::InvalidQuery(format!(
-                                "FOREIGN KEY column '{}' does not exist in table",
-                                col_name
-                            )));
-                        }
-                    }
-
-                    let parent_table = foreign_table.to_string();
-
-                    let parent_columns: Vec<String> = referred_columns
-                        .iter()
-                        .map(|ident| ident.value.clone())
-                        .collect();
-
-                    if child_columns.len() != parent_columns.len() {
-                        return Err(Error::InvalidQuery(format!(
-                            "FOREIGN KEY column count mismatch: {} child columns vs {} parent columns",
-                            child_columns.len(),
-                            parent_columns.len()
-                        )));
-                    }
-
-                    let mut foreign_key = yachtsql_storage::ForeignKey::new(
-                        child_columns,
-                        parent_table,
-                        parent_columns,
-                    );
-
-                    if let Some(fk_name) = name {
-                        foreign_key = foreign_key.with_name(fk_name.to_string());
-                    }
-
-                    if let Some(action) = on_delete {
-                        foreign_key =
-                            foreign_key.with_on_delete(Self::map_referential_action(action)?);
-                    }
-
-                    if let Some(action) = on_update {
-                        foreign_key =
-                            foreign_key.with_on_update(Self::map_referential_action(action)?);
-                    }
-
-                    if let Some(chars) = characteristics {
-                        if let Some(enforced) = chars.enforced {
-                            foreign_key = foreign_key.with_enforced(enforced);
-                        }
-                        if chars.deferrable == Some(true) {
-                            use sqlparser::ast::DeferrableInitial;
-                            use yachtsql_storage::Deferrable;
-                            let deferrable = match chars.initially {
-                                Some(DeferrableInitial::Deferred) => Deferrable::InitiallyDeferred,
-                                Some(DeferrableInitial::Immediate) | None => {
-                                    Deferrable::InitiallyImmediate
-                                }
-                            };
-                            foreign_key = foreign_key.with_deferrable(deferrable);
-                        }
-                    }
-
-                    schema.add_foreign_key(foreign_key);
+                TableConstraint::ForeignKey { .. } => {
+                    return Err(Error::unsupported_feature(
+                        "FOREIGN KEY constraints are not supported in BigQuery".to_string(),
+                    ));
                 }
                 _ => {}
             }
         }
 
         Ok(())
-    }
-
-    pub(crate) fn map_referential_action(
-        action: &sqlparser::ast::ReferentialAction,
-    ) -> Result<yachtsql_storage::ReferentialAction> {
-        use sqlparser::ast::ReferentialAction as SqlAction;
-        use yachtsql_storage::ReferentialAction;
-
-        match action {
-            SqlAction::NoAction => Ok(ReferentialAction::NoAction),
-            SqlAction::Restrict => Ok(ReferentialAction::Restrict),
-            SqlAction::Cascade => Ok(ReferentialAction::Cascade),
-            SqlAction::SetNull => Ok(ReferentialAction::SetNull),
-            SqlAction::SetDefault => Ok(ReferentialAction::SetDefault),
-        }
     }
 
     fn extract_where_clause(query: &sqlparser::ast::Query) -> Option<String> {
@@ -1642,294 +1035,9 @@ impl QueryExecutor {
 
         tables
     }
-
-    fn extract_domain_name(&self, sql_type: &SqlDataType) -> Result<Option<String>> {
-        match sql_type {
-            SqlDataType::Custom(name, _) => {
-                let type_name = name
-                    .0
-                    .last()
-                    .and_then(|part| part.as_ident())
-                    .map(|ident| ident.value.clone())
-                    .unwrap_or_default();
-
-                let canonical = Sql2023Types::normalize_type_name(&type_name);
-
-                if matches!(canonical.as_str(), "GEOGRAPHY" | "JSON") {
-                    return Ok(None);
-                }
-
-                let (dataset_id, domain_name) = if type_name.contains('.') {
-                    let parts: Vec<&str> = type_name.splitn(2, '.').collect();
-                    (parts[0].to_string(), parts[1].to_string())
-                } else {
-                    ("default".to_string(), type_name.clone())
-                };
-
-                let storage = self.storage.borrow_mut();
-                if let Some(dataset) = storage.get_dataset(&dataset_id) {
-                    if dataset.domains().domain_exists(&domain_name) {
-                        return Ok(Some(format!("{}.{}", dataset_id, domain_name)));
-                    }
-                }
-
-                Ok(None)
-            }
-            _ => Ok(None),
-        }
-    }
-
-    fn parse_domain_base_type(&self, base_type: &str) -> Result<DataType> {
-        use sqlparser::dialect::PostgreSqlDialect;
-        use sqlparser::parser::Parser;
-
-        let sql = format!("CREATE TABLE _temp (_col {})", base_type);
-
-        let dialect = PostgreSqlDialect {};
-        let ast = Parser::parse_sql(&dialect, &sql).map_err(|e| {
-            Error::invalid_query(format!(
-                "Failed to parse domain base type '{}': {}",
-                base_type, e
-            ))
-        })?;
-
-        if let Some(sqlparser::ast::Statement::CreateTable(create_table)) = ast.first() {
-            if let Some(col) = create_table.columns.first() {
-                return self.sql_type_to_data_type("default", &col.data_type);
-            }
-        }
-
-        Err(Error::invalid_query(format!(
-            "Invalid domain base type: {}",
-            base_type
-        )))
-    }
-
-    fn get_domain_constraints(
-        &self,
-        domain_full_name: &str,
-    ) -> Result<Vec<yachtsql_storage::DomainConstraint>> {
-        let (dataset_id, domain_name) = if domain_full_name.contains('.') {
-            let parts: Vec<&str> = domain_full_name.splitn(2, '.').collect();
-            (parts[0].to_string(), parts[1].to_string())
-        } else {
-            ("default".to_string(), domain_full_name.to_string())
-        };
-
-        let storage = self.storage.borrow_mut();
-        let dataset = storage
-            .get_dataset(&dataset_id)
-            .ok_or_else(|| Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id)))?;
-
-        let domain = dataset
-            .domains()
-            .get_domain(&domain_name)
-            .ok_or_else(|| Error::invalid_query(format!("Domain '{}' not found", domain_name)))?;
-
-        Ok(domain.constraints.clone())
-    }
-
-    fn is_domain_not_null(&self, domain_full_name: &str) -> Result<bool> {
-        let (dataset_id, domain_name) = if domain_full_name.contains('.') {
-            let parts: Vec<&str> = domain_full_name.splitn(2, '.').collect();
-            (parts[0].to_string(), parts[1].to_string())
-        } else {
-            ("default".to_string(), domain_full_name.to_string())
-        };
-
-        let storage = self.storage.borrow_mut();
-        let dataset = storage
-            .get_dataset(&dataset_id)
-            .ok_or_else(|| Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id)))?;
-
-        let domain = dataset
-            .domains()
-            .get_domain(&domain_name)
-            .ok_or_else(|| Error::invalid_query(format!("Domain '{}' not found", domain_name)))?;
-
-        Ok(domain.not_null)
-    }
-
-    fn apply_inheritance(
-        &self,
-        dataset_id: &str,
-        _table_id: &str,
-        schema: &mut yachtsql_storage::Schema,
-        inherits: &[sqlparser::ast::ObjectName],
-    ) -> Result<()> {
-        let storage = self.storage.borrow();
-        let mut all_inherited_fields = Vec::new();
-        let mut parent_names = Vec::new();
-
-        for parent_name in inherits {
-            let parent_name_str = parent_name.to_string();
-            let (parent_dataset_id, parent_table_id) =
-                self.parse_ddl_table_name(&parent_name_str)?;
-
-            let parent_dataset_id =
-                if parent_dataset_id == "default" && !parent_name_str.contains('.') {
-                    dataset_id.to_string()
-                } else {
-                    parent_dataset_id
-                };
-
-            let parent_dataset = storage.get_dataset(&parent_dataset_id).ok_or_else(|| {
-                Error::DatasetNotFound(format!("Parent dataset '{}' not found", parent_dataset_id))
-            })?;
-
-            let parent_table = parent_dataset.get_table(&parent_table_id).ok_or_else(|| {
-                Error::InvalidQuery(format!("Parent table '{}' does not exist", parent_name_str))
-            })?;
-
-            let parent_schema = parent_table.schema();
-            for field in parent_schema.fields() {
-                let already_exists = all_inherited_fields
-                    .iter()
-                    .any(|f: &yachtsql_storage::Field| f.name == field.name)
-                    || schema.field(&field.name).is_some();
-                if !already_exists {
-                    all_inherited_fields.push(field.clone());
-                }
-            }
-
-            parent_names.push(format!("{}.{}", parent_dataset_id, parent_table_id));
-        }
-
-        schema.prepend_inherited_fields(all_inherited_fields);
-        schema.set_parent_tables(parent_names);
-
-        Ok(())
-    }
 }
 
 impl QueryExecutor {
-    pub fn execute_create_dictionary(
-        &mut self,
-        name: &sqlparser::ast::ObjectName,
-        columns: &[yachtsql_parser::validator::DictionaryColumnDef],
-        primary_key: &[String],
-        source: &yachtsql_parser::validator::DictionarySourceDef,
-        layout: yachtsql_parser::validator::DictionaryLayoutDef,
-        lifetime: &yachtsql_parser::validator::DictionaryLifetimeDef,
-    ) -> Result<crate::Table> {
-        use yachtsql_storage::{
-            Dictionary, DictionaryColumn, DictionaryLayout, DictionaryLifetime, DictionarySource,
-        };
-
-        let dict_name = name.to_string();
-        let (dataset_id, dictionary_name) = self.parse_ddl_table_name(&dict_name)?;
-
-        let dict_columns: Vec<DictionaryColumn> = columns
-            .iter()
-            .map(|col| {
-                let data_type = self.clickhouse_type_to_data_type(&col.data_type);
-                let is_pk = primary_key
-                    .iter()
-                    .any(|pk| pk.eq_ignore_ascii_case(&col.name));
-                DictionaryColumn {
-                    name: col.name.clone(),
-                    data_type,
-                    is_primary_key: is_pk,
-                    is_hierarchical: col.is_hierarchical,
-                    default_value: col
-                        .default_value
-                        .as_ref()
-                        .map(|v| self.parse_default_value(v)),
-                }
-            })
-            .collect();
-
-        let dict_layout = match layout {
-            yachtsql_parser::validator::DictionaryLayoutDef::Flat => DictionaryLayout::Flat,
-            yachtsql_parser::validator::DictionaryLayoutDef::Hashed => DictionaryLayout::Hashed,
-            yachtsql_parser::validator::DictionaryLayoutDef::RangeHashed => {
-                DictionaryLayout::RangeHashed
-            }
-            yachtsql_parser::validator::DictionaryLayoutDef::Cache => DictionaryLayout::Cache,
-            yachtsql_parser::validator::DictionaryLayoutDef::ComplexKeyHashed => {
-                DictionaryLayout::ComplexKeyHashed
-            }
-            yachtsql_parser::validator::DictionaryLayoutDef::ComplexKeyCache => {
-                DictionaryLayout::ComplexKeyCache
-            }
-            yachtsql_parser::validator::DictionaryLayoutDef::Direct => DictionaryLayout::Direct,
-        };
-
-        let dict_source = DictionarySource {
-            source_type: source.source_type.clone(),
-            table: source.table.clone(),
-        };
-
-        let dict_lifetime = DictionaryLifetime {
-            min_seconds: lifetime.min_seconds,
-            max_seconds: lifetime.max_seconds,
-        };
-
-        let dictionary = Dictionary::new(dictionary_name.clone(), dict_columns)
-            .with_layout(dict_layout)
-            .with_source(dict_source)
-            .with_lifetime(dict_lifetime);
-
-        {
-            let mut storage = self.storage.borrow_mut();
-            if storage.get_dataset(&dataset_id).is_none() {
-                storage.create_dataset(dataset_id.clone())?;
-            }
-            let dataset = storage.get_dataset_mut(&dataset_id).ok_or_else(|| {
-                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
-            })?;
-            dataset.dictionaries_mut().create(dictionary)?;
-        }
-
-        Ok(crate::Table::empty(yachtsql_storage::Schema::from_fields(
-            vec![],
-        )))
-    }
-
-    fn clickhouse_type_to_data_type(&self, type_str: &str) -> DataType {
-        let upper = type_str.to_uppercase();
-        let trimmed = upper.trim();
-
-        match trimmed {
-            "UINT8" | "UINT16" | "UINT32" | "UINT64" | "INT8" | "INT16" | "INT32" | "INT64" => {
-                DataType::Int64
-            }
-            "FLOAT32" | "FLOAT64" => DataType::Float64,
-            "STRING" | "FIXEDSTRING" => DataType::String,
-            "UUID" => DataType::Uuid,
-            "DATE" => DataType::Date,
-            "DATETIME" | "DATETIME64" => DataType::Timestamp,
-            _ => {
-                if trimmed.starts_with("DECIMAL") || trimmed.starts_with("NUMERIC") {
-                    DataType::Numeric(None)
-                } else if trimmed.starts_with("FIXEDSTRING") {
-                    DataType::String
-                } else if trimmed.starts_with("DATETIME") {
-                    DataType::Timestamp
-                } else if trimmed.starts_with("ARRAY") {
-                    DataType::Array(Box::new(DataType::String))
-                } else {
-                    DataType::String
-                }
-            }
-        }
-    }
-
-    fn parse_default_value(&self, value_str: &str) -> Value {
-        let trimmed = value_str.trim();
-        if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
-            let inner = &trimmed[1..trimmed.len() - 1];
-            return Value::string(inner.to_string());
-        }
-        if let Ok(i) = trimmed.parse::<i64>() {
-            return Value::int64(i);
-        }
-        if let Ok(f) = trimmed.parse::<f64>() {
-            return Value::float64(f);
-        }
-        Value::string(trimmed.to_string())
-    }
-
     pub fn execute_create_table_as(
         &mut self,
         new_table: &str,

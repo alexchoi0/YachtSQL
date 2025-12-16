@@ -5,7 +5,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_select_arithmetic_add() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64)")
@@ -24,7 +24,7 @@ fn test_select_arithmetic_add() {
 
 #[test]
 fn test_select_arithmetic_multiply() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE prices (item STRING, price INT64, quantity INT64)")
@@ -43,7 +43,7 @@ fn test_select_arithmetic_multiply() {
 
 #[test]
 fn test_select_arithmetic_divide() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (total INT64, count INT64)")
@@ -62,7 +62,7 @@ fn test_select_arithmetic_divide() {
 
 #[test]
 fn test_select_string_upper() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE names (name STRING)")
@@ -81,7 +81,7 @@ fn test_select_string_upper() {
 
 #[test]
 fn test_select_string_lower() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE names (name STRING)")
@@ -100,7 +100,7 @@ fn test_select_string_lower() {
 
 #[test]
 fn test_select_string_concat() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (first_name STRING, last_name STRING)")
@@ -119,7 +119,7 @@ fn test_select_string_concat() {
 
 #[test]
 fn test_select_string_concat_operator() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (first_name STRING, last_name STRING)")
@@ -138,7 +138,7 @@ fn test_select_string_concat_operator() {
 
 #[test]
 fn test_select_string_length() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE words (word STRING)")
@@ -157,7 +157,7 @@ fn test_select_string_length() {
 
 #[test]
 fn test_select_string_substring() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE words (word STRING)")
@@ -176,7 +176,7 @@ fn test_select_string_substring() {
 
 #[test]
 fn test_select_mixed_expressions() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (name STRING, price INT64, quantity INT64)")
@@ -197,7 +197,7 @@ fn test_select_mixed_expressions() {
 
 #[test]
 fn test_select_expression_with_where() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (product STRING, price INT64, quantity INT64)")
@@ -218,7 +218,7 @@ fn test_select_expression_with_where() {
 
 #[test]
 fn test_select_complex_arithmetic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE calc (a INT64, b INT64, c INT64)")
@@ -237,7 +237,7 @@ fn test_select_complex_arithmetic() {
 
 #[test]
 fn test_select_expression_aliases() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (x INT64, y INT64)")
@@ -259,7 +259,7 @@ fn test_select_expression_aliases() {
 
 #[test]
 fn test_select_expression_without_alias() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64)")

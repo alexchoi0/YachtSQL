@@ -29,9 +29,7 @@ pub struct PlanCacheKey {
 impl PlanCacheKey {
     pub fn new(sql_hash: u64, dialect: yachtsql_parser::DialectType) -> Self {
         let dialect_id = match dialect {
-            yachtsql_parser::DialectType::PostgreSQL => 0,
             yachtsql_parser::DialectType::BigQuery => 1,
-            yachtsql_parser::DialectType::ClickHouse => 2,
         };
 
         Self {
@@ -622,11 +620,11 @@ mod tests {
 
     #[test]
     fn test_cache_key_creation() {
-        let key1 = PlanCacheKey::new(12345, yachtsql_parser::DialectType::PostgreSQL);
+        let key1 = PlanCacheKey::new(12345, yachtsql_parser::DialectType::BigQuery);
         assert_eq!(key1.sql_hash, 12345);
-        assert_eq!(key1.dialect, 0);
+        assert_eq!(key1.dialect, 1);
 
-        let key2 = PlanCacheKey::new(12345, yachtsql_parser::DialectType::BigQuery);
+        let key2 = PlanCacheKey::new(54321, yachtsql_parser::DialectType::BigQuery);
         assert_eq!(key2.dialect, 1);
 
         assert_ne!(key1, key2);
@@ -635,7 +633,7 @@ mod tests {
     #[test]
     fn test_cache_insert_and_get() {
         let mut cache = PlanCache::new();
-        let key = PlanCacheKey::new(12345, yachtsql_parser::DialectType::PostgreSQL);
+        let key = PlanCacheKey::new(12345, yachtsql_parser::DialectType::BigQuery);
 
         let plan = PlanNode::Scan {
             table_name: "users".to_string(),
@@ -658,7 +656,7 @@ mod tests {
     #[test]
     fn test_cache_miss() {
         let mut cache = PlanCache::new();
-        let key = PlanCacheKey::new(99999, yachtsql_parser::DialectType::PostgreSQL);
+        let key = PlanCacheKey::new(99999, yachtsql_parser::DialectType::BigQuery);
 
         let result = cache.get(&key);
         assert!(result.is_none());
@@ -667,7 +665,7 @@ mod tests {
     #[test]
     fn test_cache_stats() {
         let mut cache = PlanCache::new();
-        let key = PlanCacheKey::new(11111, yachtsql_parser::DialectType::PostgreSQL);
+        let key = PlanCacheKey::new(11111, yachtsql_parser::DialectType::BigQuery);
 
         let plan = PlanNode::Scan {
             table_name: "users".to_string(),
@@ -682,7 +680,7 @@ mod tests {
 
         cache.get(&key);
 
-        let miss_key = PlanCacheKey::new(22222, yachtsql_parser::DialectType::PostgreSQL);
+        let miss_key = PlanCacheKey::new(22222, yachtsql_parser::DialectType::BigQuery);
         cache.get(&miss_key);
 
         let stats = cache.stats();
@@ -694,7 +692,7 @@ mod tests {
     #[test]
     fn test_cache_invalidation() {
         let mut cache = PlanCache::new();
-        let key = PlanCacheKey::new(12345, yachtsql_parser::DialectType::PostgreSQL);
+        let key = PlanCacheKey::new(12345, yachtsql_parser::DialectType::BigQuery);
 
         let plan = PlanNode::Scan {
             table_name: "users".to_string(),
@@ -758,7 +756,7 @@ mod tests {
     fn test_selective_table_invalidation() {
         let mut cache = PlanCache::new();
 
-        let users_key = PlanCacheKey::new(11111, yachtsql_parser::DialectType::PostgreSQL);
+        let users_key = PlanCacheKey::new(11111, yachtsql_parser::DialectType::BigQuery);
         let users_plan = PlanNode::Scan {
             table_name: "users".to_string(),
             alias: None,
@@ -771,7 +769,7 @@ mod tests {
             CachedPlan::new(users_plan, "SELECT * FROM users".to_string()),
         );
 
-        let orders_key = PlanCacheKey::new(22222, yachtsql_parser::DialectType::PostgreSQL);
+        let orders_key = PlanCacheKey::new(22222, yachtsql_parser::DialectType::BigQuery);
         let orders_plan = PlanNode::Scan {
             table_name: "orders".to_string(),
             alias: None,
@@ -800,7 +798,7 @@ mod tests {
     fn test_selective_invalidation_with_join() {
         let mut cache = PlanCache::new();
 
-        let join_key = PlanCacheKey::new(33333, yachtsql_parser::DialectType::PostgreSQL);
+        let join_key = PlanCacheKey::new(33333, yachtsql_parser::DialectType::BigQuery);
         let join_plan = PlanNode::Join {
             left: Box::new(PlanNode::Scan {
                 table_name: "users".to_string(),
@@ -825,7 +823,7 @@ mod tests {
             CachedPlan::new(join_plan, "SELECT * FROM users JOIN orders".to_string()),
         );
 
-        let products_key = PlanCacheKey::new(44444, yachtsql_parser::DialectType::PostgreSQL);
+        let products_key = PlanCacheKey::new(44444, yachtsql_parser::DialectType::BigQuery);
         let products_plan = PlanNode::Scan {
             table_name: "products".to_string(),
             alias: None,
@@ -908,7 +906,7 @@ mod tests {
     fn test_invalidate_nonexistent_table() {
         let mut cache = PlanCache::new();
 
-        let users_key = PlanCacheKey::new(11111, yachtsql_parser::DialectType::PostgreSQL);
+        let users_key = PlanCacheKey::new(11111, yachtsql_parser::DialectType::BigQuery);
         let users_plan = PlanNode::Scan {
             table_name: "users".to_string(),
             alias: None,
@@ -930,7 +928,7 @@ mod tests {
     fn test_get_cache_entries() {
         let mut cache = PlanCache::new();
 
-        let key1 = PlanCacheKey::new(11111, yachtsql_parser::DialectType::PostgreSQL);
+        let key1 = PlanCacheKey::new(11111, yachtsql_parser::DialectType::BigQuery);
         cache.insert(
             key1,
             CachedPlan::new(
@@ -945,7 +943,7 @@ mod tests {
             ),
         );
 
-        let key2 = PlanCacheKey::new(22222, yachtsql_parser::DialectType::PostgreSQL);
+        let key2 = PlanCacheKey::new(22222, yachtsql_parser::DialectType::BigQuery);
         cache.insert(
             key2,
             CachedPlan::new(
@@ -973,7 +971,7 @@ mod tests {
         let mut cache = PlanCache::new();
 
         cache.insert(
-            PlanCacheKey::new(1, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(1, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "users".to_string(),
@@ -987,7 +985,7 @@ mod tests {
         );
 
         cache.insert(
-            PlanCacheKey::new(2, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(2, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "orders".to_string(),
@@ -1001,7 +999,7 @@ mod tests {
         );
 
         cache.insert(
-            PlanCacheKey::new(3, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(3, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Join {
                     left: Box::new(PlanNode::Scan {
@@ -1042,9 +1040,9 @@ mod tests {
     fn test_hot_queries() {
         let mut cache = PlanCache::new();
 
-        let k1 = PlanCacheKey::new(1, yachtsql_parser::DialectType::PostgreSQL);
-        let k2 = PlanCacheKey::new(2, yachtsql_parser::DialectType::PostgreSQL);
-        let k3 = PlanCacheKey::new(3, yachtsql_parser::DialectType::PostgreSQL);
+        let k1 = PlanCacheKey::new(1, yachtsql_parser::DialectType::BigQuery);
+        let k2 = PlanCacheKey::new(2, yachtsql_parser::DialectType::BigQuery);
+        let k3 = PlanCacheKey::new(3, yachtsql_parser::DialectType::BigQuery);
 
         cache.insert(
             k1,
@@ -1104,7 +1102,7 @@ mod tests {
         let mut cache = PlanCache::new();
 
         cache.insert(
-            PlanCacheKey::new(1, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(1, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "users".to_string(),
@@ -1119,15 +1117,15 @@ mod tests {
 
         cache.get(&PlanCacheKey::new(
             1,
-            yachtsql_parser::DialectType::PostgreSQL,
+            yachtsql_parser::DialectType::BigQuery,
         ));
         cache.get(&PlanCacheKey::new(
             1,
-            yachtsql_parser::DialectType::PostgreSQL,
+            yachtsql_parser::DialectType::BigQuery,
         ));
         cache.get(&PlanCacheKey::new(
             999,
-            yachtsql_parser::DialectType::PostgreSQL,
+            yachtsql_parser::DialectType::BigQuery,
         ));
 
         let report = cache.health_report();
@@ -1142,7 +1140,7 @@ mod tests {
         let mut cache = PlanCache::new();
 
         cache.insert(
-            PlanCacheKey::new(1, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(1, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "users".to_string(),
@@ -1156,7 +1154,7 @@ mod tests {
         );
 
         cache.insert(
-            PlanCacheKey::new(2, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(2, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "orders".to_string(),
@@ -1180,7 +1178,7 @@ mod tests {
         let mut cache = PlanCache::new();
 
         cache.insert(
-            PlanCacheKey::new(1, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(1, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "users".to_string(),
@@ -1194,7 +1192,7 @@ mod tests {
         );
 
         cache.insert(
-            PlanCacheKey::new(2, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(2, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "orders".to_string(),
@@ -1212,7 +1210,7 @@ mod tests {
         cache.invalidate_table("", "users");
 
         cache.insert(
-            PlanCacheKey::new(3, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(3, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "products".to_string(),
@@ -1228,7 +1226,7 @@ mod tests {
         for _ in 0..5 {
             cache.get(&PlanCacheKey::new(
                 2,
-                yachtsql_parser::DialectType::PostgreSQL,
+                yachtsql_parser::DialectType::BigQuery,
             ));
         }
 
@@ -1243,7 +1241,7 @@ mod tests {
         let mut cache = PlanCache::new();
 
         cache.insert(
-            PlanCacheKey::new(1, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(1, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "users".to_string(),
@@ -1259,7 +1257,7 @@ mod tests {
         let snapshot = cache.export_metadata();
 
         cache.insert(
-            PlanCacheKey::new(2, yachtsql_parser::DialectType::PostgreSQL),
+            PlanCacheKey::new(2, yachtsql_parser::DialectType::BigQuery),
             CachedPlan::new(
                 PlanNode::Scan {
                     table_name: "orders".to_string(),
@@ -1282,7 +1280,7 @@ mod tests {
     #[test]
     fn test_local_cache_basic() {
         let mut local = PlanCache::new();
-        let key = PlanCacheKey::new(1, yachtsql_parser::DialectType::PostgreSQL);
+        let key = PlanCacheKey::new(1, yachtsql_parser::DialectType::BigQuery);
 
         let plan = PlanNode::Scan {
             table_name: "users".to_string(),

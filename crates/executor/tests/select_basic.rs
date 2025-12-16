@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_select_star_from_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
@@ -25,7 +25,7 @@ fn test_select_star_from_table() {
 
 #[test]
 fn test_select_specific_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, name STRING, price FLOAT64)")
@@ -48,7 +48,7 @@ fn test_select_specific_columns() {
 
 #[test]
 fn test_select_single_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (id INT64, description STRING)")
@@ -71,7 +71,7 @@ fn test_select_single_column() {
 
 #[test]
 fn test_select_from_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, name STRING)")
@@ -90,7 +90,7 @@ fn test_select_from_empty_table() {
 
 #[test]
 fn test_select_from_nonexistent_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql("SELECT * FROM nonexistent");
     assert!(result.is_err(), "SELECT from nonexistent table should fail");
@@ -99,7 +99,7 @@ fn test_select_from_nonexistent_table() {
 
 #[test]
 fn test_select_nonexistent_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (id INT64, name STRING)")
@@ -116,7 +116,7 @@ fn test_select_nonexistent_column() {
 
 #[test]
 fn test_select_qualified_table_name() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dataset1.table1 (id INT64, value STRING)")
@@ -139,7 +139,7 @@ fn test_select_qualified_table_name() {
 
 #[test]
 fn test_select_various_types() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql(
@@ -164,7 +164,7 @@ fn test_select_various_types() {
 
 #[test]
 fn test_select_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -186,7 +186,7 @@ fn test_select_with_nulls() {
 
 #[test]
 fn test_select_column_order() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE ordered (a INT64, b INT64, c INT64)")

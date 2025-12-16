@@ -6,18 +6,13 @@ use crate::aggregate::AggregateFunction;
 use crate::scalar::ScalarFunction;
 
 mod array_funcs;
-mod clickhouse_array_funcs;
-mod clickhouse_datetime;
-mod clickhouse_higher_order;
 mod conditional_funcs;
 mod conversion_funcs;
 mod datetime_funcs;
 mod encryption_funcs;
 mod extension_funcs;
-mod fulltext_funcs;
 mod geography_funcs;
 mod geometric_funcs;
-mod hstore_funcs;
 mod interval_funcs;
 #[cfg(feature = "json")]
 mod json_funcs;
@@ -142,9 +137,6 @@ impl FunctionRegistry {
         null_funcs::register(self);
         datetime_funcs::register(self);
         array_funcs::register(self);
-        clickhouse_array_funcs::register(self);
-        clickhouse_datetime::register(self);
-        clickhouse_higher_order::register(self);
         math_funcs::register(self);
         datetime_funcs::register_arithmetic(self);
         regex_funcs::register(self);
@@ -158,9 +150,6 @@ impl FunctionRegistry {
         interval_funcs::register(self);
         range_funcs::register(self);
         geometric_funcs::register(self);
-        hstore_funcs::register(self);
-
-        fulltext_funcs::register(self);
 
         network_funcs::register(self);
 

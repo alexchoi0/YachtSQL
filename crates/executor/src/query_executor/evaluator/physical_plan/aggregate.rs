@@ -344,7 +344,6 @@ impl AggregateExec {
                         DataType::Range(yachtsql_core::types::RangeType::Int4Range)
                     }
                     LiteralValue::Point(_) => DataType::Point,
-                    LiteralValue::PgBox(_) => DataType::PgBox,
                     LiteralValue::Circle(_) => DataType::Circle,
                     LiteralValue::Line(_) => DataType::Line,
                     LiteralValue::Lseg(_) => DataType::Lseg,
@@ -374,7 +373,6 @@ impl AggregateExec {
                     CastDataType::Interval => DataType::Interval,
                     CastDataType::Geography => DataType::Geography,
                     CastDataType::Vector(dims) => DataType::Vector(*dims),
-                    CastDataType::Hstore => DataType::Hstore,
                     CastDataType::MacAddr => DataType::MacAddr,
                     CastDataType::MacAddr8 => DataType::MacAddr8,
                     CastDataType::Inet => DataType::Inet,
@@ -416,7 +414,6 @@ impl AggregateExec {
                         DataType::Multirange(yachtsql_core::types::MultirangeType::DateMultirange)
                     }
                     CastDataType::Point => DataType::Point,
-                    CastDataType::PgBox => DataType::PgBox,
                     CastDataType::Circle => DataType::Circle,
                     CastDataType::Xid => DataType::Xid,
                     CastDataType::Xid8 => DataType::Xid8,
@@ -722,8 +719,6 @@ impl AggregateExec {
                 | FunctionName::JsonbAgg
                 | FunctionName::JsonObjectAgg
                 | FunctionName::JsonbObjectAgg => Some(DataType::Json),
-
-                FunctionName::GroupBitmapState => Some(DataType::Array(Box::new(DataType::Int64))),
 
                 FunctionName::SumMap
                 | FunctionName::SumMapWithOverflow
@@ -2181,17 +2176,6 @@ impl AggregateExec {
                             }
                         }
                         Value::int64(unique_values.len() as i64)
-                    }
-                    FunctionName::GroupBitmapState => {
-                        let mut unique_values = std::collections::BTreeSet::new();
-                        for val in &values {
-                            if let Some(i) = val.as_i64() {
-                                unique_values.insert(i);
-                            }
-                        }
-                        let arr: Vec<Value> =
-                            unique_values.iter().map(|&n| Value::int64(n)).collect();
-                        Value::array(arr)
                     }
                     FunctionName::GroupBitAnd => {
                         let mut result: Option<i64> = None;
@@ -4379,17 +4363,6 @@ impl SortAggregateExec {
                             }
                         }
                         Value::int64(unique_values.len() as i64)
-                    }
-                    FunctionName::GroupBitmapState => {
-                        let mut unique_values = std::collections::BTreeSet::new();
-                        for val in &values {
-                            if let Some(i) = val.as_i64() {
-                                unique_values.insert(i);
-                            }
-                        }
-                        let arr: Vec<Value> =
-                            unique_values.iter().map(|&n| Value::int64(n)).collect();
-                        Value::array(arr)
                     }
                     FunctionName::GroupBitAnd => {
                         let mut result: Option<i64> = None;

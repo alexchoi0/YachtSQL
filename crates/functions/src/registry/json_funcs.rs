@@ -11,7 +11,6 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
     register_json_construction(registry);
     register_json_predicates(registry);
     register_json_utilities(registry);
-    register_jsonb_ops(registry);
 }
 
 fn register_json_extraction(registry: &mut FunctionRegistry) {
@@ -365,7 +364,7 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             arg_types: vec![DataType::Json],
             return_type: DataType::Array(Box::new(DataType::String)),
             variadic: false,
-            evaluator: |args| crate::json::postgres::json_keys(&args[0], None),
+            evaluator: |args| crate::json::json_keys(&args[0], None),
         }),
     );
 
@@ -376,7 +375,7 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             arg_types: vec![DataType::Json],
             return_type: DataType::Int64,
             variadic: false,
-            evaluator: |args| crate::json::postgres::json_length(&args[0]),
+            evaluator: |args| crate::json::json_length(&args[0]),
         }),
     );
 
@@ -387,7 +386,7 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             arg_types: vec![DataType::Json],
             return_type: DataType::String,
             variadic: false,
-            evaluator: |args| crate::json::postgres::json_type(&args[0]),
+            evaluator: |args| crate::json::json_type(&args[0]),
         }),
     );
 
@@ -398,7 +397,7 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             arg_types: vec![DataType::Json],
             return_type: DataType::String,
             variadic: false,
-            evaluator: |args| crate::json::postgres::json_type(&args[0]),
+            evaluator: |args| crate::json::json_type(&args[0]),
         }),
     );
 
@@ -409,7 +408,7 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             arg_types: vec![DataType::Json],
             return_type: DataType::String,
             variadic: false,
-            evaluator: |args| crate::json::postgres::json_type(&args[0]),
+            evaluator: |args| crate::json::json_type(&args[0]),
         }),
     );
 
@@ -420,7 +419,7 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             arg_types: vec![DataType::Json],
             return_type: DataType::Int64,
             variadic: false,
-            evaluator: |args| crate::json::postgres::json_length(&args[0]),
+            evaluator: |args| crate::json::json_length(&args[0]),
         }),
     );
 
@@ -431,161 +430,7 @@ fn register_json_utilities(registry: &mut FunctionRegistry) {
             arg_types: vec![DataType::Json],
             return_type: DataType::Int64,
             variadic: false,
-            evaluator: |args| crate::json::postgres::json_length(&args[0]),
-        }),
-    );
-}
-
-fn register_jsonb_ops(registry: &mut FunctionRegistry) {
-    registry.register_scalar(
-        "JSONB_CONTAINS".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_CONTAINS".to_string(),
-            arg_types: vec![DataType::Json, DataType::Json],
-            return_type: DataType::Bool,
-            variadic: false,
-            evaluator: |args| crate::json::postgres::jsonb_contains(&args[0], &args[1]),
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_CONCAT".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_CONCAT".to_string(),
-            arg_types: vec![DataType::Json, DataType::Json],
-            return_type: DataType::Json,
-            variadic: false,
-            evaluator: |args| crate::json::postgres::jsonb_concat(&args[0], &args[1]),
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_DELETE".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_DELETE".to_string(),
-            arg_types: vec![DataType::Json, DataType::String],
-            return_type: DataType::Json,
-            variadic: false,
-            evaluator: |args| crate::json::postgres::jsonb_delete(&args[0], &args[1]),
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_PATH_EXISTS".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_PATH_EXISTS".to_string(),
-            arg_types: vec![DataType::Json, DataType::String],
-            return_type: DataType::Bool,
-            variadic: false,
-            evaluator: |args| {
-                crate::json::predicates::jsonb_path_exists(&args[0], args[1].as_str().unwrap_or(""))
-            },
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_PATH_QUERY_FIRST".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_PATH_QUERY_FIRST".to_string(),
-            arg_types: vec![DataType::Json, DataType::String],
-            return_type: DataType::Json,
-            variadic: false,
-            evaluator: |args| {
-                crate::json::predicates::jsonb_path_query_first(
-                    &args[0],
-                    args[1].as_str().unwrap_or(""),
-                )
-            },
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_DELETE_PATH".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_DELETE_PATH".to_string(),
-            arg_types: vec![DataType::Json, DataType::String],
-            return_type: DataType::Json,
-            variadic: false,
-            evaluator: |args| crate::json::postgres::jsonb_delete_path(&args[0], &args[1]),
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_SET".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_SET".to_string(),
-            arg_types: vec![DataType::Json, DataType::String, DataType::Json],
-            return_type: DataType::Json,
-            variadic: true,
-            evaluator: |args| {
-                if args.len() < 3 {
-                    return Err(Error::invalid_query(
-                        "JSONB_SET requires at least 3 arguments".to_string(),
-                    ));
-                }
-                let create_missing = if args.len() > 3 {
-                    args[3].as_bool()
-                } else {
-                    None
-                };
-                crate::json::postgres::jsonb_set(&args[0], &args[1], &args[2], create_missing)
-            },
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_INSERT".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_INSERT".to_string(),
-            arg_types: vec![DataType::Json, DataType::String, DataType::Json],
-            return_type: DataType::Json,
-            variadic: true,
-            evaluator: |args| {
-                if args.len() < 3 {
-                    return Err(Error::invalid_query(
-                        "JSONB_INSERT requires at least 3 arguments".to_string(),
-                    ));
-                }
-                let insert_after = if args.len() > 3 {
-                    args[3].as_bool().unwrap_or(false)
-                } else {
-                    false
-                };
-                crate::json::postgres::jsonb_insert(&args[0], &args[1], &args[2], insert_after)
-            },
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_PRETTY".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_PRETTY".to_string(),
-            arg_types: vec![DataType::Json],
-            return_type: DataType::String,
-            variadic: false,
-            evaluator: |args| crate::json::postgres::jsonb_pretty(&args[0]),
-        }),
-    );
-
-    registry.register_scalar(
-        "JSON_STRIP_NULLS".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSON_STRIP_NULLS".to_string(),
-            arg_types: vec![DataType::Json],
-            return_type: DataType::Json,
-            variadic: false,
-            evaluator: |args| crate::json::postgres::json_strip_nulls(&args[0]),
-        }),
-    );
-
-    registry.register_scalar(
-        "JSONB_STRIP_NULLS".to_string(),
-        Rc::new(ScalarFunctionImpl {
-            name: "JSONB_STRIP_NULLS".to_string(),
-            arg_types: vec![DataType::Json],
-            return_type: DataType::Json,
-            variadic: false,
-            evaluator: |args| crate::json::postgres::json_strip_nulls(&args[0]),
+            evaluator: |args| crate::json::json_length(&args[0]),
         }),
     );
 }

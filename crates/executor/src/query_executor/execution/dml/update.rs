@@ -196,60 +196,7 @@ impl DmlUpdateExecutor for QueryExecutor {
             }
         }
 
-        let mut instead_of_count = 0;
-        let mut instead_of_updates: Vec<(Row, Row)> = Vec::new();
-        let mut normal_updates: Vec<(Row, Row)> = Vec::new();
-
-        for (old_row, new_row) in trigger_updates {
-            let instead_of_result = self.fire_instead_of_update_triggers(
-                &dataset_id,
-                &table_id,
-                &old_row,
-                &new_row,
-                &schema,
-            )?;
-
-            if instead_of_result.triggers_fired > 0 {
-                instead_of_count += 1;
-                instead_of_updates.push((old_row, new_row));
-            } else {
-                normal_updates.push((old_row, new_row));
-            }
-        }
-
-        if instead_of_count > 0 && normal_updates.is_empty() {
-            debug_eprintln!(
-                "[executor::dml::update] Updated {} rows via INSTEAD OF triggers",
-                instead_of_count
-            );
-            return Self::empty_result();
-        }
-
-        let mut final_updates: Vec<(Row, Row)> = Vec::new();
-        for (old_row, new_row) in normal_updates {
-            let before_result = self.fire_before_update_triggers(
-                &dataset_id,
-                &table_id,
-                &old_row,
-                &new_row,
-                &schema,
-            )?;
-            if !before_result.skip_operation {
-                final_updates.push((old_row, new_row));
-            }
-        }
-
-        let update_count = final_updates.len();
-
-        {
-            let mut storage = self.storage.borrow_mut();
-            let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-            let table_full_name = format!("{}.{}", dataset_id, table_id);
-
-            for (old_row, new_row) in &final_updates {
-                enforcer.cascade_update(&table_full_name, old_row, new_row, &mut storage)?;
-            }
-        }
+        let update_count = trigger_updates.len();
 
         self.replace_table_rows(
             &dataset_id,
@@ -258,10 +205,6 @@ impl DmlUpdateExecutor for QueryExecutor {
             updated_rows,
             &changed_row_indices,
         )?;
-
-        for (old_row, new_row) in final_updates {
-            self.fire_after_update_triggers(&dataset_id, &table_id, &old_row, &new_row, &schema)?;
-        }
 
         if !is_view {
             let descendants = self.collect_all_descendant_tables(&dataset_id, &table_id);
@@ -276,12 +219,7 @@ impl DmlUpdateExecutor for QueryExecutor {
             }
         }
 
-        debug_eprintln!(
-            "[executor::dml::update] Updated {} rows (INSTEAD OF: {}, normal: {})",
-            instead_of_count + update_count,
-            instead_of_count,
-            update_count
-        );
+        debug_eprintln!("[executor::dml::update] Updated {} rows", update_count);
 
         if capture_returning {
             crate::query_executor::returning::build_returning_batch_with_old_new(
@@ -706,79 +644,42 @@ impl QueryExecutor {
         &mut self,
         dataset_id: &str,
         table_id: &str,
-        schema: &Schema,
+        _schema: &Schema,
         rows: Vec<IndexMap<String, Value>>,
         changed_row_indices: &[usize],
     ) -> Result<()> {
-        let table_full_name = format!("{}.{}", dataset_id, table_id);
+        let mut storage = self.storage.borrow_mut();
+        let dataset = storage
+            .get_dataset_mut(dataset_id)
+            .ok_or_else(|| Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id)))?;
 
-        let mut tm = self.transaction_manager.borrow_mut();
-        if let Some(_txn) = tm.get_active_transaction_mut() {
-            drop(tm);
+        let table = dataset.get_table_mut(table_id).ok_or_else(|| {
+            Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
+        })?;
 
-            let original_rows = {
-                let storage = self.storage.borrow_mut();
-                let dataset = storage.get_dataset(dataset_id).ok_or_else(|| {
-                    Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
-                })?;
-                let table = dataset.get_table(table_id).ok_or_else(|| {
-                    Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
-                })?;
-
-                changed_row_indices
-                    .iter()
-                    .map(|&idx| table.get_row(idx))
-                    .collect::<Result<Vec<_>>>()?
-            };
-
-            let mut tm = self.transaction_manager.borrow_mut();
-            if let Some(txn) = tm.get_active_transaction_mut() {
-                for (i, &row_idx) in changed_row_indices.iter().enumerate() {
-                    let new_row_map = &rows[row_idx];
-                    let new_row = Row::from_named_values(new_row_map.clone());
-                    let original_row = &original_rows[i];
-
-                    if original_row != &new_row {
-                        txn.track_update(&table_full_name, row_idx, new_row);
-                    }
-                }
+        {
+            let schema = table.schema_mut();
+            if schema.check_evaluator().is_none() {
+                let evaluator = super::build_check_evaluator();
+                schema.set_check_evaluator(evaluator);
             }
-        } else {
-            drop(tm);
+        }
 
-            let mut storage = self.storage.borrow_mut();
-            let dataset = storage.get_dataset_mut(dataset_id).ok_or_else(|| {
-                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
-            })?;
+        let original_rows: Vec<Vec<yachtsql_core::types::Value>> = changed_row_indices
+            .iter()
+            .map(|&idx| table.get_row(idx).map(|row| row.values().to_vec()))
+            .collect::<Result<Vec<_>>>()?;
 
-            let table = dataset.get_table_mut(table_id).ok_or_else(|| {
-                Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
-            })?;
+        for (i, &row_idx) in changed_row_indices.iter().enumerate() {
+            let new_row_map = &rows[row_idx];
 
-            {
-                let schema = table.schema_mut();
-                if schema.check_evaluator().is_none() {
-                    let evaluator = super::build_check_evaluator();
-                    schema.set_check_evaluator(evaluator);
-                }
+            for (col_name, new_value) in new_row_map {
+                table.update_cell_at_index(row_idx, col_name, new_value.clone())?;
             }
 
-            let original_rows: Vec<Vec<yachtsql_core::types::Value>> = changed_row_indices
-                .iter()
-                .map(|&idx| table.get_row(idx).map(|row| row.values().to_vec()))
-                .collect::<Result<Vec<_>>>()?;
-
-            for (i, &row_idx) in changed_row_indices.iter().enumerate() {
-                let new_row_map = &rows[row_idx];
-
-                for (col_name, new_value) in new_row_map {
-                    table.update_cell_at_index(row_idx, col_name, new_value.clone())?;
-                }
-
-                let new_row = table.get_row(row_idx)?;
-                let new_row_values = new_row.values().to_vec();
-                table.update_indexes_on_update(&original_rows[i], &new_row_values, row_idx)?;
-            }
+            let new_row = table.get_row(row_idx)?;
+            let new_row_values = new_row.values().to_vec();
+            table.update_indexes_on_update(&original_rows[i], &new_row_values, row_idx)?;
         }
 
         Ok(())
@@ -1004,13 +905,6 @@ impl QueryExecutor {
             current_row_idx,
             all_rows,
         )?;
-
-        {
-            let storage = self.storage.borrow();
-            let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-            let table_full_name = format!("{}.{}", dataset_id, table_id);
-            enforcer.validate_update(&table_full_name, new_row, &storage)?;
-        }
 
         Ok(())
     }

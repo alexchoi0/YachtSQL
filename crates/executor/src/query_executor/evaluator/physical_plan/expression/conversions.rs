@@ -36,7 +36,6 @@ impl ProjectionWithExprExec {
                 | CastDataType::MacAddr8
                 | CastDataType::Inet
                 | CastDataType::Cidr
-                | CastDataType::Hstore
                 | CastDataType::Uuid
                 | CastDataType::Interval
                 | CastDataType::Int4Range
@@ -52,7 +51,6 @@ impl ProjectionWithExprExec {
                 | CastDataType::TsTzMultirange
                 | CastDataType::DateMultirange
                 | CastDataType::Point
-                | CastDataType::PgBox
                 | CastDataType::Circle
                 | CastDataType::Xid
                 | CastDataType::Xid8
@@ -82,9 +80,6 @@ impl ProjectionWithExprExec {
             }
             if let Some(p) = value.as_point() {
                 return Ok(Value::string(p.to_string()));
-            }
-            if let Some(b) = value.as_pgbox() {
-                return Ok(Value::string(b.to_string()));
             }
             if let Some(c) = value.as_circle() {
                 return Ok(Value::string(c.to_string()));
@@ -190,7 +185,6 @@ impl ProjectionWithExprExec {
             );
             if struct_fields.is_empty() {
                 let resolved_type = match type_name.to_uppercase().as_str() {
-                    "HSTORE" => CastDataType::Hstore,
                     "MACADDR" => CastDataType::MacAddr,
                     "MACADDR8" => CastDataType::MacAddr8,
                     "INET" => CastDataType::Inet,
@@ -210,7 +204,6 @@ impl ProjectionWithExprExec {
                     "TSTZMULTIRANGE" => CastDataType::TsTzMultirange,
                     "DATEMULTIRANGE" => CastDataType::DateMultirange,
                     "POINT" => CastDataType::Point,
-                    "BOX" => CastDataType::PgBox,
                     "CIRCLE" => CastDataType::Circle,
                     "XID" => CastDataType::Xid,
                     "XID8" => CastDataType::Xid8,

@@ -347,13 +347,13 @@ fn test_json_value_order_by() {
 }
 
 #[test]
-fn test_json_value_postgresql_dialect() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+fn test_json_value_with_returning_clause() {
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT JSON_VALUE(data, '$.name' RETURNING TEXT NULL ON EMPTY)";
     let result = parser.parse_sql(sql);
     assert!(
         result.is_ok(),
-        "Should parse JSON_VALUE in PostgreSQL dialect: {:?}",
+        "Should parse JSON_VALUE with RETURNING clause: {:?}",
         result
     );
 }

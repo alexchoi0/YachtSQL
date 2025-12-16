@@ -14,7 +14,7 @@ fn test_interval_basic_day() {
 
 #[test]
 fn test_interval_basic_hour() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT INTERVAL 3 HOUR";
     let result = parser.parse_sql(sql);
     assert!(
@@ -38,7 +38,7 @@ fn test_interval_basic_minute() {
 
 #[test]
 fn test_interval_basic_second() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT INTERVAL 30 SECOND";
     let result = parser.parse_sql(sql);
     assert!(
@@ -62,7 +62,7 @@ fn test_interval_basic_month() {
 
 #[test]
 fn test_interval_basic_year() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT INTERVAL 5 YEAR";
     let result = parser.parse_sql(sql);
     assert!(
@@ -122,7 +122,7 @@ fn test_interval_with_timestamp_sub() {
 
 #[test]
 fn test_interval_arithmetic_date_plus_interval() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT DATE '2024-01-01' + INTERVAL '1 day'";
     let result = parser.parse_sql(sql);
     assert!(
@@ -134,7 +134,7 @@ fn test_interval_arithmetic_date_plus_interval() {
 
 #[test]
 fn test_interval_arithmetic_date_minus_interval() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT DATE '2024-01-01' - INTERVAL '7 days'";
     let result = parser.parse_sql(sql);
     assert!(
@@ -146,7 +146,7 @@ fn test_interval_arithmetic_date_minus_interval() {
 
 #[test]
 fn test_interval_arithmetic_timestamp_plus_interval() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT TIMESTAMP '2024-01-01 12:00:00' + INTERVAL '3 hours'";
     let result = parser.parse_sql(sql);
     assert!(
@@ -170,7 +170,7 @@ fn test_interval_zero_value() {
 
 #[test]
 fn test_interval_negative_value() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT INTERVAL -7 DAY";
     let result = parser.parse_sql(sql);
     assert!(
@@ -181,8 +181,8 @@ fn test_interval_negative_value() {
 }
 
 #[test]
-fn test_interval_postgresql_string_format() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+fn test_interval_string_format() {
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT INTERVAL '7 days'";
     let result = parser.parse_sql(sql);
     assert!(
@@ -193,8 +193,8 @@ fn test_interval_postgresql_string_format() {
 }
 
 #[test]
-fn test_interval_postgresql_multiple_units() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+fn test_interval_multiple_units() {
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT INTERVAL '1 year 2 months 3 days'";
     let result = parser.parse_sql(sql);
     assert!(
@@ -205,8 +205,8 @@ fn test_interval_postgresql_multiple_units() {
 }
 
 #[test]
-fn test_interval_postgresql_time_format() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+fn test_interval_time_format() {
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT INTERVAL '1:30:00'";
     let result = parser.parse_sql(sql);
     assert!(
@@ -218,7 +218,7 @@ fn test_interval_postgresql_time_format() {
 
 #[test]
 fn test_interval_in_where_clause() {
-    let parser = Parser::with_dialect(DialectType::PostgreSQL);
+    let parser = Parser::with_dialect(DialectType::BigQuery);
     let sql = "SELECT * FROM events WHERE created_at > NOW() - INTERVAL '7 days'";
     let result = parser.parse_sql(sql);
     assert!(

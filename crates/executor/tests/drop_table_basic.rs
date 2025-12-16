@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_drop_existing_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64)")
@@ -14,7 +14,7 @@ fn test_drop_existing_table() {
 
 #[test]
 fn test_drop_nonexistent_table_fails() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql("DROP TABLE nonexistent");
     assert!(result.is_err(), "DROP nonexistent table should fail");
@@ -29,7 +29,7 @@ fn test_drop_nonexistent_table_fails() {
 
 #[test]
 fn test_drop_table_if_exists_success() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64)")
@@ -40,7 +40,7 @@ fn test_drop_table_if_exists_success() {
 
 #[test]
 fn test_drop_table_if_exists_nonexistent() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql("DROP TABLE IF EXISTS nonexistent");
     assert!(
@@ -52,7 +52,7 @@ fn test_drop_table_if_exists_nonexistent() {
 
 #[test]
 fn test_drop_qualified_table_name() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE mydataset.mytable (id INT64)")
@@ -63,7 +63,7 @@ fn test_drop_qualified_table_name() {
 
 #[test]
 fn test_drop_multiple_tables() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE table1 (id INT64)")
@@ -81,7 +81,7 @@ fn test_drop_multiple_tables() {
 
 #[test]
 fn test_drop_and_recreate_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE temp (id INT64)")
@@ -97,7 +97,7 @@ fn test_drop_and_recreate_table() {
 
 #[test]
 fn test_drop_table_cascade() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE parent (id INT64)")

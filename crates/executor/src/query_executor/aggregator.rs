@@ -408,7 +408,7 @@ impl AggregateSpec {
             };
 
             Ok(Box::new(ApproxTopSumAccumulator::new(number)))
-        } else if self.function_name == "STRING_AGG" || self.function_name == "LISTAGG" {
+        } else if self.function_name == "STRING_AGG" {
             use yachtsql_functions::aggregate::string_agg::ListAggAccumulator;
 
             let delimiter = if self.argument_exprs.len() >= 2 {
@@ -421,11 +421,7 @@ impl AggregateSpec {
                     _ => ",".to_string(),
                 }
             } else {
-                if self.function_name == "STRING_AGG" {
-                    ",".to_string()
-                } else {
-                    String::new()
-                }
+                ",".to_string()
             };
 
             Ok(Box::new(ListAggAccumulator::with_delimiter(delimiter)))
@@ -497,16 +493,6 @@ impl AggregateSpec {
                     return Err(Error::InvalidQuery(format!(
                         "{} requires exactly 1 argument, got 0",
                         self.function_name
-                    )));
-                }
-            }
-
-            if self.function_name == "JSON_OBJECT_AGG" || self.function_name == "JSONB_OBJECT_AGG" {
-                if self.argument_exprs.len() != 2 {
-                    return Err(Error::InvalidQuery(format!(
-                        "{} requires exactly 2 arguments: (key, value), got {}",
-                        self.function_name,
-                        self.argument_exprs.len()
                     )));
                 }
             }
@@ -586,7 +572,7 @@ impl AggregateSpec {
             &self.argument_exprs[0..1]
         } else if self.function_name == "APPROX_TOP_SUM" {
             &self.argument_exprs[0..2]
-        } else if self.function_name == "STRING_AGG" || self.function_name == "LISTAGG" {
+        } else if self.function_name == "STRING_AGG" {
             if self.argument_exprs.is_empty() {
                 &self.argument_exprs[..]
             } else {

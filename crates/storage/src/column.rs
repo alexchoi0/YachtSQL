@@ -87,10 +87,6 @@ pub enum Column {
         nulls: NullBitmap,
     },
 
-    Hstore {
-        data: Vec<IndexMap<String, Option<String>>>,
-        nulls: NullBitmap,
-    },
     MacAddr {
         data: Vec<yachtsql_core::types::MacAddress>,
         nulls: NullBitmap,
@@ -116,11 +112,6 @@ pub enum Column {
 
     Point {
         data: Vec<yachtsql_core::types::PgPoint>,
-        nulls: NullBitmap,
-    },
-
-    PgBox {
-        data: Vec<yachtsql_core::types::PgBox>,
         nulls: NullBitmap,
     },
 
@@ -208,16 +199,6 @@ pub enum Column {
         nulls: NullBitmap,
         length: usize,
     },
-
-    TsVector {
-        data: Vec<String>,
-        nulls: NullBitmap,
-    },
-
-    TsQuery {
-        data: Vec<String>,
-        nulls: NullBitmap,
-    },
 }
 
 impl Column {
@@ -302,10 +283,6 @@ impl Column {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
             },
-            DataType::Hstore => Column::Hstore {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
             DataType::MacAddr => Column::MacAddr {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
@@ -334,10 +311,6 @@ impl Column {
                 nulls: NullBitmap::new_valid(0),
             },
             DataType::Point => Column::Point {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::PgBox => Column::PgBox {
                 data: Vec::with_capacity(capacity),
                 nulls: NullBitmap::new_valid(0),
             },
@@ -416,14 +389,6 @@ impl Column {
                     nulls: NullBitmap::new_valid(0),
                 }
             }
-            DataType::TsVector => Column::TsVector {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
-            DataType::TsQuery => Column::TsQuery {
-                data: Vec::with_capacity(capacity),
-                nulls: NullBitmap::new_valid(0),
-            },
             _ => unimplemented!("Complex types not yet supported: {:?}", data_type),
         }
     }
@@ -463,7 +428,6 @@ impl Column {
             }
             Column::Geography { .. } => DataType::Geography,
             Column::Interval { .. } => DataType::Interval,
-            Column::Hstore { .. } => DataType::Hstore,
             Column::MacAddr { .. } => DataType::MacAddr,
             Column::MacAddr8 { .. } => DataType::MacAddr8,
             Column::Inet { .. } => DataType::Inet,
@@ -475,7 +439,6 @@ impl Column {
                 labels: labels.clone(),
             },
             Column::Point { .. } => DataType::Point,
-            Column::PgBox { .. } => DataType::PgBox,
             Column::Circle { .. } => DataType::Circle,
             Column::Line { .. } => DataType::Line,
             Column::Lseg { .. } => DataType::Lseg,
@@ -498,8 +461,6 @@ impl Column {
             Column::GeoPolygon { .. } => DataType::GeoPolygon,
             Column::GeoMultiPolygon { .. } => DataType::GeoMultiPolygon,
             Column::FixedString { length, .. } => DataType::FixedString(*length),
-            Column::TsVector { .. } => DataType::TsVector,
-            Column::TsQuery { .. } => DataType::TsQuery,
         }
     }
 
@@ -523,14 +484,12 @@ impl Column {
             Column::Struct { nulls, .. } => nulls.len(),
             Column::Geography { nulls, .. } => nulls.len(),
             Column::Interval { nulls, .. } => nulls.len(),
-            Column::Hstore { nulls, .. } => nulls.len(),
             Column::MacAddr { nulls, .. } => nulls.len(),
             Column::MacAddr8 { nulls, .. } => nulls.len(),
             Column::Inet { nulls, .. } => nulls.len(),
             Column::Cidr { nulls, .. } => nulls.len(),
             Column::Enum { nulls, .. } => nulls.len(),
             Column::Point { nulls, .. } => nulls.len(),
-            Column::PgBox { nulls, .. } => nulls.len(),
             Column::Circle { nulls, .. } => nulls.len(),
             Column::Line { nulls, .. } => nulls.len(),
             Column::Lseg { nulls, .. } => nulls.len(),
@@ -547,8 +506,6 @@ impl Column {
             Column::GeoMultiPolygon { nulls, .. } => nulls.len(),
             Column::FixedString { nulls, .. } => nulls.len(),
             Column::Multirange { nulls, .. } => nulls.len(),
-            Column::TsVector { nulls, .. } => nulls.len(),
-            Column::TsQuery { nulls, .. } => nulls.len(),
         }
     }
 
@@ -576,14 +533,12 @@ impl Column {
             Column::Struct { nulls, .. } => nulls,
             Column::Geography { nulls, .. } => nulls,
             Column::Interval { nulls, .. } => nulls,
-            Column::Hstore { nulls, .. } => nulls,
             Column::MacAddr { nulls, .. } => nulls,
             Column::MacAddr8 { nulls, .. } => nulls,
             Column::Inet { nulls, .. } => nulls,
             Column::Cidr { nulls, .. } => nulls,
             Column::Enum { nulls, .. } => nulls,
             Column::Point { nulls, .. } => nulls,
-            Column::PgBox { nulls, .. } => nulls,
             Column::Circle { nulls, .. } => nulls,
             Column::Line { nulls, .. } => nulls,
             Column::Lseg { nulls, .. } => nulls,
@@ -600,8 +555,6 @@ impl Column {
             Column::GeoMultiPolygon { nulls, .. } => nulls,
             Column::FixedString { nulls, .. } => nulls,
             Column::Multirange { nulls, .. } => nulls,
-            Column::TsVector { nulls, .. } => nulls,
-            Column::TsQuery { nulls, .. } => nulls,
         }
     }
 
@@ -942,19 +895,6 @@ impl Column {
                     )))
                 }
             }
-            Column::Hstore { data, nulls } => {
-                if let Some(v) = value.as_hstore() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
             Column::MacAddr { data, nulls } => {
                 if let Some(v) = value.as_macaddr() {
                     data.push(v.clone());
@@ -1046,19 +986,6 @@ impl Column {
             }
             Column::Point { data, nulls } => {
                 if let Some(v) = value.as_point() {
-                    data.push(v.clone());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::PgBox { data, nulls } => {
-                if let Some(v) = value.as_pgbox() {
                     data.push(v.clone());
                     nulls.push(true);
                     Ok(())
@@ -1286,32 +1213,6 @@ impl Column {
                     )))
                 }
             }
-            Column::TsVector { data, nulls } => {
-                if let Some(v) = value.as_tsvector() {
-                    data.push(v.to_string());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::TsQuery { data, nulls } => {
-                if let Some(v) = value.as_tsquery() {
-                    data.push(v.to_string());
-                    nulls.push(true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
         }
     }
 
@@ -1392,10 +1293,6 @@ impl Column {
                 data.push(Interval::default());
                 nulls.push(false);
             }
-            Column::Hstore { data, nulls } => {
-                data.push(IndexMap::new());
-                nulls.push(false);
-            }
             Column::MacAddr { data, nulls } => {
                 data.push(yachtsql_core::types::MacAddress::new_macaddr([
                     0, 0, 0, 0, 0, 0,
@@ -1430,13 +1327,6 @@ impl Column {
             }
             Column::Point { data, nulls } => {
                 data.push(yachtsql_core::types::PgPoint::new(0.0, 0.0));
-                nulls.push(false);
-            }
-            Column::PgBox { data, nulls } => {
-                data.push(yachtsql_core::types::PgBox::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                ));
                 nulls.push(false);
             }
             Column::Circle { data, nulls } => {
@@ -1528,14 +1418,6 @@ impl Column {
                     multirange_type: multirange_type.clone(),
                     ranges: Vec::new(),
                 });
-                nulls.push(false);
-            }
-            Column::TsVector { data, nulls } => {
-                data.push(String::new());
-                nulls.push(false);
-            }
-            Column::TsQuery { data, nulls } => {
-                data.push(String::new());
                 nulls.push(false);
             }
         }
@@ -1831,19 +1713,6 @@ impl Column {
                     )))
                 }
             }
-            Column::Hstore { data, nulls } => {
-                if let Some(v) = value.as_hstore() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
             Column::MacAddr { data, nulls } => {
                 if let Some(v) = value.as_macaddr() {
                     data[index] = v.clone();
@@ -1911,19 +1780,6 @@ impl Column {
             }
             Column::Point { data, nulls } => {
                 if let Some(v) = value.as_point() {
-                    data[index] = v.clone();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::PgBox { data, nulls } => {
-                if let Some(v) = value.as_pgbox() {
                     data[index] = v.clone();
                     nulls.set(index, true);
                     Ok(())
@@ -2151,32 +2007,6 @@ impl Column {
                     )))
                 }
             }
-            Column::TsVector { data, nulls } => {
-                if let Some(v) = value.as_tsvector() {
-                    data[index] = v.to_string();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
-            Column::TsQuery { data, nulls } => {
-                if let Some(v) = value.as_tsquery() {
-                    data[index] = v.to_string();
-                    nulls.set(index, true);
-                    Ok(())
-                } else {
-                    Err(Error::invalid_query(format!(
-                        "type mismatch: expected {}, got {}",
-                        self.data_type(),
-                        value.data_type()
-                    )))
-                }
-            }
         }
     }
 
@@ -2257,10 +2087,6 @@ impl Column {
                 data[index] = Interval::default();
                 nulls.set(index, false);
             }
-            Column::Hstore { data, nulls } => {
-                data[index] = IndexMap::new();
-                nulls.set(index, false);
-            }
             Column::MacAddr { data, nulls } => {
                 data[index] = yachtsql_core::types::MacAddress::new_macaddr([0, 0, 0, 0, 0, 0]);
                 nulls.set(index, false);
@@ -2290,13 +2116,6 @@ impl Column {
             }
             Column::Point { data, nulls } => {
                 data[index] = yachtsql_core::types::PgPoint::new(0.0, 0.0);
-                nulls.set(index, false);
-            }
-            Column::PgBox { data, nulls } => {
-                data[index] = yachtsql_core::types::PgBox::new(
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                    yachtsql_core::types::PgPoint::new(0.0, 0.0),
-                );
                 nulls.set(index, false);
             }
             Column::Circle { data, nulls } => {
@@ -2390,14 +2209,6 @@ impl Column {
                 };
                 nulls.set(index, false);
             }
-            Column::TsVector { data, nulls } => {
-                data[index] = String::new();
-                nulls.set(index, false);
-            }
-            Column::TsQuery { data, nulls } => {
-                data[index] = String::new();
-                nulls.set(index, false);
-            }
         }
         Ok(())
     }
@@ -2475,10 +2286,6 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
-            Column::Hstore { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
             Column::MacAddr { data, nulls } => {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
@@ -2500,10 +2307,6 @@ impl Column {
                 *nulls = NullBitmap::new_valid(0);
             }
             Column::Point { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::PgBox { data, nulls } => {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
@@ -2571,14 +2374,6 @@ impl Column {
                 data.clear();
                 *nulls = NullBitmap::new_valid(0);
             }
-            Column::TsVector { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
-            Column::TsQuery { data, nulls } => {
-                data.clear();
-                *nulls = NullBitmap::new_valid(0);
-            }
         }
     }
 
@@ -2615,14 +2410,12 @@ impl Column {
             Column::Struct { data, .. } => Ok(Value::struct_val(data[index].clone())),
             Column::Geography { data, .. } => Ok(Value::geography(data[index].clone())),
             Column::Interval { data, .. } => Ok(Value::interval(data[index].clone())),
-            Column::Hstore { data, .. } => Ok(Value::hstore(data[index].clone())),
             Column::MacAddr { data, .. } => Ok(Value::macaddr(data[index].clone())),
             Column::MacAddr8 { data, .. } => Ok(Value::macaddr8(data[index].clone())),
             Column::Inet { data, .. } => Ok(Value::inet(data[index].clone())),
             Column::Cidr { data, .. } => Ok(Value::cidr(data[index].clone())),
             Column::Enum { data, .. } => Ok(Value::string(data[index].clone())),
             Column::Point { data, .. } => Ok(Value::point(data[index].clone())),
-            Column::PgBox { data, .. } => Ok(Value::pgbox(data[index].clone())),
             Column::Circle { data, .. } => Ok(Value::circle(data[index].clone())),
             Column::Line { data, .. } => Ok(Value::line(data[index].clone())),
             Column::Lseg { data, .. } => Ok(Value::lseg(data[index].clone())),
@@ -2641,8 +2434,6 @@ impl Column {
             }
             Column::FixedString { data, .. } => Ok(Value::fixed_string(data[index].clone())),
             Column::Multirange { data, .. } => Ok(Value::multirange(data[index].clone())),
-            Column::TsVector { data, .. } => Ok(Value::tsvector(data[index].clone())),
-            Column::TsQuery { data, .. } => Ok(Value::tsquery(data[index].clone())),
         }
     }
 
@@ -2746,10 +2537,6 @@ impl Column {
                 data: data[start..start + len].to_vec(),
                 nulls,
             }),
-            Column::Hstore { data, .. } => Ok(Column::Hstore {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
             Column::MacAddr { data, .. } => Ok(Column::MacAddr {
                 data: data[start..start + len].to_vec(),
                 nulls,
@@ -2778,10 +2565,6 @@ impl Column {
                 labels: labels.clone(),
             }),
             Column::Point { data, .. } => Ok(Column::Point {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::PgBox { data, .. } => Ok(Column::PgBox {
                 data: data[start..start + len].to_vec(),
                 nulls,
             }),
@@ -2864,14 +2647,6 @@ impl Column {
                 data: data[start..start + len].to_vec(),
                 nulls,
                 multirange_type: multirange_type.clone(),
-            }),
-            Column::TsVector { data, .. } => Ok(Column::TsVector {
-                data: data[start..start + len].to_vec(),
-                nulls,
-            }),
-            Column::TsQuery { data, .. } => Ok(Column::TsQuery {
-                data: data[start..start + len].to_vec(),
-                nulls,
             }),
         }
     }
@@ -2966,7 +2741,6 @@ impl Column {
             }
             Column::Geography { data, .. } => gather_clone!(data, Geography),
             Column::Interval { data, .. } => gather_clone!(data, Interval),
-            Column::Hstore { data, .. } => gather_clone!(data, Hstore),
             Column::MacAddr { data, .. } => gather_clone!(data, MacAddr),
             Column::MacAddr8 { data, .. } => gather_clone!(data, MacAddr8),
             Column::Inet { data, .. } => gather_clone!(data, Inet),
@@ -2986,7 +2760,6 @@ impl Column {
                 })
             }
             Column::Point { data, .. } => gather_clone!(data, Point),
-            Column::PgBox { data, .. } => gather_clone!(data, PgBox),
             Column::Circle { data, .. } => gather_clone!(data, Circle),
             Column::Line { data, .. } => gather_clone!(data, Line),
             Column::Lseg { data, .. } => gather_clone!(data, Lseg),
@@ -3043,8 +2816,6 @@ impl Column {
                     multirange_type: multirange_type.clone(),
                 })
             }
-            Column::TsVector { data, .. } => gather_clone!(data, TsVector),
-            Column::TsQuery { data, .. } => gather_clone!(data, TsQuery),
         }
     }
 
@@ -3319,19 +3090,6 @@ impl Column {
                 self_nulls.append(other_nulls);
             }
             (
-                Column::Hstore {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::Hstore {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
                 Column::MacAddr {
                     data: self_data,
                     nulls: self_nulls,
@@ -3412,19 +3170,6 @@ impl Column {
                     nulls: self_nulls,
                 },
                 Column::Point {
-                    data: other_data,
-                    nulls: other_nulls,
-                },
-            ) => {
-                self_data.extend_from_slice(other_data);
-                self_nulls.append(other_nulls);
-            }
-            (
-                Column::PgBox {
-                    data: self_data,
-                    nulls: self_nulls,
-                },
-                Column::PgBox {
                     data: other_data,
                     nulls: other_nulls,
                 },

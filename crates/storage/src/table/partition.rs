@@ -32,41 +32,41 @@ impl PartitionSpec {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PostgresPartitionStrategy {
+pub enum TablePartitionStrategy {
     Range { columns: Vec<String> },
     List { columns: Vec<String> },
     Hash { columns: Vec<String> },
 }
 
-impl PostgresPartitionStrategy {
+impl TablePartitionStrategy {
     pub fn columns(&self) -> &[String] {
         match self {
-            PostgresPartitionStrategy::Range { columns } => columns,
-            PostgresPartitionStrategy::List { columns } => columns,
-            PostgresPartitionStrategy::Hash { columns } => columns,
+            TablePartitionStrategy::Range { columns } => columns,
+            TablePartitionStrategy::List { columns } => columns,
+            TablePartitionStrategy::Hash { columns } => columns,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum PostgresPartitionBound {
+pub enum TablePartitionBound {
     Range { from: Vec<String>, to: Vec<String> },
     List { values: Vec<String> },
     Hash { modulus: i64, remainder: i64 },
     Default,
 }
 
-impl PostgresPartitionBound {
+impl TablePartitionBound {
     pub fn is_default(&self) -> bool {
-        matches!(self, PostgresPartitionBound::Default)
+        matches!(self, TablePartitionBound::Default)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub struct PostgresPartitionInfo {
+pub struct TablePartitionInfo {
     pub parent_table: Option<String>,
-    pub bound: Option<PostgresPartitionBound>,
-    pub strategy: Option<PostgresPartitionStrategy>,
+    pub bound: Option<TablePartitionBound>,
+    pub strategy: Option<TablePartitionStrategy>,
     pub child_partitions: Vec<String>,
     pub row_movement_enabled: bool,
 }

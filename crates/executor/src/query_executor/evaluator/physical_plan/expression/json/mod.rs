@@ -1,4 +1,3 @@
-mod clickhouse_json;
 mod is_json_predicate;
 mod is_not_json_predicate;
 mod json_array;
@@ -47,16 +46,6 @@ impl ProjectionWithExprExec {
             "JSON_OBJECT_KEYS" => Self::evaluate_json_object_keys(args, batch, row_idx),
             "JSON_LENGTH" | "JSON_ARRAY_LENGTH" => Self::evaluate_json_length(args, batch, row_idx),
             "JSON_TYPE" | "JSON_TYPEOF" => Self::evaluate_json_type(args, batch, row_idx),
-            "JSON_EXTRACT_STRING" => Self::evaluate_json_extract_string(args, batch, row_idx),
-            "JSON_EXTRACT_INT" => Self::evaluate_json_extract_int(args, batch, row_idx),
-            "JSON_EXTRACT_FLOAT" => Self::evaluate_json_extract_float(args, batch, row_idx),
-            "JSON_EXTRACT_BOOL" => Self::evaluate_json_extract_bool(args, batch, row_idx),
-            "JSON_EXTRACT_RAW" => Self::evaluate_json_extract_raw(args, batch, row_idx),
-            "JSON_EXTRACT_ARRAY_RAW" => Self::evaluate_json_extract_array_raw(args, batch, row_idx),
-            "JSON_EXTRACT_KEYS_AND_VALUES" => {
-                Self::evaluate_json_extract_keys_and_values(args, batch, row_idx)
-            }
-            "JSON_HAS" => Self::evaluate_json_has(args, batch, row_idx),
             "JSON_STRIP_NULLS" => Self::evaluate_json_strip_nulls(args, batch, row_idx),
             "JSON_EXTRACT_ARRAY" | "JSON_QUERY_ARRAY" => {
                 Self::evaluate_json_extract_array(args, batch, row_idx)

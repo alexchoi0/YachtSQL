@@ -50,7 +50,7 @@ impl ProjectionWithExprExec {
     {
         Self::validate_arg_count(func_name, args, 1)?;
         let val = Self::evaluate_expr_internal(&args[0], batch, row_idx, dialect)?;
-        let return_hex = matches!(dialect, crate::DialectType::PostgreSQL);
+        let return_hex = false;
         eval_fn(&val, return_hex)
     }
 

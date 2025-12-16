@@ -265,31 +265,4 @@ impl ProjectionWithExprExec {
 
         aes_decrypt_impl(&mode, &ciphertext, &key, iv.as_deref())
     }
-
-    pub(in crate::query_executor::evaluator::physical_plan) fn eval_aes_encrypt_mysql(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
-        if args.len() < 3 {
-            return Err(Error::invalid_query(
-                "aes_encrypt_mysql requires at least 3 arguments: mode, plaintext, key".to_string(),
-            ));
-        }
-        Self::eval_encrypt(args, batch, row_idx)
-    }
-
-    pub(in crate::query_executor::evaluator::physical_plan) fn eval_aes_decrypt_mysql(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
-        if args.len() < 3 {
-            return Err(Error::invalid_query(
-                "aes_decrypt_mysql requires at least 3 arguments: mode, ciphertext, key"
-                    .to_string(),
-            ));
-        }
-        Self::eval_decrypt(args, batch, row_idx)
-    }
 }

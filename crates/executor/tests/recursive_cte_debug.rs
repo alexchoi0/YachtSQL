@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_debug_fibonacci_simplified() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql(
         "WITH RECURSIVE fib AS (
@@ -27,7 +27,7 @@ fn test_debug_fibonacci_simplified() {
 
 #[test]
 fn test_debug_cte_reference() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql(
         "WITH RECURSIVE nums AS (

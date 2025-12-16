@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_delete_all_rows() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING)")
@@ -25,7 +25,7 @@ fn test_delete_all_rows() {
 
 #[test]
 fn test_delete_from_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, value STRING)")
@@ -41,7 +41,7 @@ fn test_delete_from_empty_table() {
 
 #[test]
 fn test_delete_nonexistent_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql("DELETE FROM nonexistent");
     assert!(result.is_err(), "DELETE from nonexistent table should fail");
@@ -50,7 +50,7 @@ fn test_delete_nonexistent_table() {
 
 #[test]
 fn test_delete_qualified_table_name() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dataset1.table1 (id INT64, value STRING)")
@@ -74,7 +74,7 @@ fn test_delete_qualified_table_name() {
 
 #[test]
 fn test_delete_and_reinsert() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE reinsert_test (id INT64, name STRING)")
@@ -97,7 +97,7 @@ fn test_delete_and_reinsert() {
 
 #[test]
 fn test_delete_multiple_batches() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE batch_test (id INT64, value STRING)")
@@ -127,7 +127,7 @@ fn test_delete_multiple_batches() {
 
 #[test]
 fn test_delete_various_types() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql(
@@ -152,7 +152,7 @@ fn test_delete_various_types() {
 
 #[test]
 fn test_delete_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -175,7 +175,7 @@ fn test_delete_with_nulls() {
 
 #[test]
 fn test_delete_single_row_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE single_row (id INT64, name STRING)")

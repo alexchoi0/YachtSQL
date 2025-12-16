@@ -160,12 +160,12 @@ impl SystemSchemaProvider {
                     rows.push(Row::from_values(vec![
                         Value::string(dataset_id.clone()),
                         Value::string(table_name.clone()),
-                        Value::string("MergeTree".to_string()),
+                        Value::string("Memory".to_string()),
                         Value::int64(0),
                         Value::array(vec![]),
                         Value::string("".to_string()),
                         Value::string("".to_string()),
-                        Value::string("MergeTree".to_string()),
+                        Value::string("Memory".to_string()),
                         Value::string("".to_string()),
                         Value::int64(0),
                         Value::int64(0),
@@ -1186,7 +1186,7 @@ impl SystemSchemaProvider {
 
         let rows = vec![Row::from_values(vec![
             Value::string("default".to_string()),
-            Value::string("/var/lib/clickhouse/".to_string()),
+            Value::string("/var/lib/yachtsql/".to_string()),
             Value::int64(0),
             Value::int64(0),
             Value::int64(0),
@@ -1248,30 +1248,7 @@ impl SystemSchemaProvider {
             Field::nullable("supports_parallel_insert", DataType::Int64),
         ]);
 
-        let engines = vec![
-            ("MergeTree", 1, 1, 1, 1, 1, 0, 0, 1),
-            ("ReplacingMergeTree", 1, 1, 1, 1, 1, 0, 0, 1),
-            ("SummingMergeTree", 1, 1, 1, 1, 1, 0, 0, 1),
-            ("AggregatingMergeTree", 1, 1, 1, 1, 1, 0, 0, 1),
-            ("CollapsingMergeTree", 1, 1, 1, 1, 1, 0, 0, 1),
-            ("VersionedCollapsingMergeTree", 1, 1, 1, 1, 1, 0, 0, 1),
-            ("GraphiteMergeTree", 1, 1, 1, 1, 1, 0, 0, 1),
-            ("ReplicatedMergeTree", 1, 1, 1, 1, 1, 1, 1, 1),
-            ("Memory", 0, 0, 0, 0, 0, 0, 0, 1),
-            ("Log", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("TinyLog", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("StripeLog", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("View", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("MaterializedView", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("Null", 0, 0, 0, 0, 0, 0, 0, 1),
-            ("Set", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("Join", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("URL", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("File", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("Distributed", 0, 0, 0, 0, 0, 0, 0, 1),
-            ("Dictionary", 0, 0, 0, 0, 0, 0, 0, 0),
-            ("Buffer", 0, 0, 0, 0, 0, 0, 0, 1),
-        ];
+        let engines = vec![("Memory", 0, 0, 0, 0, 0, 0, 0, 1)];
 
         let rows: Vec<Row> = engines
             .into_iter()

@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_distinct_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE colors (name STRING)")
@@ -32,7 +32,7 @@ fn test_distinct_basic() {
 
 #[test]
 fn test_distinct_multiple_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE pairs (first INT64, second INT64)")
@@ -63,7 +63,7 @@ fn test_distinct_multiple_columns() {
 
 #[test]
 fn test_distinct_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (value INT64)")
@@ -97,7 +97,7 @@ fn test_distinct_with_nulls() {
 
 #[test]
 fn test_distinct_all_duplicates() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE same (id INT64)")
@@ -121,7 +121,7 @@ fn test_distinct_all_duplicates() {
 
 #[test]
 fn test_distinct_no_duplicates() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE unique_vals (id INT64)")
@@ -145,7 +145,7 @@ fn test_distinct_no_duplicates() {
 
 #[test]
 fn test_distinct_with_where() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE filtered (category STRING, value INT64)")
@@ -177,7 +177,7 @@ fn test_distinct_with_where() {
 
 #[test]
 fn test_distinct_with_order_by() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE ordered (val INT64)")
@@ -211,7 +211,7 @@ fn test_distinct_with_order_by() {
 
 #[test]
 fn test_distinct_with_limit() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE limited (num INT64)")
@@ -235,7 +235,7 @@ fn test_distinct_with_limit() {
 
 #[test]
 fn test_distinct_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty (id INT64)")
@@ -253,7 +253,7 @@ fn test_distinct_empty_table() {
 
 #[test]
 fn test_distinct_string_values() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE names (name STRING)")
@@ -283,7 +283,7 @@ fn test_distinct_string_values() {
 
 #[test]
 fn test_distinct_mixed_types() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE mixed (id INT64, name STRING, score FLOAT64)")

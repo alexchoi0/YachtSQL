@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_update_single_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
@@ -25,7 +25,7 @@ fn test_update_single_column() {
 
 #[test]
 fn test_update_multiple_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, name STRING, price FLOAT64, stock INT64)")
@@ -47,7 +47,7 @@ fn test_update_multiple_columns() {
 
 #[test]
 fn test_update_with_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (id INT64, description STRING)")
@@ -62,7 +62,7 @@ fn test_update_with_null() {
 
 #[test]
 fn test_update_various_types() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql(
@@ -81,7 +81,7 @@ fn test_update_various_types() {
 
 #[test]
 fn test_update_nonexistent_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql("UPDATE nonexistent SET value = 1");
     assert!(result.is_err(), "UPDATE nonexistent table should fail");
@@ -90,7 +90,7 @@ fn test_update_nonexistent_table() {
 
 #[test]
 fn test_update_nonexistent_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (id INT64, name STRING)")
@@ -106,7 +106,7 @@ fn test_update_nonexistent_column() {
 
 #[test]
 fn test_update_qualified_table_name() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dataset1.table1 (id INT64, value INT64)")
@@ -125,7 +125,7 @@ fn test_update_qualified_table_name() {
 
 #[test]
 fn test_update_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, value INT64)")
@@ -137,7 +137,7 @@ fn test_update_empty_table() {
 
 #[test]
 fn test_update_type_coercion() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE coercion_test (id INT64, float_col FLOAT64)")
@@ -156,7 +156,7 @@ fn test_update_type_coercion() {
 
 #[test]
 fn test_update_preserves_other_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE preserve_test (id INT64, name STRING, age INT64)")

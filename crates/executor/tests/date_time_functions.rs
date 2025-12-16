@@ -9,7 +9,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_current_date() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64)")
@@ -28,7 +28,7 @@ fn test_current_date() {
 
 #[test]
 fn test_current_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64)")
@@ -47,7 +47,7 @@ fn test_current_timestamp() {
 
 #[test]
 fn test_now_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64)")
@@ -66,7 +66,7 @@ fn test_now_function() {
 
 #[test]
 fn test_date_add() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -89,7 +89,7 @@ fn test_date_add() {
 
 #[test]
 fn test_date_sub() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -112,7 +112,7 @@ fn test_date_sub() {
 
 #[test]
 fn test_date_diff() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (start_date DATE, end_date DATE)")
@@ -135,7 +135,7 @@ fn test_date_diff() {
 
 #[test]
 fn test_extract_year() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -157,7 +157,7 @@ fn test_extract_year() {
 
 #[test]
 fn test_extract_month() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -179,7 +179,7 @@ fn test_extract_month() {
 
 #[test]
 fn test_extract_day() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -201,7 +201,7 @@ fn test_extract_day() {
 
 #[test]
 fn test_date_part() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -223,7 +223,7 @@ fn test_date_part() {
 
 #[test]
 fn test_date_trunc_month() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -246,7 +246,7 @@ fn test_date_trunc_month() {
 
 #[test]
 fn test_date_trunc_year() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -269,7 +269,7 @@ fn test_date_trunc_year() {
 
 #[test]
 fn test_date_format() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -292,7 +292,7 @@ fn test_date_format() {
 
 #[test]
 fn test_to_char() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -315,7 +315,7 @@ fn test_to_char() {
 
 #[test]
 fn test_parse_date() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE strings (date_str STRING)")
@@ -338,7 +338,7 @@ fn test_parse_date() {
 
 #[test]
 fn test_timestamp_add() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -362,7 +362,7 @@ fn test_timestamp_add() {
 
 #[test]
 fn test_timestamp_diff() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (start_time TIMESTAMP, end_time TIMESTAMP)")
@@ -385,7 +385,7 @@ fn test_timestamp_diff() {
 
 #[test]
 fn test_make_date() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE parts (year INT64, month INT64, day INT64)")
@@ -407,7 +407,7 @@ fn test_make_date() {
 
 #[test]
 fn test_make_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE parts (y INT64, m INT64, d INT64, h INT64, min INT64, s INT64)")
@@ -429,7 +429,7 @@ fn test_make_timestamp() {
 
 #[test]
 fn test_age_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (start_date DATE, end_date DATE)")
@@ -451,7 +451,7 @@ fn test_age_function() {
 
 #[test]
 fn test_interval_arithmetic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -474,7 +474,7 @@ fn test_interval_arithmetic() {
 
 #[test]
 fn test_extract_hour_from_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -496,7 +496,7 @@ fn test_extract_hour_from_timestamp() {
 
 #[test]
 fn test_extract_minute_from_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -519,7 +519,7 @@ fn test_extract_minute_from_timestamp() {
 
 #[test]
 fn test_extract_second_from_timestamp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -542,7 +542,7 @@ fn test_extract_second_from_timestamp() {
 
 #[test]
 fn test_date_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_date DATE)")
@@ -570,7 +570,7 @@ fn test_date_comparison() {
 
 #[test]
 fn test_timestamp_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -596,7 +596,7 @@ fn test_timestamp_comparison() {
 
 #[test]
 fn test_date_null_handling() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_date DATE)")
@@ -623,7 +623,7 @@ fn test_date_null_handling() {
 
 #[test]
 fn test_timezone_conversion() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (event_time TIMESTAMP)")
@@ -646,7 +646,7 @@ fn test_timezone_conversion() {
 
 #[test]
 fn test_extract_day_of_week() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")
@@ -669,7 +669,7 @@ fn test_extract_day_of_week() {
 
 #[test]
 fn test_extract_day_of_year() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dates (event_date DATE)")

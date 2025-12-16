@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_row_number_no_partition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (id INT64, amount INT64)")
@@ -27,7 +27,7 @@ fn test_row_number_no_partition() {
 
 #[test]
 fn test_row_number_with_partition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (customer STRING, amount INT64)")
@@ -60,7 +60,7 @@ fn test_row_number_with_partition() {
 
 #[test]
 fn test_rank_no_ties() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (student STRING, score INT64)")
@@ -86,7 +86,7 @@ fn test_rank_no_ties() {
 
 #[test]
 fn test_rank_with_ties() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (student STRING, score INT64)")
@@ -115,7 +115,7 @@ fn test_rank_with_ties() {
 
 #[test]
 fn test_dense_rank_with_ties() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (student STRING, score INT64)")
@@ -144,7 +144,7 @@ fn test_dense_rank_with_ties() {
 
 #[test]
 fn test_ntile_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -165,7 +165,7 @@ fn test_ntile_basic() {
 
 #[test]
 fn test_multiple_window_functions() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE employees (dept STRING, salary INT64)")
@@ -201,7 +201,7 @@ fn test_multiple_window_functions() {
 
 #[test]
 fn test_window_function_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -233,7 +233,7 @@ fn test_window_function_with_nulls() {
 
 #[test]
 fn test_window_function_empty_partition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (category STRING, value INT64)")

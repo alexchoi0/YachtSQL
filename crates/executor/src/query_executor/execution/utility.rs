@@ -196,7 +196,6 @@ fn literal_type(lit: &yachtsql_optimizer::expr::LiteralValue) -> DataType {
             DataType::Range(yachtsql_core::types::RangeType::Int4Range)
         }
         yachtsql_optimizer::expr::LiteralValue::Point(_) => DataType::Point,
-        yachtsql_optimizer::expr::LiteralValue::PgBox(_) => DataType::PgBox,
         yachtsql_optimizer::expr::LiteralValue::Circle(_) => DataType::Circle,
         yachtsql_optimizer::expr::LiteralValue::Line(_) => DataType::Line,
         yachtsql_optimizer::expr::LiteralValue::Lseg(_) => DataType::Lseg,
@@ -359,7 +358,6 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
         yachtsql_optimizer::expr::CastDataType::Vector(dims) => DataType::Vector(*dims),
         yachtsql_optimizer::expr::CastDataType::Interval => DataType::Interval,
         yachtsql_optimizer::expr::CastDataType::Uuid => DataType::Uuid,
-        yachtsql_optimizer::expr::CastDataType::Hstore => DataType::Hstore,
         yachtsql_optimizer::expr::CastDataType::MacAddr => DataType::MacAddr,
         yachtsql_optimizer::expr::CastDataType::MacAddr8 => DataType::MacAddr8,
         yachtsql_optimizer::expr::CastDataType::Xid => DataType::Xid,
@@ -406,7 +404,6 @@ fn cast_data_type_to_data_type(cast_type: &yachtsql_optimizer::expr::CastDataTyp
             DataType::Multirange(yachtsql_core::types::MultirangeType::DateMultirange)
         }
         yachtsql_optimizer::expr::CastDataType::Point => DataType::Point,
-        yachtsql_optimizer::expr::CastDataType::PgBox => DataType::PgBox,
         yachtsql_optimizer::expr::CastDataType::Circle => DataType::Circle,
         yachtsql_optimizer::expr::CastDataType::Custom(name, _) => DataType::Custom(name.clone()),
     }
@@ -901,8 +898,6 @@ pub fn perform_cast(
                 Ok(Value::string(j.to_string()))
             } else if let Some(p) = value.as_point() {
                 Ok(Value::string(p.to_string()))
-            } else if let Some(b) = value.as_pgbox() {
-                Ok(Value::string(b.to_string()))
             } else if let Some(c) = value.as_circle() {
                 Ok(Value::string(c.to_string()))
             } else if let Some(interval) = value.as_interval() {
@@ -1150,19 +1145,7 @@ pub fn perform_cast(
                 })
             }
         }
-        CastDataType::Hstore => {
-            if let Some(h) = value.as_hstore() {
-                Ok(Value::hstore(h.clone()))
-            } else if let Some(s) = value.as_str() {
-                Value::hstore_from_str(s)
-                    .map_err(|e| Error::InvalidQuery(format!("Invalid HSTORE format: {}", e)))
-            } else {
-                Err(Error::TypeMismatch {
-                    expected: "Hstore".to_string(),
-                    actual: format!("{:?}", value.data_type()),
-                })
-            }
-        }
+        CastDataType::Hstore => Err(Error::unsupported_feature("Hstore not supported")),
         CastDataType::MacAddr => {
             if let Some(mac) = value.as_macaddr() {
                 Ok(Value::macaddr(mac.clone()))
@@ -1402,21 +1385,6 @@ pub fn perform_cast(
             } else {
                 Err(Error::TypeMismatch {
                     expected: "Point".to_string(),
-                    actual: format!("{:?}", value.data_type()),
-                })
-            }
-        }
-        CastDataType::PgBox => {
-            if value.as_pgbox().is_some() {
-                Ok(value.clone())
-            } else if let Some(s) = value.as_str() {
-                use yachtsql_core::types::PgBox;
-                PgBox::parse(s)
-                    .map(Value::pgbox)
-                    .ok_or_else(|| Error::InvalidOperation(format!("Invalid BOX '{}'", s)))
-            } else {
-                Err(Error::TypeMismatch {
-                    expected: "Box".to_string(),
                     actual: format!("{:?}", value.data_type()),
                 })
             }

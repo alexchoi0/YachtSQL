@@ -58,7 +58,6 @@ pub struct Field {
     pub identity_generation: Option<IdentityGeneration>,
     pub identity_sequence_name: Option<String>,
     pub identity_sequence_config: Option<crate::SequenceConfig>,
-    pub is_auto_increment: bool,
     pub generated_expression: Option<GeneratedExpression>,
     pub collation: Option<String>,
     pub source_table: Option<String>,
@@ -77,7 +76,6 @@ impl Field {
             identity_generation: None,
             identity_sequence_name: None,
             identity_sequence_config: None,
-            is_auto_increment: false,
             generated_expression: None,
             collation: None,
             source_table: None,
@@ -204,22 +202,8 @@ impl Field {
             .unwrap_or(&[])
     }
 
-    pub fn with_auto_increment(mut self) -> Self {
-        self.is_auto_increment = true;
-        self.mode = FieldMode::Required;
-        self
-    }
-
-    pub fn is_auto_increment(&self) -> bool {
-        self.is_auto_increment
-    }
-
     pub fn has_auto_generation(&self) -> bool {
-        self.is_identity() || self.is_auto_increment
-    }
-
-    pub fn validate_auto_increment_exclusivity(&self) -> bool {
-        !(self.is_identity() && self.is_auto_increment)
+        self.is_identity()
     }
 }
 
@@ -244,7 +228,6 @@ pub enum ConstraintTypeTag {
     PrimaryKey,
     Unique,
     Check,
-    ForeignKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -261,7 +244,6 @@ pub struct Schema {
     primary_key: Option<Vec<String>>,
     unique_constraints: Vec<UniqueConstraint>,
     check_constraints: Vec<CheckConstraint>,
-    foreign_keys: Vec<crate::ForeignKey>,
     constraint_metadata: HashMap<String, ConstraintMetadata>,
     #[serde(skip)]
     indexes: HashMap<String, IndexMetadata>,
@@ -270,7 +252,7 @@ pub struct Schema {
     parent_tables: Vec<String>,
     child_tables: Vec<String>,
     inherited_column_count: usize,
-    postgres_partition: Option<crate::PostgresPartitionInfo>,
+    table_partition: Option<crate::TablePartitionInfo>,
 }
 
 impl std::fmt::Debug for Schema {
@@ -280,7 +262,6 @@ impl std::fmt::Debug for Schema {
             .field("primary_key", &self.primary_key)
             .field("unique_constraints", &self.unique_constraints)
             .field("check_constraints", &self.check_constraints)
-            .field("foreign_keys", &self.foreign_keys)
             .field("constraint_metadata", &self.constraint_metadata)
             .field("indexes", &self.indexes)
             .field("check_evaluator", &"<function>")
@@ -294,7 +275,6 @@ impl PartialEq for Schema {
             && self.primary_key == other.primary_key
             && self.unique_constraints == other.unique_constraints
             && self.check_constraints == other.check_constraints
-            && self.foreign_keys == other.foreign_keys
             && self.constraint_metadata == other.constraint_metadata
             && self.indexes == other.indexes
     }
@@ -307,14 +287,13 @@ impl Schema {
             primary_key: None,
             unique_constraints: Vec::new(),
             check_constraints: Vec::new(),
-            foreign_keys: Vec::new(),
             constraint_metadata: HashMap::new(),
             indexes: HashMap::new(),
             check_evaluator: None,
             parent_tables: Vec::new(),
             child_tables: Vec::new(),
             inherited_column_count: 0,
-            postgres_partition: None,
+            table_partition: None,
         }
     }
 
@@ -324,14 +303,13 @@ impl Schema {
             primary_key: None,
             unique_constraints: Vec::new(),
             check_constraints: Vec::new(),
-            foreign_keys: Vec::new(),
             constraint_metadata: HashMap::new(),
             indexes: HashMap::new(),
             check_evaluator: None,
             parent_tables: Vec::new(),
             child_tables: Vec::new(),
             inherited_column_count: 0,
-            postgres_partition: None,
+            table_partition: None,
         }
     }
 
@@ -461,52 +439,6 @@ impl Schema {
         }
     }
 
-    pub fn add_foreign_key(&mut self, foreign_key: crate::ForeignKey) {
-        self.add_foreign_key_with_validity(foreign_key, true);
-    }
-
-    pub fn add_foreign_key_with_validity(
-        &mut self,
-        foreign_key: crate::ForeignKey,
-        is_valid: bool,
-    ) {
-        if let Some(ref name) = foreign_key.name {
-            self.constraint_metadata.insert(
-                name.clone(),
-                ConstraintMetadata {
-                    constraint_type: ConstraintTypeTag::ForeignKey,
-                    columns: foreign_key.child_columns.clone(),
-                    definition: format!(
-                        "FOREIGN KEY ({}) REFERENCES {}({})",
-                        foreign_key.child_columns.join(", "),
-                        foreign_key.parent_table,
-                        foreign_key.parent_columns.join(", ")
-                    ),
-                    is_valid,
-                },
-            );
-        }
-        self.foreign_keys.push(foreign_key);
-    }
-
-    pub fn foreign_keys(&self) -> &[crate::ForeignKey] {
-        &self.foreign_keys
-    }
-
-    pub fn remove_foreign_key_by_name(&mut self, name: &str) -> bool {
-        if let Some(pos) = self
-            .foreign_keys
-            .iter()
-            .position(|fk| fk.name.as_deref() == Some(name))
-        {
-            self.foreign_keys.remove(pos);
-            self.constraint_metadata.remove(name);
-            true
-        } else {
-            false
-        }
-    }
-
     pub fn rename_constraint(&mut self, old_name: &str, new_name: &str) -> bool {
         if let Some(metadata) = self.constraint_metadata.remove(old_name) {
             match metadata.constraint_type {
@@ -514,14 +446,6 @@ impl Schema {
                     for constraint in &mut self.check_constraints {
                         if constraint.name.as_deref() == Some(old_name) {
                             constraint.name = Some(new_name.to_string());
-                            break;
-                        }
-                    }
-                }
-                ConstraintTypeTag::ForeignKey => {
-                    for fk in &mut self.foreign_keys {
-                        if fk.name.as_deref() == Some(old_name) {
-                            fk.name = Some(new_name.to_string());
                             break;
                         }
                     }
@@ -724,45 +648,45 @@ impl Schema {
         self.inherited_column_count += count;
     }
 
-    pub fn postgres_partition(&self) -> Option<&crate::PostgresPartitionInfo> {
-        self.postgres_partition.as_ref()
+    pub fn table_partition(&self) -> Option<&crate::TablePartitionInfo> {
+        self.table_partition.as_ref()
     }
 
-    pub fn postgres_partition_mut(&mut self) -> Option<&mut crate::PostgresPartitionInfo> {
-        self.postgres_partition.as_mut()
+    pub fn table_partition_mut(&mut self) -> Option<&mut crate::TablePartitionInfo> {
+        self.table_partition.as_mut()
     }
 
-    pub fn set_postgres_partition(&mut self, info: crate::PostgresPartitionInfo) {
-        self.postgres_partition = Some(info);
+    pub fn set_table_partition(&mut self, info: crate::TablePartitionInfo) {
+        self.table_partition = Some(info);
     }
 
     pub fn is_partitioned(&self) -> bool {
-        self.postgres_partition
+        self.table_partition
             .as_ref()
             .map(|p| p.strategy.is_some())
             .unwrap_or(false)
     }
 
     pub fn is_partition(&self) -> bool {
-        self.postgres_partition
+        self.table_partition
             .as_ref()
             .map(|p| p.parent_table.is_some())
             .unwrap_or(false)
     }
 
     pub fn partition_parent(&self) -> Option<&str> {
-        self.postgres_partition
+        self.table_partition
             .as_ref()
             .and_then(|p| p.parent_table.as_deref())
     }
 
     pub fn add_partition_child(&mut self, child: String) {
-        if let Some(ref mut p) = self.postgres_partition {
+        if let Some(ref mut p) = self.table_partition {
             if !p.child_partitions.contains(&child) {
                 p.child_partitions.push(child);
             }
         } else {
-            self.postgres_partition = Some(crate::PostgresPartitionInfo {
+            self.table_partition = Some(crate::TablePartitionInfo {
                 child_partitions: vec![child],
                 ..Default::default()
             });
@@ -770,13 +694,13 @@ impl Schema {
     }
 
     pub fn remove_partition_child(&mut self, child: &str) {
-        if let Some(ref mut p) = self.postgres_partition {
+        if let Some(ref mut p) = self.table_partition {
             p.child_partitions.retain(|c| c != child);
         }
     }
 
     pub fn partition_children(&self) -> &[String] {
-        self.postgres_partition
+        self.table_partition
             .as_ref()
             .map(|p| p.child_partitions.as_slice())
             .unwrap_or(&[])

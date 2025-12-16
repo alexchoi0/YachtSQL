@@ -16,18 +16,11 @@ use super::physical_plan::{
 
 pub struct PhysicalPlanner {
     _dialect: yachtsql_parser::DialectType,
-    _feature_registry: Rc<yachtsql_capability::FeatureRegistry>,
 }
 
 impl PhysicalPlanner {
-    pub fn new(
-        dialect: yachtsql_parser::DialectType,
-        feature_registry: Rc<yachtsql_capability::FeatureRegistry>,
-    ) -> Self {
-        Self {
-            _dialect: dialect,
-            _feature_registry: feature_registry,
-        }
+    pub fn new(dialect: yachtsql_parser::DialectType) -> Self {
+        Self { _dialect: dialect }
     }
 
     pub fn create_physical_plan(&self, logical_plan: LogicalPlan) -> Result<PhysicalPlan> {
@@ -715,11 +708,6 @@ impl PhysicalPlanner {
 
 impl Default for PhysicalPlanner {
     fn default() -> Self {
-        Self::new(
-            yachtsql_parser::DialectType::PostgreSQL,
-            Rc::new(yachtsql_capability::FeatureRegistry::new(
-                yachtsql_parser::DialectType::PostgreSQL,
-            )),
-        )
+        Self::new(yachtsql_parser::DialectType::BigQuery)
     }
 }

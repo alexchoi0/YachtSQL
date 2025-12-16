@@ -545,8 +545,7 @@ impl QueryExecutor {
         let planner = crate::query_executor::logical_to_physical::LogicalToPhysicalPlanner::new(
             Rc::clone(&self.storage),
         )
-        .with_dialect(self.dialect())
-        .with_transaction_manager(Rc::clone(&self.transaction_manager));
+        .with_dialect(self.dialect());
 
         let logical_plan_for_conversion = yachtsql_ir::plan::LogicalPlan::new(optimized_plan);
         let physical_plan = planner.create_physical_plan(&logical_plan_for_conversion)?;
@@ -1168,28 +1167,6 @@ impl QueryExecutor {
                         }
                         Ok(DataType::String)
                     }
-
-                    "TO_TSVECTOR"
-                    | "TO_TSQUERY"
-                    | "PLAINTO_TSQUERY"
-                    | "PHRASETO_TSQUERY"
-                    | "WEBSEARCH_TO_TSQUERY"
-                    | "TS_HEADLINE"
-                    | "STRIP"
-                    | "SETWEIGHT"
-                    | "TSVECTOR_CONCAT"
-                    | "TSQUERY_AND"
-                    | "TSQUERY_OR"
-                    | "TSQUERY_NOT"
-                    | "QUERYTREE"
-                    | "TS_REWRITE"
-                    | "TS_DELETE"
-                    | "TS_FILTER"
-                    | "ARRAY_TO_TSVECTOR"
-                    | "GET_CURRENT_TS_CONFIG" => Ok(DataType::String),
-                    "TS_RANK" | "TS_RANK_CD" => Ok(DataType::Float64),
-                    "TS_MATCH" => Ok(DataType::Bool),
-                    "TSVECTOR_LENGTH" | "NUMNODE" => Ok(DataType::Int64),
 
                     _ => Ok(DataType::String),
                 }
@@ -2166,86 +2143,9 @@ impl QueryExecutor {
 
                 Ok((schema, rows))
             }
-            "TS_STAT" => {
-                if evaluated_args.is_empty() || evaluated_args.len() > 2 {
-                    return Err(Error::InvalidQuery(
-                        "ts_stat() requires 1 or 2 arguments".to_string(),
-                    ));
-                }
-
-                let query_str = evaluated_args[0]
-                    .as_str()
-                    .ok_or_else(|| Error::TypeMismatch {
-                        expected: "STRING".to_string(),
-                        actual: evaluated_args[0].data_type().to_string(),
-                    })?;
-
-                let query_result = self.execute_sql(query_str)?;
-                let num_rows = query_result.num_rows();
-
-                let mut word_stats: std::collections::HashMap<String, (i64, i64)> =
-                    std::collections::HashMap::new();
-
-                for row_idx in 0..num_rows {
-                    let row = match query_result.row(row_idx) {
-                        Ok(r) => r,
-                        Err(_) => continue,
-                    };
-                    let values = row.values();
-                    if values.is_empty() {
-                        continue;
-                    }
-
-                    let tsvector_str = match values[0].as_str() {
-                        Some(s) => s,
-                        None => match values[0].as_tsvector() {
-                            Some(s) => s,
-                            None => continue,
-                        },
-                    };
-
-                    let vector = match yachtsql_functions::fulltext::parse_tsvector(tsvector_str) {
-                        Ok(v) => v,
-                        Err(_) => continue,
-                    };
-
-                    let mut seen_in_doc: std::collections::HashSet<String> =
-                        std::collections::HashSet::new();
-
-                    for (lexeme, entry) in &vector.lexemes {
-                        let (ndoc, nentry) = word_stats.entry(lexeme.clone()).or_insert((0, 0));
-                        if seen_in_doc.insert(lexeme.clone()) {
-                            *ndoc += 1;
-                        }
-                        *nentry += entry.positions.len().max(1) as i64;
-                    }
-                }
-
-                let schema = Schema::from_fields(vec![
-                    Field::nullable("word", DataType::String),
-                    Field::nullable("ndoc", DataType::Int64),
-                    Field::nullable("nentry", DataType::Int64),
-                ]);
-
-                let mut result_rows: Vec<Row> = word_stats
-                    .into_iter()
-                    .map(|(word, (ndoc, nentry))| {
-                        Row::from_values(vec![
-                            Value::string(word),
-                            Value::int64(ndoc),
-                            Value::int64(nentry),
-                        ])
-                    })
-                    .collect();
-
-                result_rows.sort_by(|a, b| {
-                    let a_word = a.values()[0].as_str().unwrap_or("");
-                    let b_word = b.values()[0].as_str().unwrap_or("");
-                    a_word.cmp(b_word)
-                });
-
-                Ok((schema, result_rows))
-            }
+            "TS_STAT" => Err(Error::unsupported_feature(
+                "Full-text search not supported (PostgreSQL-specific)",
+            )),
             "POPULATE_RECORD" => {
                 if args.args.len() != 2 {
                     return Err(Error::InvalidQuery(
@@ -6168,9 +6068,6 @@ impl QueryExecutor {
         }
         if value.as_point().is_some() {
             return DataType::Point;
-        }
-        if value.as_pgbox().is_some() {
-            return DataType::PgBox;
         }
         if value.as_circle().is_some() {
             return DataType::Circle;

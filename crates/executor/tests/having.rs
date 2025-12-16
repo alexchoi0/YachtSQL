@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_having_with_count() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (customer STRING, amount INT64)")
@@ -36,7 +36,7 @@ fn test_having_with_count() {
 
 #[test]
 fn test_having_with_sum() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (product STRING, revenue INT64)")
@@ -72,7 +72,7 @@ fn test_having_with_sum() {
 
 #[test]
 fn test_having_with_avg() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE grades (student STRING, score INT64)")
@@ -107,7 +107,7 @@ fn test_having_with_avg() {
 
 #[test]
 fn test_having_with_min_max() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE temperatures (city STRING, temp INT64)")
@@ -142,7 +142,7 @@ fn test_having_with_min_max() {
 
 #[test]
 fn test_having_not_equals() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (group_id INT64, value INT64)")
@@ -170,7 +170,7 @@ fn test_having_not_equals() {
 
 #[test]
 fn test_having_less_than() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE prices (product STRING, price INT64)")
@@ -203,7 +203,7 @@ fn test_having_less_than() {
 
 #[test]
 fn test_having_greater_than_or_equal() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE inventory (warehouse STRING, qty INT64)")
@@ -232,7 +232,7 @@ fn test_having_greater_than_or_equal() {
 
 #[test]
 fn test_having_less_than_or_equal() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (team STRING, points INT64)")
@@ -260,7 +260,7 @@ fn test_having_less_than_or_equal() {
 
 #[test]
 fn test_having_filters_all_groups() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (category STRING, value INT64)")
@@ -293,7 +293,7 @@ fn test_having_filters_all_groups() {
 
 #[test]
 fn test_having_filters_no_groups() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE values (type STRING, amount INT64)")
@@ -325,7 +325,7 @@ fn test_having_filters_no_groups() {
 
 #[test]
 fn test_having_with_group_by_column_reference() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE employees (dept STRING, salary INT64)")
@@ -362,7 +362,7 @@ fn test_having_with_group_by_column_reference() {
 
 #[test]
 fn test_having_with_count_star() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (user_id INT64, event_type STRING)")
@@ -400,7 +400,7 @@ fn test_having_with_count_star() {
 
 #[test]
 fn test_having_multiple_aggregates() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE transactions (merchant STRING, amount INT64)")
@@ -440,7 +440,7 @@ fn test_having_multiple_aggregates() {
 
 #[test]
 fn test_having_with_min() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (category STRING, price INT64)")

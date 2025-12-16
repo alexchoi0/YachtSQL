@@ -6,7 +6,6 @@ use crate::query_executor::evaluator::physical_plan::SubqueryExecutor;
 
 #[derive(Default)]
 pub struct ExecutorContext {
-    pub feature_registry: RefCell<Option<Rc<yachtsql_capability::FeatureRegistry>>>,
     pub subquery_executor: RefCell<Option<Rc<dyn SubqueryExecutor>>>,
     pub correlation: RefCell<Option<CorrelationContext>>,
 }
@@ -14,18 +13,6 @@ pub struct ExecutorContext {
 impl ExecutorContext {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn set_feature_registry(&self, registry: Rc<yachtsql_capability::FeatureRegistry>) {
-        *self.feature_registry.borrow_mut() = Some(registry);
-    }
-
-    pub fn clear_feature_registry(&self) {
-        *self.feature_registry.borrow_mut() = None;
-    }
-
-    pub fn feature_registry(&self) -> Option<Rc<yachtsql_capability::FeatureRegistry>> {
-        self.feature_registry.borrow().clone()
     }
 
     pub fn set_subquery_executor(&self, executor: Rc<dyn SubqueryExecutor>) {
@@ -50,28 +37,6 @@ impl ExecutorContext {
 
     pub fn correlation(&self) -> Option<CorrelationContext> {
         self.correlation.borrow().clone()
-    }
-}
-
-pub struct FeatureRegistryGuard<'a> {
-    ctx: &'a ExecutorContext,
-    previous: Option<Rc<yachtsql_capability::FeatureRegistry>>,
-}
-
-impl<'a> FeatureRegistryGuard<'a> {
-    pub fn set(
-        ctx: &'a ExecutorContext,
-        registry: Rc<yachtsql_capability::FeatureRegistry>,
-    ) -> Self {
-        let previous = ctx.feature_registry.borrow().clone();
-        *ctx.feature_registry.borrow_mut() = Some(registry);
-        Self { ctx, previous }
-    }
-}
-
-impl Drop for FeatureRegistryGuard<'_> {
-    fn drop(&mut self) {
-        *self.ctx.feature_registry.borrow_mut() = self.previous.take();
     }
 }
 

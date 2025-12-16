@@ -88,7 +88,7 @@ mod tests {
         let sql1 = "SELECT * FROM users";
         let sql2 = "select   *   from   users";
         let sql3 = "  SELECT\n  *\n  FROM\n  users  ";
-        let dialect = DialectType::PostgreSQL;
+        let dialect = DialectType::BigQuery;
 
         assert_eq!(hash_sql(sql1, dialect), hash_sql(sql2, dialect));
         assert_eq!(hash_sql(sql1, dialect), hash_sql(sql3, dialect));
@@ -98,22 +98,9 @@ mod tests {
     fn test_hash_sql_different() {
         let sql1 = "SELECT * FROM users";
         let sql2 = "SELECT * FROM products";
-        let dialect = DialectType::PostgreSQL;
+        let dialect = DialectType::BigQuery;
 
         assert_ne!(hash_sql(sql1, dialect), hash_sql(sql2, dialect));
-    }
-
-    #[test]
-    fn test_hash_sql_different_dialects() {
-        let sql = "SELECT * FROM users";
-
-        let pg_hash = hash_sql(sql, DialectType::PostgreSQL);
-        let bq_hash = hash_sql(sql, DialectType::BigQuery);
-        let ch_hash = hash_sql(sql, DialectType::ClickHouse);
-
-        assert_ne!(pg_hash, bq_hash);
-        assert_ne!(pg_hash, ch_hash);
-        assert_ne!(bq_hash, ch_hash);
     }
 
     #[test]

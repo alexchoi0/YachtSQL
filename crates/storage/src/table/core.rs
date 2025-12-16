@@ -1,12 +1,9 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use indexmap::IndexMap;
 use yachtsql_core::error::Result;
 
 use super::partition::PartitionSpec;
-use crate::foreign_keys::ForeignKey;
 use crate::index::IndexMetadata;
 use crate::indexes::TableIndex;
 use crate::row::Row;
@@ -19,61 +16,11 @@ use crate::{Column, Schema};
 pub enum TableEngine {
     #[default]
     Memory,
-    Log,
-    TinyLog,
-    StripeLog,
-    MergeTree {
-        order_by: Vec<String>,
-    },
-    ReplacingMergeTree {
-        order_by: Vec<String>,
-        version_column: Option<String>,
-    },
-    SummingMergeTree {
-        order_by: Vec<String>,
-        sum_columns: Vec<String>,
-    },
-    CollapsingMergeTree {
-        order_by: Vec<String>,
-        sign_column: String,
-    },
-    VersionedCollapsingMergeTree {
-        order_by: Vec<String>,
-        sign_column: String,
-        version_column: String,
-    },
-    AggregatingMergeTree {
-        order_by: Vec<String>,
-    },
-    Distributed {
-        cluster: String,
-        database: String,
-        table: String,
-        sharding_key: Option<String>,
-    },
-    Buffer {
-        database: String,
-        table: String,
-    },
-    Null,
-    Set,
-    Merge {
-        database: String,
-        pattern: String,
-    },
-    GenerateRandom {
-        random_seed: Option<u64>,
-        max_string_length: Option<u64>,
-        max_array_length: Option<u64>,
-    },
 }
 
 pub struct Table {
     pub(super) schema: Schema,
     pub(super) storage: StorageBackend,
-    pub(super) auto_increment_counter: Option<Rc<RefCell<i64>>>,
-    pub(super) auto_increment_column: Option<String>,
-    pub(super) foreign_keys: Vec<ForeignKey>,
     pub(super) partition_spec: Option<PartitionSpec>,
 
     pub(super) indexes: HashMap<String, Box<dyn TableIndex>>,
@@ -90,9 +37,6 @@ impl Clone for Table {
         Self {
             schema: self.schema.clone(),
             storage: self.storage.clone(),
-            auto_increment_counter: self.auto_increment_counter.clone(),
-            auto_increment_column: self.auto_increment_column.clone(),
-            foreign_keys: self.foreign_keys.clone(),
             partition_spec: self.partition_spec.clone(),
             indexes: HashMap::new(),
             index_metadata: Vec::new(),
@@ -107,9 +51,6 @@ impl std::fmt::Debug for Table {
         f.debug_struct("Table")
             .field("schema", &self.schema)
             .field("storage", &self.storage)
-            .field("auto_increment_counter", &self.auto_increment_counter)
-            .field("auto_increment_column", &self.auto_increment_column)
-            .field("foreign_keys", &self.foreign_keys)
             .field("partition_spec", &self.partition_spec)
             .field("index_count", &self.indexes.len())
             .field("index_metadata", &self.index_metadata)
@@ -125,26 +66,14 @@ impl Table {
     }
 
     pub fn with_layout(schema: Schema, layout: StorageLayout) -> Self {
-        let (auto_increment_counter, auto_increment_column) =
-            if let Some(field) = schema.fields().iter().find(|f| f.is_auto_increment) {
-                (Some(Rc::new(RefCell::new(1))), Some(field.name.clone()))
-            } else {
-                (None, None)
-            };
-
         let storage = match layout {
             StorageLayout::Columnar => StorageBackend::columnar(&schema),
             StorageLayout::Row => StorageBackend::row(),
         };
 
-        let foreign_keys = schema.foreign_keys().to_vec();
-
         Self {
             schema,
             storage,
-            auto_increment_counter,
-            auto_increment_column,
-            foreign_keys,
             partition_spec: None,
             indexes: HashMap::new(),
             index_metadata: Vec::new(),
@@ -171,10 +100,6 @@ impl Table {
 
     pub fn schema(&self) -> &Schema {
         &self.schema
-    }
-
-    pub fn foreign_keys(&self) -> &[ForeignKey] {
-        &self.foreign_keys
     }
 
     pub fn row_count(&self) -> usize {
@@ -206,71 +131,6 @@ impl Table {
         self.partition_spec.is_some()
     }
 
-    pub fn auto_increment_column(&self) -> Option<&str> {
-        self.auto_increment_column.as_deref()
-    }
-
-    pub fn next_auto_increment(&self) -> Result<i64> {
-        use yachtsql_core::error::Error;
-        match &self.auto_increment_counter {
-            Some(counter) => {
-                let mut val = counter.borrow_mut();
-                let current = *val;
-                *val += 1;
-                Ok(current)
-            }
-            None => Err(Error::InvalidOperation(
-                "Table does not have AUTO_INCREMENT column".to_string(),
-            )),
-        }
-    }
-
-    pub fn update_auto_increment_if_greater(&self, explicit_value: i64) -> Result<()> {
-        match &self.auto_increment_counter {
-            Some(counter) => {
-                let mut val = counter.borrow_mut();
-                if explicit_value >= *val {
-                    *val = explicit_value + 1;
-                }
-                Ok(())
-            }
-            None => Ok(()),
-        }
-    }
-
-    pub fn reset_auto_increment(&self, start_value: i64) -> Result<()> {
-        match &self.auto_increment_counter {
-            Some(counter) => {
-                *counter.borrow_mut() = start_value;
-                Ok(())
-            }
-            None => Ok(()),
-        }
-    }
-
-    pub fn set_auto_increment(&self, value: i64) -> Result<()> {
-        self.reset_auto_increment(value)
-    }
-
-    pub fn init_auto_increment(&mut self, column_name: String, start_value: i64) -> Result<()> {
-        use yachtsql_core::error::Error;
-        if self.auto_increment_counter.is_some() {
-            return Err(Error::InvalidOperation(
-                "Table already has an AUTO_INCREMENT column".to_string(),
-            ));
-        }
-
-        self.auto_increment_counter = Some(Rc::new(RefCell::new(start_value)));
-        self.auto_increment_column = Some(column_name);
-        Ok(())
-    }
-
-    pub fn remove_auto_increment(&mut self) -> Result<()> {
-        self.auto_increment_counter = None;
-        self.auto_increment_column = None;
-        Ok(())
-    }
-
     pub fn storage_layout(&self) -> StorageLayout {
         self.storage().layout()
     }
@@ -283,9 +143,6 @@ impl Table {
                 Ok(Self {
                     schema: self.schema.clone(),
                     storage: StorageBackend::Row(RowStorage::from_rows(rows)),
-                    auto_increment_counter: self.auto_increment_counter.clone(),
-                    auto_increment_column: self.auto_increment_column.clone(),
-                    foreign_keys: self.foreign_keys.clone(),
                     partition_spec: self.partition_spec.clone(),
                     indexes: HashMap::new(),
                     index_metadata: Vec::new(),
@@ -310,9 +167,6 @@ impl Table {
                 Ok(Self {
                     schema: self.schema.clone(),
                     storage: StorageBackend::Columnar(columnar_storage),
-                    auto_increment_counter: self.auto_increment_counter.clone(),
-                    auto_increment_column: self.auto_increment_column.clone(),
-                    foreign_keys: self.foreign_keys.clone(),
                     partition_spec: self.partition_spec.clone(),
                     indexes: HashMap::new(),
                     index_metadata: Vec::new(),
@@ -350,9 +204,6 @@ impl Table {
         Table {
             schema: schema.clone(),
             storage: StorageBackend::Columnar(ColumnarStorage::from_columns(columns, row_count)),
-            auto_increment_counter: self.auto_increment_counter.clone(),
-            auto_increment_column: self.auto_increment_column.clone(),
-            foreign_keys: self.foreign_keys.clone(),
             partition_spec: self.partition_spec.clone(),
             indexes: HashMap::new(),
             index_metadata: Vec::new(),
@@ -365,9 +216,6 @@ impl Table {
         Table {
             schema,
             storage: StorageBackend::Row(RowStorage::from_rows(rows)),
-            auto_increment_counter: self.auto_increment_counter.clone(),
-            auto_increment_column: self.auto_increment_column.clone(),
-            foreign_keys: self.foreign_keys.clone(),
             partition_spec: self.partition_spec.clone(),
             indexes: HashMap::new(),
             index_metadata: Vec::new(),

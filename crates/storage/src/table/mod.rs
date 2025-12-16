@@ -1,4 +1,3 @@
-pub mod auto_increment;
 pub mod constraints;
 pub mod core;
 pub mod data_ops;
@@ -15,8 +14,7 @@ pub use constraints::TableConstraintOps;
 pub use indexes::TableIndexOps;
 pub use iterator::TableIterator;
 pub use partition::{
-    PartitionSpec, PartitionType, PostgresPartitionBound, PostgresPartitionInfo,
-    PostgresPartitionStrategy,
+    PartitionSpec, PartitionType, TablePartitionBound, TablePartitionInfo, TablePartitionStrategy,
 };
 pub use schema_ops::TableSchemaOps;
 pub use statistics::{ColumnStatistics, TableStatistics};

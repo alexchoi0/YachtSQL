@@ -11,7 +11,7 @@ use yachtsql_parser::DialectType;
 use yachtsql_storage::Row;
 
 pub fn setup_executor() -> QueryExecutor {
-    QueryExecutor::with_dialect(DialectType::PostgreSQL)
+    QueryExecutor::with_dialect(DialectType::BigQuery)
 }
 
 pub fn assert_batch_empty(batch: &yachtsql::Table) {
@@ -147,7 +147,7 @@ pub fn build_nested_expression(wrapper: &str, inner: &str, depth: usize) -> Stri
 }
 
 pub fn setup_bool_table() -> QueryExecutor {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE bools (id INT64, val BOOL)")
         .expect("CREATE TABLE should succeed");

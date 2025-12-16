@@ -3,7 +3,7 @@ use yachtsql_executor::QueryExecutor;
 
 #[test]
 fn test_create_table_with_single_column_primary_key() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         id INT64,
@@ -32,7 +32,7 @@ fn test_create_table_with_single_column_primary_key() {
 
 #[test]
 fn test_create_table_with_multi_column_primary_key() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE order_items (
         order_id INT64,
@@ -64,7 +64,7 @@ fn test_create_table_with_multi_column_primary_key() {
 
 #[test]
 fn test_create_table_with_single_column_unique() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         id INT64,
@@ -97,7 +97,7 @@ fn test_create_table_with_single_column_unique() {
 
 #[test]
 fn test_create_table_with_multi_column_unique() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         first_name STRING,
@@ -131,7 +131,7 @@ fn test_create_table_with_multi_column_unique() {
 
 #[test]
 fn test_create_table_with_multiple_unique_constraints() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         id INT64,
@@ -171,7 +171,7 @@ fn test_create_table_with_multiple_unique_constraints() {
 
 #[test]
 fn test_create_table_with_primary_key_and_unique() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         id INT64,
@@ -220,7 +220,7 @@ fn test_create_table_with_primary_key_and_unique() {
 
 #[test]
 fn test_create_table_primary_key_nonexistent_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         id INT64,
@@ -245,7 +245,7 @@ fn test_create_table_primary_key_nonexistent_column() {
 
 #[test]
 fn test_create_table_unique_nonexistent_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         id INT64,
@@ -270,7 +270,7 @@ fn test_create_table_unique_nonexistent_column() {
 
 #[test]
 fn test_create_table_multi_column_primary_key_partial_invalid() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE order_items (
         order_id INT64,
@@ -295,7 +295,7 @@ fn test_create_table_multi_column_primary_key_partial_invalid() {
 
 #[test]
 fn test_create_table_primary_key_with_check_constraint() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         id INT64,
@@ -328,7 +328,7 @@ fn test_create_table_primary_key_with_check_constraint() {
 
 #[test]
 fn test_create_table_all_constraint_types() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE products (
         id INT64,
@@ -364,7 +364,7 @@ fn test_create_table_all_constraint_types() {
 
 #[test]
 fn test_create_table_primary_key_case_sensitivity() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE users (
         UserId INT64,
@@ -393,7 +393,7 @@ fn test_create_table_primary_key_case_sensitivity() {
 
 #[test]
 fn test_create_table_empty_table_name_with_constraints() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let sql = "CREATE TABLE testdb.users (
         id INT64,

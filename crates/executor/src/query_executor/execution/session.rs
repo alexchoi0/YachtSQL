@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use sqlparser::ast::Query;
-use yachtsql_capability::FeatureRegistry;
 use yachtsql_core::diagnostics::DiagnosticArea;
 use yachtsql_core::diagnostics::sqlstate::SqlState;
 use yachtsql_core::error::Error;
@@ -48,77 +46,39 @@ pub enum ProcedureParameterMode {
     InOut,
 }
 
-#[derive(Debug, Clone)]
-pub struct CursorState {
-    pub name: String,
-    pub query: Box<Query>,
-    pub result_set: Option<Table>,
-    pub position: i64,
-    pub is_scrollable: bool,
-    pub with_hold: bool,
-    pub is_binary: bool,
-}
-
 #[derive(Debug)]
 pub struct SessionState {
     dialect: DialectType,
     diagnostics: SessionDiagnostics,
-    feature_registry: Rc<FeatureRegistry>,
     function_registry: Rc<crate::functions::FunctionRegistry>,
-    feature_registry_snapshot: Option<Rc<FeatureRegistry>>,
     extension_registry: ExtensionRegistry,
     search_path: Vec<String>,
     variables: HashMap<String, SessionVariable>,
     system_variables: HashMap<String, Value>,
     udfs: HashMap<String, UdfDefinition>,
     procedures: HashMap<String, ProcedureDefinition>,
-    cursors: HashMap<String, CursorState>,
 }
 
 impl SessionState {
     pub fn new(dialect: DialectType) -> Self {
-        let registry = Rc::new(FeatureRegistry::with_default_features(dialect));
-        Self::with_registry(dialect, registry)
-    }
-
-    pub fn with_registry(dialect: DialectType, feature_registry: Rc<FeatureRegistry>) -> Self {
         let mut system_variables = HashMap::new();
         system_variables.insert("time_zone".to_string(), Value::string("UTC".to_string()));
-        let search_path = match dialect {
-            DialectType::PostgreSQL => vec!["$user".to_string(), "public".to_string()],
-            _ => vec!["default".to_string()],
-        };
+        let search_path = vec!["default".to_string()];
         Self {
             dialect,
             diagnostics: SessionDiagnostics::new(),
-            feature_registry,
             function_registry: Rc::new(crate::functions::FunctionRegistry::new()),
-            feature_registry_snapshot: None,
             extension_registry: ExtensionRegistry::new(),
             search_path,
             variables: HashMap::new(),
             system_variables,
             udfs: HashMap::new(),
             procedures: HashMap::new(),
-            cursors: HashMap::new(),
         }
     }
 
     pub fn dialect(&self) -> DialectType {
         self.dialect
-    }
-
-    pub fn feature_registry(&self) -> &Rc<FeatureRegistry> {
-        &self.feature_registry
-    }
-
-    #[allow(dead_code)]
-    pub fn feature_registry_mut(&mut self) -> &mut Rc<FeatureRegistry> {
-        &mut self.feature_registry
-    }
-
-    pub fn set_feature_registry(&mut self, registry: Rc<FeatureRegistry>) {
-        self.feature_registry = registry;
     }
 
     pub fn function_registry(&self) -> &Rc<crate::functions::FunctionRegistry> {
@@ -140,20 +100,6 @@ impl SessionState {
 
     pub fn reset_diagnostics(&mut self) {
         self.diagnostics = SessionDiagnostics::new();
-    }
-
-    pub fn snapshot_feature_registry(&mut self) {
-        self.feature_registry_snapshot = Some(Rc::clone(&self.feature_registry));
-    }
-
-    pub fn restore_feature_registry_snapshot(&mut self) {
-        if let Some(snapshot) = self.feature_registry_snapshot.take() {
-            self.feature_registry = snapshot;
-        }
-    }
-
-    pub fn clear_feature_registry_snapshot(&mut self) {
-        self.feature_registry_snapshot = None;
     }
 
     pub fn extension_registry(&self) -> &ExtensionRegistry {
@@ -179,10 +125,7 @@ impl SessionState {
             }
             return schema.as_str();
         }
-        match self.dialect {
-            DialectType::PostgreSQL => "public",
-            _ => "default",
-        }
+        "default"
     }
 
     pub fn declare_variable(
@@ -305,49 +248,6 @@ impl SessionState {
 
     pub fn drop_procedure(&mut self, name: &str) -> bool {
         self.procedures.remove(&name.to_uppercase()).is_some()
-    }
-
-    pub fn declare_cursor(&mut self, cursor: CursorState) -> Result<(), Error> {
-        let name = cursor.name.to_uppercase();
-        if self.cursors.contains_key(&name) {
-            return Err(Error::duplicate_cursor(format!(
-                "cursor \"{}\" already exists",
-                cursor.name
-            )));
-        }
-        self.cursors.insert(name, cursor);
-        Ok(())
-    }
-
-    pub fn get_cursor(&self, name: &str) -> Option<&CursorState> {
-        self.cursors.get(&name.to_uppercase())
-    }
-
-    pub fn get_cursor_mut(&mut self, name: &str) -> Option<&mut CursorState> {
-        self.cursors.get_mut(&name.to_uppercase())
-    }
-
-    pub fn close_cursor(&mut self, name: &str) -> Result<(), Error> {
-        let key = name.to_uppercase();
-        if self.cursors.remove(&key).is_none() {
-            return Err(Error::invalid_cursor_name(format!(
-                "cursor \"{}\" does not exist",
-                name
-            )));
-        }
-        Ok(())
-    }
-
-    pub fn close_all_cursors(&mut self) {
-        self.cursors.clear();
-    }
-
-    pub fn cursors(&self) -> &HashMap<String, CursorState> {
-        &self.cursors
-    }
-
-    pub fn clear_non_holdable_cursors(&mut self) {
-        self.cursors.retain(|_, cursor| cursor.with_hold);
     }
 }
 
@@ -488,8 +388,8 @@ mod tests {
 
     #[test]
     fn session_state_initializes_with_defaults() {
-        let state = SessionState::new(DialectType::PostgreSQL);
-        assert_eq!(state.dialect(), DialectType::PostgreSQL);
+        let state = SessionState::new(DialectType::BigQuery);
+        assert_eq!(state.dialect(), DialectType::BigQuery);
         assert!(state.diagnostics().pending_row_count().is_none());
         assert!(state.diagnostics().exception_diagnostic().is_none());
     }

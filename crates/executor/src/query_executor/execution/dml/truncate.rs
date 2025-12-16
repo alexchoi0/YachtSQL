@@ -49,10 +49,6 @@ impl DmlTruncateExecutor for QueryExecutor {
 
             table.clear_rows()?;
 
-            if let Some(sqlparser::ast::TruncateIdentityOption::Restart) = identity {
-                table.reset_auto_increment(1)?;
-            }
-
             total_rows_deleted += rows_before;
         }
 

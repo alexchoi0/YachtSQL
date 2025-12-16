@@ -17,25 +17,19 @@ use crate::correlation::{bind_correlation, plan_has_correlation};
 #[derive(Clone)]
 pub struct SubqueryExecutorImpl {
     _storage: Rc<RefCell<yachtsql_storage::Storage>>,
-    _transaction_manager: Rc<RefCell<yachtsql_storage::TransactionManager>>,
     _temporary_storage: Rc<RefCell<yachtsql_storage::TempStorage>>,
-    _feature_registry: Rc<yachtsql_capability::FeatureRegistry>,
     _dialect: DialectType,
 }
 
 impl SubqueryExecutorImpl {
     pub fn new(
         storage: Rc<RefCell<yachtsql_storage::Storage>>,
-        transaction_manager: Rc<RefCell<yachtsql_storage::TransactionManager>>,
         temporary_storage: Rc<RefCell<yachtsql_storage::TempStorage>>,
-        feature_registry: Rc<yachtsql_capability::FeatureRegistry>,
         dialect: DialectType,
     ) -> Self {
         Self {
             _storage: storage,
-            _transaction_manager: transaction_manager,
             _temporary_storage: temporary_storage,
-            _feature_registry: feature_registry,
             _dialect: dialect,
         }
     }
@@ -1049,18 +1043,9 @@ impl SubqueryExecutorImpl {
                             Ok(Value::null())
                         }
                     }
-                    UnaryOp::TSQueryNot => {
-                        if val.is_null() {
-                            Ok(Value::null())
-                        } else if let Some(s) = val.as_str() {
-                            match yachtsql_functions::fulltext::tsquery_negate(s) {
-                                Ok(result) => Ok(Value::string(result)),
-                                Err(_) => Ok(Value::null()),
-                            }
-                        } else {
-                            Ok(Value::null())
-                        }
-                    }
+                    UnaryOp::TSQueryNot => Err(Error::UnsupportedFeature(
+                        "Full-text search not supported (PostgreSQL-specific)".to_string(),
+                    )),
                 }
             }
 

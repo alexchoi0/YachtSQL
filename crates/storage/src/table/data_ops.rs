@@ -95,10 +95,6 @@ impl Table {
     pub fn clear_rows(&mut self) -> Result<()> {
         self.storage_mut().clear_rows()?;
 
-        if self.auto_increment_counter.is_some() {
-            self.reset_auto_increment(1)?;
-        }
-
         self.rebuild_all_indexes()?;
 
         Ok(())

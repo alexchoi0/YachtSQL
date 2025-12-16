@@ -1,6 +1,5 @@
 use debug_print::debug_eprintln;
 use indexmap::IndexMap;
-use yachtsql_capability::feature_ids::F311_SCHEMA_DEFINITION;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 use yachtsql_storage::{Row, Schema, TableEngine, TableSchemaOps};
@@ -56,39 +55,7 @@ impl DmlInsertExecutor for QueryExecutor {
             let dataset = storage.get_dataset(&dataset_id).ok_or_else(|| {
                 Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
             })?;
-            if let Some(table) = dataset.get_table(&table_id) {
-                match table.engine() {
-                    TableEngine::Distributed {
-                        database,
-                        table: target_table,
-                        ..
-                    } => {
-                        let target_db = if database.is_empty() {
-                            dataset_id.clone()
-                        } else {
-                            database.clone()
-                        };
-                        (target_db, target_table.clone())
-                    }
-                    TableEngine::Buffer {
-                        database,
-                        table: target_table,
-                    } => {
-                        let target_db = if database.is_empty() {
-                            dataset_id.clone()
-                        } else {
-                            database.clone()
-                        };
-                        (target_db, target_table.clone())
-                    }
-                    TableEngine::Null => {
-                        return Ok(Table::empty(Schema::default()));
-                    }
-                    _ => (dataset_id.clone(), table_id.clone()),
-                }
-            } else {
-                (dataset_id.clone(), table_id.clone())
-            }
+            (dataset_id.clone(), table_id.clone())
         };
 
         let is_view = {
@@ -355,10 +322,6 @@ impl DmlInsertExecutor for QueryExecutor {
         use sqlparser::ast::{
             Expr as SqlExpr, Value as SqlValue, ValueWithSpan as SqlValueWithSpan,
         };
-
-        if Self::contains_subquery(expr) {
-            self.require_feature(F311_SCHEMA_DEFINITION, "scalar subquery in VALUES")?;
-        }
 
         match expr {
             SqlExpr::Value(SqlValueWithSpan {
@@ -826,21 +789,6 @@ impl QueryExecutor {
 
             self.validate_view_check_option_insert(dataset_id, table_id, &row, schema)?;
 
-            let instead_of_result =
-                self.fire_instead_of_insert_triggers(dataset_id, table_id, &row, schema)?;
-
-            if instead_of_result.triggers_fired > 0 {
-                inserted_count += 1;
-                continue;
-            }
-
-            let before_result =
-                self.fire_before_insert_triggers(dataset_id, table_id, &row, schema)?;
-
-            if before_result.skip_operation {
-                continue;
-            }
-
             if let Some(conflict) = on_conflict {
                 let conflict_detected = {
                     let mut storage = self.storage.borrow_mut();
@@ -933,63 +881,22 @@ impl QueryExecutor {
             }
 
             {
-                let storage = self.storage.borrow_mut();
-                let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-                let table_full_name = format!("{}.{}", dataset_id, table_id);
-
-                let deferred_state = {
-                    let tm = self.transaction_manager.borrow();
-                    tm.get_active_transaction()
-                        .map(|txn| txn.deferred_fk_state().clone())
-                };
-
-                let deferred_checks = enforcer.validate_insert_with_deferral(
-                    &table_full_name,
-                    &row,
-                    &storage,
-                    deferred_state.as_ref(),
-                )?;
-
-                if !deferred_checks.is_empty() {
-                    drop(storage);
-                    let mut tm = self.transaction_manager.borrow_mut();
-                    if let Some(txn) = tm.get_active_transaction_mut() {
-                        for check in deferred_checks {
-                            txn.deferred_fk_state_mut().defer_check(check);
-                        }
+                let mut storage = self.storage.borrow_mut();
+                let dataset = storage.get_dataset_mut(dataset_id).ok_or_else(|| {
+                    Error::dataset_not_found(format!("Dataset '{}' not found", dataset_id))
+                })?;
+                let table = dataset.get_table_mut(table_id).ok_or_else(|| {
+                    Error::table_not_found(format!("Table '{}.{}' not found", dataset_id, table_id))
+                })?;
+                {
+                    let schema = table.schema_mut();
+                    if schema.check_evaluator().is_none() {
+                        let evaluator = super::build_check_evaluator();
+                        schema.set_check_evaluator(evaluator);
                     }
                 }
+                table.insert_row(row.clone())?;
             }
-
-            {
-                let mut tm = self.transaction_manager.borrow_mut();
-                if let Some(txn) = tm.get_active_transaction_mut() {
-                    let table_full_name = format!("{}.{}", dataset_id, table_id);
-                    txn.track_insert(&table_full_name, row.clone());
-                } else {
-                    drop(tm);
-                    let mut storage = self.storage.borrow_mut();
-                    let dataset = storage.get_dataset_mut(dataset_id).ok_or_else(|| {
-                        Error::dataset_not_found(format!("Dataset '{}' not found", dataset_id))
-                    })?;
-                    let table = dataset.get_table_mut(table_id).ok_or_else(|| {
-                        Error::table_not_found(format!(
-                            "Table '{}.{}' not found",
-                            dataset_id, table_id
-                        ))
-                    })?;
-                    {
-                        let schema = table.schema_mut();
-                        if schema.check_evaluator().is_none() {
-                            let evaluator = super::build_check_evaluator();
-                            schema.set_check_evaluator(evaluator);
-                        }
-                    }
-                    table.insert_row(row.clone())?;
-                }
-            }
-
-            self.fire_after_insert_triggers(dataset_id, table_id, &row, schema)?;
 
             inserted_count += 1;
         }

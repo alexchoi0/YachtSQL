@@ -57,50 +57,21 @@ impl ProjectionWithExprExec {
         geometric::point_constructor(&x, &y)
     }
 
-    fn eval_box_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        match args.len() {
-            1 => {
-                let arg = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                if arg.as_circle().is_some() {
-                    geometric::circle_to_box(&arg)
-                } else {
-                    Err(crate::error::Error::invalid_query(
-                        "BOX with 1 argument requires a CIRCLE",
-                    ))
-                }
-            }
-            2 => {
-                let p1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                let p2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                geometric::box_constructor(&p1, &p2)
-            }
-            _ => Err(crate::error::Error::invalid_query(
-                "BOX requires 1 or 2 arguments",
-            )),
-        }
+    fn eval_box_constructor(_args: &[Expr], _batch: &Table, _row_idx: usize) -> Result<Value> {
+        Err(crate::error::Error::unsupported_feature(
+            "BOX type is not supported (PostgreSQL-specific geometric type)",
+        ))
     }
 
     fn eval_circle_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        match args.len() {
-            1 => {
-                let arg = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                if arg.as_pgbox().is_some() {
-                    geometric::box_to_circle(&arg)
-                } else {
-                    Err(crate::error::Error::invalid_query(
-                        "CIRCLE with 1 argument requires a BOX",
-                    ))
-                }
-            }
-            2 => {
-                let center = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                let radius = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                geometric::circle_constructor(&center, &radius)
-            }
-            _ => Err(crate::error::Error::invalid_query(
-                "CIRCLE requires 1 or 2 arguments",
-            )),
+        if args.len() != 2 {
+            return Err(crate::error::Error::invalid_query(
+                "CIRCLE requires exactly 2 arguments (center_point, radius)",
+            ));
         }
+        let center = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let radius = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        geometric::circle_constructor(&center, &radius)
     }
 
     fn eval_area(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -143,24 +114,16 @@ impl ProjectionWithExprExec {
         geometric::radius(&circle)
     }
 
-    fn eval_width(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        if args.len() != 1 {
-            return Err(crate::error::Error::invalid_query(
-                "WIDTH requires exactly 1 argument",
-            ));
-        }
-        let box_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        geometric::width(&box_val)
+    fn eval_width(_args: &[Expr], _batch: &Table, _row_idx: usize) -> Result<Value> {
+        Err(crate::error::Error::unsupported_feature(
+            "WIDTH function is not supported (requires BOX type)",
+        ))
     }
 
-    fn eval_height(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        if args.len() != 1 {
-            return Err(crate::error::Error::invalid_query(
-                "HEIGHT requires exactly 1 argument",
-            ));
-        }
-        let box_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        geometric::height(&box_val)
+    fn eval_height(_args: &[Expr], _batch: &Table, _row_idx: usize) -> Result<Value> {
+        Err(crate::error::Error::unsupported_feature(
+            "HEIGHT function is not supported (requires BOX type)",
+        ))
     }
 
     fn eval_distance(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
@@ -312,42 +275,25 @@ impl ProjectionWithExprExec {
     }
 
     fn eval_polygon_constructor(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        match args.len() {
-            1 => {
-                let arg = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                if arg.as_pgbox().is_some() {
-                    geometric::box_to_polygon(&arg)
-                } else {
-                    Err(crate::error::Error::invalid_query(
-                        "POLYGON with 1 argument requires a BOX",
-                    ))
-                }
-            }
-            2 => {
-                let npts = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                let circle = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                if circle.as_circle().is_some() {
-                    geometric::circle_to_polygon(&npts, &circle)
-                } else {
-                    Err(crate::error::Error::invalid_query(
-                        "POLYGON with 2 arguments requires (npoints, CIRCLE)",
-                    ))
-                }
-            }
-            _ => Err(crate::error::Error::invalid_query(
-                "POLYGON requires 1 or 2 arguments",
-            )),
+        if args.len() != 2 {
+            return Err(crate::error::Error::invalid_query(
+                "POLYGON requires exactly 2 arguments (npoints, CIRCLE)",
+            ));
+        }
+        let npts = Self::evaluate_expr(&args[0], batch, row_idx)?;
+        let circle = Self::evaluate_expr(&args[1], batch, row_idx)?;
+        if circle.as_circle().is_some() {
+            geometric::circle_to_polygon(&npts, &circle)
+        } else {
+            Err(crate::error::Error::invalid_query(
+                "POLYGON requires (npoints, CIRCLE)",
+            ))
         }
     }
 
-    fn eval_bound_box(args: &[Expr], batch: &Table, row_idx: usize) -> Result<Value> {
-        if args.len() != 2 {
-            return Err(crate::error::Error::invalid_query(
-                "BOUND_BOX requires exactly 2 arguments",
-            ));
-        }
-        let box1 = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let box2 = Self::evaluate_expr(&args[1], batch, row_idx)?;
-        geometric::bound_box(&box1, &box2)
+    fn eval_bound_box(_args: &[Expr], _batch: &Table, _row_idx: usize) -> Result<Value> {
+        Err(crate::error::Error::unsupported_feature(
+            "BOUND_BOX function is not supported (requires BOX type)",
+        ))
     }
 }

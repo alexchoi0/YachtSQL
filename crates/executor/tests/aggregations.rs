@@ -8,7 +8,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_count_all() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING)")
@@ -31,7 +31,7 @@ fn test_count_all() {
 
 #[test]
 fn test_count_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING)")
@@ -56,7 +56,7 @@ fn test_count_column() {
 
 #[test]
 fn test_sum() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (id INT64, amount INT64)")
@@ -81,7 +81,7 @@ fn test_sum() {
 
 #[test]
 fn test_avg() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (id INT64, score FLOAT64)")
@@ -106,7 +106,7 @@ fn test_avg() {
 
 #[test]
 fn test_min() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (value INT64)")
@@ -131,7 +131,7 @@ fn test_min() {
 
 #[test]
 fn test_max() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (value INT64)")
@@ -156,7 +156,7 @@ fn test_max() {
 
 #[test]
 fn test_multiple_aggregations() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (id INT64, amount FLOAT64)")
@@ -184,7 +184,7 @@ fn test_multiple_aggregations() {
 
 #[test]
 fn test_group_by_single_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE employees (name STRING, department STRING, salary INT64)")
@@ -212,7 +212,7 @@ fn test_group_by_single_column() {
 
 #[test]
 fn test_group_by_with_sum() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (product STRING, region STRING, amount INT64)")
@@ -240,7 +240,7 @@ fn test_group_by_with_sum() {
 
 #[test]
 fn test_group_by_multiple_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (product STRING, region STRING, amount INT64)")
@@ -272,7 +272,7 @@ fn test_group_by_multiple_columns() {
 
 #[test]
 fn test_group_by_with_multiple_aggregations() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (customer STRING, amount FLOAT64)")
@@ -303,7 +303,7 @@ fn test_group_by_with_multiple_aggregations() {
 
 #[test]
 fn test_having_clause() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (customer STRING, amount INT64)")
@@ -336,7 +336,7 @@ fn test_having_clause() {
 
 #[test]
 fn test_having_with_count() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE purchases (customer STRING, item STRING)")
@@ -369,7 +369,7 @@ fn test_having_with_count() {
 
 #[test]
 fn test_count_distinct() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE events (user_id INT64, event_type STRING)")
@@ -397,7 +397,7 @@ fn test_count_distinct() {
 
 #[test]
 fn test_aggregation_with_where() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE transactions (id INT64, amount INT64, status STRING)")
@@ -425,7 +425,7 @@ fn test_aggregation_with_where() {
 
 #[test]
 fn test_group_by_with_order_by() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (product STRING, amount INT64)")
@@ -455,7 +455,7 @@ fn test_group_by_with_order_by() {
 
 #[test]
 fn test_empty_group_by() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, value INT64)")
@@ -474,7 +474,7 @@ fn test_empty_group_by() {
 
 #[test]
 fn test_aggregation_null_handling() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable_values (id INT64, value INT64)")
@@ -499,7 +499,7 @@ fn test_aggregation_null_handling() {
 
 #[test]
 fn test_string_agg() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE words (id INT64, word STRING)")
@@ -524,7 +524,7 @@ fn test_string_agg() {
 
 #[test]
 fn test_string_agg_with_numbers() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (id INT64, value INT64)")
@@ -549,7 +549,7 @@ fn test_string_agg_with_numbers() {
 
 #[test]
 fn test_string_agg_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable_words (id INT64, word STRING)")
@@ -574,7 +574,7 @@ fn test_string_agg_with_nulls() {
 
 #[test]
 fn test_string_agg_empty_result() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_words (id INT64, word STRING)")
@@ -589,7 +589,7 @@ fn test_string_agg_empty_result() {
 
 #[test]
 fn test_string_agg_distinct() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE duplicate_words (id INT64, word STRING)")
@@ -617,7 +617,7 @@ fn test_string_agg_distinct() {
 
 #[test]
 fn test_array_agg_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (id INT64, value INT64)")
@@ -642,7 +642,7 @@ fn test_array_agg_basic() {
 
 #[test]
 fn test_array_agg_strings() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE words (id INT64, word STRING)")
@@ -667,7 +667,7 @@ fn test_array_agg_strings() {
 
 #[test]
 fn test_array_agg_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable_values (id INT64, value INT64)")
@@ -692,7 +692,7 @@ fn test_array_agg_with_nulls() {
 
 #[test]
 fn test_array_agg_empty_result() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, value INT64)")
@@ -707,7 +707,7 @@ fn test_array_agg_empty_result() {
 
 #[test]
 fn test_array_agg_distinct() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE duplicate_values (id INT64, value INT64)")
@@ -735,7 +735,7 @@ fn test_array_agg_distinct() {
 
 #[test]
 fn test_array_agg_with_array_length() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (id INT64, name STRING)")

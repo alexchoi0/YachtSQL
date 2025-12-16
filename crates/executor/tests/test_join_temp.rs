@@ -7,7 +7,7 @@
 use yachtsql::{DialectType, QueryExecutor};
 
 fn main() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING)")

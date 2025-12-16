@@ -15,10 +15,8 @@ pub mod dictionary;
 pub mod domain;
 pub mod extension;
 pub mod features;
-pub mod foreign_keys;
 pub mod index;
 pub mod indexes;
-pub mod mvcc;
 pub mod row;
 pub mod schema;
 pub mod sequence;
@@ -27,8 +25,6 @@ pub mod snapshot;
 pub mod storage_backend;
 pub mod table;
 pub mod temp_storage;
-pub mod transaction;
-pub mod trigger;
 pub mod type_registry;
 pub mod view;
 
@@ -43,7 +39,6 @@ pub use dictionary::{
 };
 pub use domain::{DomainConstraint, DomainDefinition, DomainRegistry};
 pub use extension::{ExtensionError, ExtensionMetadata, ExtensionRegistry};
-pub use foreign_keys::{Deferrable, ForeignKey, ReferentialAction};
 pub use index::{ColumnOrder, IndexColumn, IndexMetadata, IndexType, NullsOrder};
 pub use indexes::{
     BPlusTreeIndex, HashIndex, IndexKey, RangeBound, RangeQuery, TableIndex, extract_index_key,
@@ -58,17 +53,11 @@ pub use sequence::{Sequence, SequenceConfig, SequenceRegistry};
 pub use snapshot::{SnapshotRegistry, SnapshotTable};
 pub use storage_backend::{StorageBackend, StorageLayout};
 pub use table::{
-    ColumnStatistics, PartitionSpec, PartitionType, PostgresPartitionBound, PostgresPartitionInfo,
-    PostgresPartitionStrategy, Table, TableConstraintOps, TableEngine, TableIndexOps,
-    TableIterator, TableSchemaOps, TableStatistics,
+    ColumnStatistics, PartitionSpec, PartitionType, Table, TableConstraintOps, TableEngine,
+    TableIndexOps, TableIterator, TablePartitionBound, TablePartitionInfo, TablePartitionStrategy,
+    TableSchemaOps, TableStatistics,
 };
 pub use temp_storage::{OnCommitAction, TempStorage, TempTableMetadata};
-pub use transaction::{
-    ConstraintTiming, DMLOperation, DeferredFKCheck, DeferredFKState, IsolationLevel,
-    PendingChanges, Savepoint, Transaction, TransactionCharacteristics, TransactionManager,
-    TransactionScope,
-};
-pub use trigger::{TriggerEvent, TriggerLevel, TriggerMetadata, TriggerRegistry, TriggerTiming};
 pub use type_registry::{TypeDefinition, TypeRegistry, UserDefinedType};
 pub use view::{ViewDefinition, ViewRegistry, WithCheckOption};
 use yachtsql_core::error::{Error, Result};
@@ -330,7 +319,6 @@ pub struct Dataset {
     tables: IndexMap<String, Table>,
     sequences: SequenceRegistry,
     indexes: IndexMap<String, index::IndexMetadata>,
-    triggers: TriggerRegistry,
     views: ViewRegistry,
     domains: DomainRegistry,
     types: TypeRegistry,
@@ -356,7 +344,6 @@ impl Dataset {
             tables: IndexMap::new(),
             sequences: SequenceRegistry::new(),
             indexes: IndexMap::new(),
-            triggers: TriggerRegistry::new(),
             views: ViewRegistry::new(),
             domains: DomainRegistry::new(),
             types: TypeRegistry::new(),
@@ -458,14 +445,6 @@ impl Dataset {
 
     pub fn sequences_mut(&mut self) -> &mut SequenceRegistry {
         &mut self.sequences
-    }
-
-    pub fn triggers(&self) -> &TriggerRegistry {
-        &self.triggers
-    }
-
-    pub fn triggers_mut(&mut self) -> &mut TriggerRegistry {
-        &mut self.triggers
     }
 
     pub fn views(&self) -> &ViewRegistry {

@@ -11,7 +11,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_not_equal_operator() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE t (id INT64, a INT64, b INT64)")
         .unwrap();
@@ -31,7 +31,7 @@ fn test_not_equal_operator() {
 
 #[test]
 fn test_not_equal_with_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE t (id INT64, val INT64)")
         .unwrap();

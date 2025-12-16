@@ -15,8 +15,8 @@ fn bench_cache_insert() {
 
     for i in 0..iterations {
         let sql = format!("SELECT * FROM table_{}", i);
-        let hash = hash_sql(&sql, DialectType::PostgreSQL);
-        let key = PlanCacheKey::new(hash, DialectType::PostgreSQL);
+        let hash = hash_sql(&sql, DialectType::BigQuery);
+        let key = PlanCacheKey::new(hash, DialectType::BigQuery);
 
         let plan = PlanNode::Scan {
             table_name: format!("table_{}", i),
@@ -59,8 +59,8 @@ fn bench_cache_lookup() {
     let keys: Vec<PlanCacheKey> = (0..num_entries)
         .map(|i| {
             let sql = format!("SELECT * FROM lookup_bench_{}", i);
-            let hash = hash_sql(&sql, DialectType::PostgreSQL);
-            let key = PlanCacheKey::new(hash, DialectType::PostgreSQL);
+            let hash = hash_sql(&sql, DialectType::BigQuery);
+            let key = PlanCacheKey::new(hash, DialectType::BigQuery);
 
             let plan = PlanNode::Scan {
                 table_name: format!("lookup_bench_{}", i),
@@ -129,8 +129,8 @@ fn bench_hit_rate_impact() {
     let num_cached = 100;
     for i in 0..num_cached {
         let sql = format!("SELECT * FROM table_{}", i);
-        let hash = hash_sql(&sql, DialectType::PostgreSQL);
-        let key = PlanCacheKey::new(hash, DialectType::PostgreSQL);
+        let hash = hash_sql(&sql, DialectType::BigQuery);
+        let key = PlanCacheKey::new(hash, DialectType::BigQuery);
 
         let plan = PlanNode::Scan {
             table_name: format!("table_{}", i),
@@ -158,8 +158,8 @@ fn bench_hit_rate_impact() {
                 format!("SELECT * FROM uncached_{}", i)
             };
 
-            let hash = hash_sql(&sql, DialectType::PostgreSQL);
-            let key = PlanCacheKey::new(hash, DialectType::PostgreSQL);
+            let hash = hash_sql(&sql, DialectType::BigQuery);
+            let key = PlanCacheKey::new(hash, DialectType::BigQuery);
             let _ = cache.get(&key);
         }
 
@@ -188,8 +188,8 @@ fn bench_lru_eviction() {
 
     for i in 0..insert_count {
         let sql = format!("SELECT * FROM evict_test_{}", i);
-        let hash = hash_sql(&sql, DialectType::PostgreSQL);
-        let key = PlanCacheKey::new(hash, DialectType::PostgreSQL);
+        let hash = hash_sql(&sql, DialectType::BigQuery);
+        let key = PlanCacheKey::new(hash, DialectType::BigQuery);
 
         let plan = PlanNode::Scan {
             table_name: format!("evict_test_{}", i),
@@ -215,12 +215,12 @@ fn bench_lru_eviction() {
     );
 
     let recent_sql = format!("SELECT * FROM evict_test_{}", insert_count - 1);
-    let recent_hash = hash_sql(&recent_sql, DialectType::PostgreSQL);
-    let recent_key = PlanCacheKey::new(recent_hash, DialectType::PostgreSQL);
+    let recent_hash = hash_sql(&recent_sql, DialectType::BigQuery);
+    let recent_key = PlanCacheKey::new(recent_hash, DialectType::BigQuery);
 
     let old_sql = format!("SELECT * FROM evict_test_{}", 0);
-    let old_hash = hash_sql(&old_sql, DialectType::PostgreSQL);
-    let old_key = PlanCacheKey::new(old_hash, DialectType::PostgreSQL);
+    let old_hash = hash_sql(&old_sql, DialectType::BigQuery);
+    let old_key = PlanCacheKey::new(old_hash, DialectType::BigQuery);
 
     let recent_cached = cache.get(&recent_key).is_some();
     let old_evicted = cache.get(&old_key).is_none();
@@ -249,8 +249,8 @@ fn bench_lru_eviction() {
     let mut cached_count = 0;
     for i in (insert_count - 50)..insert_count {
         let sql = format!("SELECT * FROM evict_test_{}", i);
-        let hash = hash_sql(&sql, DialectType::PostgreSQL);
-        let key = PlanCacheKey::new(hash, DialectType::PostgreSQL);
+        let hash = hash_sql(&sql, DialectType::BigQuery);
+        let key = PlanCacheKey::new(hash, DialectType::BigQuery);
         if cache.get(&key).is_some() {
             cached_count += 1;
         }

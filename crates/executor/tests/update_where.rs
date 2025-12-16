@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_update_where_single_row() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, age INT64)")
@@ -33,7 +33,7 @@ fn test_update_where_single_row() {
 
 #[test]
 fn test_update_where_multiple_rows() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, category STRING, price FLOAT64)")
@@ -68,7 +68,7 @@ fn test_update_where_multiple_rows() {
 
 #[test]
 fn test_update_where_no_matches() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (id INT64, value INT64)")
@@ -95,7 +95,7 @@ fn test_update_where_no_matches() {
 
 #[test]
 fn test_update_where_greater_than() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (id INT64, score INT64)")
@@ -126,7 +126,7 @@ fn test_update_where_greater_than() {
 
 #[test]
 fn test_update_where_and_condition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, x INT64, y INT64)")
@@ -157,7 +157,7 @@ fn test_update_where_and_condition() {
 
 #[test]
 fn test_update_where_or_condition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE flags (id INT64, flag STRING)")
@@ -188,7 +188,7 @@ fn test_update_where_or_condition() {
 
 #[test]
 fn test_update_where_null_handling() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE nullable (id INT64, value STRING)")
@@ -219,7 +219,7 @@ fn test_update_where_null_handling() {
 
 #[test]
 fn test_update_where_multiple_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE multi (id INT64, name STRING, age INT64, city STRING)")
@@ -254,7 +254,7 @@ fn test_update_where_multiple_columns() {
 
 #[test]
 fn test_update_where_preserves_order() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE ordered (id INT64, value INT64)")

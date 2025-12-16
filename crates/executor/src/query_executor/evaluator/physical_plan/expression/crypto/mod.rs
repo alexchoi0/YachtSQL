@@ -64,8 +64,6 @@ impl ProjectionWithExprExec {
             "METROHASH64" => Self::eval_metrohash64(args, batch, row_idx),
             "ENCRYPT" => Self::eval_encrypt(args, batch, row_idx),
             "DECRYPT" => Self::eval_decrypt(args, batch, row_idx),
-            "AES_ENCRYPT_MYSQL" => Self::eval_aes_encrypt_mysql(args, batch, row_idx),
-            "AES_DECRYPT_MYSQL" => Self::eval_aes_decrypt_mysql(args, batch, row_idx),
             "BASE64URLENCODE" => Self::eval_base64_url_encode(args, batch, row_idx),
             "BASE64URLDECODE" => Self::eval_base64_url_decode(args, batch, row_idx),
             "SAFE_CONVERT_BYTES_TO_STRING" => {

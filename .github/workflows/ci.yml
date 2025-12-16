@@ -82,10 +82,6 @@ jobs:
           - yachtsql-optimizer
           - yachtsql-executor
           - yachtsql-capability
-          - yachtsql-dialects-core
-          - yachtsql-dialects-postgres
-          - yachtsql-dialects-bigquery
-          - yachtsql-dialects-clickhouse
           - yachtsql-test-utils
     steps:
       - name: Free disk space
@@ -134,37 +130,6 @@ jobs:
 
       - name: Run tests
         run: cargo nextest run --workspace --no-fail-fast --no-tests=pass
-
-  test-clickhouse:
-    name: Test (ClickHouse dialect)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/android
-          df -h
-
-      - uses: actions/checkout@v4
-
-      - name: Install LLD linker
-        run: sudo apt-get update && sudo apt-get install -y lld
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-2025-09-14
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      - name: Run ClickHouse tests
-        run: cargo nextest run --workspace --features clickhouse-tests --no-fail-fast --no-tests=pass
 
   doc:
     name: Documentation
@@ -218,7 +183,7 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [check, fmt, clippy, test-crate, test-macos, test-clickhouse, doc, bench-compile, security-audit]
+    needs: [check, fmt, clippy, test-crate, test-macos, doc, bench-compile, security-audit]
     if: always()
     steps:
       - name: Check all jobs passed

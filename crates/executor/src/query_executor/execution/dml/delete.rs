@@ -180,65 +180,16 @@ impl QueryExecutor {
             }
         }
 
-        let mut instead_of_count = 0;
-        let mut instead_of_deletes: Vec<Row> = Vec::new();
-        let mut normal_deletes: Vec<Row> = Vec::new();
-
-        for deleted_row in deleted_rows {
-            let instead_of_result = self.fire_instead_of_delete_triggers(
-                &dataset_id,
-                &table_id,
-                &deleted_row,
-                &schema,
-            )?;
-
-            if instead_of_result.triggers_fired > 0 {
-                instead_of_count += 1;
-                instead_of_deletes.push(deleted_row);
-            } else {
-                normal_deletes.push(deleted_row);
-            }
-        }
-
-        if instead_of_count > 0 && normal_deletes.is_empty() {
-            debug_eprintln!(
-                "[executor::dml::delete] Deleted {} rows via INSTEAD OF triggers",
-                instead_of_count
-            );
-            return Self::empty_result();
-        }
-
-        let mut final_deletes: Vec<Row> = Vec::new();
         let mut returning_contexts: Vec<DmlRowContext> = Vec::new();
-        for deleted_row in normal_deletes {
-            let before_result =
-                self.fire_before_delete_triggers(&dataset_id, &table_id, &deleted_row, &schema)?;
-            if !before_result.skip_operation {
-                if capture_returning {
-                    returning_contexts
-                        .push(DmlRowContext::for_delete(deleted_row.values().to_vec()));
-                }
-                final_deletes.push(deleted_row);
+        for deleted_row in &deleted_rows {
+            if capture_returning {
+                returning_contexts.push(DmlRowContext::for_delete(deleted_row.values().to_vec()));
             }
         }
 
-        let deleted_count = final_deletes.len();
-
-        {
-            let mut storage = self.storage.borrow_mut();
-            let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-            let table_full_name = format!("{}.{}", dataset_id, table_id);
-
-            for deleted_row in &final_deletes {
-                enforcer.cascade_delete(&table_full_name, deleted_row, &mut storage)?;
-            }
-        }
+        let deleted_count = deleted_rows.len();
 
         self.replace_table_with_rows(&dataset_id, &table_id, &schema, rows_to_keep)?;
-
-        for deleted_row in final_deletes {
-            self.fire_after_delete_triggers(&dataset_id, &table_id, &deleted_row, &schema)?;
-        }
 
         if !is_view {
             let descendants = self.collect_all_descendant_tables_for_delete(&dataset_id, &table_id);
@@ -247,12 +198,7 @@ impl QueryExecutor {
             }
         }
 
-        debug_eprintln!(
-            "[executor::dml::delete] Deleted {} rows (INSTEAD OF: {}, normal: {})",
-            instead_of_count + deleted_count,
-            instead_of_count,
-            deleted_count
-        );
+        debug_eprintln!("[executor::dml::delete] Deleted {} rows", deleted_count);
 
         if capture_returning {
             crate::query_executor::returning::build_returning_batch_with_old_new(
@@ -575,16 +521,7 @@ impl QueryExecutor {
             .collect();
 
         let deleted_count = rows_to_delete.len();
-
-        {
-            let mut storage = self.storage.borrow_mut();
-            let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-            let table_full_name = format!("{}.{}", delete_dataset, delete_table);
-
-            for deleted_row in &rows_to_delete {
-                enforcer.cascade_delete(&table_full_name, deleted_row, &mut storage)?;
-            }
-        }
+        let _ = deleted_count;
 
         self.replace_table_with_rows(&delete_dataset, &delete_table, &delete_schema, rows_to_keep)?;
 
@@ -717,16 +654,6 @@ impl QueryExecutor {
             .collect();
 
         let deleted_count = rows_to_delete.len();
-
-        {
-            let mut storage = self.storage.borrow_mut();
-            let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-            let table_full_name = format!("{}.{}", target_dataset, target_table);
-
-            for deleted_row in &rows_to_delete {
-                enforcer.cascade_delete(&table_full_name, deleted_row, &mut storage)?;
-            }
-        }
 
         self.replace_table_with_rows(&target_dataset, &target_table, &target_schema, rows_to_keep)?;
 
@@ -916,16 +843,6 @@ impl QueryExecutor {
                 })
                 .collect();
 
-            {
-                let mut storage = self.storage.borrow_mut();
-                let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-                let table_full_name = format!("{}.{}", left_dataset, left_table);
-
-                for deleted_row in &left_rows_to_delete {
-                    enforcer.cascade_delete(&table_full_name, deleted_row, &mut storage)?;
-                }
-            }
-
             self.replace_table_with_rows(&left_dataset, &left_table, &left_schema, rows_to_keep)?;
         }
 
@@ -944,16 +861,6 @@ impl QueryExecutor {
                     })
                 })
                 .collect();
-
-            {
-                let mut storage = self.storage.borrow_mut();
-                let enforcer = crate::query_executor::enforcement::ForeignKeyEnforcer::new();
-                let table_full_name = format!("{}.{}", right_dataset, right_table);
-
-                for deleted_row in &right_rows_to_delete {
-                    enforcer.cascade_delete(&table_full_name, deleted_row, &mut storage)?;
-                }
-            }
 
             self.replace_table_with_rows(
                 &right_dataset,
@@ -1073,56 +980,27 @@ impl QueryExecutor {
         _schema: &yachtsql_storage::Schema,
         remaining_rows: Vec<Row>,
     ) -> Result<()> {
-        let table_full_name = format!("{}.{}", dataset_id, table_id);
+        let mut storage = self.storage.borrow_mut();
+        let dataset = storage
+            .get_dataset_mut(dataset_id)
+            .ok_or_else(|| Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id)))?;
 
-        let mut tm = self.transaction_manager.borrow_mut();
-        if let Some(_txn) = tm.get_active_transaction_mut() {
-            drop(tm);
+        let table = dataset.get_table_mut(table_id).ok_or_else(|| {
+            Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
+        })?;
 
-            let original_rows = {
-                let storage = self.storage.borrow_mut();
-                let dataset = storage.get_dataset(dataset_id).ok_or_else(|| {
-                    Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
-                })?;
-                let table = dataset.get_table(table_id).ok_or_else(|| {
-                    Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
-                })?;
-                table.get_all_rows()
-            };
+        let original_rows = table.get_all_rows();
 
-            let mut tm = self.transaction_manager.borrow_mut();
-            if let Some(txn) = tm.get_active_transaction_mut() {
-                for (row_index, original_row) in original_rows.iter().enumerate() {
-                    if !remaining_rows.contains(original_row) {
-                        txn.track_delete(&table_full_name, row_index);
-                    }
-                }
+        for (row_index, original_row) in original_rows.iter().enumerate() {
+            if !remaining_rows.contains(original_row) {
+                table.update_indexes_on_delete(original_row.values(), row_index)?;
             }
-        } else {
-            drop(tm);
+        }
 
-            let mut storage = self.storage.borrow_mut();
-            let dataset = storage.get_dataset_mut(dataset_id).ok_or_else(|| {
-                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
-            })?;
+        table.clear_rows()?;
 
-            let table = dataset.get_table_mut(table_id).ok_or_else(|| {
-                Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
-            })?;
-
-            let original_rows = table.get_all_rows();
-
-            for (row_index, original_row) in original_rows.iter().enumerate() {
-                if !remaining_rows.contains(original_row) {
-                    table.update_indexes_on_delete(original_row.values(), row_index)?;
-                }
-            }
-
-            table.clear_rows()?;
-
-            for row in remaining_rows {
-                table.insert_row(row)?;
-            }
+        for row in remaining_rows {
+            table.insert_row(row)?;
         }
 
         Ok(())

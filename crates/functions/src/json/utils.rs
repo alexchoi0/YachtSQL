@@ -203,16 +203,16 @@ where
     }
     let json_val = get_json_value(json)?;
 
-    let path_elements = parse_pg_text_array(path_array)?;
+    let path_elements = parse_text_array(path_array)?;
     let json_path_str = build_jsonpath_from_elements(&path_elements);
 
     extract_and_convert(&json_val, &json_path_str, converter)
 }
 
-pub(crate) fn parse_pg_text_array(array_str: &str) -> Result<Vec<String>> {
+pub(crate) fn parse_text_array(array_str: &str) -> Result<Vec<String>> {
     let trimmed = array_str.trim();
 
-    validate_pg_array_syntax(trimmed, array_str)?;
+    validate_array_syntax(trimmed, array_str)?;
 
     let content = &trimmed[1..trimmed.len() - 1];
     if content.is_empty() {
@@ -222,14 +222,14 @@ pub(crate) fn parse_pg_text_array(array_str: &str) -> Result<Vec<String>> {
     parse_array_elements(content)
 }
 
-fn validate_pg_array_syntax(trimmed: &str, original: &str) -> Result<()> {
+fn validate_array_syntax(trimmed: &str, original: &str) -> Result<()> {
     if trimmed == "{}" {
         return Ok(());
     }
 
     if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
         return Err(Error::InvalidOperation(format!(
-            "Invalid PostgreSQL array literal: must start with '{{' and end with '}}', got '{}'",
+            "Invalid array literal: must start with '{{' and end with '}}', got '{}'",
             original
         )));
     }

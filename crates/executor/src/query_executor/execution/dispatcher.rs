@@ -2,12 +2,8 @@ use sqlparser::ast::{
     DataType as SqlDataType, Expr, ObjectName, Statement as SqlStatement, Value as SqlValue,
     ValueWithSpan as SqlValueWithSpan,
 };
-use yachtsql_capability::CapabilitySnapshot;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_parser::{Parser, Statement};
-
-const AUTOCOMMIT_EXPECTED_VALUES: &str =
-    "SET SESSION AUTOCOMMIT expects value ON, OFF, TRUE, FALSE, 1, or 0";
 
 #[derive(Debug, Clone)]
 pub enum StatementJob {
@@ -30,10 +26,6 @@ pub enum StatementJob {
         stmt: Box<SqlStatement>,
     },
 
-    Transaction {
-        operation: TxOperation,
-    },
-
     Merge {
         operation: MergeOperation,
     },
@@ -54,10 +46,6 @@ pub enum StatementJob {
     Scripting {
         operation: ScriptingOperation,
     },
-
-    Cursor {
-        operation: CursorOperation,
-    },
 }
 
 #[derive(Debug, Clone)]
@@ -65,57 +53,32 @@ pub enum DdlOperation {
     CreateTable,
     DropTable,
     AlterTable,
-    CreateIndex,
-    DropIndex,
-    CreateSequence,
-    AlterSequence,
-    DropSequence,
     CreateView,
     DropView,
     CreateMaterializedView,
-    CreateTrigger,
-    DropTrigger,
-    CreateType,
-    DropType,
-
-    CreateExtension,
-
-    DropExtension,
-
     CreateSchema,
-
     DropSchema,
-
     CreateFunction,
     DropFunction,
-
     CreateProcedure,
     DropProcedure,
-
     CreateDatabase {
         name: ObjectName,
         if_not_exists: bool,
     },
-
     DropDatabase,
-
     CreateUser,
     DropUser,
     AlterUser,
-
     CreateRole,
     DropRole,
     AlterRole,
-
     Grant,
     Revoke,
-
     SetRole,
     SetDefaultRole,
-
     CreateSnapshotTable,
     DropSnapshotTable,
-
     CommentOn,
 }
 
@@ -130,31 +93,6 @@ pub enum DmlOperation {
 #[derive(Debug, Clone)]
 pub struct CopyOperation {
     pub stmt: Box<SqlStatement>,
-}
-
-#[derive(Debug, Clone)]
-pub enum TxOperation {
-    Begin,
-    Commit { chain: bool },
-    Rollback { chain: bool },
-    Savepoint { name: String },
-    ReleaseSavepoint { name: String },
-    RollbackToSavepoint { name: String },
-    SetAutocommit { enabled: bool },
-    SetTransactionIsolation { level: String },
-    SetTransaction { modes: Vec<TransactionModeInfo> },
-}
-
-#[derive(Debug, Clone)]
-pub enum TransactionModeInfo {
-    IsolationLevel(String),
-    AccessMode(TransactionAccessModeInfo),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TransactionAccessModeInfo {
-    ReadOnly,
-    ReadWrite,
 }
 
 #[derive(Debug, Clone)]
@@ -211,14 +149,6 @@ pub enum ScriptingOperation {
 }
 
 #[derive(Debug, Clone)]
-pub enum CursorOperation {
-    Declare { stmt: Box<SqlStatement> },
-    Fetch { stmt: Box<SqlStatement> },
-    Close { stmt: Box<SqlStatement> },
-    Move { stmt: Box<SqlStatement> },
-}
-
-#[derive(Debug, Clone)]
 pub enum UtilityOperation {
     Show {
         variable: Option<String>,
@@ -265,27 +195,15 @@ pub enum UtilityOperation {
 
 pub struct Dispatcher {
     parser: Parser,
-    _capabilities: CapabilitySnapshot,
 }
 
 impl Dispatcher {
     pub fn new() -> Self {
-        Self::with_parser_and_capabilities(Parser::new(), CapabilitySnapshot::default())
-    }
-
-    pub fn with_capabilities(capabilities: CapabilitySnapshot) -> Self {
-        Self::with_parser_and_capabilities(Parser::new(), capabilities)
+        Self::with_parser(Parser::new())
     }
 
     pub fn with_parser(parser: Parser) -> Self {
-        Self::with_parser_and_capabilities(parser, CapabilitySnapshot::default())
-    }
-
-    pub fn with_parser_and_capabilities(parser: Parser, capabilities: CapabilitySnapshot) -> Self {
-        Self {
-            parser,
-            _capabilities: capabilities,
-        }
+        Self { parser }
     }
 
     pub fn dispatch(&mut self, sql: &str) -> Result<StatementJob> {
@@ -328,39 +246,6 @@ impl Dispatcher {
                         })
                     }
 
-                    SqlStatement::StartTransaction { .. } => Ok(StatementJob::Transaction {
-                        operation: TxOperation::Begin,
-                    }),
-
-                    SqlStatement::Commit { chain, .. } => Ok(StatementJob::Transaction {
-                        operation: TxOperation::Commit { chain: *chain },
-                    }),
-
-                    SqlStatement::Rollback {
-                        chain, savepoint, ..
-                    } => match savepoint {
-                        Some(name) => Ok(StatementJob::Transaction {
-                            operation: TxOperation::RollbackToSavepoint {
-                                name: name.to_string(),
-                            },
-                        }),
-                        None => Ok(StatementJob::Transaction {
-                            operation: TxOperation::Rollback { chain: *chain },
-                        }),
-                    },
-
-                    SqlStatement::Savepoint { name } => Ok(StatementJob::Transaction {
-                        operation: TxOperation::Savepoint {
-                            name: name.to_string(),
-                        },
-                    }),
-
-                    SqlStatement::ReleaseSavepoint { name } => Ok(StatementJob::Transaction {
-                        operation: TxOperation::ReleaseSavepoint {
-                            name: name.to_string(),
-                        },
-                    }),
-
                     SqlStatement::CreateTable { .. } => Ok(StatementJob::DDL {
                         operation: DdlOperation::CreateTable,
                         stmt: Box::new(ast.clone()),
@@ -375,26 +260,6 @@ impl Dispatcher {
 
                     SqlStatement::CreateView { .. } => Ok(StatementJob::DDL {
                         operation: DdlOperation::CreateView,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::CreateIndex { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateIndex,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::CreateSequence { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateSequence,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::CreateTrigger { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateTrigger,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::CreateExtension { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateExtension,
                         stmt: Box::new(ast.clone()),
                     }),
 
@@ -419,26 +284,18 @@ impl Dispatcher {
                         stmt: Box::new(ast.clone()),
                     }),
 
-                    SqlStatement::CreateType { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::CreateType,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
                     SqlStatement::Drop { object_type, .. } => {
                         use sqlparser::ast::ObjectType;
                         let operation = match object_type {
                             ObjectType::Table => DdlOperation::DropTable,
                             ObjectType::View => DdlOperation::DropView,
-                            ObjectType::Index => DdlOperation::DropIndex,
-                            ObjectType::Sequence => DdlOperation::DropSequence,
                             ObjectType::Schema => DdlOperation::DropSchema,
-                            ObjectType::Type => DdlOperation::DropType,
                             ObjectType::Role => DdlOperation::DropRole,
                             ObjectType::User => DdlOperation::DropUser,
                             ObjectType::Database => DdlOperation::DropDatabase,
                             _ => {
                                 return Err(Error::unsupported_feature(format!(
-                                    "DROP {} is not yet supported",
+                                    "DROP {} is not supported in BigQuery",
                                     object_type
                                 )));
                             }
@@ -456,16 +313,6 @@ impl Dispatcher {
                             stmt: Box::new(ast.clone()),
                         })
                     }
-
-                    SqlStatement::DropExtension { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::DropExtension,
-                        stmt: Box::new(ast.clone()),
-                    }),
-
-                    SqlStatement::DropTrigger { .. } => Ok(StatementJob::DDL {
-                        operation: DdlOperation::DropTrigger,
-                        stmt: Box::new(ast.clone()),
-                    }),
 
                     SqlStatement::DropFunction { .. } => Ok(StatementJob::DDL {
                         operation: DdlOperation::DropFunction,
@@ -673,15 +520,6 @@ impl Dispatcher {
                             ));
                         }
                         let first = &stmts[0];
-                        if first.declare_type == Some(sqlparser::ast::DeclareType::Cursor)
-                            || first.for_query.is_some()
-                        {
-                            return Ok(StatementJob::Cursor {
-                                operation: CursorOperation::Declare {
-                                    stmt: Box::new(ast.clone()),
-                                },
-                            });
-                        }
                         let names: Vec<String> = first
                             .names
                             .iter()
@@ -706,18 +544,6 @@ impl Dispatcher {
                             },
                         })
                     }
-
-                    SqlStatement::Fetch { .. } => Ok(StatementJob::Cursor {
-                        operation: CursorOperation::Fetch {
-                            stmt: Box::new(ast.clone()),
-                        },
-                    }),
-
-                    SqlStatement::Close { .. } => Ok(StatementJob::Cursor {
-                        operation: CursorOperation::Close {
-                            stmt: Box::new(ast.clone()),
-                        },
-                    }),
 
                     SqlStatement::OptimizeTable { name, .. } => Ok(StatementJob::Utility {
                         operation: UtilityOperation::OptimizeTable {
@@ -786,7 +612,7 @@ impl Dispatcher {
 
 impl Dispatcher {
     fn handle_set_statement(&self, set_stmt: &sqlparser::ast::Set) -> Result<StatementJob> {
-        use sqlparser::ast::{Set, TransactionAccessMode, TransactionMode};
+        use sqlparser::ast::Set;
 
         match set_stmt {
             Set::SingleAssignment {
@@ -804,30 +630,6 @@ impl Dispatcher {
                 let variable_name = Self::resolve_set_variable_name(variable)?;
                 self.dispatch_single_assignment(variable_name, values)
             }
-            Set::SetTransaction { modes, .. } => {
-                let mode_infos: Vec<TransactionModeInfo> = modes
-                    .iter()
-                    .map(|m| match m {
-                        TransactionMode::IsolationLevel(level) => {
-                            TransactionModeInfo::IsolationLevel(level.to_string())
-                        }
-                        TransactionMode::AccessMode(access) => {
-                            TransactionModeInfo::AccessMode(match access {
-                                TransactionAccessMode::ReadOnly => {
-                                    TransactionAccessModeInfo::ReadOnly
-                                }
-                                TransactionAccessMode::ReadWrite => {
-                                    TransactionAccessModeInfo::ReadWrite
-                                }
-                            })
-                        }
-                    })
-                    .collect();
-
-                Ok(StatementJob::Transaction {
-                    operation: TxOperation::SetTransaction { modes: mode_infos },
-                })
-            }
             Set::SetRole { .. } => Ok(StatementJob::DDL {
                 operation: DdlOperation::SetRole,
                 stmt: Box::new(SqlStatement::Set(set_stmt.clone())),
@@ -844,12 +646,6 @@ impl Dispatcher {
         value: &[Expr],
     ) -> Result<StatementJob> {
         let key = variable_name.to_ascii_lowercase();
-        if key == "autocommit" || key == "session.autocommit" {
-            let enabled = Self::parse_autocommit_value(value)?;
-            return Ok(StatementJob::Transaction {
-                operation: TxOperation::SetAutocommit { enabled },
-            });
-        }
 
         if key == "yachtsql.capability.enable" || key == "yachtsql.capability.disable" {
             let enable = key.ends_with("enable");
@@ -939,62 +735,6 @@ impl Dispatcher {
         Ok(parts.join("."))
     }
 
-    fn parse_autocommit_value(value: &[Expr]) -> Result<bool> {
-        if value.is_empty() {
-            return Err(Error::invalid_query(AUTOCOMMIT_EXPECTED_VALUES));
-        }
-
-        if value.len() != 1 {
-            return Err(Error::unsupported_feature(
-                "SET SESSION AUTOCOMMIT with multiple values is not supported".to_string(),
-            ));
-        }
-
-        match &value[0] {
-            Expr::Value(SqlValueWithSpan {
-                value: SqlValue::Boolean(flag),
-                ..
-            }) => Ok(*flag),
-            Expr::Value(SqlValueWithSpan {
-                value: SqlValue::Number(num, _),
-                ..
-            }) => Self::parse_autocommit_literal(num),
-            Expr::Value(SqlValueWithSpan {
-                value: SqlValue::SingleQuotedString(lit),
-                ..
-            })
-            | Expr::Value(SqlValueWithSpan {
-                value: SqlValue::DoubleQuotedString(lit),
-                ..
-            }) => Self::parse_autocommit_literal(lit),
-            Expr::Identifier(ident) => Self::parse_autocommit_literal(&ident.value),
-            Expr::CompoundIdentifier(idents) => {
-                let literal = idents
-                    .iter()
-                    .map(|ident| ident.value.clone())
-                    .collect::<Vec<_>>()
-                    .join(".");
-                Self::parse_autocommit_literal(&literal)
-            }
-            other => Err(Error::unsupported_feature(format!(
-                "SET SESSION AUTOCOMMIT value not supported: {:?}",
-                other
-            ))),
-        }
-    }
-
-    fn parse_autocommit_literal(literal: &str) -> Result<bool> {
-        let trimmed = literal.trim().trim_matches(|c| c == '\'' || c == '"');
-        match trimmed.to_ascii_uppercase().as_str() {
-            "ON" | "TRUE" | "1" => Ok(true),
-            "OFF" | "FALSE" | "0" => Ok(false),
-            _ => Err(Error::invalid_query(format!(
-                "Invalid autocommit value '{}'. {}",
-                literal, AUTOCOMMIT_EXPECTED_VALUES
-            ))),
-        }
-    }
-
     fn parse_capability_feature_list(value: &[Expr]) -> Result<Vec<String>> {
         let raw = Self::extract_set_value(value)?;
         let features: Vec<String> = raw
@@ -1058,96 +798,6 @@ impl Default for Dispatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_dispatch_begin_transaction() {
-        let mut dispatcher = Dispatcher::new();
-        let result = dispatcher.dispatch("BEGIN");
-        assert!(result.is_ok());
-
-        match result.unwrap() {
-            StatementJob::Transaction {
-                operation: TxOperation::Begin,
-            } => {}
-            other => panic!("Expected Begin transaction, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_dispatch_commit() {
-        let mut dispatcher = Dispatcher::new();
-        let result = dispatcher.dispatch("COMMIT");
-        assert!(result.is_ok());
-
-        match result.unwrap() {
-            StatementJob::Transaction {
-                operation: TxOperation::Commit { chain: false },
-            } => {}
-            other => panic!("Expected Commit transaction, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_dispatch_rollback() {
-        let mut dispatcher = Dispatcher::new();
-        let result = dispatcher.dispatch("ROLLBACK");
-        assert!(result.is_ok());
-
-        match result.unwrap() {
-            StatementJob::Transaction {
-                operation: TxOperation::Rollback { chain: false },
-            } => {}
-            other => panic!("Expected Rollback transaction, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_dispatch_savepoint() {
-        let mut dispatcher = Dispatcher::new();
-        let result = dispatcher.dispatch("SAVEPOINT sp1");
-        assert!(result.is_ok());
-
-        match result.unwrap() {
-            StatementJob::Transaction {
-                operation: TxOperation::Savepoint { name },
-            } => {
-                assert_eq!(name, "sp1");
-            }
-            other => panic!("Expected Savepoint, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_dispatch_rollback_to_savepoint() {
-        let mut dispatcher = Dispatcher::new();
-        let result = dispatcher.dispatch("ROLLBACK TO SAVEPOINT sp1");
-        assert!(result.is_ok());
-
-        match result.unwrap() {
-            StatementJob::Transaction {
-                operation: TxOperation::RollbackToSavepoint { name },
-            } => {
-                assert_eq!(name, "sp1");
-            }
-            other => panic!("Expected RollbackToSavepoint, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_dispatch_rollback_to_savepoint_short_form() {
-        let mut dispatcher = Dispatcher::new();
-        let result = dispatcher.dispatch("ROLLBACK TO sp1");
-        assert!(result.is_ok());
-
-        match result.unwrap() {
-            StatementJob::Transaction {
-                operation: TxOperation::RollbackToSavepoint { name },
-            } => {
-                assert_eq!(name, "sp1");
-            }
-            other => panic!("Expected RollbackToSavepoint, got {:?}", other),
-        }
-    }
 
     #[test]
     fn test_dispatch_set_capability_enable() {
@@ -1300,15 +950,5 @@ mod tests {
         let mut dispatcher = Dispatcher::new();
         let result = dispatcher.dispatch("INVALID SQL SYNTAX");
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_dispatch_multiple_statements() {
-        let mut dispatcher = Dispatcher::new();
-        let result = dispatcher.dispatch("BEGIN; COMMIT;");
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("Multiple statements"));
     }
 }

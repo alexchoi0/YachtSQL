@@ -8,7 +8,7 @@ use yachtsql_storage::{Field, Row, Schema, Storage, TableIndexOps};
 
 use crate::table::Table;
 
-pub fn data_type_to_postgres_name(data_type: &DataType) -> String {
+pub fn data_type_to_sql_name(data_type: &DataType) -> String {
     use yachtsql_core::types::RangeType;
     match data_type {
         DataType::Int64 => "BIGINT".to_string(),
@@ -27,16 +27,13 @@ pub fn data_type_to_postgres_name(data_type: &DataType) -> String {
         DataType::BigNumeric => "NUMERIC".to_string(),
         DataType::Bytes => "BYTEA".to_string(),
         DataType::Json => "JSON".to_string(),
-        DataType::Hstore => "HSTORE".to_string(),
         DataType::Uuid => "UUID".to_string(),
-        DataType::Serial => "SERIAL".to_string(),
-        DataType::BigSerial => "BIGSERIAL".to_string(),
-        DataType::Array(inner) => format!("{}[]", data_type_to_postgres_name(inner)),
+        DataType::Array(inner) => format!("{}[]", data_type_to_sql_name(inner)),
         DataType::Map(k, v) => {
             format!(
                 "MAP({},{})",
-                data_type_to_postgres_name(k),
-                data_type_to_postgres_name(v)
+                data_type_to_sql_name(k),
+                data_type_to_sql_name(v)
             )
         }
         DataType::Point => "POINT".to_string(),
@@ -45,7 +42,6 @@ pub fn data_type_to_postgres_name(data_type: &DataType) -> String {
         DataType::Lseg => "LSEG".to_string(),
         DataType::Path => "PATH".to_string(),
         DataType::Polygon => "POLYGON".to_string(),
-        DataType::PgBox => "BOX".to_string(),
         DataType::Inet => "INET".to_string(),
         DataType::Cidr => "CIDR".to_string(),
         DataType::MacAddr => "MACADDR".to_string(),
@@ -85,8 +81,6 @@ pub fn data_type_to_postgres_name(data_type: &DataType) -> String {
         DataType::Tid => "TID".to_string(),
         DataType::Cid => "CID".to_string(),
         DataType::Oid => "OID".to_string(),
-        DataType::TsVector => "TSVECTOR".to_string(),
-        DataType::TsQuery => "TSQUERY".to_string(),
     }
 }
 
@@ -276,11 +270,7 @@ impl InformationSchemaProvider {
     }
 
     fn dataset_to_schema_name(&self, dataset_id: &str) -> String {
-        if dataset_id == "default" && self.dialect == DialectType::PostgreSQL {
-            "public".to_string()
-        } else {
-            dataset_id.to_string()
-        }
+        dataset_id.to_string()
     }
 
     fn get_tables(&self) -> Result<(Schema, Vec<Row>)> {
@@ -304,7 +294,7 @@ impl InformationSchemaProvider {
                         Value::string(schema_name.clone()),
                         Value::string(table_name.clone()),
                         Value::string("BASE TABLE".to_string()),
-                        Value::string("MergeTree".to_string()),
+                        Value::string("Memory".to_string()),
                     ]));
                 }
 
@@ -370,7 +360,7 @@ impl InformationSchemaProvider {
                             Value::int64((position + 1) as i64),
                             default_value,
                             Value::string(is_nullable.to_string()),
-                            Value::string(data_type_to_postgres_name(&field.data_type)),
+                            Value::string(data_type_to_sql_name(&field.data_type)),
                         ]));
                     }
                 }
@@ -396,7 +386,7 @@ impl InformationSchemaProvider {
             rows.push(Row::from_values(vec![
                 Value::string(schema_name.clone()),
                 Value::string(schema_name),
-                Value::string("postgres".to_string()),
+                Value::string("default".to_string()),
                 Value::string("UTF8".to_string()),
             ]));
         }
@@ -483,22 +473,6 @@ impl InformationSchemaProvider {
                         ]));
                     }
 
-                    for fk in table.foreign_keys() {
-                        let constraint_name = fk
-                            .name
-                            .clone()
-                            .unwrap_or_else(|| format!("{}_fkey", table_name));
-                        rows.push(Row::from_values(vec![
-                            Value::string(schema_name.clone()),
-                            Value::string(schema_name.clone()),
-                            Value::string(constraint_name),
-                            Value::string(schema_name.clone()),
-                            Value::string(schema_name.clone()),
-                            Value::string(table_name.clone()),
-                            Value::string("FOREIGN KEY".to_string()),
-                        ]));
-                    }
-
                     for (idx, check) in table_schema.check_constraints().iter().enumerate() {
                         let constraint_name = check
                             .name
@@ -545,25 +519,6 @@ impl InformationSchemaProvider {
                     if let Some(pk_columns) = table_schema.primary_key() {
                         let constraint_name = format!("{}_pkey", table_name);
                         for (position, col_name) in pk_columns.iter().enumerate() {
-                            rows.push(Row::from_values(vec![
-                                Value::string(schema_name.clone()),
-                                Value::string(schema_name.clone()),
-                                Value::string(constraint_name.clone()),
-                                Value::string(schema_name.clone()),
-                                Value::string(schema_name.clone()),
-                                Value::string(table_name.clone()),
-                                Value::string(col_name.clone()),
-                                Value::int64((position + 1) as i64),
-                            ]));
-                        }
-                    }
-
-                    for fk in table.foreign_keys() {
-                        let constraint_name = fk
-                            .name
-                            .clone()
-                            .unwrap_or_else(|| format!("{}_fkey", table_name));
-                        for (position, col_name) in fk.child_columns.iter().enumerate() {
                             rows.push(Row::from_values(vec![
                                 Value::string(schema_name.clone()),
                                 Value::string(schema_name.clone()),
@@ -626,37 +581,7 @@ impl InformationSchemaProvider {
             Field::nullable("delete_rule", DataType::String),
         ]);
 
-        let storage = self.storage.borrow();
-        let mut rows = Vec::new();
-
-        for dataset_id in storage.list_datasets() {
-            let schema_name = self.dataset_to_schema_name(dataset_id);
-            if let Some(dataset) = storage.get_dataset(dataset_id) {
-                for (table_name, table) in dataset.tables() {
-                    for fk in table.foreign_keys() {
-                        let constraint_name = fk
-                            .name
-                            .clone()
-                            .unwrap_or_else(|| format!("{}_fkey", table_name));
-                        let unique_constraint_name = format!("{}_pkey", fk.parent_table);
-
-                        rows.push(Row::from_values(vec![
-                            Value::string(schema_name.clone()),
-                            Value::string(schema_name.clone()),
-                            Value::string(constraint_name),
-                            Value::string(schema_name.clone()),
-                            Value::string(schema_name.clone()),
-                            Value::string(unique_constraint_name),
-                            Value::string("NONE".to_string()),
-                            Value::string(format!("{:?}", fk.on_update)),
-                            Value::string(format!("{:?}", fk.on_delete)),
-                        ]));
-                    }
-                }
-            }
-        }
-
-        Ok((schema, rows))
+        Ok((schema, Vec::new()))
     }
 
     fn get_check_constraints(&self) -> Result<(Schema, Vec<Row>)> {
@@ -859,32 +784,7 @@ impl InformationSchemaProvider {
             Field::nullable("constraint_name", DataType::String),
         ]);
 
-        let storage = self.storage.borrow();
-        let mut rows = Vec::new();
-
-        for dataset_id in storage.list_datasets() {
-            let schema_name = self.dataset_to_schema_name(dataset_id);
-            if let Some(dataset) = storage.get_dataset(dataset_id) {
-                for (table_name, table) in dataset.tables() {
-                    for fk in table.foreign_keys() {
-                        let constraint_name = fk
-                            .name
-                            .clone()
-                            .unwrap_or_else(|| format!("{}_fkey", table_name));
-                        rows.push(Row::from_values(vec![
-                            Value::string(schema_name.clone()),
-                            Value::string(schema_name.clone()),
-                            Value::string(fk.parent_table.clone()),
-                            Value::string(schema_name.clone()),
-                            Value::string(schema_name.clone()),
-                            Value::string(constraint_name),
-                        ]));
-                    }
-                }
-            }
-        }
-
-        Ok((schema, rows))
+        Ok((schema, Vec::new()))
     }
 
     fn get_element_types(&self) -> Result<(Schema, Vec<Row>)> {
@@ -933,9 +833,7 @@ impl InformationSchemaProvider {
     fn get_enabled_roles(&self) -> Result<(Schema, Vec<Row>)> {
         let schema = Schema::from_fields(vec![Field::nullable("role_name", DataType::String)]);
 
-        let rows = vec![Row::from_values(vec![Value::string(
-            "postgres".to_string(),
-        )])];
+        let rows = vec![Row::from_values(vec![Value::string("default".to_string())])];
 
         Ok((schema, rows))
     }
@@ -948,8 +846,8 @@ impl InformationSchemaProvider {
         ]);
 
         let rows = vec![Row::from_values(vec![
-            Value::string("postgres".to_string()),
-            Value::string("postgres".to_string()),
+            Value::string("default".to_string()),
+            Value::string("default".to_string()),
             Value::string("YES".to_string()),
         ])];
 
@@ -1024,7 +922,7 @@ impl InformationSchemaProvider {
                                     Value::string(type_name.clone()),
                                     Value::string(field.name.clone()),
                                     Value::int64((idx + 1) as i64),
-                                    Value::string(data_type_to_postgres_name(&field.data_type)),
+                                    Value::string(data_type_to_sql_name(&field.data_type)),
                                 ]));
                             }
                         }
@@ -1254,8 +1152,8 @@ impl InformationSchemaProvider {
             .into_iter()
             .map(|name| {
                 Row::from_values(vec![
-                    Value::string("public".to_string()),
-                    Value::string("pg_catalog".to_string()),
+                    Value::string("default".to_string()),
+                    Value::string("default".to_string()),
                     Value::string(name.to_string()),
                     Value::string("NO PAD".to_string()),
                 ])

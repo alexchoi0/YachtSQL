@@ -5,7 +5,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_deeply_nested_null_logic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64, c INT64, d INT64)")
@@ -28,7 +28,7 @@ fn test_deeply_nested_null_logic() {
 
 #[test]
 fn test_multiple_not_with_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (val INT64)")
@@ -50,7 +50,7 @@ fn test_multiple_not_with_null() {
 
 #[test]
 fn test_null_in_complex_comparison_chain() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64, val INT64)")
@@ -72,7 +72,7 @@ fn test_null_in_complex_comparison_chain() {
 
 #[test]
 fn test_null_with_or_short_circuit_impossible() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64)")
@@ -94,7 +94,7 @@ fn test_null_with_or_short_circuit_impossible() {
 
 #[test]
 fn test_null_and_with_false_short_circuit() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64)")
@@ -116,7 +116,7 @@ fn test_null_and_with_false_short_circuit() {
 
 #[test]
 fn test_null_comparison_in_subexpression() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (val INT64)")
@@ -139,7 +139,7 @@ fn test_null_comparison_in_subexpression() {
 
 #[test]
 fn test_all_null_comparisons_in_and() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64, c INT64)")
@@ -158,7 +158,7 @@ fn test_all_null_comparisons_in_and() {
 
 #[test]
 fn test_mixed_null_and_false_in_or() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (a INT64, b INT64, c INT64)")

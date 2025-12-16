@@ -3371,7 +3371,7 @@ impl ProjectionWithExprExec {
                     ));
                 }
                 let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                Ok(Value::string(Self::get_clickhouse_type_name(&val)))
+                Ok(Value::string(Self::get_type_name(&val)))
             }
             "ACCURATECAST" => {
                 if args.len() < 2 {
@@ -3960,11 +3960,6 @@ impl ProjectionWithExprExec {
                     ))
                 }
             }
-            "TOLOWCARDINALITY" => Self::eval_to_low_cardinality(args, batch, row_idx),
-            "LOWCARDINALITYINDICES" => Self::eval_low_cardinality_indices(args, batch, row_idx),
-            "LOWCARDINALITYKEYS" => Self::eval_low_cardinality_keys(args, batch, row_idx),
-            "TOUUID" => Self::eval_to_uuid(args, batch, row_idx),
-
             "L2DISTANCE" => {
                 if args.len() != 2 {
                     return Err(Error::invalid_query("L2Distance requires 2 arguments"));
@@ -6023,7 +6018,7 @@ impl ProjectionWithExprExec {
         ))
     }
 
-    fn get_clickhouse_type_name(val: &Value) -> String {
+    fn get_type_name(val: &Value) -> String {
         if val.is_null() {
             return "Null".to_string();
         }
@@ -6245,13 +6240,13 @@ impl ProjectionWithExprExec {
         let s = val
             .as_str()
             .ok_or_else(|| Error::type_mismatch("String", &val.data_type().to_string()))?;
-        let strftime_fmt = Self::clickhouse_to_strftime(fmt);
+        let strftime_fmt = Self::convert_to_strftime(fmt);
         let dt = NaiveDateTime::parse_from_str(s.trim(), &strftime_fmt)
             .map_err(|e| Error::invalid_query(format!("Failed to parse datetime: {}", e)))?;
         Ok(Value::timestamp(Utc.from_utc_datetime(&dt)))
     }
 
-    fn clickhouse_to_strftime(fmt: &str) -> String {
+    fn convert_to_strftime(fmt: &str) -> String {
         fmt.to_string()
     }
 

@@ -5,7 +5,6 @@ use std::rc::Rc;
 use regex::Regex;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::DataType;
-use yachtsql_functions::dialects::clickhouse::clickhouse_aggregate_functions;
 use yachtsql_functions::dialects::core_aggregate_functions;
 use yachtsql_ir::FunctionName;
 use yachtsql_ir::expr::{Expr, LiteralValue};
@@ -110,135 +109,13 @@ use super::returning::{
     ReturningColumn, ReturningColumnOrigin, ReturningExpressionItem, ReturningSpec,
 };
 use crate::information_schema::{InformationSchemaProvider, InformationSchemaTable};
-use crate::pg_catalog::{PgCatalogProvider, PgCatalogTable};
 use crate::system_schema::{SystemSchemaProvider, SystemTable};
 
 #[allow(dead_code)]
 pub struct LogicalToPhysicalPlanner {
     storage: Rc<RefCell<yachtsql_storage::Storage>>,
-    transaction_manager: Option<Rc<RefCell<yachtsql_storage::TransactionManager>>>,
     dialect: crate::DialectType,
     cte_plans: RefCell<HashMap<String, (Rc<dyn ExecutionPlan>, Option<Vec<String>>)>>,
-}
-
-fn is_system_column(name: &str) -> bool {
-    matches!(
-        name.to_lowercase().as_str(),
-        "ctid" | "xmin" | "xmax" | "cmin" | "cmax" | "tableoid"
-    )
-}
-
-fn system_column_type(name: &str) -> Option<yachtsql_core::types::DataType> {
-    match name.to_lowercase().as_str() {
-        "ctid" => Some(yachtsql_core::types::DataType::Tid),
-        "xmin" | "xmax" => Some(yachtsql_core::types::DataType::Xid),
-        "cmin" | "cmax" => Some(yachtsql_core::types::DataType::Cid),
-        "tableoid" => Some(yachtsql_core::types::DataType::Oid),
-        _ => None,
-    }
-}
-
-fn create_system_columns(source_table: &str) -> Vec<yachtsql_storage::schema::Field> {
-    use yachtsql_core::types::DataType;
-    use yachtsql_storage::schema::{Field, FieldMode};
-    vec![
-        Field {
-            name: "ctid".to_string(),
-            data_type: DataType::Tid,
-            mode: FieldMode::Nullable,
-            description: None,
-            default_value: None,
-            is_unique: false,
-            identity_generation: None,
-            identity_sequence_name: None,
-            identity_sequence_config: None,
-            is_auto_increment: false,
-            generated_expression: None,
-            collation: None,
-            source_table: Some(source_table.to_string()),
-            domain_name: None,
-        },
-        Field {
-            name: "xmin".to_string(),
-            data_type: DataType::Xid,
-            mode: FieldMode::Nullable,
-            description: None,
-            default_value: None,
-            is_unique: false,
-            identity_generation: None,
-            identity_sequence_name: None,
-            identity_sequence_config: None,
-            is_auto_increment: false,
-            generated_expression: None,
-            collation: None,
-            source_table: Some(source_table.to_string()),
-            domain_name: None,
-        },
-        Field {
-            name: "xmax".to_string(),
-            data_type: DataType::Xid,
-            mode: FieldMode::Nullable,
-            description: None,
-            default_value: None,
-            is_unique: false,
-            identity_generation: None,
-            identity_sequence_name: None,
-            identity_sequence_config: None,
-            is_auto_increment: false,
-            generated_expression: None,
-            collation: None,
-            source_table: Some(source_table.to_string()),
-            domain_name: None,
-        },
-        Field {
-            name: "cmin".to_string(),
-            data_type: DataType::Cid,
-            mode: FieldMode::Nullable,
-            description: None,
-            default_value: None,
-            is_unique: false,
-            identity_generation: None,
-            identity_sequence_name: None,
-            identity_sequence_config: None,
-            is_auto_increment: false,
-            generated_expression: None,
-            collation: None,
-            source_table: Some(source_table.to_string()),
-            domain_name: None,
-        },
-        Field {
-            name: "cmax".to_string(),
-            data_type: DataType::Cid,
-            mode: FieldMode::Nullable,
-            description: None,
-            default_value: None,
-            is_unique: false,
-            identity_generation: None,
-            identity_sequence_name: None,
-            identity_sequence_config: None,
-            is_auto_increment: false,
-            generated_expression: None,
-            collation: None,
-            source_table: Some(source_table.to_string()),
-            domain_name: None,
-        },
-        Field {
-            name: "tableoid".to_string(),
-            data_type: DataType::Oid,
-            mode: FieldMode::Nullable,
-            description: None,
-            default_value: None,
-            is_unique: false,
-            identity_generation: None,
-            identity_sequence_name: None,
-            identity_sequence_config: None,
-            is_auto_increment: false,
-            generated_expression: None,
-            collation: None,
-            source_table: Some(source_table.to_string()),
-            domain_name: None,
-        },
-    ]
 }
 
 impl LogicalToPhysicalPlanner {
@@ -364,9 +241,6 @@ impl LogicalToPhysicalPlanner {
 
         match expr {
             Expr::Column { name, table } => {
-                if is_system_column(name) {
-                    return Ok(());
-                }
                 if table.is_none() {
                     let matching_fields: Vec<_> =
                         schema.fields().iter().filter(|f| f.name == *name).collect();
@@ -403,9 +277,6 @@ impl LogicalToPhysicalPlanner {
                     }
                     let qualified_name = format!("{}.{}", table_name, name);
                     if schema.field(&qualified_name).is_some() {
-                        return Ok(());
-                    }
-                    if is_system_column(name) {
                         return Ok(());
                     }
                     if let Some(field) = schema.field(table_name) {
@@ -756,30 +627,8 @@ impl LogicalToPhysicalPlanner {
                 let resolved_data_type = match data_type {
                     CastDataType::Custom(name, fields) if fields.is_empty() => {
                         match name.to_uppercase().as_str() {
-                            "MACADDR" => CastDataType::MacAddr,
-                            "MACADDR8" => CastDataType::MacAddr8,
-                            "INET" => CastDataType::Inet,
-                            "CIDR" => CastDataType::Cidr,
-                            "HSTORE" => CastDataType::Hstore,
                             "INTERVAL" => CastDataType::Interval,
                             "UUID" => CastDataType::Uuid,
-                            "INT4RANGE" => CastDataType::Int4Range,
-                            "INT8RANGE" => CastDataType::Int8Range,
-                            "NUMRANGE" => CastDataType::NumRange,
-                            "TSRANGE" => CastDataType::TsRange,
-                            "TSTZRANGE" => CastDataType::TsTzRange,
-                            "DATERANGE" => CastDataType::DateRange,
-                            "INT4MULTIRANGE" => CastDataType::Int4Multirange,
-                            "INT8MULTIRANGE" => CastDataType::Int8Multirange,
-                            "NUMMULTIRANGE" => CastDataType::NumMultirange,
-                            "TSMULTIRANGE" => CastDataType::TsMultirange,
-                            "TSTZMULTIRANGE" => CastDataType::TsTzMultirange,
-                            "DATEMULTIRANGE" => CastDataType::DateMultirange,
-                            "POINT" => CastDataType::Point,
-                            "BOX" => CastDataType::PgBox,
-                            "CIRCLE" => CastDataType::Circle,
-                            "XID" => CastDataType::Xid,
-                            "XID8" => CastDataType::Xid8,
                             _ => {
                                 let composite_fields_cloned = {
                                     let storage = self.storage.borrow();
@@ -905,22 +754,11 @@ impl LogicalToPhysicalPlanner {
         }
     }
 
-    fn is_system_column(dt: &yachtsql_core::types::DataType) -> bool {
-        use yachtsql_core::types::DataType;
-        matches!(
-            dt,
-            DataType::Tid | DataType::Xid | DataType::Cid | DataType::Oid
-        )
-    }
-
     fn expand_columns_in_expressions(
         expressions: &[(Expr, Option<String>)],
         schema: &yachtsql_storage::Schema,
     ) -> Vec<(Expr, Option<String>)> {
-        let aggregate_fns: HashSet<&str> = core_aggregate_functions()
-            .into_iter()
-            .chain(clickhouse_aggregate_functions())
-            .collect();
+        let aggregate_fns: HashSet<&str> = core_aggregate_functions().into_iter().collect();
 
         let mut result = Vec::new();
         for (expr, alias) in expressions {
@@ -984,7 +822,18 @@ impl LogicalToPhysicalPlanner {
                 }
                 Expr::Wildcard => {
                     for field in schema.fields() {
-                        if !Self::is_system_column(&field.data_type) {
+                        let column_expr = Expr::Column {
+                            name: field.name.clone(),
+                            table: field.source_table.clone(),
+                        };
+                        result.push((column_expr, None));
+                    }
+                }
+                Expr::QualifiedWildcard { qualifier } => {
+                    for field in schema.fields() {
+                        let should_include = field.source_table.as_ref() == Some(qualifier)
+                            || field.source_table.is_none();
+                        if should_include {
                             let column_expr = Expr::Column {
                                 name: field.name.clone(),
                                 table: field.source_table.clone(),
@@ -993,27 +842,11 @@ impl LogicalToPhysicalPlanner {
                         }
                     }
                 }
-                Expr::QualifiedWildcard { qualifier } => {
-                    for field in schema.fields() {
-                        if !Self::is_system_column(&field.data_type) {
-                            let should_include = field.source_table.as_ref() == Some(qualifier)
-                                || field.source_table.is_none();
-                            if should_include {
-                                let column_expr = Expr::Column {
-                                    name: field.name.clone(),
-                                    table: field.source_table.clone(),
-                                };
-                                result.push((column_expr, None));
-                            }
-                        }
-                    }
-                }
                 Expr::ExpressionWildcard { expr: inner_expr } => {
                     if let Expr::Function { name, args } = inner_expr.as_ref() {
                         let func_name = name.as_str().to_uppercase();
                         match func_name.as_str() {
-                            "EACH" | "JSON_EACH" | "JSONB_EACH" | "JSON_EACH_TEXT"
-                            | "JSONB_EACH_TEXT" => {
+                            "EACH" | "JSON_EACH" | "JSON_EACH_TEXT" => {
                                 result.push((
                                     Expr::Function {
                                         name: name.clone(),
@@ -1401,9 +1234,7 @@ impl LogicalToPhysicalPlanner {
                     FunctionName::CurrentTimestamp
                     | FunctionName::Localtimestamp
                     | FunctionName::Now => DataType::Timestamp,
-                    FunctionName::JsonExtractJson
-                    | FunctionName::JsonExtract
-                    | FunctionName::HstoreGet => DataType::String,
+                    FunctionName::JsonExtractJson | FunctionName::JsonExtract => DataType::String,
                     _ => panic!("infer_expr_type: unhandled function: {:?}", name),
                 }
             }
@@ -1465,7 +1296,6 @@ impl LogicalToPhysicalPlanner {
     pub fn new(storage: Rc<RefCell<yachtsql_storage::Storage>>) -> Self {
         Self {
             storage,
-            transaction_manager: None,
             dialect: crate::DialectType::BigQuery,
             cte_plans: RefCell::new(HashMap::new()),
         }
@@ -1473,14 +1303,6 @@ impl LogicalToPhysicalPlanner {
 
     pub fn with_dialect(mut self, dialect: crate::DialectType) -> Self {
         self.dialect = dialect;
-        self
-    }
-
-    pub fn with_transaction_manager(
-        mut self,
-        tm: Rc<RefCell<yachtsql_storage::TransactionManager>>,
-    ) -> Self {
-        self.transaction_manager = Some(tm);
         self
     }
 
@@ -1639,24 +1461,6 @@ impl LogicalToPhysicalPlanner {
                     )));
                 }
 
-                if dataset_name.eq_ignore_ascii_case("pg_catalog") {
-                    debug_print::debug_eprintln!(
-                        "[executor::logical_to_physical] Handling pg_catalog query for table '{}'",
-                        table_id
-                    );
-                    let pg_table = PgCatalogTable::from_str(table_id)?;
-                    let provider = PgCatalogProvider::new(Rc::clone(&self.storage));
-                    let (schema, rows) = provider.query(pg_table)?;
-
-                    let source_table = alias.as_ref().unwrap_or(table_name);
-                    let schema_with_source = schema.with_source_table(source_table);
-                    let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
-                    return Ok(Rc::new(MaterializedViewScanExec::new(
-                        schema_with_source,
-                        batch,
-                    )));
-                }
-
                 if dataset_name.eq_ignore_ascii_case("system") {
                     debug_print::debug_eprintln!(
                         "[executor::logical_to_physical] Handling system query for table '{}'",
@@ -1682,22 +1486,6 @@ impl LogicalToPhysicalPlanner {
                 };
 
                 if !table_exists {
-                    if matches!(self.dialect, crate::DialectType::ClickHouse)
-                        && !table_name.contains('.')
-                    {
-                        use std::str::FromStr;
-                        if let Ok(system_table) = SystemTable::from_str(table_id) {
-                            let provider = SystemSchemaProvider::new(Rc::clone(&self.storage));
-                            let (schema, rows) = provider.query(system_table)?;
-                            let source_table = alias.as_ref().unwrap_or(table_name);
-                            let schema_with_source = schema.with_source_table(source_table);
-                            let batch = crate::Table::from_rows(schema_with_source.clone(), rows)?;
-                            return Ok(Rc::new(MaterializedViewScanExec::new(
-                                schema_with_source,
-                                batch,
-                            )));
-                        }
-                    }
                     return Err(Error::TableNotFound(format!(
                         "Table '{}' not found",
                         table_id
@@ -1720,23 +1508,13 @@ impl LogicalToPhysicalPlanner {
 
                 let schema = self.expand_schema_custom_types(&base_schema);
 
-                let scan_exec = match &self.transaction_manager {
-                    Some(tm) => TableScanExec::new_with_transaction(
-                        schema,
-                        table_name.clone(),
-                        Rc::clone(&self.storage),
-                        Rc::clone(tm),
-                        *only,
-                        *final_modifier,
-                    ),
-                    None => TableScanExec::new_with_final(
-                        schema,
-                        table_name.clone(),
-                        Rc::clone(&self.storage),
-                        *only,
-                        *final_modifier,
-                    ),
-                };
+                let scan_exec = TableScanExec::new_with_final(
+                    schema,
+                    table_name.clone(),
+                    Rc::clone(&self.storage),
+                    *only,
+                    *final_modifier,
+                );
 
                 Ok(Rc::new(scan_exec))
             }
@@ -2063,9 +1841,6 @@ impl LogicalToPhysicalPlanner {
 
                 let storage = Rc::clone(&self.storage);
 
-                let fk_enforcer =
-                    Rc::new(crate::query_executor::enforcement::ForeignKeyEnforcer::new());
-
                 Ok(Rc::new(MergeExec::new(
                     target_table.clone(),
                     target_alias.clone(),
@@ -2077,7 +1852,6 @@ impl LogicalToPhysicalPlanner {
                     when_not_matched_by_source.clone(),
                     returning_spec,
                     storage,
-                    fk_enforcer,
                 )?))
             }
 
@@ -2276,30 +2050,14 @@ impl LogicalToPhysicalPlanner {
                         Field::nullable("key", yachtsql_core::types::DataType::String),
                         Field::nullable("value", yachtsql_core::types::DataType::String),
                     ]),
-                    "JSON_EACH" | "JSONB_EACH" => Schema::from_fields(vec![
+                    "JSON_EACH" => Schema::from_fields(vec![
                         Field::nullable("key", yachtsql_core::types::DataType::String),
                         Field::nullable("value", yachtsql_core::types::DataType::Json),
                     ]),
-                    "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => Schema::from_fields(vec![
+                    "JSON_EACH_TEXT" => Schema::from_fields(vec![
                         Field::nullable("key", yachtsql_core::types::DataType::String),
                         Field::nullable("value", yachtsql_core::types::DataType::String),
                     ]),
-                    "SKEYS" => Schema::from_fields(vec![Field::nullable(
-                        "key",
-                        yachtsql_core::types::DataType::String,
-                    )]),
-                    "SVALS" => Schema::from_fields(vec![Field::nullable(
-                        "value",
-                        yachtsql_core::types::DataType::String,
-                    )]),
-                    "POPULATE_RECORD" => {
-                        if args.is_empty() {
-                            return Err(Error::InvalidQuery(
-                                "populate_record requires at least 1 argument".to_string(),
-                            ));
-                        }
-                        self.extract_record_type_schema(&args[0])?
-                    }
                     "NUMBERS" | "NUMBERS_MT" => Schema::from_fields(vec![Field::nullable(
                         "number",
                         yachtsql_core::types::DataType::Int64,
@@ -2453,31 +2211,7 @@ impl LogicalToPhysicalPlanner {
 
             Expr::Literal(yachtsql_ir::expr::LiteralValue::Null) => DataType::Unknown,
 
-            Expr::Cast { data_type, .. } => {
-                use yachtsql_core::types::RangeType;
-                use yachtsql_ir::expr::CastDataType;
-
-                match data_type {
-                    CastDataType::Int4Multirange => DataType::Range(RangeType::Int4Range),
-                    CastDataType::Int8Multirange => DataType::Range(RangeType::Int8Range),
-                    CastDataType::NumMultirange => DataType::Range(RangeType::NumRange),
-                    CastDataType::TsMultirange => DataType::Range(RangeType::TsRange),
-                    CastDataType::TsTzMultirange => DataType::Range(RangeType::TsTzRange),
-                    CastDataType::DateMultirange => DataType::Range(RangeType::DateRange),
-                    CastDataType::Custom(name, fields) if fields.is_empty() => {
-                        match name.to_uppercase().as_str() {
-                            "INT4MULTIRANGE" => DataType::Range(RangeType::Int4Range),
-                            "INT8MULTIRANGE" => DataType::Range(RangeType::Int8Range),
-                            "NUMMULTIRANGE" => DataType::Range(RangeType::NumRange),
-                            "TSMULTIRANGE" => DataType::Range(RangeType::TsRange),
-                            "TSTZMULTIRANGE" => DataType::Range(RangeType::TsTzRange),
-                            "DATEMULTIRANGE" => DataType::Range(RangeType::DateRange),
-                            _ => self.cast_data_type_to_data_type(data_type),
-                        }
-                    }
-                    _ => self.cast_data_type_to_data_type(data_type),
-                }
-            }
+            Expr::Cast { data_type, .. } => self.cast_data_type_to_data_type(data_type),
 
             Expr::Column { name, table } => {
                 let storage = self.storage.borrow();
@@ -2535,7 +2269,6 @@ impl LogicalToPhysicalPlanner {
             CastDataType::Uuid => DataType::Uuid,
             CastDataType::Interval => DataType::Interval,
             CastDataType::Vector(dim) => DataType::Vector(*dim),
-            CastDataType::Hstore => DataType::Hstore,
             CastDataType::MacAddr => DataType::MacAddr,
             CastDataType::MacAddr8 => DataType::MacAddr8,
             CastDataType::Inet => DataType::Inet,
@@ -2547,7 +2280,6 @@ impl LogicalToPhysicalPlanner {
             CastDataType::TsTzRange => DataType::Range(yachtsql_core::types::RangeType::TsTzRange),
             CastDataType::DateRange => DataType::Range(yachtsql_core::types::RangeType::DateRange),
             CastDataType::Point => DataType::Point,
-            CastDataType::PgBox => DataType::PgBox,
             CastDataType::Circle => DataType::Circle,
             CastDataType::Xid => DataType::Xid,
             CastDataType::Xid8 => DataType::Xid8,
@@ -2601,7 +2333,6 @@ impl LogicalToPhysicalPlanner {
                     DataType::Range(yachtsql_core::types::RangeType::Int8Range)
                 }
                 LiteralValue::Point(_) => DataType::Point,
-                LiteralValue::PgBox(_) => DataType::PgBox,
                 LiteralValue::Circle(_) => DataType::Circle,
                 LiteralValue::Line(_) => DataType::Line,
                 LiteralValue::Lseg(_) => DataType::Lseg,
@@ -2638,44 +2369,6 @@ impl LogicalToPhysicalPlanner {
         expr.clone()
     }
 
-    fn extract_record_type_schema(
-        &self,
-        expr: &yachtsql_ir::expr::Expr,
-    ) -> Result<yachtsql_storage::Schema> {
-        use yachtsql_ir::expr::{CastDataType, Expr};
-        use yachtsql_storage::{Field, Schema};
-
-        match expr {
-            Expr::Cast { data_type, .. } => match data_type {
-                CastDataType::Custom(type_name, fields) => {
-                    if !fields.is_empty() {
-                        let schema_fields: Vec<Field> = fields
-                            .iter()
-                            .map(|f| Field::nullable(&f.name, f.data_type.clone()))
-                            .collect();
-                        Ok(Schema::from_fields(schema_fields))
-                    } else {
-                        let storage = self.storage.borrow();
-                        if let Some(table) = storage.get_table(type_name) {
-                            return Ok(table.schema().clone());
-                        }
-                        Err(Error::InvalidQuery(format!(
-                            "Could not find table/type '{}' for populate_record",
-                            type_name
-                        )))
-                    }
-                }
-                _ => Err(Error::InvalidQuery(
-                    "populate_record requires first argument to be cast to a record type"
-                        .to_string(),
-                )),
-            },
-            _ => Err(Error::InvalidQuery(
-                "populate_record requires first argument to be cast to a record type".to_string(),
-            )),
-        }
-    }
-
     fn parse_schema_string(&self, schema_str: &str) -> Result<yachtsql_storage::Schema> {
         use yachtsql_core::types::DataType;
         use yachtsql_storage::{Field, Schema};
@@ -2695,13 +2388,13 @@ impl LogicalToPhysicalPlanner {
             }
             let name = parts[0].to_string();
             let type_str = parts[1..].join(" ");
-            let data_type = self.parse_clickhouse_type(&type_str)?;
+            let data_type = self.parse_sql_type(&type_str)?;
             fields.push(Field::nullable(&name, data_type));
         }
         Ok(Schema::from_fields(fields))
     }
 
-    fn parse_clickhouse_type(&self, type_str: &str) -> Result<yachtsql_core::types::DataType> {
+    fn parse_sql_type(&self, type_str: &str) -> Result<yachtsql_core::types::DataType> {
         use yachtsql_core::types::DataType;
         let upper = type_str.to_uppercase();
         let dt = match upper.as_str() {

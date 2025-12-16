@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_lag_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (month INT64, revenue INT64)")
@@ -48,7 +48,7 @@ fn test_lag_basic() {
 
 #[test]
 fn test_lag_offset_2() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -100,7 +100,7 @@ fn test_lag_offset_2() {
 
 #[test]
 fn test_lag_with_default() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE temps (day INT64, temp INT64)")
@@ -137,7 +137,7 @@ fn test_lag_with_default() {
 
 #[test]
 fn test_lag_with_partition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE metrics (region STRING, month INT64, value INT64)")
@@ -183,7 +183,7 @@ fn test_lag_with_partition() {
 
 #[test]
 fn test_lag_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -220,7 +220,7 @@ fn test_lag_with_nulls() {
 
 #[test]
 fn test_lead_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (month INT64, revenue INT64)")
@@ -266,7 +266,7 @@ fn test_lead_basic() {
 
 #[test]
 fn test_lead_offset_2() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -318,7 +318,7 @@ fn test_lead_offset_2() {
 
 #[test]
 fn test_lead_with_default() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sequence (id INT64, value INT64)")
@@ -361,7 +361,7 @@ fn test_lead_with_default() {
 
 #[test]
 fn test_lead_with_partition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE metrics (region STRING, month INT64, value INT64)")
@@ -407,7 +407,7 @@ fn test_lead_with_partition() {
 
 #[test]
 fn test_first_value_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -443,7 +443,7 @@ fn test_first_value_basic() {
 
 #[test]
 fn test_first_value_with_partition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (region STRING, amount INT64)")
@@ -493,7 +493,7 @@ fn test_first_value_with_partition() {
 
 #[test]
 fn test_first_value_with_frame() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -553,7 +553,7 @@ fn test_first_value_with_frame() {
 
 #[test]
 fn test_last_value_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -590,7 +590,7 @@ fn test_last_value_basic() {
 
 #[test]
 fn test_last_value_current_row_frame() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -631,7 +631,7 @@ fn test_last_value_current_row_frame() {
 
 #[test]
 fn test_last_value_with_frame() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -691,7 +691,7 @@ fn test_last_value_with_frame() {
 
 #[test]
 fn test_last_value_with_partition() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (region STRING, amount INT64)")
@@ -745,7 +745,7 @@ fn test_last_value_with_partition() {
 
 #[test]
 fn test_nth_value_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -795,7 +795,7 @@ fn test_nth_value_basic() {
 
 #[test]
 fn test_nth_value_with_frame() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -840,7 +840,7 @@ fn test_nth_value_with_frame() {
 
 #[test]
 fn test_lag_lead_combined() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sequence (id INT64, value INT64)")
@@ -891,7 +891,7 @@ fn test_lag_lead_combined() {
 
 #[test]
 fn test_first_last_combined() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")

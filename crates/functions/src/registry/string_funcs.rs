@@ -18,7 +18,7 @@ pub(super) fn register(registry: &mut FunctionRegistry) {
     register_regex_functions(registry);
     register_character_functions(registry);
     register_formatting_functions(registry);
-    register_postgres_text_functions(registry);
+    register_text_functions(registry);
     register_conversion_functions(registry);
 }
 
@@ -1610,7 +1610,7 @@ fn register_formatting_functions(registry: &mut FunctionRegistry) {
     );
 }
 
-fn register_postgres_text_functions(registry: &mut FunctionRegistry) {
+fn register_text_functions(registry: &mut FunctionRegistry) {
     registry.register_scalar(
         "BTRIM".to_string(),
         Rc::new(ScalarFunctionImpl {

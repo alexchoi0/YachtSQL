@@ -34,13 +34,10 @@ pub enum DataType {
     TimestampTz,
     Geography,
     Json,
-    Hstore,
     Struct(Vec<StructField>),
     Array(Box<DataType>),
     Map(Box<DataType>, Box<DataType>),
     Uuid,
-    Serial,
-    BigSerial,
     Vector(usize),
     Interval,
     Range(RangeType),
@@ -48,7 +45,6 @@ pub enum DataType {
     Inet,
     Cidr,
     Point,
-    PgBox,
     Circle,
     Line,
     Lseg,
@@ -72,8 +68,6 @@ pub enum DataType {
     Tid,
     Cid,
     Oid,
-    TsVector,
-    TsQuery,
     Custom(String),
 }
 
@@ -140,7 +134,6 @@ impl fmt::Display for DataType {
             DataType::TimestampTz => write!(f, "TIMESTAMPTZ"),
             DataType::Geography => write!(f, "GEOGRAPHY"),
             DataType::Json => write!(f, "JSON"),
-            DataType::Hstore => write!(f, "HSTORE"),
             DataType::Struct(fields) => {
                 write!(f, "STRUCT<")?;
                 for (i, field) in fields.iter().enumerate() {
@@ -156,8 +149,6 @@ impl fmt::Display for DataType {
                 write!(f, "MAP<{}, {}>", key_type, value_type)
             }
             DataType::Uuid => write!(f, "UUID"),
-            DataType::Serial => write!(f, "SERIAL"),
-            DataType::BigSerial => write!(f, "BIGSERIAL"),
             DataType::Vector(dims) => write!(f, "VECTOR({})", dims),
             DataType::Interval => write!(f, "INTERVAL"),
             DataType::Range(range_type) => match range_type {
@@ -179,7 +170,6 @@ impl fmt::Display for DataType {
             DataType::Inet => write!(f, "INET"),
             DataType::Cidr => write!(f, "CIDR"),
             DataType::Point => write!(f, "POINT"),
-            DataType::PgBox => write!(f, "BOX"),
             DataType::Circle => write!(f, "CIRCLE"),
             DataType::Line => write!(f, "LINE"),
             DataType::Lseg => write!(f, "LSEG"),
@@ -200,8 +190,6 @@ impl fmt::Display for DataType {
             DataType::Tid => write!(f, "TID"),
             DataType::Cid => write!(f, "CID"),
             DataType::Oid => write!(f, "OID"),
-            DataType::TsVector => write!(f, "TSVECTOR"),
-            DataType::TsQuery => write!(f, "TSQUERY"),
             DataType::Custom(name) => write!(f, "{}", name),
         }
     }
@@ -223,9 +211,7 @@ const TAG_RANGE: u8 = 139;
 const TAG_INET: u8 = 140;
 const TAG_CIDR: u8 = 141;
 const TAG_POINT: u8 = 142;
-const TAG_PGBOX: u8 = 143;
 const TAG_CIRCLE: u8 = 144;
-const TAG_HSTORE: u8 = 145;
 const TAG_LINE: u8 = 161;
 const TAG_LSEG: u8 = 162;
 const TAG_PATH: u8 = 163;
@@ -238,8 +224,6 @@ const TAG_GEO_RING: u8 = 157;
 const TAG_GEO_POLYGON: u8 = 158;
 const TAG_GEO_MULTIPOLYGON: u8 = 159;
 const TAG_FIXED_STRING: u8 = 160;
-const TAG_TSVECTOR: u8 = 150;
-const TAG_TSQUERY: u8 = 151;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FixedStringData {
@@ -339,89 +323,6 @@ impl std::hash::Hash for PgPoint {
 impl fmt::Display for PgPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({},{})", self.x, self.y)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PgBox {
-    pub high: PgPoint,
-
-    pub low: PgPoint,
-}
-
-impl PgBox {
-    pub fn new(p1: PgPoint, p2: PgPoint) -> Self {
-        let high = PgPoint::new(p1.x.max(p2.x), p1.y.max(p2.y));
-        let low = PgPoint::new(p1.x.min(p2.x), p1.y.min(p2.y));
-        Self { high, low }
-    }
-
-    pub fn parse(s: &str) -> Option<Self> {
-        let s = s.trim();
-
-        let s = if s.starts_with('(') && s.ends_with(')') {
-            &s[1..s.len() - 1]
-        } else {
-            s
-        };
-
-        let split_pos = s.find("),(")?;
-        let p1_str = &s[..split_pos + 1];
-        let p2_str = &s[split_pos + 2..];
-
-        let p1 = PgPoint::parse(p1_str)?;
-        let p2 = PgPoint::parse(p2_str)?;
-
-        Some(Self::new(p1, p2))
-    }
-
-    pub fn area(&self) -> f64 {
-        (self.high.x - self.low.x).abs() * (self.high.y - self.low.y).abs()
-    }
-
-    pub fn width(&self) -> f64 {
-        (self.high.x - self.low.x).abs()
-    }
-
-    pub fn height(&self) -> f64 {
-        (self.high.y - self.low.y).abs()
-    }
-
-    pub fn center(&self) -> PgPoint {
-        PgPoint::new(
-            (self.high.x + self.low.x) / 2.0,
-            (self.high.y + self.low.y) / 2.0,
-        )
-    }
-
-    pub fn contains_point(&self, p: &PgPoint) -> bool {
-        p.x >= self.low.x && p.x <= self.high.x && p.y >= self.low.y && p.y <= self.high.y
-    }
-
-    pub fn overlaps(&self, other: &PgBox) -> bool {
-        self.low.x <= other.high.x
-            && self.high.x >= other.low.x
-            && self.low.y <= other.high.y
-            && self.high.y >= other.low.y
-    }
-
-    pub fn diagonal(&self) -> f64 {
-        self.low.distance(&self.high)
-    }
-}
-
-impl Eq for PgBox {}
-
-impl std::hash::Hash for PgBox {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.high.hash(state);
-        self.low.hash(state);
-    }
-}
-
-impl fmt::Display for PgBox {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({},{})", self.high, self.low)
     }
 }
 
@@ -1176,134 +1077,6 @@ pub fn format_geo_multipolygon(mp: &GeoMultiPolygonValue) -> String {
     format!("[{}]", polys.join(", "))
 }
 
-fn parse_hstore_text(s: &str) -> Result<IndexMap<String, Option<String>>, String> {
-    let mut map = IndexMap::new();
-    let s = s.trim();
-
-    if s.is_empty() {
-        return Ok(map);
-    }
-
-    let mut pos = 0;
-    let chars: Vec<char> = s.chars().collect();
-
-    while pos < chars.len() {
-        while pos < chars.len() && chars[pos].is_whitespace() {
-            pos += 1;
-        }
-
-        if pos >= chars.len() {
-            break;
-        }
-
-        let key = if chars[pos] == '"' {
-            pos += 1;
-            let start = pos;
-            while pos < chars.len() && chars[pos] != '"' {
-                if chars[pos] == '\\' && pos + 1 < chars.len() {
-                    pos += 2;
-                } else {
-                    pos += 1;
-                }
-            }
-            if pos >= chars.len() {
-                return Err("Unterminated quoted key".to_string());
-            }
-            let key_str: String = chars[start..pos].iter().collect();
-            pos += 1;
-            unescape_hstore(&key_str)
-        } else {
-            let start = pos;
-            while pos < chars.len() && chars[pos] != '=' && !chars[pos].is_whitespace() {
-                pos += 1;
-            }
-            chars[start..pos].iter().collect()
-        };
-
-        while pos < chars.len() && chars[pos].is_whitespace() {
-            pos += 1;
-        }
-
-        if pos + 1 >= chars.len() || chars[pos] != '=' || chars[pos + 1] != '>' {
-            return Err(format!(
-                "Expected '=>' after key '{}', found '{}'",
-                key,
-                if pos < chars.len() {
-                    chars[pos].to_string()
-                } else {
-                    "EOF".to_string()
-                }
-            ));
-        }
-        pos += 2;
-
-        while pos < chars.len() && chars[pos].is_whitespace() {
-            pos += 1;
-        }
-
-        let value = if pos >= chars.len() {
-            return Err(format!("Missing value for key '{}'", key));
-        } else if chars[pos] == '"' {
-            pos += 1;
-            let start = pos;
-            while pos < chars.len() && chars[pos] != '"' {
-                if chars[pos] == '\\' && pos + 1 < chars.len() {
-                    pos += 2;
-                } else {
-                    pos += 1;
-                }
-            }
-            if pos >= chars.len() {
-                return Err("Unterminated quoted value".to_string());
-            }
-            let val_str: String = chars[start..pos].iter().collect();
-            pos += 1;
-            Some(unescape_hstore(&val_str))
-        } else {
-            let start = pos;
-            while pos < chars.len() && chars[pos] != ',' && !chars[pos].is_whitespace() {
-                pos += 1;
-            }
-            let val_str: String = chars[start..pos].iter().collect();
-            if val_str.to_uppercase() == "NULL" {
-                None
-            } else {
-                Some(val_str)
-            }
-        };
-
-        map.insert(key, value);
-
-        while pos < chars.len() && chars[pos].is_whitespace() {
-            pos += 1;
-        }
-        if pos < chars.len() && chars[pos] == ',' {
-            pos += 1;
-        }
-    }
-
-    Ok(map)
-}
-
-fn unescape_hstore(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '\\' {
-            if let Some(&next) = chars.peek() {
-                chars.next();
-                result.push(next);
-            } else {
-                result.push(c);
-            }
-        } else {
-            result.push(c);
-        }
-    }
-
-    result
-}
 const TAG_MACADDR: u8 = 146;
 const TAG_MACADDR8: u8 = 147;
 const TAG_MAP: u8 = 148;
@@ -1923,36 +1696,6 @@ impl Value {
     }
 
     #[inline]
-    pub fn tsvector(text: String) -> Self {
-        let rc = Rc::new(text);
-        let ptr = Rc::into_raw(rc) as *mut u8;
-        Self {
-            inner: ValueInner {
-                heap: std::mem::ManuallyDrop::new(HeapValue {
-                    tag: TAG_TSVECTOR,
-                    _pad: [0; 7],
-                    ptr,
-                }),
-            },
-        }
-    }
-
-    #[inline]
-    pub fn tsquery(text: String) -> Self {
-        let rc = Rc::new(text);
-        let ptr = Rc::into_raw(rc) as *mut u8;
-        Self {
-            inner: ValueInner {
-                heap: std::mem::ManuallyDrop::new(HeapValue {
-                    tag: TAG_TSQUERY,
-                    _pad: [0; 7],
-                    ptr,
-                }),
-            },
-        }
-    }
-
-    #[inline]
     pub fn struct_val(map: IndexMap<String, Value>) -> Self {
         let rc = Rc::new(map);
         let ptr = Rc::into_raw(rc) as *mut u8;
@@ -2072,26 +1815,6 @@ impl Value {
         }
     }
 
-    #[inline]
-    pub fn hstore(map: IndexMap<String, Option<String>>) -> Self {
-        let rc = Rc::new(map);
-        let ptr = Rc::into_raw(rc) as *mut u8;
-        Self {
-            inner: ValueInner {
-                heap: std::mem::ManuallyDrop::new(HeapValue {
-                    tag: TAG_HSTORE,
-                    _pad: [0; 7],
-                    ptr,
-                }),
-            },
-        }
-    }
-
-    pub fn hstore_from_str(s: &str) -> Result<Self, String> {
-        let map = parse_hstore_text(s)?;
-        Ok(Self::hstore(map))
-    }
-
     pub fn default_value() -> Self {
         Self {
             inner: ValueInner {
@@ -2197,21 +1920,6 @@ impl Value {
             inner: ValueInner {
                 heap: std::mem::ManuallyDrop::new(HeapValue {
                     tag: TAG_POINT,
-                    _pad: [0; 7],
-                    ptr,
-                }),
-            },
-        }
-    }
-
-    #[inline]
-    pub fn pgbox(b: PgBox) -> Self {
-        let rc = Rc::new(b);
-        let ptr = Rc::into_raw(rc) as *mut u8;
-        Self {
-            inner: ValueInner {
-                heap: std::mem::ManuallyDrop::new(HeapValue {
-                    tag: TAG_PGBOX,
                     _pad: [0; 7],
                     ptr,
                 }),
@@ -2488,8 +2196,6 @@ impl Value {
                     TAG_NUMERIC => DataType::Numeric(None),
                     TAG_BYTES => DataType::Bytes,
                     TAG_GEOGRAPHY => DataType::Geography,
-                    TAG_TSVECTOR => DataType::TsVector,
-                    TAG_TSQUERY => DataType::TsQuery,
                     TAG_STRUCT => {
                         let heap = self.as_heap();
                         let map_ptr = heap.ptr as *const IndexMap<String, Value>;
@@ -2525,7 +2231,6 @@ impl Value {
                         DataType::Array(Box::new(inferred.unwrap_or(DataType::Unknown)))
                     }
                     TAG_JSON => DataType::Json,
-                    TAG_HSTORE => DataType::Hstore,
                     TAG_MAP => {
                         let heap = self.as_heap();
                         let map_ptr = heap.ptr as *const Vec<(Value, Value)>;
@@ -2564,7 +2269,6 @@ impl Value {
                     TAG_INET => DataType::Inet,
                     TAG_CIDR => DataType::Cidr,
                     TAG_POINT => DataType::Point,
-                    TAG_PGBOX => DataType::PgBox,
                     TAG_CIRCLE => DataType::Circle,
                     TAG_LINE => DataType::Line,
                     TAG_LSEG => DataType::Lseg,
@@ -2681,7 +2385,7 @@ impl Value {
             } else {
                 let heap = self.as_heap();
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
                         let s_ptr = heap.ptr as *const String;
                         Some((*s_ptr).as_str())
                     }
@@ -2858,52 +2562,12 @@ impl Value {
         }
     }
 
-    pub fn as_tsvector(&self) -> Option<&str> {
-        unsafe {
-            if self.tag() == TAG_TSVECTOR {
-                let heap = self.as_heap();
-                let ptr = heap.ptr as *const String;
-                Some((*ptr).as_str())
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn as_tsquery(&self) -> Option<&str> {
-        unsafe {
-            if self.tag() == TAG_TSQUERY {
-                let heap = self.as_heap();
-                let ptr = heap.ptr as *const String;
-                Some((*ptr).as_str())
-            } else {
-                None
-            }
-        }
-    }
-
     pub fn as_json(&self) -> Option<&serde_json::Value> {
         unsafe {
             if self.tag() == TAG_JSON {
                 let heap = self.as_heap();
                 let json_ptr = heap.ptr as *const serde_json::Value;
                 Some(&*json_ptr)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn is_hstore(&self) -> bool {
-        self.tag() == TAG_HSTORE
-    }
-
-    pub fn as_hstore(&self) -> Option<&IndexMap<String, Option<String>>> {
-        unsafe {
-            if self.tag() == TAG_HSTORE {
-                let heap = self.as_heap();
-                let hstore_ptr = heap.ptr as *const IndexMap<String, Option<String>>;
-                Some(&*hstore_ptr)
             } else {
                 None
             }
@@ -3026,18 +2690,6 @@ impl Value {
                 let heap = self.as_heap();
                 let point_ptr = heap.ptr as *const PgPoint;
                 Some(&*point_ptr)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn as_pgbox(&self) -> Option<&PgBox> {
-        unsafe {
-            if self.tag() == TAG_PGBOX {
-                let heap = self.as_heap();
-                let box_ptr = heap.ptr as *const PgBox;
-                Some(&*box_ptr)
             } else {
                 None
             }
@@ -3209,7 +2861,7 @@ impl Drop for Value {
                 let heap = &*self.inner.heap;
 
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
                         let _ = Rc::from_raw(heap.ptr as *const String);
                     }
                     TAG_NUMERIC => {
@@ -3251,9 +2903,6 @@ impl Drop for Value {
                     TAG_POINT => {
                         let _ = Rc::from_raw(heap.ptr as *const PgPoint);
                     }
-                    TAG_PGBOX => {
-                        let _ = Rc::from_raw(heap.ptr as *const PgBox);
-                    }
                     TAG_CIRCLE => {
                         let _ = Rc::from_raw(heap.ptr as *const PgCircle);
                     }
@@ -3268,9 +2917,6 @@ impl Drop for Value {
                     }
                     TAG_POLYGON => {
                         let _ = Rc::from_raw(heap.ptr as *const PgPolygon);
-                    }
-                    TAG_HSTORE => {
-                        let _ = Rc::from_raw(heap.ptr as *const IndexMap<String, Option<String>>);
                     }
                     TAG_MAP => {
                         let _ = Rc::from_raw(heap.ptr as *const Vec<(Value, Value)>);
@@ -3323,7 +2969,7 @@ impl Clone for Value {
             } else {
                 let heap = self.as_heap();
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
                         let arc_ptr = heap.ptr as *const String;
                         let rc = Rc::from_raw(arc_ptr);
                         let cloned_arc = Rc::clone(&rc);
@@ -3565,22 +3211,6 @@ impl Clone for Value {
                             },
                         }
                     }
-                    TAG_PGBOX => {
-                        let arc_ptr = heap.ptr as *const PgBox;
-                        let rc = Rc::from_raw(arc_ptr);
-                        let cloned_arc = Rc::clone(&rc);
-                        let _ = Rc::into_raw(rc);
-                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
-                        Self {
-                            inner: ValueInner {
-                                heap: std::mem::ManuallyDrop::new(HeapValue {
-                                    tag: TAG_PGBOX,
-                                    _pad: [0; 7],
-                                    ptr,
-                                }),
-                            },
-                        }
-                    }
                     TAG_CIRCLE => {
                         let arc_ptr = heap.ptr as *const PgCircle;
                         let rc = Rc::from_raw(arc_ptr);
@@ -3655,22 +3285,6 @@ impl Clone for Value {
                             inner: ValueInner {
                                 heap: std::mem::ManuallyDrop::new(HeapValue {
                                     tag: TAG_POLYGON,
-                                    _pad: [0; 7],
-                                    ptr,
-                                }),
-                            },
-                        }
-                    }
-                    TAG_HSTORE => {
-                        let arc_ptr = heap.ptr as *const IndexMap<String, Option<String>>;
-                        let rc = Rc::from_raw(arc_ptr);
-                        let cloned_arc = Rc::clone(&rc);
-                        let _ = Rc::into_raw(rc);
-                        let ptr = Rc::into_raw(cloned_arc) as *mut u8;
-                        Self {
-                            inner: ValueInner {
-                                heap: std::mem::ManuallyDrop::new(HeapValue {
-                                    tag: TAG_HSTORE,
                                     _pad: [0; 7],
                                     ptr,
                                 }),
@@ -3846,7 +3460,7 @@ impl PartialEq for Value {
                 let other_heap = other.as_heap();
 
                 match self_tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
                         let self_s = &*(self_heap.ptr as *const String);
                         let other_s = &*(other_heap.ptr as *const String);
                         self_s == other_s
@@ -3922,11 +3536,6 @@ impl PartialEq for Value {
                         let self_point = &*(self_heap.ptr as *const PgPoint);
                         let other_point = &*(other_heap.ptr as *const PgPoint);
                         self_point == other_point
-                    }
-                    TAG_PGBOX => {
-                        let self_box = &*(self_heap.ptr as *const PgBox);
-                        let other_box = &*(other_heap.ptr as *const PgBox);
-                        self_box == other_box
                     }
                     TAG_CIRCLE => {
                         let self_circle = &*(self_heap.ptr as *const PgCircle);
@@ -4069,7 +3678,7 @@ impl std::hash::Hash for Value {
             } else {
                 let _heap = self.as_heap();
                 match tag {
-                    TAG_LARGE_STRING | TAG_GEOGRAPHY | TAG_TSVECTOR | TAG_TSQUERY => {
+                    TAG_LARGE_STRING | TAG_GEOGRAPHY => {
                         if let Some(s) = self.as_str() {
                             s.hash(state);
                         }
@@ -4148,11 +3757,6 @@ impl std::hash::Hash for Value {
                     TAG_POINT => {
                         if let Some(point) = self.as_point() {
                             point.hash(state);
-                        }
-                    }
-                    TAG_PGBOX => {
-                        if let Some(b) = self.as_pgbox() {
-                            b.hash(state);
                         }
                     }
                     TAG_CIRCLE => {
@@ -4293,14 +3897,6 @@ impl std::fmt::Debug for Value {
                         let wkt = &*(heap.ptr as *const String);
                         write!(f, "Value::geography({:?})", wkt)
                     }
-                    TAG_TSVECTOR => {
-                        let text = &*(heap.ptr as *const String);
-                        write!(f, "Value::tsvector({:?})", text)
-                    }
-                    TAG_TSQUERY => {
-                        let text = &*(heap.ptr as *const String);
-                        write!(f, "Value::tsquery({:?})", text)
-                    }
                     TAG_STRUCT => {
                         let map = &*(heap.ptr as *const IndexMap<String, Value>);
                         write!(f, "Value::struct_val({:?})", map)
@@ -4340,10 +3936,6 @@ impl std::fmt::Debug for Value {
                     TAG_POINT => {
                         let point = &*(heap.ptr as *const PgPoint);
                         write!(f, "Value::point({:?})", point)
-                    }
-                    TAG_PGBOX => {
-                        let b = &*(heap.ptr as *const PgBox);
-                        write!(f, "Value::pgbox({:?})", b)
                     }
                     TAG_CIRCLE => {
                         let c = &*(heap.ptr as *const PgCircle);
@@ -4580,61 +4172,6 @@ pub fn parse_point_literal(s: &str) -> Value {
 }
 
 #[inline]
-pub fn parse_pgbox_literal(s: &str) -> Value {
-    let s = s.trim();
-
-    if !s.starts_with("((") || !s.ends_with("))") {
-        return Value::null();
-    }
-
-    let content = &s[1..s.len() - 1];
-
-    let mut paren_depth = 0;
-    let mut split_pos = None;
-    for (i, c) in content.chars().enumerate() {
-        match c {
-            '(' => paren_depth += 1,
-            ')' => paren_depth -= 1,
-            ',' if paren_depth == 0 => {
-                split_pos = Some(i);
-                break;
-            }
-            _ => {}
-        }
-    }
-
-    let split_pos = match split_pos {
-        Some(pos) => pos,
-        None => return Value::null(),
-    };
-
-    let point1_str = content[..split_pos].trim();
-    let point2_str = content[split_pos + 1..].trim();
-
-    let p1 = parse_point_literal(point1_str);
-    if p1.is_null() {
-        return Value::null();
-    }
-
-    let p2 = parse_point_literal(point2_str);
-    if p2.is_null() {
-        return Value::null();
-    }
-
-    let (x1, y1) = match p1.as_point() {
-        Some(point) => (point.x, point.y),
-        None => return Value::null(),
-    };
-
-    let (x2, y2) = match p2.as_point() {
-        Some(point) => (point.x, point.y),
-        None => return Value::null(),
-    };
-
-    Value::pgbox(PgBox::new(PgPoint::new(x1, y1), PgPoint::new(x2, y2)))
-}
-
-#[inline]
 pub fn parse_circle_literal(s: &str) -> Value {
     let s = s.trim();
 
@@ -4778,10 +4315,6 @@ impl fmt::Display for Value {
                         let wkt = &*(heap.ptr as *const String);
                         write!(f, "{}", wkt)
                     }
-                    TAG_TSVECTOR | TAG_TSQUERY => {
-                        let text = &*(heap.ptr as *const String);
-                        write!(f, "{}", text)
-                    }
                     TAG_STRUCT => write!(f, "<STRUCT>"),
                     TAG_ARRAY => {
                         let arr = &*(heap.ptr as *const Vec<Value>);
@@ -4880,10 +4413,6 @@ impl fmt::Display for Value {
                         let point = &*(heap.ptr as *const PgPoint);
                         write!(f, "{}", point)
                     }
-                    TAG_PGBOX => {
-                        let b = &*(heap.ptr as *const PgBox);
-                        write!(f, "{}", b)
-                    }
                     TAG_CIRCLE => {
                         let c = &*(heap.ptr as *const PgCircle);
                         write!(f, "{}", c)
@@ -4903,20 +4432,6 @@ impl fmt::Display for Value {
                     TAG_POLYGON => {
                         let p = &*(heap.ptr as *const PgPolygon);
                         write!(f, "{}", p)
-                    }
-                    TAG_HSTORE => {
-                        let h = &*(heap.ptr as *const IndexMap<String, Option<String>>);
-                        write!(f, "'")?;
-                        for (i, (k, v)) in h.iter().enumerate() {
-                            if i > 0 {
-                                write!(f, ", ")?;
-                            }
-                            match v {
-                                Some(val) => write!(f, "\"{}\"=>\"{}\"", k, val)?,
-                                None => write!(f, "\"{}\"=>NULL", k)?,
-                            }
-                        }
-                        write!(f, "'")
                     }
                     TAG_MAP => {
                         let entries = &*(heap.ptr as *const Vec<(Value, Value)>);

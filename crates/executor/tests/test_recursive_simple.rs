@@ -5,7 +5,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_simple_multi_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor
         .execute_sql(

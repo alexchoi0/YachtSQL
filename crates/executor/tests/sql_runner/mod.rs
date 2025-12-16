@@ -314,7 +314,7 @@ pub fn run_test_case(
     test_case: &TestCase,
     expectations: &HashMap<String, Vec<serde_json::Value>>,
 ) -> Result<(), String> {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     for (i, statement) in test_case.statements.iter().enumerate() {
         let stmt = &statement.sql;

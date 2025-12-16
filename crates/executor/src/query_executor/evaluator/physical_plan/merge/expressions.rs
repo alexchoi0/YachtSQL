@@ -156,19 +156,9 @@ pub(super) fn evaluate_expr_row(expr: &Expr, row: &Row, schema: &Schema) -> Resu
                         ))
                     }
                 }
-                UnaryOp::TSQueryNot => {
-                    if val.is_null() {
-                        Ok(Value::null())
-                    } else if let Some(s) = val.as_str() {
-                        let result = yachtsql_functions::fulltext::tsquery_negate(s)
-                            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-                        Ok(Value::string(result))
-                    } else {
-                        Err(Error::InvalidOperation(
-                            "TSQuery NOT requires string".to_string(),
-                        ))
-                    }
-                }
+                UnaryOp::TSQueryNot => Err(Error::UnsupportedFeature(
+                    "Full-text search not supported (PostgreSQL-specific)".to_string(),
+                )),
             }
         }
         Expr::Cast {

@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use yachtsql_capability::{FeatureId, FeatureRegistry, Result as CapabilityResult};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::Value;
 use yachtsql_optimizer::expr::Expr;
@@ -136,21 +135,4 @@ pub fn assert_error_contains(err: &Error, needle: &str) {
         message,
         needle
     );
-}
-
-pub fn feature_registry_with(
-    dialect: DialectType,
-    feature_ids: &[FeatureId],
-) -> CapabilityResult<Rc<FeatureRegistry>> {
-    let mut registry = FeatureRegistry::with_default_features(dialect);
-    if !feature_ids.is_empty() {
-        registry.enable_features(feature_ids.iter().copied())?;
-    }
-    Ok(Rc::new(registry))
-}
-
-pub fn default_feature_registry() -> Rc<FeatureRegistry> {
-    Rc::new(FeatureRegistry::with_default_features(
-        DialectType::PostgreSQL,
-    ))
 }

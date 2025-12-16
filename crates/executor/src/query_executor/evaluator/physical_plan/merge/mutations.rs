@@ -68,7 +68,6 @@ impl MergeMutations {
         self,
         storage: &mut crate::storage::Storage,
         table_name: &str,
-        fk_enforcer: &crate::query_executor::enforcement::ForeignKeyEnforcer,
     ) -> Result<(usize, Vec<MergeReturningRow>)> {
         let target_table = storage
             .get_table(table_name)
@@ -79,15 +78,6 @@ impl MergeMutations {
         let updates_count = self.updates.len();
         let deletes_count = self.deletes.len();
         let inserts_count = self.inserts.len();
-
-        let deleted_rows: Vec<_> = if !self.deletes.is_empty() {
-            self.deletes
-                .iter()
-                .map(|idx| target_table.get_row(*idx))
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            Vec::new()
-        };
 
         {
             let target_table = storage
@@ -105,10 +95,6 @@ impl MergeMutations {
                     target_table.update_cell_at_index(*row_idx, col_name, value.clone())?;
                 }
             }
-        }
-
-        for deleted_row in &deleted_rows {
-            fk_enforcer.cascade_delete(table_name, deleted_row, storage)?;
         }
 
         let target_table = storage

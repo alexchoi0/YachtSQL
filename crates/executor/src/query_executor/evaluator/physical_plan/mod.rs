@@ -3,7 +3,6 @@ use std::fmt;
 use std::rc::Rc;
 
 use debug_print::debug_eprintln;
-use yachtsql_capability::FeatureId;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::DataType;
 use yachtsql_optimizer::expr::Expr;
@@ -49,11 +48,6 @@ pub use sort::SortExec;
 pub use tablesample::{SampleSize, SamplingMethod, TableSampleExec};
 pub use values::{ValuesExec, infer_values_schema};
 pub use window::WindowExec;
-
-thread_local! {
-    pub(crate) static FEATURE_REGISTRY_CONTEXT: std::cell::RefCell<Option<Rc<yachtsql_capability::FeatureRegistry>>> =
-        const { std::cell::RefCell::new(None) };
-}
 
 thread_local! {
     pub(super) static SUBQUERY_EXECUTOR_CONTEXT: std::cell::RefCell<Option<Rc<dyn SubqueryExecutor>>> =
@@ -111,31 +105,6 @@ pub trait SequenceValueExecutor {
     fn currval(&self, sequence_name: &str) -> Result<i64>;
     fn setval(&mut self, sequence_name: &str, value: i64, is_called: bool) -> Result<i64>;
     fn lastval(&self) -> Result<i64>;
-}
-
-pub(crate) struct FeatureRegistryContextGuard {
-    previous: Option<Rc<yachtsql_capability::FeatureRegistry>>,
-}
-
-impl FeatureRegistryContextGuard {
-    fn set(registry: Rc<yachtsql_capability::FeatureRegistry>) -> Self {
-        let previous = FEATURE_REGISTRY_CONTEXT.with(|ctx| {
-            let mut slot = ctx.borrow_mut();
-            let prior = slot.clone();
-            *slot = Some(registry);
-            prior
-        });
-        Self { previous }
-    }
-}
-
-impl Drop for FeatureRegistryContextGuard {
-    fn drop(&mut self) {
-        let previous = self.previous.clone();
-        FEATURE_REGISTRY_CONTEXT.with(|ctx| {
-            *ctx.borrow_mut() = previous;
-        });
-    }
 }
 
 pub(crate) struct SubqueryExecutorContextGuard {
@@ -235,26 +204,6 @@ pub(crate) fn hash_plan(plan: &yachtsql_optimizer::plan::PlanNode) -> u64 {
     let mut hasher = DefaultHasher::new();
     plan_str.hash(&mut hasher);
     hasher.finish()
-}
-
-#[allow(dead_code)]
-fn require_feature_in_context(feature_id: FeatureId, feature_name: &str) -> Result<()> {
-    let registry = FEATURE_REGISTRY_CONTEXT
-        .with(|ctx| ctx.borrow().clone())
-        .ok_or_else(|| {
-            Error::InternalError(
-                "Feature registry context missing during capability check".to_string(),
-            )
-        })?;
-
-    if registry.is_enabled(feature_id) {
-        Ok(())
-    } else {
-        Err(Error::unsupported_feature(format!(
-            "Feature {} ({}) is not enabled",
-            feature_id, feature_name
-        )))
-    }
 }
 
 #[allow(dead_code)]
@@ -358,7 +307,6 @@ pub struct TableScanExec {
     projection: Option<Vec<usize>>,
     statistics: ExecutionStatistics,
     storage: Rc<RefCell<yachtsql_storage::Storage>>,
-    transaction_manager: Option<Rc<RefCell<yachtsql_storage::TransactionManager>>>,
     only: bool,
     final_modifier: bool,
 }
@@ -375,7 +323,6 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
-            transaction_manager: None,
             only: false,
             final_modifier: false,
         }
@@ -393,7 +340,6 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
-            transaction_manager: None,
             only,
             final_modifier: false,
         }
@@ -412,27 +358,6 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
-            transaction_manager: None,
-            only,
-            final_modifier,
-        }
-    }
-
-    pub fn new_with_transaction(
-        schema: Schema,
-        table_name: String,
-        storage: Rc<RefCell<yachtsql_storage::Storage>>,
-        transaction_manager: Rc<RefCell<yachtsql_storage::TransactionManager>>,
-        only: bool,
-        final_modifier: bool,
-    ) -> Self {
-        Self {
-            schema,
-            table_name,
-            projection: None,
-            statistics: ExecutionStatistics::default(),
-            storage,
-            transaction_manager: Some(transaction_manager),
             only,
             final_modifier,
         }
@@ -448,7 +373,6 @@ impl TableScanExec {
             projection: None,
             statistics: ExecutionStatistics::default(),
             storage,
-            transaction_manager: None,
             only: false,
             final_modifier: false,
         }
@@ -467,198 +391,13 @@ impl TableScanExec {
     fn apply_final_merge(
         &self,
         rows: Vec<yachtsql_storage::Row>,
-        engine: &TableEngine,
-        table_schema: &Schema,
+        _engine: &TableEngine,
+        _table_schema: &Schema,
     ) -> Result<Vec<yachtsql_storage::Row>> {
-        use std::collections::HashMap;
-
-        use yachtsql_core::types::Value;
-
-        match engine {
-            TableEngine::SummingMergeTree {
-                order_by,
-                sum_columns,
-            } => {
-                let key_indices = self.get_key_column_indices(order_by, table_schema);
-                let sum_indices = if sum_columns.is_empty() {
-                    self.get_numeric_column_indices(table_schema, &key_indices)
-                } else {
-                    self.get_column_indices(sum_columns, table_schema)
-                };
-
-                let mut groups: HashMap<Vec<Value>, yachtsql_storage::Row> = HashMap::new();
-
-                for row in rows {
-                    let key: Vec<Value> = key_indices
-                        .iter()
-                        .map(|&i| row.get(i).cloned().unwrap_or(Value::null()))
-                        .collect();
-
-                    groups
-                        .entry(key)
-                        .and_modify(|existing| {
-                            for &idx in &sum_indices {
-                                let existing_val =
-                                    existing.get(idx).cloned().unwrap_or(Value::null());
-                                let new_val = row.get(idx).cloned().unwrap_or(Value::null());
-                                if let (Some(e), Some(n)) =
-                                    (existing_val.as_i64(), new_val.as_i64())
-                                {
-                                    let _ = existing.set(idx, Value::int64(e + n));
-                                } else if let (Some(e), Some(n)) =
-                                    (existing_val.as_f64(), new_val.as_f64())
-                                {
-                                    let _ = existing.set(idx, Value::float64(e + n));
-                                }
-                            }
-                        })
-                        .or_insert(row);
-                }
-
-                Ok(groups.into_values().collect())
-            }
-
-            TableEngine::ReplacingMergeTree {
-                order_by,
-                version_column,
-            } => {
-                let key_indices = self.get_key_column_indices(order_by, table_schema);
-                let version_idx = version_column
-                    .as_ref()
-                    .and_then(|vc| self.get_column_index(vc, table_schema));
-
-                let mut groups: HashMap<Vec<Value>, yachtsql_storage::Row> = HashMap::new();
-
-                for row in rows {
-                    let key: Vec<Value> = key_indices
-                        .iter()
-                        .map(|&i| row.get(i).cloned().unwrap_or(Value::null()))
-                        .collect();
-
-                    let should_replace = if let Some(ver_idx) = version_idx {
-                        groups.get(&key).is_none_or(|existing| {
-                            let existing_ver =
-                                existing.get(ver_idx).and_then(|v| v.as_i64()).unwrap_or(0);
-                            let new_ver = row.get(ver_idx).and_then(|v| v.as_i64()).unwrap_or(0);
-                            new_ver >= existing_ver
-                        })
-                    } else {
-                        true
-                    };
-
-                    if should_replace {
-                        groups.insert(key, row);
-                    }
-                }
-
-                Ok(groups.into_values().collect())
-            }
-
-            TableEngine::CollapsingMergeTree {
-                order_by,
-                sign_column,
-            } => {
-                let key_indices = self.get_key_column_indices(order_by, table_schema);
-                let sign_idx = self
-                    .get_column_index(sign_column, table_schema)
-                    .unwrap_or(0);
-
-                let mut groups: HashMap<Vec<Value>, Vec<yachtsql_storage::Row>> = HashMap::new();
-
-                for row in rows {
-                    let key: Vec<Value> = key_indices
-                        .iter()
-                        .map(|&i| row.get(i).cloned().unwrap_or(Value::null()))
-                        .collect();
-                    groups.entry(key).or_default().push(row);
-                }
-
-                let mut result = Vec::new();
-                for (_key, group_rows) in groups {
-                    let mut sum_sign: i64 = 0;
-                    let mut last_positive: Option<yachtsql_storage::Row> = None;
-                    let mut last_negative: Option<yachtsql_storage::Row> = None;
-
-                    for row in group_rows {
-                        let sign = row.get(sign_idx).and_then(|v| v.as_i64()).unwrap_or(1);
-                        sum_sign += sign;
-                        if sign > 0 {
-                            last_positive = Some(row);
-                        } else {
-                            last_negative = Some(row);
-                        }
-                    }
-
-                    if sum_sign > 0 {
-                        if let Some(row) = last_positive {
-                            result.push(row);
-                        }
-                    } else if sum_sign < 0 {
-                        if let Some(row) = last_negative {
-                            result.push(row);
-                        }
-                    }
-                }
-
-                Ok(result)
-            }
-
-            TableEngine::VersionedCollapsingMergeTree {
-                order_by,
-                sign_column,
-                version_column,
-            } => {
-                let key_indices = self.get_key_column_indices(order_by, table_schema);
-                let sign_idx = self
-                    .get_column_index(sign_column, table_schema)
-                    .unwrap_or(0);
-                let version_idx = self
-                    .get_column_index(version_column, table_schema)
-                    .unwrap_or(0);
-
-                let mut groups: HashMap<Vec<Value>, Vec<yachtsql_storage::Row>> = HashMap::new();
-
-                for row in rows {
-                    let key: Vec<Value> = key_indices
-                        .iter()
-                        .map(|&i| row.get(i).cloned().unwrap_or(Value::null()))
-                        .collect();
-                    groups.entry(key).or_default().push(row);
-                }
-
-                let mut result = Vec::new();
-                for (_key, mut group_rows) in groups {
-                    group_rows.sort_by(|a, b| {
-                        let va = a.get(version_idx).and_then(|v| v.as_i64()).unwrap_or(0);
-                        let vb = b.get(version_idx).and_then(|v| v.as_i64()).unwrap_or(0);
-                        va.cmp(&vb)
-                    });
-
-                    let mut sum_sign: i64 = 0;
-                    let mut last_positive: Option<yachtsql_storage::Row> = None;
-
-                    for row in group_rows {
-                        let sign = row.get(sign_idx).and_then(|v| v.as_i64()).unwrap_or(1);
-                        sum_sign += sign;
-                        if sign > 0 {
-                            last_positive = Some(row);
-                        }
-                    }
-
-                    if sum_sign > 0 {
-                        if let Some(row) = last_positive {
-                            result.push(row);
-                        }
-                    }
-                }
-
-                Ok(result)
-            }
-
-            _ => Ok(rows),
-        }
+        Ok(rows)
     }
 
+    #[allow(dead_code)]
     fn get_key_column_indices(&self, order_by: &[String], schema: &Schema) -> Vec<usize> {
         order_by
             .iter()
@@ -666,6 +405,7 @@ impl TableScanExec {
             .collect()
     }
 
+    #[allow(dead_code)]
     fn get_column_index(&self, col_name: &str, schema: &Schema) -> Option<usize> {
         let col_lower = col_name.to_lowercase();
         schema
@@ -696,77 +436,6 @@ impl TableScanExec {
             .map(|(i, _)| i)
             .collect()
     }
-
-    fn generate_random_rows(
-        &self,
-        schema: &Schema,
-        seed: Option<u64>,
-        max_string_length: usize,
-    ) -> Vec<yachtsql_storage::Row> {
-        use rand::{Rng, SeedableRng};
-        use yachtsql_core::types::Value;
-
-        let mut rng: rand::rngs::StdRng = match seed {
-            Some(s) => rand::rngs::StdRng::seed_from_u64(s),
-            None => rand::rngs::StdRng::from_entropy(),
-        };
-
-        const DEFAULT_ROW_COUNT: usize = 65535;
-        let mut rows = Vec::with_capacity(DEFAULT_ROW_COUNT);
-
-        for _ in 0..DEFAULT_ROW_COUNT {
-            let values: Vec<Value> = schema
-                .fields()
-                .iter()
-                .map(|field| match &field.data_type {
-                    DataType::Int64 | DataType::Serial | DataType::BigSerial => {
-                        Value::int64(rng.r#gen::<i64>().abs() % 1000000)
-                    }
-                    DataType::Float64 | DataType::Float32 => {
-                        Value::float64(rng.r#gen::<f64>() * 1000.0)
-                    }
-                    DataType::String | DataType::FixedString(_) => {
-                        let len = (rng.r#gen::<usize>() % max_string_length) + 1;
-                        let s: String = (0..len)
-                            .map(|_| (b'a' + (rng.r#gen::<u8>() % 26)) as char)
-                            .collect();
-                        Value::string(s)
-                    }
-                    DataType::Bool => Value::bool_val(rng.r#gen::<bool>()),
-                    _ => Value::null(),
-                })
-                .collect();
-            rows.push(yachtsql_storage::Row::from_values(values));
-        }
-        rows
-    }
-
-    fn read_merge_engine_rows(
-        &self,
-        storage: &yachtsql_storage::Storage,
-        database: &str,
-        pattern: &str,
-    ) -> Result<(Schema, Vec<yachtsql_storage::Row>)> {
-        let dataset = storage
-            .get_dataset(database)
-            .ok_or_else(|| Error::DatasetNotFound(format!("Dataset '{}' not found", database)))?;
-
-        let regex = regex::Regex::new(pattern).map_err(|e| {
-            Error::InvalidQuery(format!("Invalid regex pattern '{}': {}", pattern, e))
-        })?;
-
-        let mut all_rows = Vec::new();
-        let mut schema: Option<Schema> = None;
-        for (table_name, table) in dataset.tables() {
-            if regex.is_match(&table_name) {
-                if schema.is_none() {
-                    schema = Some(table.schema().clone());
-                }
-                all_rows.extend(table.get_all_rows());
-            }
-        }
-        Ok((schema.unwrap_or_default(), all_rows))
-    }
 }
 
 impl ExecutionPlan for TableScanExec {
@@ -793,100 +462,10 @@ impl ExecutionPlan for TableScanExec {
             .get_table(table_id)
             .ok_or_else(|| Error::TableNotFound(format!("Table '{}' not found", table_id)))?;
 
-        let (actual_table, actual_engine) = match table.engine() {
-            TableEngine::Distributed {
-                database,
-                table: target_table,
-                ..
-            } => {
-                let target_db = if database.is_empty() {
-                    dataset_name
-                } else {
-                    database.as_str()
-                };
-                let target_dataset = storage.get_dataset(target_db).ok_or_else(|| {
-                    Error::DatasetNotFound(format!("Dataset '{}' not found", target_db))
-                })?;
-                let underlying = target_dataset.get_table(target_table).ok_or_else(|| {
-                    Error::TableNotFound(format!("Table '{}' not found", target_table))
-                })?;
-                (underlying, underlying.engine().clone())
-            }
-            engine => (table, engine.clone()),
-        };
-
-        if let TableEngine::GenerateRandom {
-            random_seed,
-            max_string_length,
-            max_array_length: _,
-        } = table.engine()
-        {
-            let rows = self.generate_random_rows(
-                table.schema(),
-                *random_seed,
-                max_string_length.unwrap_or(10) as usize,
-            );
-            let result_table = Table::from_rows(table.schema().clone(), rows)?;
-            return Ok(vec![result_table]);
-        }
-
-        if let TableEngine::Merge { database, pattern } = table.engine() {
-            let target_db = if database == "currentDatabase()" {
-                dataset_name
-            } else {
-                database.as_str()
-            };
-            debug_eprintln!(
-                "[physical_plan::merge] Reading from Merge engine: db={}, pattern={}",
-                target_db,
-                pattern
-            );
-            let (_underlying_schema, rows) =
-                self.read_merge_engine_rows(&storage, target_db, pattern)?;
-            debug_eprintln!(
-                "[physical_plan::merge] Got {} rows, using schema fields: {:?}",
-                rows.len(),
-                self.schema
-                    .fields()
-                    .iter()
-                    .map(|f| &f.name)
-                    .collect::<Vec<_>>()
-            );
-            let result_table = Table::from_rows(self.schema.clone(), rows)?.to_column_format()?;
-            return Ok(vec![result_table]);
-        }
+        let actual_table = table;
+        let actual_engine = table.engine().clone();
 
         let mut all_rows = actual_table.get_all_rows();
-
-        if let TableEngine::Buffer {
-            database,
-            table: target_table,
-        } = table.engine()
-        {
-            let target_db = if database.is_empty() {
-                dataset_name
-            } else {
-                database.as_str()
-            };
-            if let Some(target_dataset) = storage.get_dataset(target_db) {
-                if let Some(dest_table) = target_dataset.get_table(target_table) {
-                    let dest_rows = dest_table.get_all_rows();
-                    all_rows.extend(dest_rows);
-                }
-            }
-        }
-
-        if let Some(ref tm) = self.transaction_manager {
-            let manager = tm.borrow();
-            if let Some(txn) = manager.get_active_transaction() {
-                let table_full_name = format!("{}.{}", dataset_name, table_id);
-                if let Some(pending_changes) = txn.pending_changes() {
-                    if let Some(delta) = pending_changes.get_table_delta(&table_full_name) {
-                        all_rows.extend(delta.inserted_rows.clone());
-                    }
-                }
-            }
-        }
 
         if !self.only {
             let parent_col_count = self.schema.fields().len();
@@ -1051,7 +630,6 @@ pub struct ProjectionWithExprExec {
     schema: Schema,
     expressions: Vec<(crate::optimizer::expr::Expr, Option<String>)>,
     dialect: crate::DialectType,
-    feature_registry: Rc<yachtsql_capability::FeatureRegistry>,
 }
 
 impl ProjectionWithExprExec {
@@ -1064,23 +642,12 @@ impl ProjectionWithExprExec {
             input,
             schema,
             expressions,
-            dialect: crate::DialectType::PostgreSQL,
-            feature_registry: Rc::new(yachtsql_capability::FeatureRegistry::new(
-                crate::DialectType::PostgreSQL,
-            )),
+            dialect: crate::DialectType::BigQuery,
         }
     }
 
     pub fn with_dialect(mut self, dialect: crate::DialectType) -> Self {
         self.dialect = dialect;
-        self
-    }
-
-    pub fn with_feature_registry(
-        mut self,
-        registry: Rc<yachtsql_capability::FeatureRegistry>,
-    ) -> Self {
-        self.feature_registry = registry;
         self
     }
 }
@@ -1092,8 +659,6 @@ impl ExecutionPlan for ProjectionWithExprExec {
 
     fn execute(&self) -> Result<Vec<Table>> {
         use yachtsql_storage::Column;
-
-        let _registry_guard = Self::enter_feature_registry_context(self.feature_registry.clone());
 
         let input_batches = self.input.execute()?;
         let mut output_batches = Vec::new();
@@ -1698,7 +1263,6 @@ impl UnnestExec {
                 LiteralValue::Interval(_s) => Value::null(),
                 LiteralValue::Range(_s) => Value::null(),
                 LiteralValue::Point(s) => yachtsql_core::types::parse_point_literal(s),
-                LiteralValue::PgBox(s) => yachtsql_core::types::parse_pgbox_literal(s),
                 LiteralValue::Circle(s) => yachtsql_core::types::parse_circle_literal(s),
                 LiteralValue::Line(_s) => Value::null(),
                 LiteralValue::Lseg(_s) => Value::null(),
@@ -1923,12 +1487,6 @@ impl TableValuedFunctionExec {
                     CastDataType::Json => ast::DataType::JSON,
                     CastDataType::Uuid => ast::DataType::Uuid,
                     CastDataType::Bytes => ast::DataType::Bytea,
-                    CastDataType::Hstore => ast::DataType::Custom(
-                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
-                            "hstore",
-                        ))]),
-                        vec![],
-                    ),
                     CastDataType::Numeric(precision_scale) => {
                         if let Some((p, s)) = precision_scale {
                             ast::DataType::Numeric(ast::ExactNumberInfo::PrecisionAndScale(
@@ -2068,12 +1626,6 @@ impl TableValuedFunctionExec {
                         ))]),
                         vec![],
                     ),
-                    CastDataType::PgBox => ast::DataType::Custom(
-                        ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
-                            "box",
-                        ))]),
-                        vec![],
-                    ),
                     CastDataType::Circle => ast::DataType::Custom(
                         ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
                             "circle",
@@ -2129,127 +1681,28 @@ impl TableValuedFunctionExec {
         }
     }
 
-    fn execute_each(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
-        use yachtsql_storage::Column;
-
-        use crate::types::Value;
-
-        if args.len() != 1 {
-            return Err(Error::InvalidQuery(
-                "each() requires exactly 1 argument".to_string(),
-            ));
-        }
-
-        let hstore_map = args[0].as_hstore().ok_or_else(|| Error::TypeMismatch {
-            expected: "HSTORE".to_string(),
-            actual: args[0].data_type().to_string(),
-        })?;
-
-        let num_rows = hstore_map.len();
-        let mut key_col = Column::new(&DataType::String, num_rows);
-        let mut val_col = Column::new(&DataType::String, num_rows);
-
-        for (k, v) in hstore_map.iter() {
-            key_col.push(Value::string(k.clone()))?;
-            val_col.push(
-                v.as_ref()
-                    .map(|s| Value::string(s.clone()))
-                    .unwrap_or(Value::null()),
-            )?;
-        }
-
-        Table::new(self.schema.clone(), vec![key_col, val_col])
+    fn execute_each(&self, _args: &[crate::types::Value]) -> Result<Table> {
+        Err(yachtsql_core::error::Error::UnsupportedFeature(
+            "EACH function is not supported (requires HSTORE type)".to_string(),
+        ))
     }
 
-    fn execute_skeys(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
-        use yachtsql_storage::Column;
-
-        use crate::types::Value;
-
-        if args.len() != 1 {
-            return Err(Error::InvalidQuery(
-                "skeys() requires exactly 1 argument".to_string(),
-            ));
-        }
-
-        let hstore_map = args[0].as_hstore().ok_or_else(|| Error::TypeMismatch {
-            expected: "HSTORE".to_string(),
-            actual: args[0].data_type().to_string(),
-        })?;
-
-        let num_rows = hstore_map.len();
-        let mut key_col = Column::new(&DataType::String, num_rows);
-
-        for k in hstore_map.keys() {
-            key_col.push(Value::string(k.clone()))?;
-        }
-
-        Table::new(self.schema.clone(), vec![key_col])
+    fn execute_skeys(&self, _args: &[crate::types::Value]) -> Result<Table> {
+        Err(yachtsql_core::error::Error::UnsupportedFeature(
+            "SKEYS function is not supported (requires HSTORE type)".to_string(),
+        ))
     }
 
-    fn execute_svals(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
-        use yachtsql_storage::Column;
-
-        use crate::types::Value;
-
-        if args.len() != 1 {
-            return Err(Error::InvalidQuery(
-                "svals() requires exactly 1 argument".to_string(),
-            ));
-        }
-
-        let hstore_map = args[0].as_hstore().ok_or_else(|| Error::TypeMismatch {
-            expected: "HSTORE".to_string(),
-            actual: args[0].data_type().to_string(),
-        })?;
-
-        let num_rows = hstore_map.len();
-        let mut val_col = Column::new(&DataType::String, num_rows);
-
-        for v in hstore_map.values() {
-            val_col.push(
-                v.as_ref()
-                    .map(|s| Value::string(s.clone()))
-                    .unwrap_or(crate::types::Value::null()),
-            )?;
-        }
-
-        Table::new(self.schema.clone(), vec![val_col])
+    fn execute_svals(&self, _args: &[crate::types::Value]) -> Result<Table> {
+        Err(yachtsql_core::error::Error::UnsupportedFeature(
+            "SVALS function is not supported (requires HSTORE type)".to_string(),
+        ))
     }
 
-    fn execute_populate_record(&self, args: &[crate::types::Value]) -> Result<Table> {
-        use yachtsql_core::error::Error;
-        use yachtsql_storage::Column;
-
-        use crate::types::Value;
-
-        if args.len() < 2 {
-            return Err(Error::InvalidQuery(
-                "populate_record() requires at least 2 arguments".to_string(),
-            ));
-        }
-
-        let hstore_map = args[1].as_hstore().ok_or_else(|| Error::TypeMismatch {
-            expected: "HSTORE".to_string(),
-            actual: args[1].data_type().to_string(),
-        })?;
-
-        let mut columns: Vec<Column> = Vec::with_capacity(self.schema.fields().len());
-        for field in self.schema.fields() {
-            let mut col = Column::new(&field.data_type, 1);
-            let col_name = &field.name;
-            let value = hstore_map
-                .get(col_name)
-                .and_then(|v| v.as_ref().map(|s| Value::string(s.clone())))
-                .unwrap_or(Value::null());
-            col.push(value)?;
-            columns.push(col);
-        }
-
-        Table::new(self.schema.clone(), columns)
+    fn execute_populate_record(&self, _args: &[crate::types::Value]) -> Result<Table> {
+        Err(yachtsql_core::error::Error::UnsupportedFeature(
+            "POPULATE_RECORD function is not supported (requires HSTORE type)".to_string(),
+        ))
     }
 
     fn execute_json_each(&self, args: &[crate::types::Value], as_text: bool) -> Result<Table> {
@@ -2596,12 +2049,14 @@ impl ExecutionPlan for TableValuedFunctionExec {
         let args = self.evaluate_args()?;
 
         let batch = match self.function_name.to_uppercase().as_str() {
-            "EACH" => self.execute_each(&args)?,
+            "EACH" | "SKEYS" | "SVALS" | "POPULATE_RECORD" => {
+                return Err(Error::UnsupportedFeature(format!(
+                    "{} function is not supported (requires HSTORE type)",
+                    self.function_name
+                )));
+            }
             "JSON_EACH" | "JSONB_EACH" => self.execute_json_each(&args, false)?,
             "JSON_EACH_TEXT" | "JSONB_EACH_TEXT" => self.execute_json_each(&args, true)?,
-            "SKEYS" => self.execute_skeys(&args)?,
-            "SVALS" => self.execute_svals(&args)?,
-            "POPULATE_RECORD" => self.execute_populate_record(&args)?,
             "NUMBERS" | "NUMBERS_MT" => self.execute_numbers(&args)?,
             "ZEROS" | "ZEROS_MT" => self.execute_zeros(&args)?,
             "ONE" => self.execute_one()?,

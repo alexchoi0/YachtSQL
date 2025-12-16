@@ -4,35 +4,30 @@ use sqlparser::ast::{
     Expr, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr, Query, SelectItem, SetExpr,
     Statement as SqlStatement,
 };
-use yachtsql_capability::{FeatureId, FeatureRegistry};
 use yachtsql_core::error::{Error, Result};
-use yachtsql_parser::Statement as ParserStatement;
+use yachtsql_parser::{DialectType, Statement as ParserStatement};
 
 use super::function_validator::validate_function_with_udfs;
 
-const T611_WINDOW_FUNCTIONS: FeatureId = FeatureId("T611");
-
-pub fn validate_statement(stmt: &ParserStatement, registry: &FeatureRegistry) -> Result<()> {
-    validate_statement_with_udfs(stmt, registry, None)
+pub fn validate_statement(stmt: &ParserStatement, dialect: DialectType) -> Result<()> {
+    validate_statement_with_udfs(stmt, dialect, None)
 }
 
 pub fn validate_statement_with_udfs(
     stmt: &ParserStatement,
-    registry: &FeatureRegistry,
+    dialect: DialectType,
     udf_names: Option<&HashSet<String>>,
 ) -> Result<()> {
     match stmt {
-        ParserStatement::Standard(std_stmt) => StatementValidator {
-            registry,
-            udf_names,
+        ParserStatement::Standard(std_stmt) => {
+            StatementValidator { dialect, udf_names }.validate(std_stmt.ast())
         }
-        .validate(std_stmt.ast()),
         ParserStatement::Custom(_) => Ok(()),
     }
 }
 
 struct StatementValidator<'a> {
-    registry: &'a FeatureRegistry,
+    dialect: DialectType,
     udf_names: Option<&'a HashSet<String>>,
 }
 
@@ -565,11 +560,6 @@ impl<'a> StatementValidator<'a> {
                 let func_name_upper = func_name.to_uppercase();
 
                 if func.over.is_some() {
-                    if !self.registry.is_enabled(T611_WINDOW_FUNCTIONS) {
-                        return Err(Error::unsupported_feature(
-                            "Window functions (T611) are not enabled. Use CALL enable_feature('T611') to enable them.".to_string()
-                        ));
-                    }
                     if context == ValidationContext::Where {
                         return Err(Error::InvalidQuery(
                             "Window functions are not allowed in WHERE clause".to_string(),
@@ -585,7 +575,7 @@ impl<'a> StatementValidator<'a> {
                     ));
                 }
 
-                validate_function_with_udfs(&func_name, self.registry, self.udf_names)?;
+                validate_function_with_udfs(&func_name, self.dialect, self.udf_names)?;
 
                 if let FunctionArguments::List(list) = &func.args {
                     if func_name_upper == "COALESCE" && list.args.is_empty() {
@@ -748,7 +738,6 @@ impl<'a> StatementValidator<'a> {
 
 #[cfg(test)]
 mod tests {
-    use yachtsql_capability::FeatureRegistry;
     use yachtsql_parser::{DialectType, Parser, Statement};
 
     use super::*;
@@ -761,46 +750,31 @@ mod tests {
 
     #[test]
     fn test_validate_core_functions() {
-        let registry = FeatureRegistry::new(DialectType::PostgreSQL);
         let stmt = parse_statement(
             "SELECT UPPER(name), COUNT(*) FROM users",
-            DialectType::PostgreSQL,
+            DialectType::BigQuery,
         );
 
-        assert!(validate_statement(&stmt, &registry).is_ok());
-    }
-
-    #[test]
-    fn test_validate_postgres_specific_function() {
-        let pg_registry = FeatureRegistry::new(DialectType::PostgreSQL);
-        let bq_registry = FeatureRegistry::new(DialectType::BigQuery);
-
-        let stmt = parse_statement("SELECT JSONB(data) FROM table1", DialectType::PostgreSQL);
-
-        assert!(validate_statement(&stmt, &pg_registry).is_ok());
-        assert!(validate_statement(&stmt, &bq_registry).is_err());
+        assert!(validate_statement(&stmt, DialectType::BigQuery).is_ok());
     }
 
     #[test]
     fn test_validate_nested_functions() {
-        let registry = FeatureRegistry::new(DialectType::PostgreSQL);
         let stmt = parse_statement(
             "SELECT UPPER(CONCAT(first, last)) FROM users WHERE LENGTH(name) > 5",
-            DialectType::PostgreSQL,
+            DialectType::BigQuery,
         );
 
-        assert!(validate_statement(&stmt, &registry).is_ok());
+        assert!(validate_statement(&stmt, DialectType::BigQuery).is_ok());
     }
 
     #[test]
     fn test_validate_update_statement() {
-        let pg_registry = FeatureRegistry::new(DialectType::PostgreSQL);
-
         let stmt = parse_statement(
             "UPDATE users SET name = UPPER(name) WHERE id > 0",
-            DialectType::PostgreSQL,
+            DialectType::BigQuery,
         );
 
-        assert!(validate_statement(&stmt, &pg_registry).is_ok());
+        assert!(validate_statement(&stmt, DialectType::BigQuery).is_ok());
     }
 }

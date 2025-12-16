@@ -826,5 +826,100 @@ fn get_json_value(value: &Value) -> Result<serde_json::Value> {
 }
 
 pub use super::extract::*;
-pub use super::postgres::*;
 pub use super::predicates::*;
+
+pub fn json_keys(json: &Value, path: Option<String>) -> Result<Value> {
+    if json.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json_val = if let Some(ref p) = path {
+        let extracted = super::extract::json_extract(json, p.as_str())?;
+        if extracted.is_null() {
+            return Ok(Value::null());
+        }
+        if let Some(j) = extracted.as_json() {
+            j.clone()
+        } else {
+            return Ok(Value::null());
+        }
+    } else {
+        get_json_value(json)?
+    };
+
+    match &json_val {
+        serde_json::Value::Object(map) => {
+            let keys: Vec<serde_json::Value> = map
+                .keys()
+                .map(|k| serde_json::Value::String(k.clone()))
+                .collect();
+            Ok(Value::json(serde_json::Value::Array(keys)))
+        }
+        _ => Ok(Value::null()),
+    }
+}
+
+pub fn json_length(json: &Value) -> Result<Value> {
+    if json.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json_val = get_json_value(json)?;
+
+    match &json_val {
+        serde_json::Value::Array(arr) => Ok(Value::int64(arr.len() as i64)),
+        serde_json::Value::Object(map) => Ok(Value::int64(map.keys().len() as i64)),
+        serde_json::Value::String(_)
+        | serde_json::Value::Number(_)
+        | serde_json::Value::Bool(_) => Ok(Value::int64(1)),
+        serde_json::Value::Null => Ok(Value::null()),
+    }
+}
+
+pub fn json_type(json: &Value) -> Result<Value> {
+    if json.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json_val = get_json_value(json)?;
+
+    let type_name = match &json_val {
+        serde_json::Value::Object(_) => "object",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Null => "null",
+    };
+
+    Ok(Value::string(type_name.to_string()))
+}
+
+pub fn json_strip_nulls(json: &Value) -> Result<Value> {
+    if json.is_null() {
+        return Ok(Value::null());
+    }
+
+    let json_val = get_json_value(json)?;
+    let stripped = strip_nulls_recursive(&json_val);
+
+    Ok(Value::json(stripped))
+}
+
+fn strip_nulls_recursive(json: &serde_json::Value) -> serde_json::Value {
+    match json {
+        serde_json::Value::Object(map) => {
+            let mut new_map = serde_json::Map::new();
+            for (key, value) in map {
+                if !value.is_null() {
+                    new_map.insert(key.clone(), strip_nulls_recursive(value));
+                }
+            }
+            serde_json::Value::Object(new_map)
+        }
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.iter().map(strip_nulls_recursive).collect())
+        }
+        _ => json.clone(),
+    }
+}

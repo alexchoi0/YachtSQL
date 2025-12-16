@@ -5,7 +5,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_count_on_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, value INT64)")
@@ -20,7 +20,7 @@ fn test_count_on_empty_table() {
 
 #[test]
 fn test_sum_on_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, value INT64)")
@@ -35,7 +35,7 @@ fn test_sum_on_empty_table() {
 
 #[test]
 fn test_avg_on_empty_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty_table (id INT64, value INT64)")
@@ -50,7 +50,7 @@ fn test_avg_on_empty_table() {
 
 #[test]
 fn test_empty_result_set() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE empty (id INT64, value STRING)")
@@ -63,7 +63,7 @@ fn test_empty_result_set() {
 
 #[test]
 fn test_empty_result_with_where() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -84,7 +84,7 @@ fn test_empty_result_with_where() {
 
 #[test]
 fn test_all_rows_match_filter() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (value INT64)")
@@ -108,7 +108,7 @@ fn test_all_rows_match_filter() {
 
 #[test]
 fn test_single_row_operations() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE single (id INT64, value STRING)")

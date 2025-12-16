@@ -1,7 +1,6 @@
 mod ascii;
 mod casefold;
 mod chr;
-mod clickhouse_search;
 mod concat;
 mod ends_with;
 mod format;
@@ -92,77 +91,10 @@ impl ProjectionWithExprExec {
             "BIT_COUNT" => Self::evaluate_bit_count(args, batch, row_idx),
             "GET_BIT" => Self::evaluate_get_bit(args, batch, row_idx),
             "SET_BIT" => Self::evaluate_set_bit(args, batch, row_idx),
-            "POSITIONCASEINSENSITIVE" => {
-                Self::evaluate_position_case_insensitive(args, batch, row_idx)
-            }
-            "POSITIONUTF8" => Self::evaluate_position_utf8(args, batch, row_idx),
-            "POSITIONCASEINSENSITIVEUTF8" => {
-                Self::evaluate_position_case_insensitive_utf8(args, batch, row_idx)
-            }
-            "COUNTSUBSTRINGS" => Self::evaluate_count_substrings(args, batch, row_idx),
-            "COUNTSUBSTRINGSCASEINSENSITIVE" => {
-                Self::evaluate_count_substrings_case_insensitive(args, batch, row_idx)
-            }
-            "COUNTMATCHES" => Self::evaluate_count_matches(args, batch, row_idx),
-            "COUNTMATCHESCASEINSENSITIVE" => {
-                Self::evaluate_count_matches_case_insensitive(args, batch, row_idx)
-            }
-            "HASTOKEN" => Self::evaluate_has_token(args, batch, row_idx),
-            "HASTOKENCASEINSENSITIVE" => {
-                Self::evaluate_has_token_case_insensitive(args, batch, row_idx)
-            }
-            "MATCH" => Self::evaluate_match(args, batch, row_idx),
-            "MULTISEARCHANY" => Self::evaluate_multi_search_any(args, batch, row_idx),
-            "MULTISEARCHFIRSTINDEX" => {
-                Self::evaluate_multi_search_first_index(args, batch, row_idx)
-            }
-            "MULTISEARCHFIRSTPOSITION" => {
-                Self::evaluate_multi_search_first_position(args, batch, row_idx)
-            }
-            "MULTISEARCHALLPOSITIONS" => {
-                Self::evaluate_multi_search_all_positions(args, batch, row_idx)
-            }
-            "MULTIMATCHANY" => Self::evaluate_multi_match_any(args, batch, row_idx),
-            "MULTIMATCHANYINDEX" => Self::evaluate_multi_match_any_index(args, batch, row_idx),
-            "MULTIMATCHALLINDICES" => Self::evaluate_multi_match_all_indices(args, batch, row_idx),
-            "EXTRACTGROUPS" => Self::evaluate_extract_groups(args, batch, row_idx),
-            "NGRAMDISTANCE" => Self::evaluate_ngram_distance(args, batch, row_idx),
-            "NGRAMSEARCH" => Self::evaluate_ngram_search(args, batch, row_idx),
-            "SPLITBYREGEXP" => Self::evaluate_split_by_regexp(args, batch, row_idx),
-            "SPLITBYWHITESPACE" => Self::evaluate_split_by_whitespace(args, batch, row_idx),
-            "SPLITBYNONALPHA" => Self::evaluate_split_by_non_alpha(args, batch, row_idx),
-            "ALPHATOKENS" => Self::evaluate_alpha_tokens(args, batch, row_idx),
-            "TOKENS" => Self::evaluate_tokens(args, batch, row_idx),
-            "NGRAMS" => Self::evaluate_ngrams(args, batch, row_idx),
-            "ARRAYSTRINGCONCAT" => Self::evaluate_array_string_concat(args, batch, row_idx),
-            "EXTRACTALL" => Self::evaluate_extract_all(args, batch, row_idx),
-            "EXTRACTALLGROUPSHORIZONTAL" => {
-                Self::evaluate_extract_all_groups_horizontal(args, batch, row_idx)
-            }
-            "EXTRACTALLGROUPSVERTICAL" => {
-                Self::evaluate_extract_all_groups_vertical(args, batch, row_idx)
-            }
-            "REPLACEONE" => Self::evaluate_replace_one(args, batch, row_idx),
-            "REPLACEALL" => Self::evaluate_replace_all(args, batch, row_idx),
-            "TRIMLEFT" => Self::evaluate_trim_left(args, batch, row_idx),
-            "TRIMRIGHT" => Self::evaluate_trim_right(args, batch, row_idx),
-            "TRIMBOTH" => Self::evaluate_trim_both(args, batch, row_idx),
-            "LEFTPAD" => Self::evaluate_left_pad(args, batch, row_idx),
-            "RIGHTPAD" => Self::evaluate_right_pad(args, batch, row_idx),
-            "REGEXPQUOTEMETA" => Self::evaluate_regexp_quote_meta(args, batch, row_idx),
-            "TRANSLATEUTF8" => Self::evaluate_translate_utf8(args, batch, row_idx),
-            "NORMALIZEUTF8NFC" => Self::evaluate_normalize_utf8_nfc(args, batch, row_idx),
-            "NORMALIZEUTF8NFD" => Self::evaluate_normalize_utf8_nfd(args, batch, row_idx),
-            "NORMALIZEUTF8NFKC" => Self::evaluate_normalize_utf8_nfkc(args, batch, row_idx),
-            "NORMALIZEUTF8NFKD" => Self::evaluate_normalize_utf8_nfkd(args, batch, row_idx),
             "BTRIM" => Self::evaluate_btrim(args, batch, row_idx),
             "BIT_LENGTH" => Self::evaluate_bit_length(args, batch, row_idx),
             "CONCAT_WS" => Self::evaluate_concat_ws(args, batch, row_idx),
-            "QUOTE_NULLABLE" => Self::evaluate_quote_nullable(args, batch, row_idx),
-            "REGEXP_COUNT" => Self::evaluate_regexp_count(args, batch, row_idx),
-            "REGEXP_INSTR" => Self::evaluate_regexp_instr(args, batch, row_idx),
-            "REGEXP_SUBSTR" => Self::evaluate_regexp_substr(args, batch, row_idx),
-            "PARSE_IDENT" => Self::evaluate_parse_ident(args, batch, row_idx),
+            "REGEXP_EXTRACT_ALL" => Self::evaluate_regexp_extract_all(args, batch, row_idx),
             "NORMALIZE" => Self::evaluate_normalize(args, batch, row_idx),
             "IS_NORMALIZED" => Self::evaluate_is_normalized(args, batch, row_idx),
             "OVERLAY" => Self::evaluate_overlay(args, batch, row_idx),
@@ -264,106 +196,6 @@ impl ProjectionWithExprExec {
         Ok(Value::string(parts.join(separator)))
     }
 
-    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_quote_nullable(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
-        Self::validate_arg_count("QUOTE_NULLABLE", args, 1)?;
-        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        if val.is_null() {
-            return Ok(Value::string("NULL".to_string()));
-        }
-        let s = if let Some(s) = val.as_str() {
-            s.to_string()
-        } else {
-            val.to_string()
-        };
-        let escaped = s.replace('\'', "''");
-        Ok(Value::string(format!("'{}'", escaped)))
-    }
-
-    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_regexp_count(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
-        Self::validate_arg_count("REGEXP_COUNT", args, 2)?;
-        let string_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let pattern_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
-        if string_val.is_null() || pattern_val.is_null() {
-            return Ok(Value::null());
-        }
-        let string = string_val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: string_val.data_type().to_string(),
-        })?;
-        let pattern = pattern_val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: pattern_val.data_type().to_string(),
-        })?;
-        let re = regex::Regex::new(pattern)
-            .map_err(|e| Error::invalid_query(format!("Invalid regex pattern: {}", e)))?;
-        let count = re.find_iter(string).count();
-        Ok(Value::int64(count as i64))
-    }
-
-    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_regexp_instr(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
-        Self::validate_arg_count("REGEXP_INSTR", args, 2)?;
-        let string_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let pattern_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
-        if string_val.is_null() || pattern_val.is_null() {
-            return Ok(Value::null());
-        }
-        let string = string_val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: string_val.data_type().to_string(),
-        })?;
-        let pattern = pattern_val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: pattern_val.data_type().to_string(),
-        })?;
-        let re = regex::Regex::new(pattern)
-            .map_err(|e| Error::invalid_query(format!("Invalid regex pattern: {}", e)))?;
-        if let Some(mat) = re.find(string) {
-            Ok(Value::int64((mat.start() + 1) as i64))
-        } else {
-            Ok(Value::int64(0))
-        }
-    }
-
-    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_regexp_substr(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
-        Self::validate_arg_count("REGEXP_SUBSTR", args, 2)?;
-        let string_val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let pattern_val = Self::evaluate_expr(&args[1], batch, row_idx)?;
-        if string_val.is_null() || pattern_val.is_null() {
-            return Ok(Value::null());
-        }
-        let string = string_val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: string_val.data_type().to_string(),
-        })?;
-        let pattern = pattern_val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: pattern_val.data_type().to_string(),
-        })?;
-        let re = regex::Regex::new(pattern)
-            .map_err(|e| Error::invalid_query(format!("Invalid regex pattern: {}", e)))?;
-        if let Some(mat) = re.find(string) {
-            Ok(Value::string(mat.as_str().to_string()))
-        } else {
-            Ok(Value::null())
-        }
-    }
-
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_regexp_extract_all(
         args: &[Expr],
         batch: &Table,
@@ -396,36 +228,6 @@ impl ProjectionWithExprExec {
             })
             .collect();
         Ok(Value::array(results))
-    }
-
-    pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_parse_ident(
-        args: &[Expr],
-        batch: &Table,
-        row_idx: usize,
-    ) -> Result<Value> {
-        Self::validate_arg_count("PARSE_IDENT", args, 1)?;
-        let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        if val.is_null() {
-            return Ok(Value::null());
-        }
-        let s = val.as_str().ok_or_else(|| Error::TypeMismatch {
-            expected: "STRING".to_string(),
-            actual: val.data_type().to_string(),
-        })?;
-        let parts: Vec<Value> = s
-            .split('.')
-            .map(|part| {
-                let trimmed = part.trim();
-                let unquoted =
-                    if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
-                        trimmed[1..trimmed.len() - 1].replace("\"\"", "\"")
-                    } else {
-                        trimmed.to_lowercase()
-                    };
-                Value::string(unquoted)
-            })
-            .collect();
-        Ok(Value::array(parts))
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_normalize(

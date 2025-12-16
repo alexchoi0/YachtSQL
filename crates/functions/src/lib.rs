@@ -20,11 +20,9 @@ pub mod dialects;
 pub mod encoding;
 #[cfg(feature = "encryption")]
 pub mod encryption;
-pub mod fulltext;
 pub mod generator;
 pub mod geography;
 pub mod geometric;
-pub mod hstore;
 pub mod interval;
 #[cfg(feature = "json")]
 pub mod json;

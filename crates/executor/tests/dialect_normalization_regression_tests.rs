@@ -186,126 +186,18 @@ fn bigquery_multiple_normalizations_regression() {
 }
 
 #[test]
-fn postgresql_double_colon_cast_to_cast_function_regression() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+fn bigquery_normalization_isolated_per_executor_regression() {
+    let mut bigquery_exec1 = QueryExecutor::with_dialect(DialectType::BigQuery);
+    let mut bigquery_exec2 = QueryExecutor::with_dialect(DialectType::BigQuery);
 
-    executor
-        .execute_sql("CREATE TABLE test (value TEXT)")
-        .unwrap();
+    let bq_result1 = bigquery_exec1.execute_sql("CREATE TABLE `test1` (`id` INT)");
+    assert!(bq_result1.is_ok(), "BigQuery backticks should work");
 
-    let result = executor.execute_sql("SELECT value::INTEGER FROM test");
-
-    if let Err(e) = result {
-        let err_msg = format!("{:?}", e);
-        assert!(
-            !err_msg.contains("DoubleColon")
-                && (err_msg.contains("Cast") || err_msg.contains("CAST")),
-            ":: should be normalized to CAST(). Error: {}",
-            err_msg
-        );
-    }
-}
-
-#[test]
-fn postgresql_multiple_cast_operators_regression() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
-
-    executor
-        .execute_sql("CREATE TABLE test (a TEXT, b TEXT, c TEXT)")
-        .unwrap();
-
-    let result = executor.execute_sql("SELECT a::INT, b::FLOAT, c::TEXT FROM test");
-
-    if let Err(e) = result {
-        let err_msg = format!("{:?}", e);
-        assert!(
-            !err_msg.contains("DoubleColon"),
-            "All :: operators should be normalized. Error: {}",
-            err_msg
-        );
-    }
-}
-
-#[test]
-fn postgresql_ilike_to_upper_like_regression() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
-
-    executor
-        .execute_sql("CREATE TABLE users (name TEXT)")
-        .unwrap();
-    executor
-        .execute_sql("INSERT INTO users VALUES ('Alice'), ('bob')")
-        .unwrap();
-
-    let result = executor.execute_sql("SELECT * FROM users WHERE name ILIKE 'alice'");
-
-    if let Err(e) = result {
-        let err_msg = format!("{:?}", e);
-        assert!(
-            !err_msg.to_uppercase().contains("ILIKE") || err_msg.contains("UPPER"),
-            "ILIKE should be normalized to UPPER/LIKE. Error: {}",
-            err_msg
-        );
-    }
-}
-
-#[test]
-fn postgresql_json_arrow_operator_regression() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
-
-    executor
-        .execute_sql("CREATE TABLE test (data TEXT)")
-        .unwrap();
-
-    let result = executor.execute_sql("SELECT data->'key' FROM test");
-
-    if let Err(e) = result {
-        let err_msg = format!("{:?}", e);
-        assert!(
-            !err_msg.contains("->") || err_msg.contains("JSON"),
-            "-> should be normalized to JSON function. Error: {}",
-            err_msg
-        );
-    }
-}
-
-#[test]
-fn postgresql_array_literal_normalization_regression() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
-
-    let result = executor.execute_sql("SELECT '{1,2,3}'::INT[]");
-
-    if let Err(e) = result {
-        let err_msg = format!("{:?}", e);
-
-        if err_msg.contains("DoubleColon") {
-            debug_eprintln!(
-                "[test::dialect_normalization] WARNING: :: with array literals not fully normalized (known limitation)"
-            );
-        }
-    }
-}
-
-#[test]
-fn dialect_normalization_isolated_per_executor_regression() {
-    let mut bigquery_exec = QueryExecutor::with_dialect(DialectType::BigQuery);
-    let mut postgres_exec = QueryExecutor::with_dialect(DialectType::PostgreSQL);
-
-    let bq_result = bigquery_exec.execute_sql("CREATE TABLE `test1` (`id` INT)");
-    assert!(bq_result.is_ok(), "BigQuery backticks should work");
-
-    postgres_exec
-        .execute_sql("CREATE TABLE test2 (value TEXT)")
-        .unwrap();
-    let pg_result = postgres_exec.execute_sql("SELECT value::INT FROM test2");
-
-    if let Err(e) = pg_result {
-        let err_msg = format!("{:?}", e);
-        assert!(
-            !err_msg.contains("DoubleColon"),
-            "PostgreSQL executor should normalize :: independently"
-        );
-    }
+    let bq_result2 = bigquery_exec2.execute_sql("CREATE TABLE `test2` (`value` TEXT)");
+    assert!(
+        bq_result2.is_ok(),
+        "Second BigQuery executor should work independently"
+    );
 }
 
 #[test]

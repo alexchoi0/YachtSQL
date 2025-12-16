@@ -915,13 +915,6 @@ impl ProjectionWithExprExec {
                 | FunctionName::NetIpInNet
                 | FunctionName::NetMakeNet
                 | FunctionName::NetIpIsPrivate
-                | FunctionName::Encrypt
-                | FunctionName::Decrypt
-                | FunctionName::AesEncryptMysql
-                | FunctionName::AesDecryptMysql
-                | FunctionName::Base64UrlEncode
-                | FunctionName::Base64UrlDecode
-                | FunctionName::SafeConvertBytesToString
         ) {
             return Self::evaluate_crypto_hash_network_function(
                 func_name, args, batch, row_idx, dialect,
@@ -1121,156 +1114,26 @@ impl ProjectionWithExprExec {
                 | FunctionName::TsvectorToArray
                 | FunctionName::GetCurrentTsConfig
         ) {
-            return Self::evaluate_fulltext_function(func_name, args, batch, row_idx);
+            return Err(Error::unsupported_feature(
+                "Full-text search not supported (PostgreSQL-specific)",
+            ));
         }
 
         if name.as_str().starts_with("YACHTSQL.") {
             return Self::evaluate_system_function(func_name, args, batch, row_idx);
         }
 
-        if matches!(
-            name,
-            FunctionName::CurrentDatabase
-                | FunctionName::CurrentUser
-                | FunctionName::Version
-                | FunctionName::Uptime
-                | FunctionName::Timezone
-                | FunctionName::ServerTimezone
-                | FunctionName::BlockNumber
-                | FunctionName::RowNumberInBlock
-                | FunctionName::RowNumberInAllBlocks
-                | FunctionName::HostName
-                | FunctionName::Fqdn
-                | FunctionName::IsFinite
-                | FunctionName::IsInfinite
-                | FunctionName::IsNan
-                | FunctionName::ToTypeName
-                | FunctionName::DumpColumnStructure
-                | FunctionName::DefaultValueOfArgumentType
-                | FunctionName::DefaultValueOfTypeName
-                | FunctionName::BlockSize
-                | FunctionName::CurrentSchemas
-                | FunctionName::QueryId
-                | FunctionName::InitialQueryId
-                | FunctionName::ServerUuid
-                | FunctionName::GetSetting
-                | FunctionName::IsDecimalOverflow
-                | FunctionName::CountDigits
-                | FunctionName::PgTypeof
-                | FunctionName::SessionUser
-                | FunctionName::CurrentSchema
-                | FunctionName::CurrentCatalog
-                | FunctionName::CurrentSetting
-                | FunctionName::SetConfig
-                | FunctionName::PgBackendPid
-                | FunctionName::PgColumnSize
-                | FunctionName::PgDatabaseSize
-                | FunctionName::PgTableSize
-                | FunctionName::PgIndexesSize
-                | FunctionName::PgTotalRelationSize
-                | FunctionName::PgRelationSize
-                | FunctionName::PgTablespaceSize
-                | FunctionName::PgSizePretty
-                | FunctionName::PgConfLoadTime
-                | FunctionName::PgIsInRecovery
-                | FunctionName::PgPostmasterStartTime
-                | FunctionName::PgCurrentSnapshot
-                | FunctionName::PgGetViewdef
-                | FunctionName::HasTablePrivilege
-                | FunctionName::HasSchemaPrivilege
-                | FunctionName::HasDatabasePrivilege
-                | FunctionName::HasColumnPrivilege
-                | FunctionName::ObjDescription
-                | FunctionName::ColDescription
-                | FunctionName::ShobjDescription
-                | FunctionName::InetClientAddr
-                | FunctionName::InetClientPort
-                | FunctionName::InetServerAddr
-                | FunctionName::InetServerPort
-                | FunctionName::TxidCurrent
-                | FunctionName::TxidCurrentIfAssigned
-                | FunctionName::TxidCurrentSnapshot
-                | FunctionName::TxidSnapshotXmin
-                | FunctionName::TxidSnapshotXmax
-                | FunctionName::TxidSnapshotXip
-                | FunctionName::TxidVisibleInSnapshot
-                | FunctionName::TxidStatus
-                | FunctionName::PgCurrentXactId
-                | FunctionName::PgCurrentXactIdIfAssigned
-                | FunctionName::PgSnapshotXmin
-                | FunctionName::PgSnapshotXmax
-                | FunctionName::PgSnapshotXip
-                | FunctionName::PgVisibleInSnapshot
-                | FunctionName::PgXactStatus
-        ) {
+        if matches!(name, FunctionName::ToTypeName) {
             return Self::evaluate_introspection_function(name, args, batch, row_idx);
         }
 
         if matches!(
             name,
-            FunctionName::HstoreExists
-                | FunctionName::HstoreExistsAll
-                | FunctionName::HstoreExistsAny
-                | FunctionName::Exist
-                | FunctionName::HstoreConcat
-                | FunctionName::HstoreDelete
-                | FunctionName::HstoreDeleteKey
-                | FunctionName::HstoreDeleteKeys
-                | FunctionName::HstoreDeleteHstore
-                | FunctionName::Delete
-                | FunctionName::HstoreContains
-                | FunctionName::HstoreContainedBy
-                | FunctionName::HstoreAkeys
-                | FunctionName::Akeys
-                | FunctionName::Skeys
-                | FunctionName::HstoreAvals
-                | FunctionName::Avals
-                | FunctionName::Svals
-                | FunctionName::HstoreDefined
-                | FunctionName::Defined
-                | FunctionName::HstoreToJson
-                | FunctionName::HstoreToJsonb
-                | FunctionName::HstoreToArray
-                | FunctionName::HstoreToMatrix
-                | FunctionName::HstoreSlice
-                | FunctionName::Slice
-                | FunctionName::Hstore
-                | FunctionName::HstoreGet
-                | FunctionName::HstoreGetValues
+            FunctionName::SessionUser
+                | FunctionName::CurrentUser
+                | FunctionName::SafeConvertBytesToString
         ) {
-            return Self::evaluate_hstore_function(func_name, args, batch, row_idx);
-        }
-
-        if matches!(
-            name,
-            FunctionName::Arraymap
-                | FunctionName::Arrayfilter
-                | FunctionName::Arrayexists
-                | FunctionName::Arrayall
-                | FunctionName::Arrayfirst
-                | FunctionName::Arraylast
-                | FunctionName::Arrayfirstindex
-                | FunctionName::Arraylastindex
-                | FunctionName::Arraycount
-                | FunctionName::Arraysum
-                | FunctionName::Arrayavg
-                | FunctionName::Arraymin
-                | FunctionName::Arraymax
-                | FunctionName::Arraysort
-                | FunctionName::Arrayreversesort
-                | FunctionName::Arrayfold
-                | FunctionName::Arrayreduce
-                | FunctionName::Arrayreduceinranges
-                | FunctionName::Arraycumsum
-                | FunctionName::Arraycumsumnonnegative
-                | FunctionName::Arraydifference
-                | FunctionName::Arraysplit
-                | FunctionName::Arrayreversesplit
-                | FunctionName::Arraycompact
-                | FunctionName::Arrayzip
-                | FunctionName::Arrayauc
-        ) {
-            return Self::evaluate_higher_order_function(func_name, args, batch, row_idx, dialect);
+            return Self::evaluate_security_function(name, args, batch, row_idx);
         }
 
         if matches!(
@@ -1335,53 +1198,9 @@ impl ProjectionWithExprExec {
 
         if matches!(
             name,
-            FunctionName::Tuple
-                | FunctionName::NamedTuple
-                | FunctionName::TupleElement
-                | FunctionName::Untuple
-                | FunctionName::TupleHammingDistance
-                | FunctionName::TuplePlus
-                | FunctionName::TupleMinus
-                | FunctionName::TupleMultiply
-                | FunctionName::TupleDivide
-                | FunctionName::TupleNegate
-                | FunctionName::TupleMultiplyByNumber
-                | FunctionName::TupleDivideByNumber
-                | FunctionName::TupleConcat
-                | FunctionName::TupleIntDiv
-                | FunctionName::TupleIntDivOrZero
-                | FunctionName::TupleModulo
-                | FunctionName::TupleModuloByNumber
-                | FunctionName::TupleToNameValuePairs
-                | FunctionName::TupleNames
+            FunctionName::Tuple | FunctionName::TupleElement | FunctionName::Untuple
         ) {
             return Self::evaluate_tuple_function(name, args, batch, row_idx);
-        }
-
-        if matches!(
-            name,
-            FunctionName::BitmapBuild
-                | FunctionName::BitmapToArray
-                | FunctionName::BitmapCardinality
-                | FunctionName::BitmapAnd
-                | FunctionName::BitmapOr
-                | FunctionName::BitmapXor
-                | FunctionName::BitmapAndnot
-                | FunctionName::BitmapContains
-                | FunctionName::BitmapHasAny
-                | FunctionName::BitmapHasAll
-                | FunctionName::BitmapAndCardinality
-                | FunctionName::BitmapOrCardinality
-                | FunctionName::BitmapXorCardinality
-                | FunctionName::BitmapAndnotCardinality
-                | FunctionName::BitmapMin
-                | FunctionName::BitmapMax
-                | FunctionName::BitmapSubsetInRange
-                | FunctionName::BitmapSubsetLimit
-                | FunctionName::BitmapTransform
-                | FunctionName::SubBitmap
-        ) {
-            return Self::evaluate_bitmap_function(name, args, batch, row_idx);
         }
 
         if matches!(

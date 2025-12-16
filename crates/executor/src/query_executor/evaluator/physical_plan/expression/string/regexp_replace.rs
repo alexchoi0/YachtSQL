@@ -5,7 +5,7 @@ use yachtsql_optimizer::expr::Expr;
 use super::super::super::ProjectionWithExprExec;
 use crate::Table;
 
-fn convert_clickhouse_replacement_to_rust(replacement: &str) -> String {
+fn convert_replacement_to_rust(replacement: &str) -> String {
     let mut result = String::with_capacity(replacement.len());
     let mut chars = replacement.chars().peekable();
     while let Some(c) = chars.next() {
@@ -45,7 +45,7 @@ impl ProjectionWithExprExec {
             pattern_val.as_str(),
             replacement_val.as_str(),
         ) {
-            let converted_replacement = convert_clickhouse_replacement_to_rust(replacement);
+            let converted_replacement = convert_replacement_to_rust(replacement);
             match Regex::new(pattern) {
                 Ok(re) => {
                     let result = re

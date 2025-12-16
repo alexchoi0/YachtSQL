@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_order_by_asc_single_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE numbers (id INT64, value INT64)")
@@ -26,7 +26,7 @@ fn test_order_by_asc_single_column() {
 
 #[test]
 fn test_order_by_desc_single_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (name STRING, price INT64)")
@@ -50,7 +50,7 @@ fn test_order_by_desc_single_column() {
 
 #[test]
 fn test_order_by_multiple_columns() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE employees (dept STRING, name STRING, salary INT64)")
@@ -78,7 +78,7 @@ fn test_order_by_multiple_columns() {
 
 #[test]
 fn test_order_by_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -102,7 +102,7 @@ fn test_order_by_with_nulls() {
 
 #[test]
 fn test_limit_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE records (id INT64)")
@@ -122,7 +122,7 @@ fn test_limit_basic() {
 
 #[test]
 fn test_offset_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE pages (page_num INT64)")
@@ -142,7 +142,7 @@ fn test_offset_basic() {
 
 #[test]
 fn test_limit_and_offset() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sequence (num INT64)")
@@ -166,7 +166,7 @@ fn test_limit_and_offset() {
 
 #[test]
 fn test_order_by_limit() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (player STRING, score INT64)")
@@ -193,7 +193,7 @@ fn test_order_by_limit() {
 
 #[test]
 fn test_order_by_limit_offset() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE rankings (name STRING, points INT64)")
@@ -228,7 +228,7 @@ fn test_order_by_limit_offset() {
 
 #[test]
 fn test_limit_zero() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (id INT64)")
@@ -246,7 +246,7 @@ fn test_limit_zero() {
 
 #[test]
 fn test_order_by_string() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE names (name STRING)")
@@ -270,7 +270,7 @@ fn test_order_by_string() {
 
 #[test]
 fn test_order_by_with_where() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE filtered (category STRING, value INT64)")

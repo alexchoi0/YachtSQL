@@ -871,7 +871,6 @@ impl LogicalPlanBuilder {
                 LiteralValue::Vector(_) => Some("vector"),
                 LiteralValue::Range(_) => Some("range"),
                 LiteralValue::Point(_) => Some("point"),
-                LiteralValue::PgBox(_) => Some("box"),
                 LiteralValue::Circle(_) => Some("circle"),
                 LiteralValue::Line(_) => Some("line"),
                 LiteralValue::Lseg(_) => Some("lseg"),
@@ -1063,7 +1062,7 @@ impl LogicalPlanBuilder {
     }
 
     fn normalize_dialect_function(&self, name_str: &str, args: &[Expr]) -> Result<Option<Expr>> {
-        use yachtsql_ir::expr::{BinaryOp, CastDataType, LiteralValue, StructLiteralField};
+        use yachtsql_ir::expr::{BinaryOp, LiteralValue, StructLiteralField};
 
         use crate::DialectType;
 
@@ -1306,74 +1305,6 @@ impl LogicalPlanBuilder {
                             right: Box::new(denominator),
                         })),
                     })
-                }
-                _ => None,
-            },
-            DialectType::ClickHouse => match name_str.to_uppercase().as_str() {
-                "TO_INT64" | "TOINT64" => {
-                    if args.len() != 1 {
-                        return Err(Error::invalid_query(format!(
-                            "TO_INT64 requires exactly 1 argument, got {}",
-                            args.len()
-                        )));
-                    }
-                    Some(Expr::Cast {
-                        expr: Box::new(args[0].clone()),
-                        data_type: CastDataType::Int64,
-                    })
-                }
-                "TO_STRING" | "TOSTRING" => {
-                    if args.len() != 1 {
-                        return Err(Error::invalid_query(format!(
-                            "TO_STRING requires exactly 1 argument, got {}",
-                            args.len()
-                        )));
-                    }
-                    Some(Expr::Cast {
-                        expr: Box::new(args[0].clone()),
-                        data_type: CastDataType::String,
-                    })
-                }
-                "TO_FLOAT64" | "TOFLOAT64" => {
-                    if args.len() != 1 {
-                        return Err(Error::invalid_query(format!(
-                            "TO_FLOAT64 requires exactly 1 argument, got {}",
-                            args.len()
-                        )));
-                    }
-                    Some(Expr::Cast {
-                        expr: Box::new(args[0].clone()),
-                        data_type: CastDataType::Float64,
-                    })
-                }
-                "IF" => {
-                    if args.len() != 3 {
-                        return Err(Error::invalid_query(format!(
-                            "IF requires exactly 3 arguments, got {}",
-                            args.len()
-                        )));
-                    }
-
-                    Some(Expr::Case {
-                        operand: None,
-                        when_then: vec![(args[0].clone(), args[1].clone())],
-                        else_expr: Some(Box::new(args[2].clone())),
-                    })
-                }
-                _ => None,
-            },
-            DialectType::PostgreSQL => match name_str.to_uppercase().as_str() {
-                "NORMALIZE" | "IS_NORMALIZED" => {
-                    if args.len() == 2 {
-                        let text_arg = args[0].clone();
-                        let form_arg = Self::convert_normalization_form_column_to_string(&args[1]);
-                        Some(Expr::Function {
-                            name: yachtsql_ir::FunctionName::parse(name_str),
-                            args: vec![text_arg, form_arg],
-                        })
-                    } else {
-                        None
-                    }
                 }
                 _ => None,
             },

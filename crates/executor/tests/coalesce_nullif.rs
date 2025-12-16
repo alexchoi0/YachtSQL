@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_coalesce_with_null_column() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING, nickname STRING)")
@@ -27,7 +27,7 @@ fn test_coalesce_with_null_column() {
 
 #[test]
 fn test_coalesce_multiple_arguments() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE contacts (id INT64, primary_email STRING, secondary_email STRING, backup_email STRING)")
@@ -52,7 +52,7 @@ fn test_coalesce_multiple_arguments() {
 
 #[test]
 fn test_nullif_division_by_zero_prevention() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE metrics (id INT64, total INT64, count INT64)")

@@ -1,7 +1,7 @@
 use sqlparser::ast::{AlterTableOperation, Statement as SqlStatement};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::Value;
-use yachtsql_storage::{CheckConstraint, Field, ForeignKey, TableConstraintOps, TableSchemaOps};
+use yachtsql_storage::{CheckConstraint, Field, TableConstraintOps, TableSchemaOps};
 
 use super::super::QueryExecutor;
 use super::create::DdlExecutor;
@@ -49,114 +49,66 @@ impl AlterTableExecutor for QueryExecutor {
                         self.parse_ddl_table_name(&new_table_name)?;
 
                     if new_dataset_id != dataset_id {
-                        return Err(Error::invalid_query(format!(
-                            "Cannot rename table to different dataset: {} -> {}",
-                            dataset_id, new_dataset_id
-                        )));
-                    }
-
-                    if dataset.get_table(&new_table_id).is_some() {
-                        return Err(Error::invalid_query(format!(
-                            "Table '{}' already exists",
-                            new_table_id
-                        )));
+                        return Err(Error::unsupported_feature(
+                            "Cross-dataset table rename is not supported".to_string(),
+                        ));
                     }
 
                     dataset.rename_table(&table_id, &new_table_id)?;
-
-                    drop(storage);
-                    self.plan_cache.borrow_mut().invalidate_all();
-
-                    return Ok(());
                 }
-                AlterTableOperation::DropColumn { column_names, .. } => {
-                    for col_ident in column_names {
-                        let col_name = col_ident.value.clone();
 
-                        let is_referenced = dataset.tables().values().any(|other_table| {
-                            other_table.foreign_keys().iter().any(|fk| {
-                                fk.parent_table == table_id && fk.parent_columns.contains(&col_name)
-                            })
-                        });
-
-                        if is_referenced {
-                            return Err(Error::invalid_query(format!(
-                                "Cannot drop column '{}' because it is referenced by a FOREIGN KEY constraint",
-                                col_name
-                            )));
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
-            Error::TableNotFound(format!("Table '{}.{}' not found", dataset_id, table_id))
-        })?;
-
-        for operation in operations {
-            match operation {
-                AlterTableOperation::AddColumn {
-                    column_def,
-                    if_not_exists,
-                    ..
+                AlterTableOperation::RenameColumn {
+                    old_column_name,
+                    new_column_name,
                 } => {
-                    let col_name = column_def.name.value.clone();
-                    if table.schema().field_index(&col_name).is_some() {
-                        if *if_not_exists {
-                            continue;
-                        }
-                        return Err(Error::invalid_query(format!(
-                            "Column '{}' already exists",
-                            col_name
-                        )));
-                    }
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
 
+                    let old_name = old_column_name.value.clone();
+                    let new_name = new_column_name.value.clone();
+
+                    table.rename_column(&old_name, &new_name)?;
+                }
+
+                AlterTableOperation::AddColumn { column_def, .. } => {
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
+
+                    let col_name = column_def.name.value.clone();
                     let data_type =
                         self.sql_type_to_data_type(&dataset_id, &column_def.data_type)?;
 
-                    let mut is_not_null = false;
+                    let mut is_nullable = true;
                     let mut default_value: Option<Value> = None;
-                    let mut is_auto_increment = false;
 
-                    for option in &column_def.options {
-                        match &option.option {
-                            sqlparser::ast::ColumnOption::NotNull => is_not_null = true,
-                            sqlparser::ast::ColumnOption::Null => is_not_null = false,
+                    for opt in &column_def.options {
+                        match &opt.option {
+                            sqlparser::ast::ColumnOption::NotNull => {
+                                is_nullable = false;
+                            }
+                            sqlparser::ast::ColumnOption::Null => {
+                                is_nullable = true;
+                            }
                             sqlparser::ast::ColumnOption::Default(expr) => {
                                 default_value = Some(self.evaluate_default_expr(expr)?);
-                            }
-                            sqlparser::ast::ColumnOption::Unique { is_primary, .. } => {
-                                if *is_primary {
-                                    is_not_null = true;
-                                }
-                            }
-                            sqlparser::ast::ColumnOption::DialectSpecific(tokens) => {
-                                let token_str: String = tokens
-                                    .iter()
-                                    .map(|t| t.to_string().to_uppercase())
-                                    .collect::<Vec<_>>()
-                                    .join(" ");
-                                if token_str.contains("AUTO_INCREMENT")
-                                    || token_str.contains("IDENTITY")
-                                {
-                                    is_auto_increment = true;
-                                }
                             }
                             _ => {}
                         }
                     }
 
-                    let mut field = if is_not_null {
-                        Field::required(&col_name, data_type)
+                    let field = if is_nullable {
+                        Field::nullable(col_name, data_type)
                     } else {
-                        Field::nullable(&col_name, data_type)
+                        Field::required(col_name, data_type)
                     };
-
-                    if is_auto_increment {
-                        field = field.with_auto_increment();
-                    }
 
                     table.add_column(field, default_value)?;
                 }
@@ -166,240 +118,156 @@ impl AlterTableExecutor for QueryExecutor {
                     if_exists,
                     ..
                 } => {
-                    for col_ident in column_names {
-                        let col_name = col_ident.value.clone();
-                        if table.schema().field_index(&col_name).is_none() {
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
+
+                    for col in column_names {
+                        let col_name = col.value.clone();
+
+                        if table.schema().field(&col_name).is_none() {
                             if *if_exists {
                                 continue;
                             }
-                            return Err(Error::invalid_query(format!(
-                                "Column '{}' does not exist",
-                                col_name
+                            return Err(Error::column_not_found(format!(
+                                "Column '{}' does not exist in table '{}'",
+                                col_name, table_id
                             )));
-                        }
-
-                        if let Some(pk_cols) = table.schema().primary_key() {
-                            if pk_cols.contains(&col_name) {
-                                return Err(Error::invalid_query(format!(
-                                    "Cannot drop column '{}' because it is part of the PRIMARY KEY constraint",
-                                    col_name
-                                )));
-                            }
                         }
 
                         table.drop_column(&col_name)?;
                     }
                 }
 
-                AlterTableOperation::RenameColumn {
-                    old_column_name,
-                    new_column_name,
-                } => {
-                    let old_name = old_column_name.value.clone();
-                    let new_name = new_column_name.value.clone();
-                    table.rename_column(&old_name, &new_name)?;
-                }
-
                 AlterTableOperation::AlterColumn { column_name, op } => {
-                    let col_name = column_name.value.clone();
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
 
-                    if table.schema().field_index(&col_name).is_none() {
-                        return Err(Error::invalid_query(format!(
-                            "Column '{}' does not exist",
-                            col_name
-                        )));
-                    }
+                    let col_name = column_name.value.clone();
 
                     match op {
                         sqlparser::ast::AlterColumnOperation::SetNotNull => {
-                            table.alter_column(&col_name, None, Some(true), None, false)?;
+                            table.alter_column(&col_name, None, Some(false), None, false)?;
                         }
                         sqlparser::ast::AlterColumnOperation::DropNotNull => {
-                            table.alter_column(&col_name, None, Some(false), None, false)?;
+                            table.alter_column(&col_name, None, Some(true), None, false)?;
+                        }
+                        sqlparser::ast::AlterColumnOperation::SetDataType {
+                            data_type,
+                            using,
+                            ..
+                        } => {
+                            let new_type = self.sql_type_to_data_type(&dataset_id, data_type)?;
+                            table.alter_column(
+                                &col_name,
+                                Some(new_type),
+                                None,
+                                None,
+                                using.is_some(),
+                            )?;
                         }
                         sqlparser::ast::AlterColumnOperation::SetDefault { value } => {
                             let default_val = self.evaluate_default_expr(value)?;
                             table.alter_column(&col_name, None, None, Some(default_val), false)?;
                         }
                         sqlparser::ast::AlterColumnOperation::DropDefault => {
-                            table.alter_column(&col_name, None, None, None, true)?;
-                        }
-                        sqlparser::ast::AlterColumnOperation::SetDataType {
-                            data_type,
-                            using: _,
-                            had_set: _,
-                        } => {
-                            let new_type = self.sql_type_to_data_type(&dataset_id, data_type)?;
-                            table.alter_column(&col_name, Some(new_type), None, None, false)?;
+                            table.alter_column(
+                                &col_name,
+                                None,
+                                None,
+                                Some(Value::null()),
+                                false,
+                            )?;
                         }
                         _ => {
                             return Err(Error::unsupported_feature(format!(
-                                "ALTER COLUMN operation {:?} not yet supported",
+                                "ALTER COLUMN operation {:?} not supported",
                                 op
                             )));
                         }
                     }
                 }
 
-                AlterTableOperation::RenameTable { .. } => {
-                    unreachable!("RENAME TABLE should be handled in pre-processing");
-                }
+                AlterTableOperation::DropConstraint { .. } => {}
 
-                AlterTableOperation::AddConstraint {
-                    constraint,
-                    not_valid,
-                } => {
+                AlterTableOperation::AddConstraint { constraint, .. } => {
                     use sqlparser::ast::TableConstraint;
-                    let skip_validation = *not_valid;
+
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
+
                     match constraint {
-                        TableConstraint::Unique {
-                            columns,
-                            name,
-                            characteristics,
-                            nulls_distinct,
-                            ..
-                        } => {
+                        TableConstraint::PrimaryKey { columns, .. } => {
                             let col_names: Vec<String> =
                                 columns.iter().map(|c| c.column.expr.to_string()).collect();
 
-                            if !skip_validation {
-                                self.validate_unique_constraint(table, &col_names)?;
-                            }
+                            self.validate_primary_key_constraint(table, &col_names)?;
 
-                            let enforced = characteristics
-                                .as_ref()
-                                .and_then(|c| c.enforced)
-                                .unwrap_or(true);
-                            let is_nulls_distinct =
-                                *nulls_distinct != sqlparser::ast::NullsDistinctOption::NotDistinct;
+                            table.schema_mut().set_primary_key(col_names.clone());
+                        }
+                        TableConstraint::Unique { columns, name, .. } => {
+                            let col_names: Vec<String> =
+                                columns.iter().map(|c| c.column.expr.to_string()).collect();
+
+                            self.validate_unique_constraint(table, &col_names)?;
 
                             table.schema_mut().add_unique_constraint(
                                 yachtsql_storage::schema::UniqueConstraint {
                                     name: name.as_ref().map(|n| n.to_string()),
                                     columns: col_names,
-                                    enforced,
-                                    nulls_distinct: is_nulls_distinct,
+                                    enforced: true,
+                                    nulls_distinct: true,
                                 },
                             );
                         }
-                        TableConstraint::PrimaryKey { columns, .. } => {
-                            let col_names: Vec<String> =
-                                columns.iter().map(|c| c.column.expr.to_string()).collect();
-
-                            if !skip_validation {
-                                self.validate_primary_key_constraint(table, &col_names)?;
-                            }
-
-                            table.schema_mut().set_primary_key(col_names);
-                        }
-                        TableConstraint::Check {
-                            expr,
-                            name,
-                            enforced,
-                        } => {
+                        TableConstraint::Check { name, expr, .. } => {
                             let constraint_name = name.as_ref().map(|n| n.to_string());
                             let expr_str = expr.to_string();
-                            let is_enforced = enforced.unwrap_or(true);
 
-                            if is_enforced && !skip_validation {
-                                self.validate_check_constraint(table, &expr_str)?;
-                            }
+                            self.validate_check_constraint(table, &expr_str)?;
 
                             table.schema_mut().add_check_constraint_with_validity(
                                 CheckConstraint {
                                     name: constraint_name,
                                     expression: expr_str,
-                                    enforced: is_enforced,
+                                    enforced: true,
                                 },
-                                !skip_validation,
+                                true,
                             );
                         }
-                        TableConstraint::ForeignKey {
-                            name,
-                            columns,
-                            foreign_table,
-                            referred_columns,
-                            on_delete,
-                            on_update,
-                            characteristics,
-                            ..
-                        } => {
-                            let child_columns: Vec<String> =
-                                columns.iter().map(|c| c.value.clone()).collect();
-
-                            let parent_table = foreign_table.to_string();
-
-                            let parent_columns: Vec<String> =
-                                referred_columns.iter().map(|c| c.value.clone()).collect();
-
-                            let mut foreign_key =
-                                ForeignKey::new(child_columns, parent_table, parent_columns);
-
-                            if let Some(fk_name) = name {
-                                foreign_key = foreign_key.with_name(fk_name.to_string());
-                            }
-
-                            if let Some(action) = on_delete {
-                                foreign_key = foreign_key
-                                    .with_on_delete(Self::map_referential_action(action)?);
-                            }
-
-                            if let Some(action) = on_update {
-                                foreign_key = foreign_key
-                                    .with_on_update(Self::map_referential_action(action)?);
-                            }
-
-                            if let Some(chars) = characteristics {
-                                if let Some(enforced) = chars.enforced {
-                                    foreign_key = foreign_key.with_enforced(enforced);
-                                }
-                            }
-
-                            table.schema_mut().add_foreign_key_with_validity(
-                                foreign_key.clone(),
-                                !skip_validation,
-                            );
-                            table.add_foreign_key(foreign_key)?;
+                        TableConstraint::ForeignKey { .. } => {
+                            return Err(Error::unsupported_feature(
+                                "FOREIGN KEY constraints are not supported in BigQuery".to_string(),
+                            ));
                         }
                         _ => {
                             return Err(Error::unsupported_feature(format!(
-                                "ADD CONSTRAINT {:?} not yet supported",
+                                "Constraint type {:?} not supported",
                                 constraint
                             )));
                         }
                     }
                 }
 
-                AlterTableOperation::DropConstraint {
-                    name, if_exists, ..
-                } => {
-                    let constraint_name = name.to_string();
-
-                    let removed_check = table
-                        .schema_mut()
-                        .remove_check_constraint_by_name(&constraint_name);
-
-                    let removed_fk = table.remove_foreign_key(&constraint_name).is_ok();
-
-                    if removed_fk {
-                        table
-                            .schema_mut()
-                            .remove_foreign_key_by_name(&constraint_name);
-                    }
-
-                    if !removed_check && !removed_fk && !if_exists {
-                        return Err(Error::invalid_query(format!(
-                            "Constraint '{}' does not exist",
-                            constraint_name
-                        )));
-                    }
-                }
-
-                AlterTableOperation::DropPrimaryKey { .. } => {
-                    table.schema_mut().drop_primary_key()?;
-                }
-
                 AlterTableOperation::RenameConstraint { old_name, new_name } => {
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
+
                     let old_constraint_name = old_name.to_string();
                     let new_constraint_name = new_name.to_string();
 
@@ -416,6 +284,13 @@ impl AlterTableExecutor for QueryExecutor {
 
                 AlterTableOperation::ValidateConstraint { name } => {
                     use yachtsql_storage::schema::ConstraintTypeTag;
+
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
 
                     let constraint_name = name.to_string();
 
@@ -434,9 +309,7 @@ impl AlterTableExecutor for QueryExecutor {
                         ConstraintTypeTag::Check => {
                             self.validate_check_constraint(table, &constraint_metadata.definition)?;
                         }
-                        ConstraintTypeTag::ForeignKey
-                        | ConstraintTypeTag::Unique
-                        | ConstraintTypeTag::PrimaryKey => {}
+                        ConstraintTypeTag::Unique | ConstraintTypeTag::PrimaryKey => {}
                     }
 
                     table.schema_mut().set_constraint_valid(&constraint_name);
@@ -448,6 +321,13 @@ impl AlterTableExecutor for QueryExecutor {
                     options,
                     ..
                 } => {
+                    let table = dataset.get_table_mut(&table_id).ok_or_else(|| {
+                        Error::table_not_found(format!(
+                            "Table '{}.{}' not found",
+                            dataset_id, table_id
+                        ))
+                    })?;
+
                     let column_name = col_name.value.clone();
 
                     if table.schema().field_index(&column_name).is_none() {
@@ -478,7 +358,12 @@ impl AlterTableExecutor for QueryExecutor {
                 | AlterTableOperation::EnableReplicaTrigger { .. }
                 | AlterTableOperation::EnableAlwaysTrigger { .. }
                 | AlterTableOperation::DisableRowLevelSecurity
-                | AlterTableOperation::EnableRowLevelSecurity => {}
+                | AlterTableOperation::EnableRowLevelSecurity => {
+                    return Err(Error::unsupported_feature(
+                        "Triggers, rules, and row-level security are not supported in BigQuery"
+                            .to_string(),
+                    ));
+                }
 
                 _ => {
                     return Err(Error::unsupported_feature(format!(
@@ -585,7 +470,6 @@ impl QueryExecutor {
                 .iter()
                 .map(|&col_idx| {
                     let value = &row.values()[col_idx];
-
                     value.to_string()
                 })
                 .collect();
@@ -611,22 +495,13 @@ impl QueryExecutor {
     fn validate_check_constraint(
         &self,
         table: &yachtsql_storage::Table,
-        expr_str: &str,
+        _expr_str: &str,
     ) -> Result<()> {
         use yachtsql_storage::storage_backend::TableStorage;
 
         let row_count = table.row_count();
         if row_count == 0 {
             return Ok(());
-        }
-
-        let check_expr = format!(
-            "SELECT {} AS check_result FROM dummy WHERE {}",
-            expr_str, expr_str
-        );
-
-        for field in table.schema().fields() {
-            if expr_str.contains(&field.name) {}
         }
 
         if row_count > 0 {
@@ -658,7 +533,7 @@ impl QueryExecutor {
                     Ok(Value::string(s.clone()))
                 }
                 SqlValue::Boolean(b) => Ok(Value::bool_val(*b)),
-                SqlValue::Null => Ok(Value::null()),
+                SqlValue::null() => Ok(Value::null()),
                 _ => Err(Error::unsupported_feature(format!(
                     "Default value expression {:?} not supported",
                     val_with_span

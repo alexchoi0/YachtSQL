@@ -19,10 +19,7 @@ impl ProjectionWithExprExec {
         }
 
         let val = Self::evaluate_expr(&args[0], batch, row_idx)?;
-        let return_hex = matches!(
-            dialect,
-            crate::DialectType::PostgreSQL | crate::DialectType::ClickHouse
-        );
+        let return_hex = false;
         yachtsql_functions::scalar::eval_blake3(&val, return_hex)
     }
 }

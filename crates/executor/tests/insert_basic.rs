@@ -2,7 +2,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_insert_single_row() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (id INT64, name STRING)")
@@ -14,7 +14,7 @@ fn test_insert_single_row() {
 
 #[test]
 fn test_insert_multiple_rows() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (id INT64, price FLOAT64)")
@@ -27,7 +27,7 @@ fn test_insert_multiple_rows() {
 
 #[test]
 fn test_insert_with_column_list() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (id INT64, amount FLOAT64, customer STRING)")
@@ -44,7 +44,7 @@ fn test_insert_with_column_list() {
 
 #[test]
 fn test_insert_with_null() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (id INT64, description STRING)")
@@ -56,7 +56,7 @@ fn test_insert_with_null() {
 
 #[test]
 fn test_insert_into_nonexistent_table() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     let result = executor.execute_sql("INSERT INTO nonexistent VALUES (1, 'test')");
     assert!(result.is_err(), "INSERT into nonexistent table should fail");
@@ -65,7 +65,7 @@ fn test_insert_into_nonexistent_table() {
 
 #[test]
 fn test_insert_column_count_mismatch() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE test (id INT64, name STRING)")
@@ -81,7 +81,7 @@ fn test_insert_column_count_mismatch() {
 
 #[test]
 fn test_insert_qualified_table_name() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE dataset1.table1 (id INT64)")
@@ -97,7 +97,7 @@ fn test_insert_qualified_table_name() {
 
 #[test]
 fn test_insert_various_types() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql(

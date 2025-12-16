@@ -318,19 +318,9 @@ impl<'a> ExpressionEvaluator<'a> {
                     "Unary operator {:?} not supported in WHERE",
                     op
                 ))),
-                UnaryOperator::PGPrefixFactorial => {
-                    let value = self.evaluate_expr(expr, row)?;
-                    if let Some(s) = value.as_str() {
-                        let result = yachtsql_functions::fulltext::tsquery_negate(s)
-                            .map_err(|e| Error::ExecutionError(e.to_string()))?;
-                        self.value_to_bool(&Value::string(result))
-                    } else {
-                        Err(Error::UnsupportedFeature(format!(
-                            "Unary operator {:?} not supported in WHERE",
-                            op
-                        )))
-                    }
-                }
+                UnaryOperator::PGPrefixFactorial => Err(Error::UnsupportedFeature(
+                    "PostgreSQL prefix factorial operator not supported".to_string(),
+                )),
             },
 
             SqlExpr::IsNull(expr) => {
@@ -1188,10 +1178,9 @@ impl<'a> ExpressionEvaluator<'a> {
                     }
                     SqlDataType::GeometricType(kind) => {
                         use sqlparser::ast::GeometricTypeKind;
-                        use yachtsql_core::types::{PgBox, PgCircle, PgPoint};
+                        use yachtsql_core::types::{PgCircle, PgPoint};
                         match kind {
                             GeometricTypeKind::Point => {
-
                                 PgPoint::parse(&literal).map(Value::point).ok_or_else(|| {
                                     Error::InvalidQuery(format!(
                                         "Invalid POINT literal '{}'. Expected format: (x,y)",
@@ -1199,19 +1188,7 @@ impl<'a> ExpressionEvaluator<'a> {
                                     ))
                                 })
                             }
-                            GeometricTypeKind::GeometricBox => {
-
-                                PgBox::parse(&literal)
-                                    .map(Value::pgbox)
-                                    .ok_or_else(|| {
-                                        Error::InvalidQuery(format!(
-                                            "Invalid BOX literal '{}'. Expected format: ((x1,y1),(x2,y2))",
-                                            literal
-                                        ))
-                                    })
-                            }
                             GeometricTypeKind::Circle => {
-
                                 PgCircle::parse(&literal).map(Value::circle).ok_or_else(|| {
                                     Error::InvalidQuery(format!(
                                         "Invalid CIRCLE literal '{}'. Expected format: <(x,y),r>",
@@ -1274,19 +1251,8 @@ impl<'a> ExpressionEvaluator<'a> {
                     UnaryOperator::Plus => Ok(value),
                     UnaryOperator::Minus => self.negate_value(&value),
                     UnaryOperator::Not => self.apply_not(&value),
-                    UnaryOperator::PGPrefixFactorial => {
-                        if let Some(s) = value.as_str() {
-                            let result = yachtsql_functions::fulltext::tsquery_negate(s)
-                                .map_err(|e| Error::ExecutionError(e.to_string()))?;
-                            Ok(Value::string(result))
-                        } else {
-                            Err(Error::UnsupportedFeature(format!(
-                                "Unary operator not supported: {:?}",
-                                op
-                            )))
-                        }
-                    }
-                    UnaryOperator::PGBitwiseNot
+                    UnaryOperator::PGPrefixFactorial
+                    | UnaryOperator::PGBitwiseNot
                     | UnaryOperator::PGSquareRoot
                     | UnaryOperator::PGCubeRoot
                     | UnaryOperator::PGPostfixFactorial
@@ -2139,12 +2105,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 if has_null {
                     Ok(false)
                 } else {
-                    if left.as_hstore().is_some() {
-                        let result = yachtsql_functions::hstore::hstore_contains(left, right)?;
-                        result.as_bool().ok_or_else(|| {
-                            Error::InvalidQuery("Hstore contains should return boolean".to_string())
-                        })
-                    } else if left.as_pgbox().is_some() || left.as_circle().is_some() {
+                    if left.as_circle().is_some() {
                         let result = yachtsql_functions::geometric::contains(left, right)?;
                         result.as_bool().ok_or_else(|| {
                             Error::InvalidQuery(
@@ -2163,14 +2124,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 if has_null {
                     Ok(false)
                 } else {
-                    if left.as_hstore().is_some() {
-                        let result = yachtsql_functions::hstore::hstore_contained_by(left, right)?;
-                        result.as_bool().ok_or_else(|| {
-                            Error::InvalidQuery(
-                                "Hstore contained_by should return boolean".to_string(),
-                            )
-                        })
-                    } else if left.as_point().is_some() {
+                    if left.as_point().is_some() {
                         let result = yachtsql_functions::geometric::contained_by(left, right)?;
                         result.as_bool().ok_or_else(|| {
                             Error::InvalidQuery(
@@ -2191,7 +2145,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 if has_null {
                     Ok(false)
                 } else {
-                    if left.as_pgbox().is_some() || left.as_circle().is_some() {
+                    if left.as_circle().is_some() {
                         let result = yachtsql_functions::geometric::overlaps(left, right)?;
                         result.as_bool().ok_or_else(|| {
                             Error::InvalidQuery(
@@ -2222,69 +2176,20 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
             }
 
-            BinaryOperator::Question => {
-                if has_null {
-                    Ok(false)
-                } else if left.as_hstore().is_some() {
-                    let result = yachtsql_functions::hstore::hstore_exists(left, right)?;
-                    result.as_bool().ok_or_else(|| {
-                        Error::InvalidQuery("Hstore exists should return boolean".to_string())
-                    })
-                } else {
-                    Err(Error::TypeMismatch {
-                        expected: "HSTORE".to_string(),
-                        actual: format!("{:?}", left.data_type()),
-                    })
-                }
-            }
+            BinaryOperator::Question => Err(Error::UnsupportedFeature(
+                "? operator not supported (PostgreSQL HSTORE removed)".to_string(),
+            )),
 
-            BinaryOperator::QuestionAnd => {
-                if has_null {
-                    Ok(false)
-                } else if left.as_hstore().is_some() {
-                    let result = yachtsql_functions::hstore::hstore_exists_all(left, right)?;
-                    result.as_bool().ok_or_else(|| {
-                        Error::InvalidQuery("Hstore exists_all should return boolean".to_string())
-                    })
-                } else {
-                    Err(Error::TypeMismatch {
-                        expected: "HSTORE".to_string(),
-                        actual: format!("{:?}", left.data_type()),
-                    })
-                }
-            }
+            BinaryOperator::QuestionAnd => Err(Error::UnsupportedFeature(
+                "?& operator not supported (PostgreSQL HSTORE removed)".to_string(),
+            )),
 
-            BinaryOperator::QuestionPipe => {
-                if has_null {
-                    Ok(false)
-                } else if left.as_hstore().is_some() {
-                    let result = yachtsql_functions::hstore::hstore_exists_any(left, right)?;
-                    result.as_bool().ok_or_else(|| {
-                        Error::InvalidQuery("Hstore exists_any should return boolean".to_string())
-                    })
-                } else {
-                    Err(Error::TypeMismatch {
-                        expected: "HSTORE".to_string(),
-                        actual: format!("{:?}", left.data_type()),
-                    })
-                }
-            }
-            BinaryOperator::AtAt => {
-                if has_null {
-                    Ok(false)
-                } else {
-                    let left_str = left.as_str().ok_or_else(|| Error::TypeMismatch {
-                        expected: "STRING (tsvector or tsquery)".to_string(),
-                        actual: format!("{:?}", left.data_type()),
-                    })?;
-                    let right_str = right.as_str().ok_or_else(|| Error::TypeMismatch {
-                        expected: "STRING (tsvector or tsquery)".to_string(),
-                        actual: format!("{:?}", right.data_type()),
-                    })?;
-                    yachtsql_functions::fulltext::ts_match(left_str, right_str)
-                        .map_err(|e| Error::ExecutionError(e.to_string()))
-                }
-            }
+            BinaryOperator::QuestionPipe => Err(Error::UnsupportedFeature(
+                "?| operator not supported (PostgreSQL HSTORE removed)".to_string(),
+            )),
+            BinaryOperator::AtAt => Err(Error::unsupported_feature(
+                "Full-text search not supported (PostgreSQL-specific)",
+            )),
             BinaryOperator::QuestionDoublePipe => {
                 if has_null {
                     Ok(false)
@@ -2681,16 +2586,6 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
             }
             BinaryOperator::Minus => {
-                if left.as_hstore().is_some() {
-                    if right.as_str().is_some() {
-                        return yachtsql_functions::hstore::hstore_delete_key(left, right);
-                    } else if right.as_array().is_some() {
-                        return yachtsql_functions::hstore::hstore_delete_keys(left, right);
-                    } else if right.as_hstore().is_some() {
-                        return yachtsql_functions::hstore::hstore_delete_hstore(left, right);
-                    }
-                }
-
                 if let (Some(ts), Some(interval)) = (left.as_timestamp(), right.as_interval()) {
                     return self.subtract_interval_from_timestamp(ts, interval);
                 }
@@ -2846,21 +2741,7 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
             }
             BinaryOperator::StringConcat => {
-                if left.as_hstore().is_some() {
-                    if right.as_hstore().is_some() {
-                        yachtsql_functions::hstore::hstore_concat(left, right)
-                    } else if let Some(s) = right.as_str() {
-                        let right_hstore = yachtsql_functions::hstore::hstore_from_text(
-                            &Value::string(s.to_string()),
-                        )?;
-                        yachtsql_functions::hstore::hstore_concat(left, &right_hstore)
-                    } else {
-                        Err(Error::TypeMismatch {
-                            expected: "HSTORE or TEXT".to_string(),
-                            actual: format!("{:?}", right.data_type()),
-                        })
-                    }
-                } else if let (Some(l), Some(r)) = (left.as_bytes(), right.as_bytes()) {
+                if let (Some(l), Some(r)) = (left.as_bytes(), right.as_bytes()) {
                     let mut result = l.to_vec();
                     result.extend_from_slice(r);
                     Ok(Value::bytes(result))
@@ -2870,44 +2751,34 @@ impl<'a> ExpressionEvaluator<'a> {
                     Ok(Value::string(format!("{}{}", left_str, right_str)))
                 } else {
                     Err(Error::TypeMismatch {
-                        expected: "STRING, BYTES, or HSTORE".to_string(),
+                        expected: "STRING or BYTES".to_string(),
                         actual: format!("{:?} || {:?}", left.data_type(), right.data_type()),
                     })
                 }
             }
             BinaryOperator::AtArrow => {
-                if left.as_hstore().is_some() {
-                    yachtsql_functions::hstore::hstore_contains(left, right)
-                } else if left.as_pgbox().is_some() || left.as_circle().is_some() {
+                if left.as_circle().is_some() {
                     yachtsql_functions::geometric::contains(left, right)
                 } else {
                     yachtsql_functions::array::array_contains_array(left, right)
                 }
             }
             BinaryOperator::ArrowAt => {
-                if left.as_hstore().is_some() {
-                    yachtsql_functions::hstore::hstore_contained_by(left, right)
-                } else if left.as_point().is_some() {
+                if left.as_point().is_some() {
                     yachtsql_functions::geometric::contained_by(left, right)
                 } else {
                     yachtsql_functions::array::array_contained_by(left, right)
                 }
             }
             BinaryOperator::PGOverlap => {
-                if left.as_pgbox().is_some() || left.as_circle().is_some() {
+                if left.as_circle().is_some() {
                     yachtsql_functions::geometric::overlaps(left, right)
                 } else {
                     yachtsql_functions::array::array_overlap(left, right)
                 }
             }
             BinaryOperator::Arrow => {
-                if left.as_hstore().is_some() {
-                    if right.as_array().is_some() {
-                        yachtsql_functions::hstore::hstore_get_values(left, right)
-                    } else {
-                        yachtsql_functions::hstore::hstore_get(left, right)
-                    }
-                } else if left.as_json().is_some() {
+                if left.as_json().is_some() {
                     let key = right.as_str().ok_or_else(|| Error::TypeMismatch {
                         expected: "STRING".to_string(),
                         actual: format!("{:?}", right.data_type()),
@@ -2915,15 +2786,13 @@ impl<'a> ExpressionEvaluator<'a> {
                     yachtsql_functions::json::json_extract_json(left, key)
                 } else {
                     Err(Error::TypeMismatch {
-                        expected: "HSTORE or JSON".to_string(),
+                        expected: "JSON".to_string(),
                         actual: format!("{:?}", left.data_type()),
                     })
                 }
             }
             BinaryOperator::LongArrow => {
-                if left.as_hstore().is_some() {
-                    yachtsql_functions::hstore::hstore_get(left, right)
-                } else if left.as_json().is_some() {
+                if left.as_json().is_some() {
                     let key = right.as_str().ok_or_else(|| Error::TypeMismatch {
                         expected: "STRING".to_string(),
                         actual: format!("{:?}", right.data_type()),
@@ -2931,7 +2800,7 @@ impl<'a> ExpressionEvaluator<'a> {
                     yachtsql_functions::json::json_value_text(left, key)
                 } else {
                     Err(Error::TypeMismatch {
-                        expected: "HSTORE or JSON".to_string(),
+                        expected: "JSON".to_string(),
                         actual: format!("{:?}", left.data_type()),
                     })
                 }
@@ -2939,38 +2808,17 @@ impl<'a> ExpressionEvaluator<'a> {
 
             BinaryOperator::LtDashGt => yachtsql_functions::geometric::distance(left, right),
 
-            BinaryOperator::Question => {
-                if left.as_hstore().is_some() {
-                    yachtsql_functions::hstore::hstore_exists(left, right)
-                } else {
-                    Err(Error::TypeMismatch {
-                        expected: "HSTORE".to_string(),
-                        actual: format!("{:?}", left.data_type()),
-                    })
-                }
-            }
+            BinaryOperator::Question => Err(Error::UnsupportedFeature(
+                "? operator (hstore exists check) is not supported".to_string(),
+            )),
 
-            BinaryOperator::QuestionAnd => {
-                if left.as_hstore().is_some() {
-                    yachtsql_functions::hstore::hstore_exists_all(left, right)
-                } else {
-                    Err(Error::TypeMismatch {
-                        expected: "HSTORE".to_string(),
-                        actual: format!("{:?}", left.data_type()),
-                    })
-                }
-            }
+            BinaryOperator::QuestionAnd => Err(Error::UnsupportedFeature(
+                "?& operator (hstore exists all) is not supported".to_string(),
+            )),
 
-            BinaryOperator::QuestionPipe => {
-                if left.as_hstore().is_some() {
-                    yachtsql_functions::hstore::hstore_exists_any(left, right)
-                } else {
-                    Err(Error::TypeMismatch {
-                        expected: "HSTORE".to_string(),
-                        actual: format!("{:?}", left.data_type()),
-                    })
-                }
-            }
+            BinaryOperator::QuestionPipe => Err(Error::UnsupportedFeature(
+                "?| operator (hstore exists any) is not supported".to_string(),
+            )),
 
             BinaryOperator::PGBitwiseShiftLeft => {
                 if left.as_range().is_some() && right.as_range().is_some() {
@@ -3133,28 +2981,6 @@ impl<'a> ExpressionEvaluator<'a> {
                 format!("{}", p.y)
             };
             Ok(format!("({},{})", x, y))
-        } else if let Some(b) = value.as_pgbox() {
-            let x1 = if b.high.x.fract() == 0.0 {
-                format!("{}", b.high.x as i64)
-            } else {
-                format!("{}", b.high.x)
-            };
-            let y1 = if b.high.y.fract() == 0.0 {
-                format!("{}", b.high.y as i64)
-            } else {
-                format!("{}", b.high.y)
-            };
-            let x2 = if b.low.x.fract() == 0.0 {
-                format!("{}", b.low.x as i64)
-            } else {
-                format!("{}", b.low.x)
-            };
-            let y2 = if b.low.y.fract() == 0.0 {
-                format!("{}", b.low.y as i64)
-            } else {
-                format!("{}", b.low.y)
-            };
-            Ok(format!("(({},{}),({},{}))", x1, y1, x2, y2))
         } else if let Some(c) = value.as_circle() {
             let x = if c.center.x.fract() == 0.0 {
                 format!("{}", c.center.x as i64)
@@ -3440,20 +3266,9 @@ impl<'a> ExpressionEvaluator<'a> {
             SqlDataType::Custom(type_name, _modifiers) => {
                 let type_name_str = type_name.to_string().to_uppercase();
                 match type_name_str.as_str() {
-                    "HSTORE" => {
-                        if value.is_null() {
-                            Ok(Value::null())
-                        } else if let Some(hstore) = value.as_hstore() {
-                            Ok(Value::hstore(hstore.clone()))
-                        } else if let Some(s) = value.as_str() {
-                            Self::parse_hstore_string(s)
-                        } else {
-                            Err(Error::InvalidQuery(format!(
-                                "Cannot cast {:?} to HSTORE",
-                                value
-                            )))
-                        }
-                    }
+                    "HSTORE" => Err(Error::UnsupportedFeature(
+                        "HSTORE type is not supported".to_string(),
+                    )),
                     "MACADDR" => {
                         if value.is_null() {
                             Ok(Value::null())
@@ -5739,10 +5554,7 @@ impl<'a> ExpressionEvaluator<'a> {
                     )));
                 }
                 let value = self.evaluate_function_arg(&args[0], row)?;
-                let return_hex = matches!(
-                    self.dialect,
-                    crate::DialectType::PostgreSQL | crate::DialectType::ClickHouse
-                );
+                let return_hex = false;
                 match func_name.as_str() {
                     "MD5" => yachtsql_functions::scalar::eval_md5(&value, return_hex),
                     "SHA1" => yachtsql_functions::scalar::eval_sha1(&value, return_hex),
@@ -6529,53 +6341,6 @@ impl<'a> ExpressionEvaluator<'a> {
                     ))
                 }
             }
-            "YACHTSQL.IS_FEATURE_ENABLED" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "yachtsql.is_feature_enabled() requires exactly 1 argument".to_string(),
-                    ));
-                }
-                let feature_arg = self.evaluate_function_arg(&args[0], row)?;
-
-                if feature_arg.is_null() {
-                    return Ok(Value::null());
-                }
-
-                let feature_str = if let Some(s) = feature_arg.as_str() {
-                    s.trim().to_string()
-                } else {
-                    return Err(Error::TypeMismatch {
-                        expected: "STRING".to_string(),
-                        actual: feature_arg.data_type().to_string(),
-                    });
-                };
-
-                use crate::query_executor::evaluator::physical_plan::FEATURE_REGISTRY_CONTEXT;
-                let registry = FEATURE_REGISTRY_CONTEXT
-                    .with(|ctx| ctx.borrow().clone())
-                    .ok_or_else(|| {
-                        Error::InternalError(
-                            "Feature registry context missing for yachtsql.is_feature_enabled"
-                                .to_string(),
-                        )
-                    })?;
-
-                let feature_id = registry
-                    .all_features()
-                    .find(|feature| {
-                        feature
-                            .id
-                            .as_str()
-                            .eq_ignore_ascii_case(feature_str.as_str())
-                    })
-                    .map(|feature| feature.id)
-                    .ok_or_else(|| {
-                        Error::unsupported_feature(format!("Unknown feature id '{}'", feature_str))
-                    })?;
-
-                let enabled = registry.is_enabled(feature_id);
-                Ok(Value::bool_val(enabled))
-            }
             "ARRAY_LENGTH" => {
                 if args.len() != 1 {
                     return Err(Error::InvalidQuery(
@@ -6953,302 +6718,24 @@ impl<'a> ExpressionEvaluator<'a> {
                 }
             }
 
-            "TO_TSVECTOR" => {
-                if args.is_empty() || args.len() > 2 {
-                    return Err(Error::InvalidQuery(
-                        "TO_TSVECTOR() requires 1 or 2 arguments".to_string(),
-                    ));
-                }
-                let text_arg = if args.len() == 1 { &args[0] } else { &args[1] };
-                let text = self.evaluate_function_arg(text_arg, row)?;
-                if text.is_null() {
-                    return Ok(Value::null());
-                }
-                let s = self.value_to_string(&text)?;
-                let vector = yachtsql_functions::fulltext::to_tsvector(&s);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsvector_to_string(&vector),
-                ))
-            }
-            "TO_TSQUERY" => {
-                if args.is_empty() || args.len() > 2 {
-                    return Err(Error::InvalidQuery(
-                        "TO_TSQUERY() requires 1 or 2 arguments".to_string(),
-                    ));
-                }
-                let text_arg = if args.len() == 1 { &args[0] } else { &args[1] };
-                let text = self.evaluate_function_arg(text_arg, row)?;
-                if text.is_null() {
-                    return Ok(Value::null());
-                }
-                let s = self.value_to_string(&text)?;
-                let query = yachtsql_functions::fulltext::to_tsquery(&s)?;
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsquery_to_string(&query),
-                ))
-            }
-            "PLAINTO_TSQUERY" => {
-                if args.is_empty() || args.len() > 2 {
-                    return Err(Error::InvalidQuery(
-                        "PLAINTO_TSQUERY() requires 1 or 2 arguments".to_string(),
-                    ));
-                }
-                let text_arg = if args.len() == 1 { &args[0] } else { &args[1] };
-                let text = self.evaluate_function_arg(text_arg, row)?;
-                if text.is_null() {
-                    return Ok(Value::null());
-                }
-                let s = self.value_to_string(&text)?;
-                let query = yachtsql_functions::fulltext::plainto_tsquery(&s);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsquery_to_string(&query),
-                ))
-            }
-            "PHRASETO_TSQUERY" => {
-                if args.is_empty() || args.len() > 2 {
-                    return Err(Error::InvalidQuery(
-                        "PHRASETO_TSQUERY() requires 1 or 2 arguments".to_string(),
-                    ));
-                }
-                let text_arg = if args.len() == 1 { &args[0] } else { &args[1] };
-                let text = self.evaluate_function_arg(text_arg, row)?;
-                if text.is_null() {
-                    return Ok(Value::null());
-                }
-                let s = self.value_to_string(&text)?;
-                let query = yachtsql_functions::fulltext::phraseto_tsquery(&s);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsquery_to_string(&query),
-                ))
-            }
-            "WEBSEARCH_TO_TSQUERY" => {
-                if args.is_empty() || args.len() > 2 {
-                    return Err(Error::InvalidQuery(
-                        "WEBSEARCH_TO_TSQUERY() requires 1 or 2 arguments".to_string(),
-                    ));
-                }
-                let text_arg = if args.len() == 1 { &args[0] } else { &args[1] };
-                let text = self.evaluate_function_arg(text_arg, row)?;
-                if text.is_null() {
-                    return Ok(Value::null());
-                }
-                let s = self.value_to_string(&text)?;
-                let query = yachtsql_functions::fulltext::websearch_to_tsquery(&s);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsquery_to_string(&query),
-                ))
-            }
-            "TS_MATCH" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "TS_MATCH() requires exactly 2 arguments".to_string(),
-                    ));
-                }
-                let vector_val = self.evaluate_function_arg(&args[0], row)?;
-                let query_val = self.evaluate_function_arg(&args[1], row)?;
-                if vector_val.is_null() || query_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let vector_str = self.value_to_string(&vector_val)?;
-                let query_str = self.value_to_string(&query_val)?;
-                let vector = yachtsql_functions::fulltext::parse_tsvector(&vector_str)?;
-                let query = yachtsql_functions::fulltext::to_tsquery(&query_str)?;
-                Ok(Value::bool_val(query.matches(&vector)))
-            }
-            "TS_RANK" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "TS_RANK() requires exactly 2 arguments".to_string(),
-                    ));
-                }
-                let vector_val = self.evaluate_function_arg(&args[0], row)?;
-                let query_val = self.evaluate_function_arg(&args[1], row)?;
-                if vector_val.is_null() || query_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let vector_str = self.value_to_string(&vector_val)?;
-                let query_str = self.value_to_string(&query_val)?;
-                let vector = yachtsql_functions::fulltext::parse_tsvector(&vector_str)?;
-                let query = yachtsql_functions::fulltext::to_tsquery(&query_str)?;
-                let rank = yachtsql_functions::fulltext::ts_rank(&vector, &query);
-                Ok(Value::float64(rank))
-            }
-            "TS_RANK_CD" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "TS_RANK_CD() requires exactly 2 arguments".to_string(),
-                    ));
-                }
-                let vector_val = self.evaluate_function_arg(&args[0], row)?;
-                let query_val = self.evaluate_function_arg(&args[1], row)?;
-                if vector_val.is_null() || query_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let vector_str = self.value_to_string(&vector_val)?;
-                let query_str = self.value_to_string(&query_val)?;
-                let vector = yachtsql_functions::fulltext::parse_tsvector(&vector_str)?;
-                let query = yachtsql_functions::fulltext::to_tsquery(&query_str)?;
-                let rank = yachtsql_functions::fulltext::ts_rank_cd(&vector, &query);
-                Ok(Value::float64(rank))
-            }
-            "TS_HEADLINE" => {
-                if args.len() < 2 || args.len() > 4 {
-                    return Err(Error::InvalidQuery(
-                        "TS_HEADLINE() requires 2 to 4 arguments".to_string(),
-                    ));
-                }
-                let doc_val = self.evaluate_function_arg(&args[0], row)?;
-                let query_val = self.evaluate_function_arg(&args[1], row)?;
-                if doc_val.is_null() || query_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let document = self.value_to_string(&doc_val)?;
-                let query_str = self.value_to_string(&query_val)?;
-                let query = yachtsql_functions::fulltext::to_tsquery(&query_str)?;
-                let options = yachtsql_functions::fulltext::HeadlineOptions::default();
-                let headline =
-                    yachtsql_functions::fulltext::ts_headline(&document, &query, &options);
-                Ok(Value::string(headline))
-            }
-            "TSVECTOR_LENGTH" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "TSVECTOR_LENGTH() requires exactly 1 argument".to_string(),
-                    ));
-                }
-                let vector_val = self.evaluate_function_arg(&args[0], row)?;
-                if vector_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let vector_str = self.value_to_string(&vector_val)?;
-                let vector = yachtsql_functions::fulltext::parse_tsvector(&vector_str)?;
-                Ok(Value::int64(yachtsql_functions::fulltext::tsvector_length(
-                    &vector,
-                )))
-            }
-            "STRIP" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "STRIP() requires exactly 1 argument".to_string(),
-                    ));
-                }
-                let vector_val = self.evaluate_function_arg(&args[0], row)?;
-                if vector_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let vector_str = self.value_to_string(&vector_val)?;
-                let vector = yachtsql_functions::fulltext::parse_tsvector(&vector_str)?;
-                let stripped = yachtsql_functions::fulltext::tsvector_strip(&vector);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsvector_to_string(&stripped),
-                ))
-            }
-            "SETWEIGHT" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "SETWEIGHT() requires exactly 2 arguments".to_string(),
-                    ));
-                }
-                let vector_val = self.evaluate_function_arg(&args[0], row)?;
-                let weight_val = self.evaluate_function_arg(&args[1], row)?;
-                if vector_val.is_null() || weight_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let vector_str = self.value_to_string(&vector_val)?;
-                let weight_str = self.value_to_string(&weight_val)?;
-                let weight = weight_str
-                    .chars()
-                    .next()
-                    .and_then(yachtsql_functions::fulltext::Weight::from_char)
-                    .ok_or_else(|| {
-                        Error::InvalidQuery(format!(
-                            "Invalid weight '{}'. Must be A, B, C, or D",
-                            weight_str
-                        ))
-                    })?;
-                let vector = yachtsql_functions::fulltext::parse_tsvector(&vector_str)?;
-                let weighted = yachtsql_functions::fulltext::tsvector_setweight(&vector, weight);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsvector_to_string(&weighted),
-                ))
-            }
-            "TSVECTOR_CONCAT" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "TSVECTOR_CONCAT() requires exactly 2 arguments".to_string(),
-                    ));
-                }
-                let a_val = self.evaluate_function_arg(&args[0], row)?;
-                let b_val = self.evaluate_function_arg(&args[1], row)?;
-                if a_val.is_null() || b_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let a_str = self.value_to_string(&a_val)?;
-                let b_str = self.value_to_string(&b_val)?;
-                let a = yachtsql_functions::fulltext::parse_tsvector(&a_str)?;
-                let b = yachtsql_functions::fulltext::parse_tsvector(&b_str)?;
-                let result = yachtsql_functions::fulltext::tsvector_concat(&a, &b);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsvector_to_string(&result),
-                ))
-            }
-            "TSQUERY_AND" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "TSQUERY_AND() requires exactly 2 arguments".to_string(),
-                    ));
-                }
-                let a_val = self.evaluate_function_arg(&args[0], row)?;
-                let b_val = self.evaluate_function_arg(&args[1], row)?;
-                if a_val.is_null() || b_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let a_str = self.value_to_string(&a_val)?;
-                let b_str = self.value_to_string(&b_val)?;
-                let a = yachtsql_functions::fulltext::to_tsquery(&a_str)?;
-                let b = yachtsql_functions::fulltext::to_tsquery(&b_str)?;
-                let result = a.and(b);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsquery_to_string(&result),
-                ))
-            }
-            "TSQUERY_OR" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "TSQUERY_OR() requires exactly 2 arguments".to_string(),
-                    ));
-                }
-                let a_val = self.evaluate_function_arg(&args[0], row)?;
-                let b_val = self.evaluate_function_arg(&args[1], row)?;
-                if a_val.is_null() || b_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let a_str = self.value_to_string(&a_val)?;
-                let b_str = self.value_to_string(&b_val)?;
-                let a = yachtsql_functions::fulltext::to_tsquery(&a_str)?;
-                let b = yachtsql_functions::fulltext::to_tsquery(&b_str)?;
-                let result = a.or(b);
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsquery_to_string(&result),
-                ))
-            }
-            "TSQUERY_NOT" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "TSQUERY_NOT() requires exactly 1 argument".to_string(),
-                    ));
-                }
-                let query_val = self.evaluate_function_arg(&args[0], row)?;
-                if query_val.is_null() {
-                    return Ok(Value::null());
-                }
-                let query_str = self.value_to_string(&query_val)?;
-                let query = yachtsql_functions::fulltext::to_tsquery(&query_str)?;
-                let result = query.negate();
-                Ok(Value::string(
-                    yachtsql_functions::fulltext::tsquery_to_string(&result),
-                ))
-            }
+            "TO_TSVECTOR"
+            | "TO_TSQUERY"
+            | "PLAINTO_TSQUERY"
+            | "PHRASETO_TSQUERY"
+            | "WEBSEARCH_TO_TSQUERY"
+            | "TS_MATCH"
+            | "TS_RANK"
+            | "TS_RANK_CD"
+            | "TS_HEADLINE"
+            | "TSVECTOR_LENGTH"
+            | "STRIP"
+            | "SETWEIGHT"
+            | "TSVECTOR_CONCAT"
+            | "TSQUERY_AND"
+            | "TSQUERY_OR"
+            | "TSQUERY_NOT" => Err(Error::unsupported_feature(
+                "Full-text search not supported (PostgreSQL-specific)",
+            )),
 
             "POINT" => {
                 if args.len() != 2 {
@@ -7259,16 +6746,6 @@ impl<'a> ExpressionEvaluator<'a> {
                 let x = self.evaluate_function_arg(&args[0], row)?;
                 let y = self.evaluate_function_arg(&args[1], row)?;
                 yachtsql_functions::geometric::point_constructor(&x, &y)
-            }
-            "BOX" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "BOX() requires exactly 2 arguments (point1, point2)".to_string(),
-                    ));
-                }
-                let p1 = self.evaluate_function_arg(&args[0], row)?;
-                let p2 = self.evaluate_function_arg(&args[1], row)?;
-                yachtsql_functions::geometric::box_constructor(&p1, &p2)
             }
             "CIRCLE" => {
                 if args.len() != 2 {
@@ -7316,24 +6793,6 @@ impl<'a> ExpressionEvaluator<'a> {
                 let circle = self.evaluate_function_arg(&args[0], row)?;
                 yachtsql_functions::geometric::radius(&circle)
             }
-            "WIDTH" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "WIDTH() requires exactly 1 argument (box)".to_string(),
-                    ));
-                }
-                let box_val = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::geometric::width(&box_val)
-            }
-            "HEIGHT" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "HEIGHT() requires exactly 1 argument (box)".to_string(),
-                    ));
-                }
-                let box_val = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::geometric::height(&box_val)
-            }
             "NPOINTS" => {
                 if args.len() != 1 {
                     return Err(Error::InvalidQuery(
@@ -7380,128 +6839,6 @@ impl<'a> ExpressionEvaluator<'a> {
                 yachtsql_functions::geometric::pclose(&geom)
             }
 
-            "HSTORE" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "HSTORE() requires 2 arguments (keys[], values[])".to_string(),
-                    ));
-                }
-                let keys = self.evaluate_function_arg(&args[0], row)?;
-                let values = self.evaluate_function_arg(&args[1], row)?;
-                yachtsql_functions::hstore::hstore_from_arrays(&keys, &values)
-            }
-            "AKEYS" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "AKEYS() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_akeys(&hstore)
-            }
-            "AVALS" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "AVALS() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_avals(&hstore)
-            }
-            "SKEYS" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "SKEYS() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_akeys(&hstore)
-            }
-            "SVALS" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "SVALS() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_avals(&hstore)
-            }
-            "HSTORE_TO_JSON" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "HSTORE_TO_JSON() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_to_json(&hstore)
-            }
-            "HSTORE_TO_JSONB" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "HSTORE_TO_JSONB() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_to_jsonb(&hstore)
-            }
-            "HSTORE_TO_ARRAY" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "HSTORE_TO_ARRAY() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_to_array(&hstore)
-            }
-            "HSTORE_TO_MATRIX" => {
-                if args.len() != 1 {
-                    return Err(Error::InvalidQuery(
-                        "HSTORE_TO_MATRIX() requires exactly 1 argument (hstore)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                yachtsql_functions::hstore::hstore_to_matrix(&hstore)
-            }
-            "SLICE" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "SLICE() requires 2 arguments (hstore, keys[])".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                let keys = self.evaluate_function_arg(&args[1], row)?;
-                yachtsql_functions::hstore::hstore_slice(&hstore, &keys)
-            }
-            "DEFINED" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "DEFINED() requires 2 arguments (hstore, key)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                let key = self.evaluate_function_arg(&args[1], row)?;
-                yachtsql_functions::hstore::hstore_defined(&hstore, &key)
-            }
-            "DELETE" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "DELETE() requires 2 arguments (hstore, key)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                let key = self.evaluate_function_arg(&args[1], row)?;
-                yachtsql_functions::hstore::hstore_delete(&hstore, &key)
-            }
-            "EXIST" => {
-                if args.len() != 2 {
-                    return Err(Error::InvalidQuery(
-                        "EXIST() requires 2 arguments (hstore, key)".to_string(),
-                    ));
-                }
-                let hstore = self.evaluate_function_arg(&args[0], row)?;
-                let key = self.evaluate_function_arg(&args[1], row)?;
-                yachtsql_functions::hstore::hstore_exist(&hstore, &key)
-            }
             "GREATCIRCLEDISTANCE" => {
                 if args.len() != 4 {
                     return Err(Error::InvalidQuery(
@@ -10381,95 +9718,6 @@ impl<'a> ExpressionEvaluator<'a> {
         }))
     }
 
-    fn parse_hstore_string(s: &str) -> Result<Value> {
-        use std::rc::Rc;
-
-        use indexmap::IndexMap;
-
-        let mut hstore: IndexMap<String, Option<String>> = IndexMap::new();
-        let s = s.trim();
-
-        if s.is_empty() {
-            return Ok(Value::hstore(hstore));
-        }
-
-        let mut key = String::new();
-        let mut value = String::new();
-        let mut in_key = true;
-        let mut in_quotes = false;
-        let mut escape_next = false;
-        let mut chars = s.chars().peekable();
-
-        while let Some(ch) = chars.next() {
-            if escape_next {
-                if in_key {
-                    key.push(ch);
-                } else {
-                    value.push(ch);
-                }
-                escape_next = false;
-                continue;
-            }
-
-            match ch {
-                '\\' => {
-                    escape_next = true;
-                }
-                '"' => {
-                    in_quotes = !in_quotes;
-                }
-                '=' if !in_quotes => {
-                    if chars.peek() == Some(&'>') {
-                        chars.next();
-                        in_key = false;
-
-                        while chars.peek() == Some(&' ') {
-                            chars.next();
-                        }
-                    } else if in_key {
-                        key.push(ch);
-                    } else {
-                        value.push(ch);
-                    }
-                }
-                ',' if !in_quotes => {
-                    let final_value = if value.trim().eq_ignore_ascii_case("null") {
-                        None
-                    } else {
-                        Some(value.trim().to_string())
-                    };
-                    hstore.insert(key.trim().to_string(), final_value);
-                    key.clear();
-                    value.clear();
-                    in_key = true;
-
-                    while chars.peek() == Some(&' ') {
-                        chars.next();
-                    }
-                }
-                _ => {
-                    if in_key {
-                        key.push(ch);
-                    } else {
-                        value.push(ch);
-                    }
-                }
-            }
-        }
-
-        if !key.is_empty() || !value.is_empty() {
-            let final_key = key.trim().to_string();
-            let final_value = if value.trim().eq_ignore_ascii_case("null") {
-                None
-            } else {
-                Some(value.trim().to_string())
-            };
-            hstore.insert(final_key, final_value);
-        }
-
-        Ok(Value::hstore(hstore))
-    }
-
     fn validate_array_value_homogeneity(values: &[Value]) -> Result<()> {
         if values.is_empty() {
             return Ok(());
@@ -10522,17 +9770,14 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Struct(_) => Some("struct"),
             DataType::Geography => Some("geography"),
             DataType::Point
-            | DataType::PgBox
             | DataType::Circle
             | DataType::Line
             | DataType::Lseg
             | DataType::Path
             | DataType::Polygon => Some("geometric"),
             DataType::Enum { .. } => Some("enum"),
-            DataType::Serial | DataType::BigSerial => Some("integer"),
             DataType::Inet => Some("inet"),
             DataType::Cidr => Some("cidr"),
-            DataType::Hstore => Some("hstore"),
             DataType::Map(_, _) => Some("map"),
             DataType::Custom(_) => Some("composite"),
             DataType::Unknown => None,
@@ -10550,8 +9795,6 @@ impl<'a> ExpressionEvaluator<'a> {
             DataType::Tid => Some("tid"),
             DataType::Cid => Some("cid"),
             DataType::Oid => Some("oid"),
-            DataType::TsVector => Some("tsvector"),
-            DataType::TsQuery => Some("tsquery"),
         }
     }
 

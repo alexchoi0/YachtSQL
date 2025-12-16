@@ -1,4 +1,3 @@
-mod cursor;
 mod ddl;
 mod dispatcher;
 mod dml;
@@ -8,7 +7,6 @@ pub mod parquet_reader;
 pub mod parquet_writer;
 mod query;
 mod session;
-mod transaction;
 mod utility;
 
 use std::cell::RefCell;
@@ -17,14 +15,13 @@ use std::str::FromStr;
 
 use chrono::Datelike;
 pub use ddl::{
-    AlterTableExecutor, DdlDropExecutor, DdlExecutor, DomainExecutor, ExtensionExecutor,
-    FunctionExecutor, MaterializedViewExecutor, PartitionExecutor, ProcedureExecutor,
-    SchemaExecutor, SequenceExecutor, SnapshotExecutor, TriggerExecutor, TypeExecutor,
+    AlterTableExecutor, DdlDropExecutor, DdlExecutor, ExtensionExecutor, FunctionExecutor,
+    ProcedureExecutor, SchemaExecutor, SnapshotExecutor,
 };
 use debug_print::debug_eprintln;
 pub use dispatcher::{
-    CopyOperation, CursorOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation,
-    ScriptingOperation, StatementJob, TxOperation, UtilityOperation,
+    CopyOperation, DdlOperation, Dispatcher, DmlOperation, MergeOperation, ScriptingOperation,
+    StatementJob, UtilityOperation,
 };
 pub use dml::{
     DmlDeleteExecutor, DmlInsertExecutor, DmlMergeExecutor, DmlTruncateExecutor, DmlUpdateExecutor,
@@ -32,8 +29,8 @@ pub use dml::{
 pub use query::QueryExecutorTrait;
 use rust_decimal::prelude::ToPrimitive;
 pub use session::{
-    CursorState, DiagnosticsSnapshot, ProcedureDefinition, ProcedureParameter,
-    ProcedureParameterMode, SessionDiagnostics, SessionVariable, UdfDefinition,
+    DiagnosticsSnapshot, ProcedureDefinition, ProcedureParameter, ProcedureParameterMode,
+    SessionDiagnostics, SessionVariable, UdfDefinition,
 };
 pub use utility::{
     add_interval_to_date, apply_interval_to_date, apply_numeric_precision_scale,
@@ -41,12 +38,6 @@ pub use utility::{
     evaluate_vector_cosine_distance, evaluate_vector_inner_product, evaluate_vector_l2_distance,
     infer_scalar_subquery_type_static, perform_cast, safe_add, safe_divide, safe_multiply,
     safe_negate, safe_subtract, sub_interval_from_date,
-};
-use yachtsql_capability::FeatureId;
-use yachtsql_capability::error::CapabilityError;
-use yachtsql_capability::feature_ids::{
-    F781_SELF_REFERENCING_OPERATIONS, F782_COMMIT_STATEMENT, F783_ROLLBACK_STATEMENT,
-    F784_SAVEPOINT_STATEMENT, F785_ROLLBACK_TO_SAVEPOINT_STATEMENT, F786_SAVEPOINTS,
 };
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
@@ -60,17 +51,8 @@ use yachtsql_storage::Schema;
 type SqlStatement = sqlparser::ast::Statement;
 
 use self::session::SessionState;
-use self::transaction::SessionTransactionController;
 use crate::Table;
 use crate::catalog_adapter::SnapshotCatalog;
-
-#[derive(Debug, Clone)]
-struct ClickHouseMvEngineInfo {
-    engine: String,
-    order_by: Vec<String>,
-    #[allow(dead_code)]
-    partition_by: Option<String>,
-}
 
 fn create_default_optimizer() -> yachtsql_optimizer::Optimizer {
     yachtsql_optimizer::Optimizer::new()
@@ -92,10 +74,8 @@ fn create_optimizer_with_catalog(
 
 pub struct QueryExecutor {
     pub storage: Rc<RefCell<yachtsql_storage::Storage>>,
-    pub transaction_manager: Rc<RefCell<yachtsql_storage::TransactionManager>>,
     pub temporary_storage: Rc<RefCell<yachtsql_storage::TempStorage>>,
     session: SessionState,
-    session_tx: SessionTransactionController,
     resource_limits: crate::resource_limits::ResourceLimitsConfig,
     optimizer: yachtsql_optimizer::Optimizer,
     plan_cache: Rc<RefCell<crate::plan_cache::PlanCache>>,
@@ -106,22 +86,18 @@ pub struct QueryExecutor {
 impl QueryExecutor {
     pub fn new() -> Self {
         let storage = Rc::new(RefCell::new(yachtsql_storage::Storage::new()));
-        let session = SessionState::new(DialectType::PostgreSQL);
+        let session = SessionState::new(DialectType::BigQuery);
 
-        let executor = Self {
+        Self {
             storage,
-            transaction_manager: Rc::new(RefCell::new(yachtsql_storage::TransactionManager::new())),
             temporary_storage: Rc::new(RefCell::new(yachtsql_storage::TempStorage::new())),
             session,
-            session_tx: SessionTransactionController::new(),
             resource_limits: crate::resource_limits::ResourceLimitsConfig::default(),
             optimizer: create_default_optimizer(),
             plan_cache: Rc::new(RefCell::new(crate::plan_cache::PlanCache::new())),
             memory_pool: None,
             query_registry: None,
-        };
-
-        executor
+        }
     }
 
     pub fn with_resource_limits(
@@ -156,7 +132,6 @@ impl QueryExecutor {
     pub fn with_dialect(dialect: DialectType) -> Self {
         let mut executor = Self::new();
         executor.session = SessionState::new(dialect);
-        executor.session_tx = SessionTransactionController::new();
         executor
     }
 
@@ -176,16 +151,11 @@ impl QueryExecutor {
         self.optimizer = create_default_optimizer();
     }
 
-    pub fn with_storage_and_transaction(
-        storage: Rc<RefCell<yachtsql_storage::Storage>>,
-        transaction_manager: Rc<RefCell<yachtsql_storage::TransactionManager>>,
-    ) -> Self {
+    pub fn with_storage(storage: Rc<RefCell<yachtsql_storage::Storage>>) -> Self {
         Self {
             storage,
-            transaction_manager,
             temporary_storage: Rc::new(RefCell::new(yachtsql_storage::TempStorage::new())),
-            session: SessionState::new(DialectType::PostgreSQL),
-            session_tx: SessionTransactionController::new(),
+            session: SessionState::new(DialectType::BigQuery),
             resource_limits: crate::resource_limits::ResourceLimitsConfig::default(),
             optimizer: create_default_optimizer(),
             plan_cache: Rc::new(RefCell::new(crate::plan_cache::PlanCache::new())),
@@ -196,58 +166,17 @@ impl QueryExecutor {
 
     pub fn new_without_optimizer() -> Self {
         let storage = Rc::new(RefCell::new(yachtsql_storage::Storage::new()));
-        let session = SessionState::new(DialectType::PostgreSQL);
+        let session = SessionState::new(DialectType::BigQuery);
 
         Self {
             storage,
-            transaction_manager: Rc::new(RefCell::new(yachtsql_storage::TransactionManager::new())),
             temporary_storage: Rc::new(RefCell::new(yachtsql_storage::TempStorage::new())),
             session,
-            session_tx: SessionTransactionController::new(),
             resource_limits: crate::resource_limits::ResourceLimitsConfig::default(),
             optimizer: yachtsql_optimizer::Optimizer::disabled(),
             plan_cache: Rc::new(RefCell::new(crate::plan_cache::PlanCache::new())),
             memory_pool: None,
             query_registry: None,
-        }
-    }
-
-    pub fn with_feature_registry(
-        mut self,
-        registry: Rc<yachtsql_capability::FeatureRegistry>,
-    ) -> Self {
-        self.session.set_feature_registry(registry);
-        self
-    }
-
-    pub fn feature_registry(&self) -> Rc<yachtsql_capability::FeatureRegistry> {
-        Rc::clone(self.session.feature_registry())
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn feature_registry_arc(&self) -> &Rc<yachtsql_capability::FeatureRegistry> {
-        self.session.feature_registry()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn feature_registry_arc_mut(
-        &mut self,
-    ) -> &mut Rc<yachtsql_capability::FeatureRegistry> {
-        self.session.feature_registry_mut()
-    }
-
-    pub fn require_feature(
-        &self,
-        feature_id: yachtsql_capability::FeatureId,
-        feature_name: &str,
-    ) -> Result<()> {
-        if self.session.feature_registry().is_enabled(feature_id) {
-            Ok(())
-        } else {
-            Err(Error::unsupported_feature(format!(
-                "Feature {} ({}) is not enabled",
-                feature_id, feature_name
-            )))
         }
     }
 
@@ -270,9 +199,7 @@ impl QueryExecutor {
     fn create_subquery_executor(&self) -> crate::query_executor::evaluator::SubqueryExecutorImpl {
         crate::query_executor::evaluator::SubqueryExecutorImpl::new(
             Rc::clone(&self.storage),
-            Rc::clone(&self.transaction_manager),
             Rc::clone(&self.temporary_storage),
-            Rc::clone(self.session.feature_registry()),
             self.session.dialect(),
         )
     }
@@ -340,22 +267,15 @@ impl QueryExecutor {
             DialectType::BigQuery => {
                 Self::check_exclude_not_supported(sql)?;
             }
-            DialectType::ClickHouse | DialectType::PostgreSQL => {}
         }
         Ok(())
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> Result<Table> {
-        use yachtsql_parser::parser::ClickHouseExplainVariant;
         use yachtsql_parser::validator::{CustomStatement, ExportFormat};
         use yachtsql_parser::{Parser, Statement};
 
         Self::validate_sql_before_parse(sql, self.dialect())?;
-
-        let _registry_guard =
-            crate::query_executor::evaluator::physical_plan::ProjectionWithExprExec::enter_feature_registry_context(
-                Rc::clone(self.session.feature_registry()),
-            );
 
         let subquery_executor = self.create_subquery_executor();
         let _subquery_guard =
@@ -385,52 +305,13 @@ impl QueryExecutor {
         }
 
         let statement = &statements[0];
-        let udf_names = self.session.udf_names();
-        crate::query_executor::validate_statement_with_udfs(
-            statement,
-            self.session.feature_registry(),
-            Some(&udf_names),
-        )?;
 
         if let Statement::Custom(custom_stmt) = statement {
             return match custom_stmt {
-                CustomStatement::CreateSequence { .. } => self.execute_create_sequence(custom_stmt),
-                CustomStatement::AlterSequence { .. } => self.execute_alter_sequence(custom_stmt),
-                CustomStatement::DropSequence { .. } => self.execute_drop_sequence(custom_stmt),
-                CustomStatement::RefreshMaterializedView { .. } => {
-                    self.execute_refresh_materialized_view(custom_stmt)
-                }
-                CustomStatement::DropMaterializedView { .. } => {
-                    self.execute_drop_materialized_view(custom_stmt)
-                }
-                CustomStatement::CreateDomain { .. } => self.execute_create_domain(custom_stmt),
-                CustomStatement::AlterDomain { .. } => self.execute_alter_domain(custom_stmt),
-                CustomStatement::DropDomain { .. } => self.execute_drop_domain(custom_stmt),
-                CustomStatement::AlterSchema { .. } => self.execute_alter_schema(custom_stmt),
-                CustomStatement::CreateType { .. } => {
-                    self.execute_create_composite_type(custom_stmt)
-                }
-                CustomStatement::DropType { .. } => self.execute_drop_composite_type(custom_stmt),
-                CustomStatement::SetConstraints { .. } => self.execute_set_constraints(custom_stmt),
                 CustomStatement::ExistsTable { name } => self.execute_exists_table(name),
                 CustomStatement::ExistsDatabase { name } => self.execute_exists_database(name),
                 CustomStatement::Abort => {
                     self.execute_rollback_transaction()?;
-                    Self::empty_result()
-                }
-                CustomStatement::LockTable { tables, .. } => {
-                    for table in tables {
-                        let table_str = table.to_string();
-                        let (dataset_id, table_id) = self.parse_ddl_table_name(&table_str)?;
-                        let storage = self.storage.borrow();
-                        let exists = storage
-                            .get_dataset(&dataset_id)
-                            .and_then(|d| d.get_table(&table_id))
-                            .is_some();
-                        if !exists {
-                            return Err(Error::table_not_found(table_str));
-                        }
-                    }
                     Self::empty_result()
                 }
                 CustomStatement::BeginTransaction {
@@ -444,75 +325,6 @@ impl QueryExecutor {
                         *deferrable,
                     )?;
                     Self::empty_result()
-                }
-                CustomStatement::ClickHouseCreateIndex { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseAlterColumnCodec { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseAlterTableTtl { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseQuota { statement } => {
-                    return self.execute_clickhouse_quota(statement);
-                }
-                CustomStatement::ClickHouseRowPolicy { statement } => {
-                    return self.execute_clickhouse_row_policy(statement);
-                }
-                CustomStatement::ClickHouseSettingsProfile { statement } => {
-                    return self.execute_clickhouse_settings_profile(statement);
-                }
-                CustomStatement::ClickHouseDictionary { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseShow { statement } => {
-                    return self.execute_clickhouse_show(statement);
-                }
-                CustomStatement::ClickHouseFunction { statement } => {
-                    return self.execute_clickhouse_function(statement);
-                }
-                CustomStatement::ClickHouseMaterializedView { statement } => {
-                    return self.execute_clickhouse_materialized_view(statement);
-                }
-                CustomStatement::ClickHouseProjection { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseAlterUser { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseCreateUser { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseGrant { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseSetDefaultRole { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseSystem { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseCreateDictionary {
-                    name,
-                    columns,
-                    primary_key,
-                    source,
-                    layout,
-                    lifetime,
-                } => {
-                    return self.execute_create_dictionary(
-                        name,
-                        columns,
-                        primary_key,
-                        source,
-                        *layout,
-                        lifetime,
-                    );
-                }
-                CustomStatement::ClickHouseDatabase { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseRenameDatabase { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseUse { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseCreateTableWithProjection { stripped, .. } => {
-                    return self.execute_sql(stripped);
-                }
-                CustomStatement::ClickHouseCreateTablePassthrough { original, stripped } => {
-                    return self.execute_create_table_passthrough(stripped, original);
-                }
-                CustomStatement::ClickHouseCreateTableAs {
-                    new_table,
-                    source_table,
-                    engine_clause,
-                } => {
-                    return self.execute_create_table_as(new_table, source_table, engine_clause);
-                }
-                CustomStatement::ClickHouseAlterTable { .. } => Self::empty_result(),
-                CustomStatement::ClickHouseExplain {
-                    variant,
-                    statement,
-                    options,
-                } => {
-                    return self.execute_clickhouse_explain(variant, statement, options);
                 }
                 CustomStatement::Loop { label, body } => {
                     self.execute_loop_custom(label.clone(), body)
@@ -588,62 +400,23 @@ impl QueryExecutor {
                     uris,
                     *allow_schema_update,
                 ),
-                CustomStatement::AlterTableRestartIdentity { .. }
-                | CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(
-                    format!("Custom statement not yet supported: {:?}", custom_stmt),
-                )),
+                CustomStatement::GetDiagnostics { .. } => Err(Error::unsupported_feature(format!(
+                    "Custom statement not yet supported: {:?}",
+                    custom_stmt
+                ))),
                 CustomStatement::CreateSnapshotTable { .. } => {
                     self.execute_create_snapshot_table(custom_stmt)
                 }
                 CustomStatement::DropSnapshotTable { .. } => {
                     self.execute_drop_snapshot_table(custom_stmt)
                 }
-                CustomStatement::CreatePartition {
-                    partition_name,
-                    parent_name,
-                    bound,
-                    sub_partition,
-                } => {
-                    self.execute_create_partition(partition_name, parent_name, bound, sub_partition)
-                }
-                CustomStatement::DetachPartition {
-                    parent_name,
-                    partition_name,
-                    concurrently,
-                    finalize,
-                } => self.execute_detach_partition(
-                    parent_name,
-                    partition_name,
-                    *concurrently,
-                    *finalize,
-                ),
-                CustomStatement::AttachPartition {
-                    parent_name,
-                    partition_name,
-                    bound,
-                } => self.execute_attach_partition(parent_name, partition_name, bound),
-                CustomStatement::EnableRowMovement { table_name } => {
-                    self.execute_enable_row_movement(table_name)
-                }
-                CustomStatement::DisableRowMovement { table_name } => {
-                    self.execute_disable_row_movement(table_name)
-                }
-                CustomStatement::CreateRule { .. }
-                | CustomStatement::DropRule { .. }
-                | CustomStatement::AlterRuleRename { .. } => Self::empty_result(),
             };
         }
 
-        let dispatcher =
-            Dispatcher::with_capabilities(self.session.feature_registry().snapshot_view());
+        let dispatcher = Dispatcher::new();
         let job = dispatcher.classify_statement(statement)?;
 
         match job {
-            StatementJob::Transaction { operation } => {
-                self.execute_transaction_control(operation)?;
-                Self::empty_result()
-            }
-
             StatementJob::DDL { operation, stmt } => {
                 let result = match operation {
                     DdlOperation::CreateTable => {
@@ -664,30 +437,6 @@ impl QueryExecutor {
                     }
                     DdlOperation::DropView => {
                         self.execute_drop_view(&stmt)?;
-                        Self::empty_result()
-                    }
-                    DdlOperation::CreateIndex => {
-                        self.execute_create_index(&stmt, sql)?;
-                        Self::empty_result()
-                    }
-                    DdlOperation::DropIndex => {
-                        self.execute_drop_index(&stmt)?;
-                        Self::empty_result()
-                    }
-                    DdlOperation::CreateTrigger => {
-                        self.execute_create_trigger(&stmt)?;
-                        Self::empty_result()
-                    }
-                    DdlOperation::DropTrigger => {
-                        self.execute_drop_trigger(&stmt)?;
-                        Self::empty_result()
-                    }
-                    DdlOperation::CreateType => {
-                        self.execute_create_type(&stmt)?;
-                        Self::empty_result()
-                    }
-                    DdlOperation::DropType => {
-                        self.execute_drop_type(&stmt)?;
                         Self::empty_result()
                     }
                     DdlOperation::AlterTable => {
@@ -773,12 +522,6 @@ impl QueryExecutor {
                         Self::empty_result()
                     }
 
-                    DdlOperation::CreateSequence
-                    | DdlOperation::AlterSequence
-                    | DdlOperation::DropSequence => {
-                        panic!("Sequence operations should be handled via CustomStatement path")
-                    }
-
                     DdlOperation::CreateSnapshotTable | DdlOperation::DropSnapshotTable => {
                         panic!("Snapshot operations should be handled via CustomStatement path")
                     }
@@ -791,45 +534,17 @@ impl QueryExecutor {
                 result
             }
 
-            StatementJob::DML { operation, stmt } => {
-                if self.is_transaction_read_only() {
-                    let op_name = match operation {
-                        DmlOperation::Insert => "INSERT",
-                        DmlOperation::Update => "UPDATE",
-                        DmlOperation::Delete => "DELETE",
-                        DmlOperation::Truncate => "TRUNCATE",
-                    };
-                    return Err(Error::InvalidOperation(format!(
-                        "cannot execute {} in a read-only transaction",
-                        op_name
-                    )));
+            StatementJob::DML { operation, stmt } => match operation {
+                DmlOperation::Insert => self.execute_insert(&stmt, sql),
+                DmlOperation::Update => self.execute_update(&stmt, sql),
+                DmlOperation::Delete => self.execute_delete(&stmt, sql),
+                DmlOperation::Truncate => {
+                    let _rows_affected = self.execute_truncate(&stmt)?;
+                    Self::empty_result()
                 }
-                match operation {
-                    DmlOperation::Insert => self.execute_insert(&stmt, sql),
-                    DmlOperation::Update => self.execute_update(&stmt, sql),
-                    DmlOperation::Delete => self.execute_delete(&stmt, sql),
-                    DmlOperation::Truncate => {
-                        let _rows_affected = self.execute_truncate(&stmt)?;
-                        Self::empty_result()
-                    }
-                }
-            }
+            },
 
-            StatementJob::CteDml { operation, stmt } => {
-                if self.is_transaction_read_only() {
-                    let op_name = match operation {
-                        DmlOperation::Insert => "INSERT",
-                        DmlOperation::Update => "UPDATE",
-                        DmlOperation::Delete => "DELETE",
-                        DmlOperation::Truncate => "TRUNCATE",
-                    };
-                    return Err(Error::InvalidOperation(format!(
-                        "cannot execute {} in a read-only transaction",
-                        op_name
-                    )));
-                }
-                self.execute_cte_dml(&stmt, operation, sql)
-            }
+            StatementJob::CteDml { operation, stmt } => self.execute_cte_dml(&stmt, operation, sql),
 
             StatementJob::Query { stmt } => self.execute_select(&stmt, sql),
 
@@ -883,144 +598,7 @@ impl QueryExecutor {
             StatementJob::Copy { operation } => self.execute_copy(&operation.stmt),
 
             StatementJob::Scripting { operation } => self.execute_scripting(operation),
-
-            StatementJob::Cursor { operation } => self.execute_cursor_operation(operation),
         }
-    }
-
-    fn execute_transaction_control(&mut self, operation: TxOperation) -> Result<()> {
-        match operation {
-            TxOperation::Begin => {
-                self.require_feature(F781_SELF_REFERENCING_OPERATIONS, "BEGIN statement")?;
-                self.execute_begin_transaction()
-            }
-
-            TxOperation::Commit { chain } => {
-                self.require_feature(F782_COMMIT_STATEMENT, "COMMIT statement")?;
-                let characteristics = if chain {
-                    self.get_current_transaction_characteristics()
-                } else {
-                    None
-                };
-                self.execute_commit_transaction()?;
-                if chain {
-                    if let Some(chars) = characteristics {
-                        self.begin_transaction_with_characteristics(
-                            chars,
-                            yachtsql_storage::TransactionScope::Explicit,
-                        )?;
-                    } else {
-                        self.execute_begin_transaction()?;
-                    }
-                }
-                Ok(())
-            }
-
-            TxOperation::Rollback { chain } => {
-                self.require_feature(F783_ROLLBACK_STATEMENT, "ROLLBACK statement")?;
-                let characteristics = if chain {
-                    self.get_current_transaction_characteristics()
-                } else {
-                    None
-                };
-                self.execute_rollback_transaction()?;
-                if chain {
-                    if let Some(chars) = characteristics {
-                        self.begin_transaction_with_characteristics(
-                            chars,
-                            yachtsql_storage::TransactionScope::Explicit,
-                        )?;
-                    } else {
-                        self.execute_begin_transaction()?;
-                    }
-                }
-                Ok(())
-            }
-
-            TxOperation::Savepoint { name } => {
-                self.require_feature(F784_SAVEPOINT_STATEMENT, "SAVEPOINT statement")?;
-                self.execute_savepoint(name)
-            }
-
-            TxOperation::ReleaseSavepoint { name } => {
-                self.require_feature(F786_SAVEPOINTS, "RELEASE SAVEPOINT statement")?;
-                self.execute_release_savepoint(name)
-            }
-
-            TxOperation::RollbackToSavepoint { name } => {
-                self.require_feature(
-                    F785_ROLLBACK_TO_SAVEPOINT_STATEMENT,
-                    "ROLLBACK TO SAVEPOINT statement",
-                )?;
-                self.execute_rollback_to_savepoint(name)
-            }
-
-            TxOperation::SetAutocommit { enabled } => self.execute_set_session_autocommit(enabled),
-
-            TxOperation::SetTransactionIsolation { .. } => Err(Error::unsupported_feature(
-                "SET TRANSACTION ISOLATION LEVEL not yet implemented".to_string(),
-            )),
-
-            TxOperation::SetTransaction { modes } => self.execute_set_transaction(modes),
-        }
-    }
-
-    fn execute_set_capabilities(&mut self, enable: bool, features: &[String]) -> Result<Table> {
-        if features.is_empty() {
-            return Err(Error::invalid_query(
-                "SET yachtsql.capability requires at least one feature identifier".to_string(),
-            ));
-        }
-
-        let registry_arc = self.feature_registry_arc_mut();
-        let registry = Rc::make_mut(registry_arc);
-        let mut resolved: Vec<FeatureId> = Vec::with_capacity(features.len());
-
-        for feature_name in features {
-            if let Some(feature) = registry
-                .all_features()
-                .find(|candidate| candidate.id.as_str().eq_ignore_ascii_case(feature_name))
-            {
-                resolved.push(feature.id);
-            } else {
-                return Err(Error::unsupported_feature(format!(
-                    "Unknown SQL feature identifier '{}'",
-                    feature_name
-                )));
-            }
-        }
-
-        if enable {
-            let ids = resolved.clone();
-            registry
-                .enable_features_strict(ids.into_iter())
-                .map_err(Self::map_capability_error)?;
-        } else {
-            for feature_id in &resolved {
-                if let Some(feature) = registry.all_features().find(|f| f.id == *feature_id)
-                    && feature.is_core
-                {
-                    return Err(Error::unsupported_feature(format!(
-                        "Cannot disable core feature '{}' ({})",
-                        feature_id.as_str(),
-                        feature.name
-                    )));
-                }
-            }
-
-            for feature_id in resolved {
-                registry
-                    .disable(feature_id)
-                    .map_err(Self::map_capability_error)?;
-            }
-        }
-
-        self.record_row_count(0);
-        Self::empty_result()
-    }
-
-    fn map_capability_error(err: CapabilityError) -> Error {
-        Error::unsupported_feature(format!("Capability update failed: {}", err))
     }
 
     fn execute_set_search_path(&mut self, schemas: &[String]) -> Result<Table> {
@@ -1231,174 +809,6 @@ impl QueryExecutor {
         Table::from_values(schema, rows)
     }
 
-    fn execute_clickhouse_show(&mut self, statement: &str) -> Result<Table> {
-        let statement_upper = statement.to_uppercase();
-
-        if statement_upper.starts_with("SHOW DATABASES") {
-            return self.execute_show_databases();
-        }
-        if statement_upper.starts_with("SHOW QUOTAS") {
-            return self.execute_show_quotas();
-        }
-        if statement_upper.starts_with("SHOW ROW POLICIES") {
-            return self.execute_show_row_policies();
-        }
-        if statement_upper.starts_with("SHOW SETTINGS PROFILES") {
-            return self.execute_show_settings_profiles();
-        }
-        if statement_upper.starts_with("SHOW DICTIONARIES") {
-            return self.execute_show_dictionaries();
-        }
-        if statement_upper.starts_with("SHOW CREATE TABLE") {
-            let prefix_len = "SHOW CREATE TABLE".len();
-            let table_name = statement[prefix_len..].trim();
-            let obj_name =
-                sqlparser::ast::ObjectName(vec![sqlparser::ast::ObjectNamePart::Identifier(
-                    sqlparser::ast::Ident::new(table_name),
-                )]);
-            return self.execute_show_create_table(&obj_name);
-        }
-        if statement_upper.starts_with("SHOW TABLES") {
-            let prefix_len = "SHOW TABLES".len();
-            let rest = statement[prefix_len..].trim();
-            let rest_upper = rest.to_uppercase();
-            let filter = if let Some(pos) = rest_upper.find("LIKE") {
-                let pattern = rest[pos + 4..].trim().trim_matches('\'');
-                Some(pattern.to_string())
-            } else {
-                None
-            };
-            return self.execute_show_tables(filter.as_deref());
-        }
-        if statement_upper.starts_with("SHOW COLUMNS FROM") {
-            let prefix_len = "SHOW COLUMNS FROM".len();
-            let table_name = statement[prefix_len..].trim();
-            let obj_name =
-                sqlparser::ast::ObjectName(vec![sqlparser::ast::ObjectNamePart::Identifier(
-                    sqlparser::ast::Ident::new(table_name),
-                )]);
-            return self.execute_show_columns(&obj_name);
-        }
-        if statement_upper.starts_with("SHOW COLUMNS IN") {
-            let prefix_len = "SHOW COLUMNS IN".len();
-            let table_name = statement[prefix_len..].trim();
-            let obj_name =
-                sqlparser::ast::ObjectName(vec![sqlparser::ast::ObjectNamePart::Identifier(
-                    sqlparser::ast::Ident::new(table_name),
-                )]);
-            return self.execute_show_columns(&obj_name);
-        }
-        if statement_upper.starts_with("SHOW USERS") {
-            return self.execute_show_users();
-        }
-        if statement_upper.starts_with("SHOW ROLES") {
-            return self.execute_show_roles();
-        }
-        if statement_upper.starts_with("SHOW GRANTS FOR") {
-            let prefix_len = "SHOW GRANTS FOR".len();
-            let user_name = statement[prefix_len..].trim();
-            return self.execute_show_grants(Some(user_name));
-        }
-        if statement_upper.starts_with("SHOW GRANTS") {
-            return self.execute_show_grants(None);
-        }
-        Self::empty_result()
-    }
-
-    fn execute_clickhouse_function(&mut self, statement: &str) -> Result<Table> {
-        let statement_upper = statement.to_uppercase();
-
-        if statement_upper.starts_with("CREATE") {
-            return self.execute_clickhouse_create_function(statement);
-        }
-        if statement_upper.starts_with("DROP") {
-            return self.execute_clickhouse_drop_function(statement);
-        }
-
-        Err(Error::unsupported_feature(format!(
-            "Unsupported ClickHouse function statement: {}",
-            statement
-        )))
-    }
-
-    fn execute_clickhouse_create_function(&mut self, statement: &str) -> Result<Table> {
-        use regex::Regex;
-
-        let re = Regex::new(
-            r"(?i)CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+AS\s*\(([^)]*)\)\s*->\s*(.*)",
-        )
-        .unwrap();
-
-        let captures = re.captures(statement).ok_or_else(|| {
-            Error::invalid_query(format!("Invalid CREATE FUNCTION syntax: {}", statement))
-        })?;
-
-        let func_name = captures.get(1).unwrap().as_str().to_string();
-        let params_str = captures.get(2).unwrap().as_str();
-        let body_str = captures.get(3).unwrap().as_str().trim();
-
-        let parameters: Vec<String> = if params_str.trim().is_empty() {
-            vec![]
-        } else {
-            params_str
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .collect()
-        };
-
-        let dialect = sqlparser::dialect::ClickHouseDialect {};
-        let body_expr = sqlparser::parser::Parser::new(&dialect)
-            .try_with_sql(body_str)
-            .map_err(|e| Error::parse_error(format!("Failed to parse function body: {}", e)))?
-            .parse_expr()
-            .map_err(|e| Error::parse_error(format!("Failed to parse function body: {}", e)))?;
-
-        let is_or_replace = statement.to_uppercase().contains("OR REPLACE");
-        let is_if_not_exists = statement.to_uppercase().contains("IF NOT EXISTS");
-
-        if is_or_replace {
-            self.session.drop_udf(&func_name);
-        } else if !is_if_not_exists && self.session.has_udf(&func_name) {
-            return Err(Error::invalid_query(format!(
-                "Function '{}' already exists",
-                func_name
-            )));
-        }
-
-        if !self.session.has_udf(&func_name) {
-            let udf_def = UdfDefinition {
-                parameters,
-                body: body_expr,
-                return_type: None,
-            };
-            self.session.register_udf(func_name, udf_def);
-        }
-
-        Self::empty_result()
-    }
-
-    fn execute_clickhouse_drop_function(&mut self, statement: &str) -> Result<Table> {
-        use regex::Regex;
-
-        let re = Regex::new(r"(?i)DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(\w+)").unwrap();
-
-        let captures = re.captures(statement).ok_or_else(|| {
-            Error::invalid_query(format!("Invalid DROP FUNCTION syntax: {}", statement))
-        })?;
-
-        let func_name = captures.get(1).unwrap().as_str();
-        let is_if_exists = statement.to_uppercase().contains("IF EXISTS");
-
-        if !self.session.drop_udf(func_name) && !is_if_exists {
-            return Err(Error::invalid_query(format!(
-                "Function '{}' does not exist",
-                func_name
-            )));
-        }
-
-        Self::empty_result()
-    }
-
     fn execute_show_databases(&mut self) -> Result<Table> {
         let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
             "name".to_string(),
@@ -1465,239 +875,6 @@ impl QueryExecutor {
             .collect();
 
         Table::from_values(schema, rows)
-    }
-
-    fn execute_clickhouse_quota(&mut self, statement: &str) -> Result<Table> {
-        let statement_upper = statement.to_uppercase();
-        if statement_upper.starts_with("CREATE QUOTA") {
-            let name = Self::extract_object_name(statement, "CREATE QUOTA");
-            if !name.is_empty() {
-                self.storage.borrow_mut().add_quota(name);
-            }
-        } else if statement_upper.starts_with("DROP QUOTA") {
-            let name = Self::extract_object_name(statement, "DROP QUOTA");
-            if !name.is_empty() {
-                self.storage.borrow_mut().remove_quota(&name);
-            }
-        }
-        Self::empty_result()
-    }
-
-    fn execute_clickhouse_row_policy(&mut self, statement: &str) -> Result<Table> {
-        let statement_upper = statement.to_uppercase();
-        if statement_upper.starts_with("CREATE ROW POLICY") {
-            let trimmed = statement["CREATE ROW POLICY".len()..].trim();
-            let (name, remainder) = Self::extract_first_word(trimmed);
-            let table_part = remainder.to_uppercase().find("ON ").map(|pos| {
-                let after_on = remainder[pos + 3..].trim();
-                Self::extract_first_word(after_on).0
-            });
-            let table_name = table_part.unwrap_or_default();
-            if !name.is_empty() {
-                self.storage
-                    .borrow_mut()
-                    .add_row_policy(name, "default".to_string(), table_name);
-            }
-        } else if statement_upper.starts_with("DROP ROW POLICY") {
-            let name = Self::extract_object_name(statement, "DROP ROW POLICY");
-            if !name.is_empty() {
-                self.storage.borrow_mut().remove_row_policy(&name);
-            }
-        }
-        Self::empty_result()
-    }
-
-    fn execute_clickhouse_settings_profile(&mut self, statement: &str) -> Result<Table> {
-        let statement_upper = statement.to_uppercase();
-        if statement_upper.starts_with("CREATE SETTINGS PROFILE") {
-            let name = Self::extract_object_name(statement, "CREATE SETTINGS PROFILE");
-            if !name.is_empty() {
-                self.storage.borrow_mut().add_settings_profile(name);
-            }
-        } else if statement_upper.starts_with("DROP SETTINGS PROFILE") {
-            let name = Self::extract_object_name(statement, "DROP SETTINGS PROFILE");
-            if !name.is_empty() {
-                self.storage.borrow_mut().remove_settings_profile(&name);
-            }
-        } else if statement_upper.starts_with("ALTER SETTINGS PROFILE") {
-        }
-        Self::empty_result()
-    }
-
-    fn execute_clickhouse_materialized_view(&mut self, statement: &str) -> Result<Table> {
-        debug_eprintln!(
-            "[executor::mod::execute_clickhouse_materialized_view] statement: {}",
-            statement
-        );
-
-        let statement_upper = statement.to_uppercase();
-        if !statement_upper.starts_with("CREATE") {
-            return Err(Error::unsupported_feature(
-                "Only CREATE MATERIALIZED VIEW is supported",
-            ));
-        }
-
-        let view_name = self.extract_mv_view_name(statement)?;
-        let engine_info = self.extract_mv_engine_info(statement)?;
-        let as_query = self.extract_mv_as_query(statement)?;
-        let source_table = self.extract_mv_source_table(&as_query)?;
-
-        debug_eprintln!(
-            "[executor::mod::execute_clickhouse_materialized_view] view_name: {}, engine: {:?}, source: {}",
-            view_name,
-            engine_info.engine,
-            source_table
-        );
-
-        let query_result = self.execute_sql(&as_query)?;
-        debug_eprintln!(
-            "[executor::mod::execute_clickhouse_materialized_view] SELECT succeeded, rows: {}",
-            query_result.num_rows()
-        );
-        let schema = query_result.schema().clone();
-        debug_eprintln!(
-            "[executor::mod::execute_clickhouse_materialized_view] schema: {:?}",
-            schema.fields().iter().map(|f| &f.name).collect::<Vec<_>>()
-        );
-
-        let (opt_dataset_id, table_id) = self.parse_table_name(&view_name);
-        let dataset_id = opt_dataset_id.unwrap_or_else(|| "default".to_string());
-        let engine = match engine_info.engine.to_uppercase().as_str() {
-            "AGGREGATINGMERGETREE" => yachtsql_storage::TableEngine::AggregatingMergeTree {
-                order_by: engine_info.order_by.clone(),
-            },
-            "MERGETREE" => yachtsql_storage::TableEngine::MergeTree {
-                order_by: engine_info.order_by.clone(),
-            },
-            "REPLACINGMERGETREE" => yachtsql_storage::TableEngine::ReplacingMergeTree {
-                order_by: engine_info.order_by.clone(),
-                version_column: None,
-            },
-            "SUMMINGMERGETREE" => yachtsql_storage::TableEngine::SummingMergeTree {
-                order_by: engine_info.order_by.clone(),
-                sum_columns: vec![],
-            },
-            _ => yachtsql_storage::TableEngine::Memory,
-        };
-
-        {
-            let mut storage = self.storage.borrow_mut();
-
-            if storage.get_dataset(&dataset_id).is_none() {
-                storage.create_dataset(dataset_id.clone())?;
-            }
-            let dataset = storage.get_dataset_mut(&dataset_id).ok_or_else(|| {
-                Error::DatasetNotFound(format!("Dataset '{}' not found", dataset_id))
-            })?;
-
-            dataset.create_table_with_engine(table_id.clone(), schema.clone(), engine)?;
-
-            let view_def = yachtsql_storage::ViewDefinition::new_materialized(
-                table_id.clone(),
-                as_query.clone(),
-                vec![source_table.clone()],
-            );
-            dataset
-                .views_mut()
-                .create_or_replace_view(view_def)
-                .map_err(|e| Error::InvalidQuery(e.to_string()))?;
-
-            dataset.register_materialized_view_trigger(&source_table, &table_id, as_query.clone());
-        }
-
-        let rows = query_result
-            .rows()
-            .map(|rows| rows.to_vec())
-            .unwrap_or_default();
-        if !rows.is_empty() {
-            let mut storage = self.storage.borrow_mut();
-            if let Some(dataset) = storage.get_dataset_mut(&dataset_id) {
-                if let Some(table) = dataset.get_table_mut(&table_id) {
-                    table.insert_rows(rows)?;
-                }
-            }
-        }
-
-        Self::empty_result()
-    }
-
-    fn extract_mv_view_name(&self, statement: &str) -> Result<String> {
-        use regex::Regex;
-        let re =
-            Regex::new(r"(?i)CREATE\s+MATERIALIZED\s+VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)")
-                .map_err(|e| Error::InternalError(format!("Regex error: {}", e)))?;
-        if let Some(caps) = re.captures(statement) {
-            return Ok(caps[1].to_string());
-        }
-        Err(Error::InvalidQuery(
-            "Could not extract view name from statement".to_string(),
-        ))
-    }
-
-    fn extract_mv_engine_info(&self, statement: &str) -> Result<ClickHouseMvEngineInfo> {
-        use regex::Regex;
-
-        let engine_re = Regex::new(r"(?i)ENGINE\s*=\s*(\w+)")
-            .map_err(|e| Error::InternalError(format!("Regex error: {}", e)))?;
-        let engine = if let Some(caps) = engine_re.captures(statement) {
-            caps[1].to_string()
-        } else {
-            "Memory".to_string()
-        };
-
-        let order_by_re = Regex::new(r"(?i)ORDER\s+BY\s+\(([^)]+)\)|ORDER\s+BY\s+(\w+)")
-            .map_err(|e| Error::InternalError(format!("Regex error: {}", e)))?;
-        let order_by = if let Some(caps) = order_by_re.captures(statement) {
-            let cols = caps
-                .get(1)
-                .or(caps.get(2))
-                .map(|m| m.as_str())
-                .unwrap_or("");
-            cols.split(',').map(|s| s.trim().to_string()).collect()
-        } else {
-            vec![]
-        };
-
-        let partition_by_re = Regex::new(r"(?i)PARTITION\s+BY\s+([^\s]+(?:\([^)]*\))?)")
-            .map_err(|e| Error::InternalError(format!("Regex error: {}", e)))?;
-        let partition_by = partition_by_re
-            .captures(statement)
-            .map(|caps| caps[1].to_string());
-
-        Ok(ClickHouseMvEngineInfo {
-            engine,
-            order_by,
-            partition_by,
-        })
-    }
-
-    fn extract_mv_as_query(&self, statement: &str) -> Result<String> {
-        use regex::Regex;
-        let re = Regex::new(r"(?is)\bAS\s+(SELECT\b.*)")
-            .map_err(|e| Error::InternalError(format!("Regex error: {}", e)))?;
-        if let Some(caps) = re.captures(statement) {
-            let query = caps[1].trim().to_string();
-            debug_eprintln!(
-                "[executor::mod::extract_mv_as_query] extracted query: {}",
-                query
-            );
-            return Ok(query);
-        }
-        Err(Error::InvalidQuery(
-            "Could not extract AS query from materialized view".to_string(),
-        ))
-    }
-
-    fn extract_mv_source_table(&self, query: &str) -> Result<String> {
-        use regex::Regex;
-        let re = Regex::new(r"(?i)FROM\s+([^\s,()]+)")
-            .map_err(|e| Error::InternalError(format!("Regex error: {}", e)))?;
-        if let Some(caps) = re.captures(query) {
-            return Ok(caps[1].to_string());
-        }
-        Err(Error::InvalidQuery(
-            "Could not extract source table from query".to_string(),
-        ))
     }
 
     fn extract_object_name(statement: &str, prefix: &str) -> String {
@@ -2493,154 +1670,6 @@ impl QueryExecutor {
                 )]);
                 let rows = vec![vec![Value::string(format!("Statement:\n  {}", stmt))]];
                 Table::from_values(schema, rows)
-            }
-        }
-    }
-
-    fn execute_clickhouse_explain(
-        &mut self,
-        variant: &yachtsql_parser::parser::ClickHouseExplainVariant,
-        statement: &str,
-        options: &[(String, String)],
-    ) -> Result<Table> {
-        use yachtsql_parser::parser::ClickHouseExplainVariant;
-
-        let parser = Parser::with_dialect(self.dialect());
-        let parsed_statements = parser.parse_sql(statement)?;
-
-        let inner_stmt = parsed_statements
-            .first()
-            .ok_or_else(|| Error::invalid_query("Empty statement in EXPLAIN"))?;
-
-        let inner_sql_stmt = match inner_stmt {
-            Statement::Standard(std_stmt) => Box::new(std_stmt.ast().clone()),
-            _ => {
-                return Err(Error::invalid_query(
-                    "EXPLAIN variants require a standard SQL statement",
-                ));
-            }
-        };
-
-        let schema = Schema::from_fields(vec![yachtsql_storage::Field::required(
-            "explain".to_string(),
-            DataType::String,
-        )]);
-
-        match variant {
-            ClickHouseExplainVariant::Ast => {
-                let output = format!("{:#?}", inner_sql_stmt);
-                let rows = output
-                    .lines()
-                    .map(|line| vec![Value::string(line.to_string())])
-                    .collect();
-                Table::from_values(schema, rows)
-            }
-            ClickHouseExplainVariant::Syntax => {
-                let optimized_sql = inner_sql_stmt.to_string();
-                let rows = vec![vec![Value::string(optimized_sql)]];
-                Table::from_values(schema, rows)
-            }
-            ClickHouseExplainVariant::Plan => {
-                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
-                    let session_udfs = self.session.udfs_for_parser();
-                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
-                        .with_storage(Rc::clone(&self.storage))
-                        .with_dialect(self.dialect())
-                        .with_udfs(session_udfs);
-                    let logical_plan = plan_builder.query_to_plan(query)?;
-                    let optimized = self.optimizer.optimize(logical_plan)?;
-                    let query_plan = optimized.root().clone();
-
-                    let explain_options = crate::explain::ExplainOptions {
-                        analyze: false,
-                        verbose: false,
-                        profiler_metrics: None,
-                    };
-                    crate::explain::explain_query(&query_plan, explain_options)
-                } else {
-                    let rows = vec![vec![Value::string(format!("Plan for: {}", inner_sql_stmt))]];
-                    Table::from_values(schema, rows)
-                }
-            }
-            ClickHouseExplainVariant::Pipeline => {
-                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
-                    let session_udfs = self.session.udfs_for_parser();
-                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
-                        .with_storage(Rc::clone(&self.storage))
-                        .with_dialect(self.dialect())
-                        .with_udfs(session_udfs);
-                    let logical_plan = plan_builder.query_to_plan(query)?;
-                    let optimized = self.optimizer.optimize(logical_plan)?;
-                    let query_plan = optimized.root().clone();
-
-                    let explain_options = crate::explain::ExplainOptions {
-                        analyze: false,
-                        verbose: true,
-                        profiler_metrics: None,
-                    };
-                    crate::explain::explain_query(&query_plan, explain_options)
-                } else {
-                    let rows = vec![vec![Value::string(format!(
-                        "Pipeline for: {}",
-                        inner_sql_stmt
-                    ))]];
-                    Table::from_values(schema, rows)
-                }
-            }
-            ClickHouseExplainVariant::Estimate => {
-                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
-                    let session_udfs = self.session.udfs_for_parser();
-                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
-                        .with_storage(Rc::clone(&self.storage))
-                        .with_dialect(self.dialect())
-                        .with_udfs(session_udfs);
-                    let logical_plan = plan_builder.query_to_plan(query)?;
-                    let optimized = self.optimizer.optimize(logical_plan)?;
-                    let query_plan = optimized.root().clone();
-
-                    let explain_options = crate::explain::ExplainOptions {
-                        analyze: false,
-                        verbose: false,
-                        profiler_metrics: None,
-                    };
-                    crate::explain::explain_query(&query_plan, explain_options)
-                } else {
-                    let rows = vec![vec![Value::string(format!(
-                        "Estimate for: {}",
-                        inner_sql_stmt
-                    ))]];
-                    Table::from_values(schema, rows)
-                }
-            }
-            ClickHouseExplainVariant::Default => {
-                let show_indexes = options.iter().any(|(k, v)| {
-                    k.eq_ignore_ascii_case("indexes")
-                        && (v == "1" || v.eq_ignore_ascii_case("true"))
-                });
-
-                if let sqlparser::ast::Statement::Query(query) = inner_sql_stmt.as_ref() {
-                    let session_udfs = self.session.udfs_for_parser();
-                    let plan_builder = yachtsql_parser::LogicalPlanBuilder::new()
-                        .with_storage(Rc::clone(&self.storage))
-                        .with_dialect(self.dialect())
-                        .with_udfs(session_udfs);
-                    let logical_plan = plan_builder.query_to_plan(query)?;
-                    let optimized = self.optimizer.optimize(logical_plan)?;
-                    let query_plan = optimized.root().clone();
-
-                    let explain_options = crate::explain::ExplainOptions {
-                        analyze: false,
-                        verbose: show_indexes,
-                        profiler_metrics: None,
-                    };
-                    crate::explain::explain_query(&query_plan, explain_options)
-                } else {
-                    let rows = vec![vec![Value::string(format!(
-                        "Statement: {}",
-                        inner_sql_stmt
-                    ))]];
-                    Table::from_values(schema, rows)
-                }
             }
         }
     }

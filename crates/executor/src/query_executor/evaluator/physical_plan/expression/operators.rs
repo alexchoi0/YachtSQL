@@ -12,7 +12,7 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
-        Self::evaluate_and_internal(left, right, batch, row_idx, crate::DialectType::PostgreSQL)
+        Self::evaluate_and_internal(left, right, batch, row_idx, crate::DialectType::BigQuery)
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_and_internal(
@@ -51,7 +51,7 @@ impl ProjectionWithExprExec {
         batch: &Table,
         row_idx: usize,
     ) -> Result<Value> {
-        Self::evaluate_or_internal(left, right, batch, row_idx, crate::DialectType::PostgreSQL)
+        Self::evaluate_or_internal(left, right, batch, row_idx, crate::DialectType::BigQuery)
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_or_internal(
@@ -277,40 +277,6 @@ impl ProjectionWithExprExec {
             };
         }
 
-        if let (Some(l), Some(r)) = (left.as_tsvector(), right.as_tsvector()) {
-            return match op {
-                BinaryOp::Concat => {
-                    let a = yachtsql_functions::fulltext::parse_tsvector(l)?;
-                    let b = yachtsql_functions::fulltext::parse_tsvector(r)?;
-                    let result = yachtsql_functions::fulltext::tsvector_concat(&a, &b);
-                    Ok(Value::tsvector(
-                        yachtsql_functions::fulltext::tsvector_to_string(&result),
-                    ))
-                }
-                _ => Err(crate::error::Error::unsupported_feature(format!(
-                    "Operator {:?} not supported for TSVECTOR",
-                    op
-                ))),
-            };
-        }
-
-        if let (Some(l), Some(r)) = (left.as_tsquery(), right.as_tsquery()) {
-            return match op {
-                BinaryOp::Concat => {
-                    let result = yachtsql_functions::fulltext::tsquery_or(l, r)?;
-                    Ok(Value::tsquery(result))
-                }
-                BinaryOp::ArrayOverlap => {
-                    let result = yachtsql_functions::fulltext::tsquery_and(l, r)?;
-                    Ok(Value::tsquery(result))
-                }
-                _ => Err(crate::error::Error::unsupported_feature(format!(
-                    "Operator {:?} not supported for TSQUERY",
-                    op
-                ))),
-            };
-        }
-
         if let (Some(l), Some(r)) = (left.as_str(), right.as_str()) {
             return match op {
                 BinaryOp::Equal => Ok(Value::bool_val(l.eq_ignore_ascii_case(r))),
@@ -359,16 +325,12 @@ impl ProjectionWithExprExec {
                     let result = matches!(op, BinaryOp::RegexMatchI) == matches;
                     Ok(Value::bool_val(result))
                 }
-                BinaryOp::TSVectorMatch => {
-                    let result = yachtsql_functions::fulltext::ts_match(l, r)
-                        .map_err(|e| crate::error::Error::ExecutionError(e.to_string()))?;
-                    Ok(Value::bool_val(result))
-                }
-                BinaryOp::TSQueryAnd | BinaryOp::ArrayOverlap => {
-                    let result = yachtsql_functions::fulltext::tsquery_and(l, r)
-                        .map_err(|e| crate::error::Error::ExecutionError(e.to_string()))?;
-                    Ok(Value::string(result))
-                }
+                BinaryOp::TSVectorMatch => Err(crate::error::Error::unsupported_feature(
+                    "Full-text search not supported (PostgreSQL-specific)",
+                )),
+                BinaryOp::TSQueryAnd => Err(crate::error::Error::unsupported_feature(
+                    "Full-text search not supported (PostgreSQL-specific)",
+                )),
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for String",
                     op
@@ -855,9 +817,14 @@ impl ProjectionWithExprExec {
 
         if let (Some(_l), Some(_r)) = (left.as_json(), right.as_json()) {
             return match op {
-                BinaryOp::ArrayContains => yachtsql_functions::json::jsonb_contains(left, right),
-                BinaryOp::ArrayContainedBy => yachtsql_functions::json::jsonb_contains(right, left),
-                BinaryOp::Concat => yachtsql_functions::json::jsonb_concat(left, right),
+                BinaryOp::ArrayContains | BinaryOp::ArrayContainedBy => {
+                    Err(crate::error::Error::unsupported_feature(
+                        "JSON containment operators are not supported (PostgreSQL-specific)",
+                    ))
+                }
+                BinaryOp::Concat => Err(crate::error::Error::unsupported_feature(
+                    "JSON concatenation operator is not supported (PostgreSQL-specific)",
+                )),
                 BinaryOp::Equal => {
                     let left_val = left.as_json();
                     let right_val = right.as_json();
@@ -877,8 +844,11 @@ impl ProjectionWithExprExec {
 
         if left.as_json().is_some() && (right.as_str().is_some() || right.as_i64().is_some()) {
             return match op {
-                BinaryOp::Subtract => yachtsql_functions::json::jsonb_delete(left, right),
-                BinaryOp::HashMinus => yachtsql_functions::json::jsonb_delete_path(left, right),
+                BinaryOp::Subtract | BinaryOp::HashMinus => {
+                    Err(crate::error::Error::unsupported_feature(
+                        "JSON deletion operators are not supported (PostgreSQL-specific)",
+                    ))
+                }
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for JSON - STRING/INT",
                     op
@@ -888,60 +858,11 @@ impl ProjectionWithExprExec {
 
         if left.as_json().is_some() && right.as_array().is_some() {
             return match op {
-                BinaryOp::HashMinus => yachtsql_functions::json::jsonb_delete_path(left, right),
+                BinaryOp::HashMinus => Err(crate::error::Error::unsupported_feature(
+                    "JSON deletion operators are not supported (PostgreSQL-specific)",
+                )),
                 _ => Err(crate::error::Error::unsupported_feature(format!(
                     "Operator {:?} not supported for JSON - ARRAY",
-                    op
-                ))),
-            };
-        }
-
-        if let (Some(_l), Some(_r)) = (left.as_hstore(), right.as_hstore()) {
-            return match op {
-                BinaryOp::Concat => yachtsql_functions::hstore::hstore_concat(left, right),
-                BinaryOp::Subtract => yachtsql_functions::hstore::hstore_delete_hstore(left, right),
-                BinaryOp::ArrayContains => yachtsql_functions::hstore::hstore_contains(left, right),
-                BinaryOp::ArrayContainedBy => {
-                    yachtsql_functions::hstore::hstore_contained_by(left, right)
-                }
-                BinaryOp::Equal => yachtsql_functions::hstore::hstore_equal(left, right),
-                BinaryOp::NotEqual => {
-                    let eq = yachtsql_functions::hstore::hstore_equal(left, right)?;
-                    match eq.as_bool() {
-                        Some(b) => Ok(Value::bool_val(!b)),
-                        None => Ok(Value::null()),
-                    }
-                }
-                _ => Err(crate::error::Error::unsupported_feature(format!(
-                    "Operator {:?} not supported for HSTORE",
-                    op
-                ))),
-            };
-        }
-
-        if left.as_hstore().is_some() && right.as_str().is_some() {
-            return match op {
-                BinaryOp::Subtract => yachtsql_functions::hstore::hstore_delete_key(left, right),
-                BinaryOp::ArrayContains => {
-                    let right_hstore = yachtsql_functions::hstore::hstore_from_text(right)?;
-                    yachtsql_functions::hstore::hstore_contains(left, &right_hstore)
-                }
-                BinaryOp::ArrayContainedBy => {
-                    let right_hstore = yachtsql_functions::hstore::hstore_from_text(right)?;
-                    yachtsql_functions::hstore::hstore_contained_by(left, &right_hstore)
-                }
-                _ => Err(crate::error::Error::unsupported_feature(format!(
-                    "Operator {:?} not supported for HSTORE - STRING",
-                    op
-                ))),
-            };
-        }
-
-        if left.as_hstore().is_some() && right.as_array().is_some() {
-            return match op {
-                BinaryOp::Subtract => yachtsql_functions::hstore::hstore_delete_keys(left, right),
-                _ => Err(crate::error::Error::unsupported_feature(format!(
-                    "Operator {:?} not supported for HSTORE - ARRAY",
                     op
                 ))),
             };
@@ -1213,7 +1134,6 @@ impl ProjectionWithExprExec {
             || left.as_line().is_some()
             || left.as_path().is_some()
             || left.as_polygon().is_some()
-            || matches!(left.data_type(), yachtsql_core::types::DataType::PgBox)
             || matches!(left.data_type(), yachtsql_core::types::DataType::Point)
             || matches!(left.data_type(), yachtsql_core::types::DataType::Circle)
             || matches!(left.data_type(), yachtsql_core::types::DataType::Lseg)
@@ -1227,7 +1147,6 @@ impl ProjectionWithExprExec {
             || right.as_line().is_some()
             || right.as_path().is_some()
             || right.as_polygon().is_some()
-            || matches!(right.data_type(), yachtsql_core::types::DataType::PgBox)
             || matches!(right.data_type(), yachtsql_core::types::DataType::Point)
             || matches!(right.data_type(), yachtsql_core::types::DataType::Circle)
             || matches!(right.data_type(), yachtsql_core::types::DataType::Lseg)
@@ -1387,20 +1306,9 @@ impl ProjectionWithExprExec {
                     actual: operand.data_type().to_string(),
                 })
             }
-            UnaryOp::TSQueryNot => {
-                if operand.is_null() {
-                    return Ok(Value::null());
-                }
-                if let Some(s) = operand.as_str() {
-                    let result = yachtsql_functions::fulltext::tsquery_negate(s)
-                        .map_err(|e| crate::error::Error::ExecutionError(e.to_string()))?;
-                    return Ok(Value::string(result));
-                }
-                Err(crate::error::Error::TypeMismatch {
-                    expected: "STRING (tsquery)".to_string(),
-                    actual: operand.data_type().to_string(),
-                })
-            }
+            UnaryOp::TSQueryNot => Err(crate::error::Error::unsupported_feature(
+                "Full-text search not supported (PostgreSQL-specific)",
+            )),
         }
     }
 

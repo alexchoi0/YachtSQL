@@ -101,12 +101,6 @@ impl LogicalPlanBuilder {
             ast::DataType::Custom(name, _) if Self::object_name_matches(name, "POINT") => {
                 Ok(Expr::Literal(LiteralValue::Point(value.to_string())))
             }
-            ast::DataType::Custom(name, _)
-                if Self::object_name_matches(name, "BOX")
-                    || Self::object_name_matches(name, "PGBOX") =>
-            {
-                Ok(Expr::Literal(LiteralValue::PgBox(value.to_string())))
-            }
             ast::DataType::Custom(name, _) if Self::object_name_matches(name, "CIRCLE") => {
                 Ok(Expr::Literal(LiteralValue::Circle(value.to_string())))
             }
@@ -132,9 +126,6 @@ impl LogicalPlanBuilder {
                     GeometricTypeKind::Point => {
                         Ok(Expr::Literal(LiteralValue::Point(value.to_string())))
                     }
-                    GeometricTypeKind::GeometricBox => {
-                        Ok(Expr::Literal(LiteralValue::PgBox(value.to_string())))
-                    }
                     GeometricTypeKind::Circle => {
                         Ok(Expr::Literal(LiteralValue::Circle(value.to_string())))
                     }
@@ -150,6 +141,9 @@ impl LogicalPlanBuilder {
                     GeometricTypeKind::Polygon => {
                         Ok(Expr::Literal(LiteralValue::Polygon(value.to_string())))
                     }
+                    GeometricTypeKind::GeometricBox => Err(Error::unsupported_feature(
+                        "BOX geometric type not supported".to_string(),
+                    )),
                 }
             }
             _ => Err(Error::unsupported_feature(format!(

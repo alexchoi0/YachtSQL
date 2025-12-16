@@ -117,7 +117,7 @@ impl LogicalPlanBuilder {
                     })?;
                     if index < 1 {
                         return Err(Error::invalid_query(
-                            "Tuple indices are 1-based in ClickHouse".to_string(),
+                            "Tuple indices are 1-based".to_string(),
                         ));
                     }
                     Ok(Expr::TupleElementAccess {
@@ -350,8 +350,6 @@ impl LogicalPlanBuilder {
             Ok(CastDataType::Json)
         } else if data_type_str.contains("GEOGRAPHY") {
             Ok(CastDataType::Geography)
-        } else if data_type_str.contains("HSTORE") {
-            Ok(CastDataType::Hstore)
         } else if data_type_str.contains("MACADDR8") {
             Ok(CastDataType::MacAddr8)
         } else if data_type_str.contains("MACADDR") {

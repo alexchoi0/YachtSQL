@@ -8,7 +8,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_stddev_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -23,7 +23,7 @@ fn test_stddev_basic() {
 
 #[test]
 fn test_stddev_pop() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -38,7 +38,7 @@ fn test_stddev_pop() {
 
 #[test]
 fn test_stddev_samp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -53,7 +53,7 @@ fn test_stddev_samp() {
 
 #[test]
 fn test_stddev_single_value() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -68,7 +68,7 @@ fn test_stddev_single_value() {
 
 #[test]
 fn test_stddev_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -83,7 +83,7 @@ fn test_stddev_with_nulls() {
 
 #[test]
 fn test_variance_basic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -98,7 +98,7 @@ fn test_variance_basic() {
 
 #[test]
 fn test_var_pop() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -113,7 +113,7 @@ fn test_var_pop() {
 
 #[test]
 fn test_var_samp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -128,7 +128,7 @@ fn test_var_samp() {
 
 #[test]
 fn test_variance_relationship_to_stddev() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -149,7 +149,7 @@ fn test_variance_relationship_to_stddev() {
 
 #[test]
 fn test_percentile_cont_median() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -164,7 +164,7 @@ fn test_percentile_cont_median() {
 
 #[test]
 fn test_percentile_cont_quartiles() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -183,7 +183,7 @@ fn test_percentile_cont_quartiles() {
 
 #[test]
 fn test_percentile_disc_median() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -213,7 +213,7 @@ fn test_approx_quantiles() {
 
 #[test]
 fn test_percentile_cont_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -228,7 +228,7 @@ fn test_percentile_cont_with_nulls() {
 
 #[test]
 fn test_median_odd_count() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -243,7 +243,7 @@ fn test_median_odd_count() {
 
 #[test]
 fn test_median_even_count() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -258,7 +258,7 @@ fn test_median_even_count() {
 
 #[test]
 fn test_mode_single() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value INT64)")
         .unwrap();
@@ -273,7 +273,7 @@ fn test_mode_single() {
 
 #[test]
 fn test_mode_multimodal() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value INT64)")
         .unwrap();
@@ -320,7 +320,7 @@ fn test_approx_top_sum() {
 
 #[test]
 fn test_corr_perfect_positive() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (x FLOAT64, y FLOAT64)")
         .unwrap();
@@ -335,7 +335,7 @@ fn test_corr_perfect_positive() {
 
 #[test]
 fn test_corr_perfect_negative() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (x FLOAT64, y FLOAT64)")
         .unwrap();
@@ -350,7 +350,7 @@ fn test_corr_perfect_negative() {
 
 #[test]
 fn test_corr_no_correlation() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (x FLOAT64, y FLOAT64)")
         .unwrap();
@@ -365,7 +365,7 @@ fn test_corr_no_correlation() {
 
 #[test]
 fn test_covar_pop() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (x FLOAT64, y FLOAT64)")
         .unwrap();
@@ -380,7 +380,7 @@ fn test_covar_pop() {
 
 #[test]
 fn test_covar_samp() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (x FLOAT64, y FLOAT64)")
         .unwrap();
@@ -395,7 +395,7 @@ fn test_covar_samp() {
 
 #[test]
 fn test_count_distinct() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE items (category STRING)")
         .unwrap();
@@ -410,7 +410,7 @@ fn test_count_distinct() {
 
 #[test]
 fn test_count_distinct_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE items (category STRING)")
         .unwrap();
@@ -455,7 +455,7 @@ fn test_countif_with_nulls() {
 
 #[test]
 fn test_array_agg_with_order_by() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value INT64)")
         .unwrap();
@@ -470,7 +470,7 @@ fn test_array_agg_with_order_by() {
 
 #[test]
 fn test_array_agg_with_limit() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value INT64)")
         .unwrap();
@@ -485,7 +485,7 @@ fn test_array_agg_with_limit() {
 
 #[test]
 fn test_array_agg_distinct() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE items (category STRING)")
         .unwrap();
@@ -500,7 +500,7 @@ fn test_array_agg_distinct() {
 
 #[test]
 fn test_array_agg_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE items (value INT64)")
         .unwrap();
@@ -515,7 +515,7 @@ fn test_array_agg_with_nulls() {
 
 #[test]
 fn test_array_agg_respect_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE items (value INT64)")
         .unwrap();
@@ -530,7 +530,7 @@ fn test_array_agg_respect_nulls() {
 
 #[test]
 fn test_stddev_by_group() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE measurements (category STRING, value FLOAT64)")
         .unwrap();
@@ -549,7 +549,7 @@ fn test_stddev_by_group() {
 
 #[test]
 fn test_percentile_by_group() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE scores (student STRING, score FLOAT64)")
         .unwrap();
@@ -568,7 +568,7 @@ fn test_percentile_by_group() {
 
 #[test]
 fn test_multiple_aggregates() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (value FLOAT64)")
         .unwrap();
@@ -593,7 +593,7 @@ fn test_multiple_aggregates() {
 
 #[test]
 fn test_stddev_window_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE sales (product STRING, amount FLOAT64)")
         .unwrap();
@@ -616,7 +616,7 @@ fn test_stddev_window_function() {
 
 #[test]
 fn test_percentile_window_function() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE employees (dept STRING, salary FLOAT64)")
         .unwrap();
@@ -644,7 +644,7 @@ fn test_percentile_window_function() {
 
 #[test]
 fn test_stddev_empty_set() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -656,7 +656,7 @@ fn test_stddev_empty_set() {
 
 #[test]
 fn test_percentile_single_value() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -671,7 +671,7 @@ fn test_percentile_single_value() {
 
 #[test]
 fn test_stddev_all_same_values() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -686,7 +686,7 @@ fn test_stddev_all_same_values() {
 
 #[test]
 fn test_percentile_with_duplicates() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -701,7 +701,7 @@ fn test_percentile_with_duplicates() {
 
 #[test]
 fn test_stddev_all_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -716,7 +716,7 @@ fn test_stddev_all_nulls() {
 
 #[test]
 fn test_corr_with_nulls() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (x FLOAT64, y FLOAT64)")
         .unwrap();
@@ -731,7 +731,7 @@ fn test_corr_with_nulls() {
 
 #[should_panic(expected = "ExecutionError")]
 fn test_percentile_invalid_fraction() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE numbers (value FLOAT64)")
         .unwrap();
@@ -746,7 +746,7 @@ fn test_percentile_invalid_fraction() {
 
 #[should_panic(expected = "ExecutionError")]
 fn test_corr_type_mismatch() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE data (x STRING, y FLOAT64)")
         .unwrap();
@@ -761,7 +761,7 @@ fn test_corr_type_mismatch() {
 
 #[should_panic(expected = "ExecutionError")]
 fn test_approx_top_count_invalid_n() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
     executor
         .execute_sql("CREATE TABLE items (category STRING)")
         .unwrap();

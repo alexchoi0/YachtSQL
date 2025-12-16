@@ -4552,7 +4552,6 @@ dependencies = [
  "unicode-normalization",
  "url",
  "uuid",
- "yachtsql-capability",
  "yachtsql-core",
  "yachtsql-executor",
  "yachtsql-functions",
@@ -4560,20 +4559,6 @@ dependencies = [
  "yachtsql-optimizer",
  "yachtsql-parser",
  "yachtsql-storage",
- "yachtsql-test-utils",
-]
-
-[[package]]
-name = "yachtsql-capability"
-version = "0.1.0"
-dependencies = [
- "indexmap",
- "serde",
- "serde_json",
- "toml",
- "yachtsql",
- "yachtsql-core",
- "yachtsql-parser",
  "yachtsql-test-utils",
 ]
 
@@ -4597,41 +4582,6 @@ dependencies = [
  "uuid",
  "yachtsql",
  "yachtsql-test-utils",
-]
-
-[[package]]
-name = "yachtsql-dialects-bigquery"
-version = "0.1.0"
-dependencies = [
- "yachtsql-capability",
- "yachtsql-dialects-core",
- "yachtsql-parser",
-]
-
-[[package]]
-name = "yachtsql-dialects-clickhouse"
-version = "0.1.0"
-dependencies = [
- "yachtsql-capability",
- "yachtsql-dialects-core",
- "yachtsql-parser",
-]
-
-[[package]]
-name = "yachtsql-dialects-core"
-version = "0.1.0"
-dependencies = [
- "yachtsql-capability",
- "yachtsql-parser",
-]
-
-[[package]]
-name = "yachtsql-dialects-postgres"
-version = "0.1.0"
-dependencies = [
- "yachtsql-capability",
- "yachtsql-dialects-core",
- "yachtsql-parser",
 ]
 
 [[package]]
@@ -4695,7 +4645,6 @@ dependencies = [
  "uuid",
  "xxhash-rust",
  "yachtsql",
- "yachtsql-capability",
  "yachtsql-core",
  "yachtsql-functions",
  "yachtsql-ir",
@@ -4831,7 +4780,6 @@ version = "0.1.0"
 dependencies = [
  "rust_decimal",
  "yachtsql",
- "yachtsql-capability",
  "yachtsql-core",
  "yachtsql-parser",
  "yachtsql-storage",

@@ -12,5 +12,3 @@ pub use yachtsql_storage::{
 pub mod mvcc {
     pub use yachtsql_storage::mvcc::{RowVersion, VersionStore};
 }
-
-pub use yachtsql_capability::{FeatureId, FeatureRegistry};

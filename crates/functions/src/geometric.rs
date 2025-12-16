@@ -1,5 +1,5 @@
 use yachtsql_core::error::{Error, Result};
-use yachtsql_core::types::{PgBox, PgCircle, PgLseg, PgPoint, PgPolygon, Value};
+use yachtsql_core::types::{PgCircle, PgLseg, PgPoint, PgPolygon, Value};
 
 pub fn point_constructor(x: &Value, y: &Value) -> Result<Value> {
     if x.is_null() || y.is_null() {
@@ -41,24 +41,6 @@ fn parse_float_arg(val: &Value) -> Result<f64> {
     })
 }
 
-pub fn box_constructor(p1: &Value, p2: &Value) -> Result<Value> {
-    if p1.is_null() || p2.is_null() {
-        return Ok(Value::null());
-    }
-
-    let point1 = p1.as_point().ok_or_else(|| Error::TypeMismatch {
-        expected: "POINT".to_string(),
-        actual: p1.data_type().to_string(),
-    })?;
-
-    let point2 = p2.as_point().ok_or_else(|| Error::TypeMismatch {
-        expected: "POINT".to_string(),
-        actual: p2.data_type().to_string(),
-    })?;
-
-    Ok(Value::pgbox(PgBox::new(point1.clone(), point2.clone())))
-}
-
 pub fn circle_constructor(center: &Value, radius: &Value) -> Result<Value> {
     if center.is_null() || radius.is_null() {
         return Ok(Value::null());
@@ -85,10 +67,6 @@ pub fn area(geom: &Value) -> Result<Value> {
         return Ok(Value::null());
     }
 
-    if let Some(b) = geom.as_pgbox() {
-        return Ok(Value::float64(b.area()));
-    }
-
     if let Some(c) = geom.as_circle() {
         return Ok(Value::float64(c.area()));
     }
@@ -98,7 +76,7 @@ pub fn area(geom: &Value) -> Result<Value> {
     }
 
     Err(Error::TypeMismatch {
-        expected: "BOX, CIRCLE, or POLYGON".to_string(),
+        expected: "CIRCLE or POLYGON".to_string(),
         actual: geom.data_type().to_string(),
     })
 }
@@ -108,16 +86,12 @@ pub fn center(geom: &Value) -> Result<Value> {
         return Ok(Value::null());
     }
 
-    if let Some(b) = geom.as_pgbox() {
-        return Ok(Value::point(b.center()));
-    }
-
     if let Some(c) = geom.as_circle() {
         return Ok(Value::point(c.center.clone()));
     }
 
     Err(Error::TypeMismatch {
-        expected: "BOX or CIRCLE".to_string(),
+        expected: "CIRCLE".to_string(),
         actual: geom.data_type().to_string(),
     })
 }
@@ -146,32 +120,6 @@ pub fn radius(circle: &Value) -> Result<Value> {
     })?;
 
     Ok(Value::float64(c.radius))
-}
-
-pub fn width(box_val: &Value) -> Result<Value> {
-    if box_val.is_null() {
-        return Ok(Value::null());
-    }
-
-    let b = box_val.as_pgbox().ok_or_else(|| Error::TypeMismatch {
-        expected: "BOX".to_string(),
-        actual: box_val.data_type().to_string(),
-    })?;
-
-    Ok(Value::float64(b.width()))
-}
-
-pub fn height(box_val: &Value) -> Result<Value> {
-    if box_val.is_null() {
-        return Ok(Value::null());
-    }
-
-    let b = box_val.as_pgbox().ok_or_else(|| Error::TypeMismatch {
-        expected: "BOX".to_string(),
-        actual: box_val.data_type().to_string(),
-    })?;
-
-    Ok(Value::float64(b.height()))
 }
 
 pub fn distance(geom1: &Value, geom2: &Value) -> Result<Value> {
@@ -207,10 +155,6 @@ pub fn contains(container: &Value, contained: &Value) -> Result<Value> {
         return Ok(Value::null());
     }
 
-    if let (Some(b), Some(p)) = (container.as_pgbox(), contained.as_point()) {
-        return Ok(Value::bool_val(b.contains_point(p)));
-    }
-
     if let (Some(c), Some(p)) = (container.as_circle(), contained.as_point()) {
         return Ok(Value::bool_val(c.contains_point(p)));
     }
@@ -231,10 +175,6 @@ pub fn contained_by(contained: &Value, container: &Value) -> Result<Value> {
         return Ok(Value::null());
     }
 
-    if let (Some(p), Some(b)) = (contained.as_point(), container.as_pgbox()) {
-        return Ok(Value::bool_val(b.contains_point(p)));
-    }
-
     if let (Some(p), Some(c)) = (contained.as_point(), container.as_circle()) {
         return Ok(Value::bool_val(c.contains_point(p)));
     }
@@ -253,10 +193,6 @@ pub fn contained_by(contained: &Value, container: &Value) -> Result<Value> {
 pub fn overlaps(geom1: &Value, geom2: &Value) -> Result<Value> {
     if geom1.is_null() || geom2.is_null() {
         return Ok(Value::null());
-    }
-
-    if let (Some(b1), Some(b2)) = (geom1.as_pgbox(), geom2.as_pgbox()) {
-        return Ok(Value::bool_val(b1.overlaps(b2)));
     }
 
     if let (Some(c1), Some(c2)) = (geom1.as_circle(), geom2.as_circle()) {
@@ -521,56 +457,6 @@ pub fn intersects(lseg1: &Value, lseg2: &Value) -> Result<Value> {
     Ok(Value::bool_val(l1.intersects(l2)))
 }
 
-pub fn box_to_circle(geom: &Value) -> Result<Value> {
-    if geom.is_null() {
-        return Ok(Value::null());
-    }
-
-    let b = geom.as_pgbox().ok_or_else(|| Error::TypeMismatch {
-        expected: "BOX".to_string(),
-        actual: geom.data_type().to_string(),
-    })?;
-
-    let center = b.center();
-    let radius = b.diagonal() / 2.0;
-    Ok(Value::circle(PgCircle::new(center, radius)))
-}
-
-pub fn circle_to_box(geom: &Value) -> Result<Value> {
-    if geom.is_null() {
-        return Ok(Value::null());
-    }
-
-    let c = geom.as_circle().ok_or_else(|| Error::TypeMismatch {
-        expected: "CIRCLE".to_string(),
-        actual: geom.data_type().to_string(),
-    })?;
-
-    let half_side = c.radius / std::f64::consts::SQRT_2;
-    let low = PgPoint::new(c.center.x - half_side, c.center.y - half_side);
-    let high = PgPoint::new(c.center.x + half_side, c.center.y + half_side);
-    Ok(Value::pgbox(PgBox::new(low, high)))
-}
-
-pub fn box_to_polygon(geom: &Value) -> Result<Value> {
-    if geom.is_null() {
-        return Ok(Value::null());
-    }
-
-    let b = geom.as_pgbox().ok_or_else(|| Error::TypeMismatch {
-        expected: "BOX".to_string(),
-        actual: geom.data_type().to_string(),
-    })?;
-
-    let points = vec![
-        PgPoint::new(b.low.x, b.low.y),
-        PgPoint::new(b.high.x, b.low.y),
-        PgPoint::new(b.high.x, b.high.y),
-        PgPoint::new(b.low.x, b.high.y),
-    ];
-    Ok(Value::polygon(PgPolygon::new(points)))
-}
-
 pub fn circle_to_polygon(npts: &Value, geom: &Value) -> Result<Value> {
     if geom.is_null() || npts.is_null() {
         return Ok(Value::null());
@@ -602,26 +488,6 @@ pub fn circle_to_polygon(npts: &Value, geom: &Value) -> Result<Value> {
     Ok(Value::polygon(PgPolygon::new(points)))
 }
 
-pub fn bound_box(box1: &Value, box2: &Value) -> Result<Value> {
-    if box1.is_null() || box2.is_null() {
-        return Ok(Value::null());
-    }
-
-    let b1 = box1.as_pgbox().ok_or_else(|| Error::TypeMismatch {
-        expected: "BOX".to_string(),
-        actual: box1.data_type().to_string(),
-    })?;
-
-    let b2 = box2.as_pgbox().ok_or_else(|| Error::TypeMismatch {
-        expected: "BOX".to_string(),
-        actual: box2.data_type().to_string(),
-    })?;
-
-    let low = PgPoint::new(b1.low.x.min(b2.low.x), b1.low.y.min(b2.low.y));
-    let high = PgPoint::new(b1.high.x.max(b2.high.x), b1.high.y.max(b2.high.y));
-    Ok(Value::pgbox(PgBox::new(low, high)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,16 +511,6 @@ mod tests {
     }
 
     #[test]
-    fn test_box_constructor() {
-        let p1 = Value::point(PgPoint::new(0.0, 0.0));
-        let p2 = Value::point(PgPoint::new(3.0, 4.0));
-        let b = box_constructor(&p1, &p2).unwrap();
-        let boxval = b.as_pgbox().unwrap();
-        assert_eq!(boxval.width(), 3.0);
-        assert_eq!(boxval.height(), 4.0);
-    }
-
-    #[test]
     fn test_circle_constructor() {
         let center = Value::point(PgPoint::new(0.0, 0.0));
         let radius = Value::float64(5.0);
@@ -664,26 +520,10 @@ mod tests {
     }
 
     #[test]
-    fn test_area_box() {
-        let b = Value::pgbox(PgBox::new(PgPoint::new(0.0, 0.0), PgPoint::new(3.0, 4.0)));
-        let a = area(&b).unwrap();
-        assert_eq!(a.as_f64().unwrap(), 12.0);
-    }
-
-    #[test]
     fn test_area_circle() {
         let c = Value::circle(PgCircle::new(PgPoint::new(0.0, 0.0), 1.0));
         let a = area(&c).unwrap();
         assert!((a.as_f64().unwrap() - std::f64::consts::PI).abs() < 0.0001);
-    }
-
-    #[test]
-    fn test_center_box() {
-        let b = Value::pgbox(PgBox::new(PgPoint::new(0.0, 0.0), PgPoint::new(4.0, 4.0)));
-        let c = center(&b).unwrap();
-        let point = c.as_point().unwrap();
-        assert_eq!(point.x, 2.0);
-        assert_eq!(point.y, 2.0);
     }
 
     #[test]
@@ -707,15 +547,6 @@ mod tests {
         let c = Value::circle(PgCircle::new(PgPoint::new(0.0, 0.0), 3.5));
         let r = radius(&c).unwrap();
         assert_eq!(r.as_f64().unwrap(), 3.5);
-    }
-
-    #[test]
-    fn test_width_height() {
-        let b = Value::pgbox(PgBox::new(PgPoint::new(1.0, 2.0), PgPoint::new(5.0, 7.0)));
-        let w = width(&b).unwrap();
-        let h = height(&b).unwrap();
-        assert_eq!(w.as_f64().unwrap(), 4.0);
-        assert_eq!(h.as_f64().unwrap(), 5.0);
     }
 
     #[test]
@@ -743,16 +574,6 @@ mod tests {
     }
 
     #[test]
-    fn test_contains_box_point() {
-        let b = Value::pgbox(PgBox::new(PgPoint::new(0.0, 0.0), PgPoint::new(10.0, 10.0)));
-        let p_inside = Value::point(PgPoint::new(5.0, 5.0));
-        let p_outside = Value::point(PgPoint::new(15.0, 15.0));
-
-        assert!(contains(&b, &p_inside).unwrap().as_bool().unwrap());
-        assert!(!contains(&b, &p_outside).unwrap().as_bool().unwrap());
-    }
-
-    #[test]
     fn test_contains_circle_point() {
         let c = Value::circle(PgCircle::new(PgPoint::new(0.0, 0.0), 10.0));
         let p_inside = Value::point(PgPoint::new(3.0, 4.0));
@@ -760,19 +581,6 @@ mod tests {
 
         assert!(contains(&c, &p_inside).unwrap().as_bool().unwrap());
         assert!(!contains(&c, &p_outside).unwrap().as_bool().unwrap());
-    }
-
-    #[test]
-    fn test_overlaps_boxes() {
-        let b1 = Value::pgbox(PgBox::new(PgPoint::new(0.0, 0.0), PgPoint::new(5.0, 5.0)));
-        let b2 = Value::pgbox(PgBox::new(PgPoint::new(3.0, 3.0), PgPoint::new(8.0, 8.0)));
-        let b3 = Value::pgbox(PgBox::new(
-            PgPoint::new(10.0, 10.0),
-            PgPoint::new(15.0, 15.0),
-        ));
-
-        assert!(overlaps(&b1, &b2).unwrap().as_bool().unwrap());
-        assert!(!overlaps(&b1, &b3).unwrap().as_bool().unwrap());
     }
 
     #[test]

@@ -31,7 +31,7 @@ impl ProjectionWithExprExec {
             None
         };
 
-        yachtsql_functions::json::postgres::json_keys(&json_val, path)
+        yachtsql_functions::json::json_keys(&json_val, path)
     }
 
     pub(in crate::query_executor::evaluator::physical_plan) fn evaluate_json_object_keys(

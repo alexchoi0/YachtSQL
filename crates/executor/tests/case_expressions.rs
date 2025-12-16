@@ -6,7 +6,7 @@ use yachtsql::{DialectType, QueryExecutor};
 
 #[test]
 fn test_case_simple_when_then() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (id INT64, amount INT64)")
@@ -27,7 +27,7 @@ fn test_case_simple_when_then() {
 
 #[test]
 fn test_case_multiple_when() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
@@ -63,7 +63,7 @@ fn test_case_multiple_when() {
 
 #[test]
 fn test_case_with_operand() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE products (name STRING, category STRING, price INT64)")
@@ -95,7 +95,7 @@ fn test_case_with_operand() {
 
 #[test]
 fn test_case_without_else() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (id INT64, status STRING)")
@@ -116,7 +116,7 @@ fn test_case_without_else() {
 
 #[test]
 fn test_case_returns_int() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor.execute_sql("CREATE TABLE data (x INT64)").unwrap();
 
@@ -133,7 +133,7 @@ fn test_case_returns_int() {
 
 #[test]
 fn test_case_with_arithmetic() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE sales (product STRING, units INT64, price INT64)")
@@ -157,7 +157,7 @@ fn test_case_with_arithmetic() {
 
 #[test]
 fn test_case_in_where_clause() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE employees (name STRING, salary INT64)")
@@ -180,7 +180,7 @@ fn test_case_in_where_clause() {
 
 #[test]
 fn test_case_with_string_functions() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE users (name STRING, role STRING)")
@@ -201,7 +201,7 @@ fn test_case_with_string_functions() {
 
 #[test]
 fn test_nested_case() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE items (type STRING, priority INT64)")
@@ -225,7 +225,7 @@ fn test_nested_case() {
 
 #[test]
 fn test_case_with_null_handling() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE data (id INT64, value INT64)")
@@ -246,7 +246,7 @@ fn test_case_with_null_handling() {
 
 #[test]
 fn test_case_with_column_comparison() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE inventory (product STRING, stock INT64, threshold INT64)")
@@ -278,7 +278,7 @@ fn test_case_with_column_comparison() {
 
 #[test]
 fn test_case_boolean_result() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE tests (name STRING, score INT64)")
@@ -299,7 +299,7 @@ fn test_case_boolean_result() {
 
 #[test]
 fn test_multiple_case_in_select() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE metrics (metric STRING, value INT64)")
@@ -323,7 +323,7 @@ fn test_multiple_case_in_select() {
 
 #[test]
 fn test_case_with_complex_conditions() {
-    let mut executor = QueryExecutor::with_dialect(DialectType::PostgreSQL);
+    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
 
     executor
         .execute_sql("CREATE TABLE orders (id INT64, amount INT64, customer_type STRING)")

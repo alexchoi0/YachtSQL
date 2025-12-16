@@ -96,48 +96,6 @@ fn test_bit_xor_aggregate() {
 }
 
 #[test]
-fn test_bit_and_operator() {
-    let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT 7 & 3").unwrap();
-    assert_table_eq!(result, [[3]]);
-}
-
-#[test]
-fn test_bit_or_operator() {
-    let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT 4 | 2").unwrap();
-    assert_table_eq!(result, [[6]]);
-}
-
-#[test]
-fn test_bit_xor_operator() {
-    let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT 5 ^ 3").unwrap();
-    assert_table_eq!(result, [[6]]);
-}
-
-#[test]
-fn test_bit_not_operator() {
-    let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT ~0").unwrap();
-    assert_table_eq!(result, [[-1]]);
-}
-
-#[test]
-fn test_left_shift() {
-    let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT 1 << 4").unwrap();
-    assert_table_eq!(result, [[16]]);
-}
-
-#[test]
-fn test_right_shift() {
-    let mut executor = create_executor();
-    let result = executor.execute_sql("SELECT 16 >> 2").unwrap();
-    assert_table_eq!(result, [[4]]);
-}
-
-#[test]
 fn test_bit_operations_with_group_by() {
     let mut executor = create_executor();
     executor

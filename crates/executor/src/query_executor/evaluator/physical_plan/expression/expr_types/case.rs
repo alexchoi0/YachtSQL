@@ -19,7 +19,7 @@ impl ProjectionWithExprExec {
             else_expr,
             batch,
             row_idx,
-            crate::DialectType::PostgreSQL,
+            crate::DialectType::BigQuery,
         )
     }
 
