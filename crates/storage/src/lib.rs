@@ -1,124 +1,30 @@
 //! Storage engine and table management for YachtSQL.
 
-#![warn(missing_docs)]
-#![warn(rustdoc::missing_crate_level_docs)]
-#![warn(rustdoc::broken_intra_doc_links)]
-#![allow(missing_docs)]
-
 pub mod bitmap;
 pub mod column;
 pub mod column_ops;
-pub mod constraints;
-pub mod custom_types;
-pub mod dependency_graph;
-pub mod dictionary;
-pub mod domain;
-pub mod extension;
-pub mod features;
-pub mod index;
-pub mod indexes;
-pub mod row;
 pub mod schema;
-pub mod sequence;
 pub mod simd;
-pub mod snapshot;
 pub mod storage_backend;
 pub mod table;
-pub mod temp_storage;
-pub mod type_registry;
-pub mod view;
 
 pub use bitmap::NullBitmap;
 pub use column::Column;
-pub use constraints::{apply_default_values, validate_row_constraints};
-pub use custom_types::EnumType;
-pub use dependency_graph::DependencyGraph;
-pub use dictionary::{
-    Dictionary, DictionaryColumn, DictionaryLayout, DictionaryLifetime, DictionaryRegistry,
-    DictionarySource,
-};
-pub use domain::{DomainConstraint, DomainDefinition, DomainRegistry};
-pub use extension::{ExtensionError, ExtensionMetadata, ExtensionRegistry};
-pub use index::{ColumnOrder, IndexColumn, IndexMetadata, IndexType, NullsOrder};
-pub use indexes::{
-    BPlusTreeIndex, HashIndex, IndexKey, RangeBound, RangeQuery, TableIndex, extract_index_key,
-};
 use indexmap::IndexMap;
-pub use row::Row;
-pub use schema::{
-    CheckConstraint, CheckEvaluator, DefaultValue, Field, FieldMode, GeneratedExpression,
-    GenerationMode, IdentityGeneration, Schema,
-};
-pub use sequence::{Sequence, SequenceConfig, SequenceRegistry};
-pub use snapshot::{SnapshotRegistry, SnapshotTable};
-pub use storage_backend::{StorageBackend, StorageLayout};
-pub use table::{
-    ColumnStatistics, PartitionSpec, PartitionType, Table, TableConstraintOps, TableEngine,
-    TableIndexOps, TableIterator, TablePartitionBound, TablePartitionInfo, TablePartitionStrategy,
-    TableSchemaOps, TableStatistics,
-};
-pub use temp_storage::{OnCommitAction, TempStorage, TempTableMetadata};
-pub use type_registry::{TypeDefinition, TypeRegistry, UserDefinedType};
-pub use view::{ViewDefinition, ViewRegistry, WithCheckOption};
+pub use schema::{Field, FieldMode, Schema};
+pub use storage_backend::ColumnarStorage;
+pub use table::{ColumnStatistics, Table, TableEngine, TableSchemaOps, TableStatistics};
 use yachtsql_core::error::{Error, Result};
-
-#[derive(Debug, Clone, Default)]
-pub struct QuotaMetadata {
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RowPolicyMetadata {
-    pub name: String,
-    pub database: String,
-    pub table: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct SettingsProfileMetadata {
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct UserMetadata {
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RoleMetadata {
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct GrantMetadata {
-    pub grantee: String,
-    pub privilege: String,
-    pub object: String,
-}
 
 #[derive(Debug, Clone)]
 pub struct Storage {
     datasets: IndexMap<String, Dataset>,
-    default_layout: StorageLayout,
-    quotas: IndexMap<String, QuotaMetadata>,
-    row_policies: IndexMap<String, RowPolicyMetadata>,
-    settings_profiles: IndexMap<String, SettingsProfileMetadata>,
-    users: IndexMap<String, UserMetadata>,
-    roles: IndexMap<String, RoleMetadata>,
-    grants: Vec<GrantMetadata>,
 }
 
 impl Default for Storage {
     fn default() -> Self {
         Self {
             datasets: IndexMap::new(),
-            default_layout: StorageLayout::Columnar,
-            quotas: IndexMap::new(),
-            row_policies: IndexMap::new(),
-            settings_profiles: IndexMap::new(),
-            users: IndexMap::new(),
-            roles: IndexMap::new(),
-            grants: Vec::new(),
         }
     }
 }
@@ -128,119 +34,8 @@ impl Storage {
         Self::default()
     }
 
-    pub fn with_layout(layout: StorageLayout) -> Self {
-        Self {
-            datasets: IndexMap::new(),
-            default_layout: layout,
-            quotas: IndexMap::new(),
-            row_policies: IndexMap::new(),
-            settings_profiles: IndexMap::new(),
-            users: IndexMap::new(),
-            roles: IndexMap::new(),
-            grants: Vec::new(),
-        }
-    }
-
-    pub fn add_quota(&mut self, name: String) {
-        self.quotas.insert(name.clone(), QuotaMetadata { name });
-    }
-
-    pub fn remove_quota(&mut self, name: &str) -> bool {
-        self.quotas.shift_remove(name).is_some()
-    }
-
-    pub fn quotas(&self) -> impl Iterator<Item = &QuotaMetadata> {
-        self.quotas.values()
-    }
-
-    pub fn add_row_policy(&mut self, name: String, database: String, table: String) {
-        self.row_policies.insert(
-            name.clone(),
-            RowPolicyMetadata {
-                name,
-                database,
-                table,
-            },
-        );
-    }
-
-    pub fn remove_row_policy(&mut self, name: &str) -> bool {
-        self.row_policies.shift_remove(name).is_some()
-    }
-
-    pub fn row_policies(&self) -> impl Iterator<Item = &RowPolicyMetadata> {
-        self.row_policies.values()
-    }
-
-    pub fn add_settings_profile(&mut self, name: String) {
-        self.settings_profiles
-            .insert(name.clone(), SettingsProfileMetadata { name });
-    }
-
-    pub fn remove_settings_profile(&mut self, name: &str) -> bool {
-        self.settings_profiles.shift_remove(name).is_some()
-    }
-
-    pub fn settings_profiles(&self) -> impl Iterator<Item = &SettingsProfileMetadata> {
-        self.settings_profiles.values()
-    }
-
-    pub fn add_user(&mut self, name: String) {
-        self.users.insert(name.clone(), UserMetadata { name });
-    }
-
-    pub fn remove_user(&mut self, name: &str) -> bool {
-        self.users.shift_remove(name).is_some()
-    }
-
-    pub fn users(&self) -> impl Iterator<Item = &UserMetadata> {
-        self.users.values()
-    }
-
-    pub fn has_user(&self, name: &str) -> bool {
-        self.users.contains_key(name)
-    }
-
-    pub fn add_role(&mut self, name: String) {
-        self.roles.insert(name.clone(), RoleMetadata { name });
-    }
-
-    pub fn remove_role(&mut self, name: &str) -> bool {
-        self.roles.shift_remove(name).is_some()
-    }
-
-    pub fn roles(&self) -> impl Iterator<Item = &RoleMetadata> {
-        self.roles.values()
-    }
-
-    pub fn has_role(&self, name: &str) -> bool {
-        self.roles.contains_key(name)
-    }
-
-    pub fn add_grant(&mut self, grantee: String, privilege: String, object: String) {
-        self.grants.push(GrantMetadata {
-            grantee,
-            privilege,
-            object,
-        });
-    }
-
-    pub fn grants(&self) -> impl Iterator<Item = &GrantMetadata> {
-        self.grants.iter()
-    }
-
-    pub fn grants_for_user(&self, user: &str) -> impl Iterator<Item = &GrantMetadata> {
-        self.grants.iter().filter(move |g| g.grantee == user)
-    }
-
-    pub fn remove_grants(&mut self, grantee: &str, privilege: &str, object: &str) {
-        self.grants
-            .retain(|g| !(g.grantee == grantee && g.privilege == privilege && g.object == object));
-    }
-
     pub fn create_dataset(&mut self, dataset_id: String) -> Result<()> {
-        self.datasets
-            .insert(dataset_id, Dataset::with_layout(self.default_layout));
+        self.datasets.insert(dataset_id, Dataset::new());
         Ok(())
     }
 
@@ -300,32 +95,14 @@ impl Storage {
 
     fn ensure_default_dataset(&mut self) {
         if !self.datasets.contains_key("default") {
-            self.datasets.insert(
-                "default".to_string(),
-                Dataset::with_layout(self.default_layout),
-            );
+            self.datasets.insert("default".to_string(), Dataset::new());
         }
     }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct MaterializedViewTrigger {
-    pub view_name: String,
-    pub query: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct Dataset {
     tables: IndexMap<String, Table>,
-    sequences: SequenceRegistry,
-    indexes: IndexMap<String, index::IndexMetadata>,
-    views: ViewRegistry,
-    domains: DomainRegistry,
-    types: TypeRegistry,
-    dictionaries: DictionaryRegistry,
-    snapshots: SnapshotRegistry,
-    table_layout: StorageLayout,
-    materialized_view_triggers: std::collections::HashMap<String, Vec<MaterializedViewTrigger>>,
 }
 
 impl Default for Dataset {
@@ -336,26 +113,13 @@ impl Default for Dataset {
 
 impl Dataset {
     pub fn new() -> Self {
-        Self::with_layout(StorageLayout::Columnar)
-    }
-
-    pub fn with_layout(layout: StorageLayout) -> Self {
         Self {
             tables: IndexMap::new(),
-            sequences: SequenceRegistry::new(),
-            indexes: IndexMap::new(),
-            views: ViewRegistry::new(),
-            domains: DomainRegistry::new(),
-            types: TypeRegistry::new(),
-            dictionaries: DictionaryRegistry::new(),
-            snapshots: SnapshotRegistry::new(),
-            table_layout: layout,
-            materialized_view_triggers: std::collections::HashMap::new(),
         }
     }
 
     pub fn create_table(&mut self, table_id: String, schema: Schema) -> Result<()> {
-        let table = Table::with_layout(schema, self.table_layout);
+        let table = Table::new(schema);
         self.tables.insert(table_id, table);
         Ok(())
     }
@@ -366,53 +130,18 @@ impl Dataset {
         schema: Schema,
         engine: TableEngine,
     ) -> Result<()> {
-        let mut table = Table::with_layout(schema, self.table_layout);
+        let mut table = Table::new(schema);
         table.set_engine(engine);
         self.tables.insert(table_id, table);
         Ok(())
     }
 
-    pub fn register_materialized_view_trigger(
-        &mut self,
-        source_table: &str,
-        view_name: &str,
-        query: String,
-    ) {
-        let trigger = MaterializedViewTrigger {
-            view_name: view_name.to_string(),
-            query,
-        };
-        self.materialized_view_triggers
-            .entry(source_table.to_string())
-            .or_default()
-            .push(trigger);
-    }
-
-    pub fn get_materialized_view_triggers(
-        &self,
-        source_table: &str,
-    ) -> Option<&Vec<MaterializedViewTrigger>> {
-        self.materialized_view_triggers.get(source_table)
-    }
-
     pub fn get_table(&self, table_id: &str) -> Option<&Table> {
-        self.tables
-            .get(table_id)
-            .or_else(|| self.snapshots.get_snapshot(table_id).map(|s| s.get_table()))
+        self.tables.get(table_id)
     }
 
     pub fn get_table_mut(&mut self, table_id: &str) -> Option<&mut Table> {
-        if self.tables.contains_key(table_id) {
-            self.tables.get_mut(table_id)
-        } else {
-            self.snapshots
-                .get_snapshot_mut(table_id)
-                .map(|s| &mut s.data)
-        }
-    }
-
-    pub fn is_snapshot(&self, table_id: &str) -> bool {
-        !self.tables.contains_key(table_id) && self.snapshots.exists(table_id)
+        self.tables.get_mut(table_id)
     }
 
     pub fn delete_table(&mut self, table_id: &str) -> Result<()> {
@@ -438,84 +167,6 @@ impl Dataset {
             ))
         }
     }
-
-    pub fn sequences(&self) -> &SequenceRegistry {
-        &self.sequences
-    }
-
-    pub fn sequences_mut(&mut self) -> &mut SequenceRegistry {
-        &mut self.sequences
-    }
-
-    pub fn views(&self) -> &ViewRegistry {
-        &self.views
-    }
-
-    pub fn views_mut(&mut self) -> &mut ViewRegistry {
-        &mut self.views
-    }
-
-    pub fn domains(&self) -> &DomainRegistry {
-        &self.domains
-    }
-
-    pub fn domains_mut(&mut self) -> &mut DomainRegistry {
-        &mut self.domains
-    }
-
-    pub fn types(&self) -> &TypeRegistry {
-        &self.types
-    }
-
-    pub fn types_mut(&mut self) -> &mut TypeRegistry {
-        &mut self.types
-    }
-
-    pub fn indexes(&self) -> &IndexMap<String, index::IndexMetadata> {
-        &self.indexes
-    }
-
-    pub fn indexes_mut(&mut self) -> &mut IndexMap<String, index::IndexMetadata> {
-        &mut self.indexes
-    }
-
-    pub fn create_index(&mut self, metadata: index::IndexMetadata) -> Result<()> {
-        self.indexes.insert(metadata.index_name.clone(), metadata);
-        Ok(())
-    }
-
-    pub fn drop_index(&mut self, index_name: &str) -> Result<()> {
-        self.indexes.shift_remove(index_name);
-        Ok(())
-    }
-
-    pub fn has_index(&self, index_name: &str) -> bool {
-        self.indexes.contains_key(index_name)
-    }
-
-    pub fn get_index(&self, index_name: &str) -> Option<&index::IndexMetadata> {
-        self.indexes.get(index_name)
-    }
-
-    pub fn dictionaries(&self) -> &DictionaryRegistry {
-        &self.dictionaries
-    }
-
-    pub fn dictionaries_mut(&mut self) -> &mut DictionaryRegistry {
-        &mut self.dictionaries
-    }
-
-    pub fn snapshots(&self) -> &SnapshotRegistry {
-        &self.snapshots
-    }
-
-    pub fn snapshots_mut(&mut self) -> &mut SnapshotRegistry {
-        &mut self.snapshots
-    }
-
-    pub fn table_layout(&self) -> StorageLayout {
-        self.table_layout
-    }
 }
 
 #[cfg(test)]
@@ -523,7 +174,6 @@ mod tests {
     use yachtsql_core::types::DataType;
 
     use super::*;
-    use crate::storage_backend::StorageLayout;
 
     #[test]
     fn test_storage_new() {
@@ -682,42 +332,6 @@ mod tests {
     }
 
     #[test]
-    fn test_storage_with_layout_row_applies_to_tables() {
-        let mut storage = Storage::with_layout(StorageLayout::Row);
-        storage.create_dataset("default".to_string()).unwrap();
-
-        let schema = Schema::from_fields(vec![Field::required("id".to_string(), DataType::Int64)]);
-        storage.create_table("tbl".to_string(), schema).unwrap();
-        let table = storage.get_table("tbl").unwrap();
-        assert_eq!(table.storage_layout(), StorageLayout::Row);
-    }
-
-    #[test]
-    fn test_dataset_with_layout_controls_table_layout() {
-        let mut dataset = Dataset::with_layout(StorageLayout::Row);
-        let schema = Schema::from_fields(vec![Field::required("id".to_string(), DataType::Int64)]);
-        dataset
-            .create_table("row_table".to_string(), schema.clone())
-            .unwrap();
-        assert_eq!(
-            dataset.get_table("row_table").unwrap().storage_layout(),
-            StorageLayout::Row
-        );
-
-        let mut columnar_dataset = Dataset::with_layout(StorageLayout::Columnar);
-        columnar_dataset
-            .create_table("col_table".to_string(), schema)
-            .unwrap();
-        assert_eq!(
-            columnar_dataset
-                .get_table("col_table")
-                .unwrap()
-                .storage_layout(),
-            StorageLayout::Columnar
-        );
-    }
-
-    #[test]
     fn test_storage_with_dataset_and_tables() {
         let mut storage = Storage::new();
         storage.create_dataset("main".to_string()).unwrap();
@@ -763,27 +377,5 @@ mod tests {
             storage.get_dataset("dataset2").unwrap().list_tables().len(),
             1
         );
-    }
-
-    #[test]
-    fn test_temp_storage_inherits_default_layout() {
-        use crate::temp_storage::{OnCommitAction, TempStorage};
-
-        let mut temp_storage = TempStorage::new();
-        let schema = Schema::from_fields(vec![Field::required("id".to_string(), DataType::Int64)]);
-
-        temp_storage
-            .create_table("temp", schema.clone(), OnCommitAction::PreserveRows)
-            .unwrap();
-
-        let table = temp_storage.get_table("temp").unwrap();
-        assert_eq!(table.storage_layout(), StorageLayout::Columnar);
-
-        let mut row_temp_storage = TempStorage::with_layout(StorageLayout::Row);
-        row_temp_storage
-            .create_table("temp_row", schema, OnCommitAction::PreserveRows)
-            .unwrap();
-        let row_table = row_temp_storage.get_table("temp_row").unwrap();
-        assert_eq!(row_table.storage_layout(), StorageLayout::Row);
     }
 }

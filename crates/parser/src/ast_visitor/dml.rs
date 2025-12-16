@@ -157,16 +157,12 @@ impl LogicalPlanBuilder {
                     }
                 });
 
-                let generated_expression =
-                    Self::parse_generated_expression_from_column_options(&column_def.options);
-
                 AlterTableOperation::AddColumn {
                     column_name,
                     data_type,
                     if_not_exists: *if_not_exists,
                     not_null,
                     default_value,
-                    generated_expression,
                 }
             }
             ast::AlterTableOperation::DropColumn {
@@ -309,36 +305,6 @@ impl LogicalPlanBuilder {
             operation,
             if_exists,
         }))
-    }
-
-    fn parse_generated_expression_from_column_options(
-        options: &[ast::ColumnOptionDef],
-    ) -> Option<yachtsql_storage::schema::GeneratedExpression> {
-        options.iter().find_map(|opt| {
-            if let ast::ColumnOption::Generated {
-                generation_expr: Some(expr),
-                generation_expr_mode,
-                ..
-            } = &opt.option
-            {
-                let mode = match generation_expr_mode {
-                    Some(ast::GeneratedExpressionMode::Stored) => {
-                        yachtsql_storage::schema::GenerationMode::Stored
-                    }
-                    Some(ast::GeneratedExpressionMode::Virtual) | None => {
-                        yachtsql_storage::schema::GenerationMode::Virtual
-                    }
-                };
-                Some(yachtsql_storage::schema::GeneratedExpression {
-                    expression_sql: format!("{}", expr),
-
-                    dependencies: Vec::new(),
-                    generation_mode: mode,
-                })
-            } else {
-                None
-            }
-        })
     }
 
     fn insert_to_plan(&self, insert: &ast::Insert) -> Result<LogicalPlan> {

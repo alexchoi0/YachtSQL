@@ -8,10 +8,12 @@ mod catalog;
 mod error;
 mod evaluator;
 mod executor;
+mod record;
 mod table;
 
 pub use catalog::Catalog;
 pub use error::{Error, Result};
 pub use executor::QueryExecutor;
+pub use record::Record;
 pub use table::{StorageFormat, Table};
 pub use yachtsql_parser::DialectType;

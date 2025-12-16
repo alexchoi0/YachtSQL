@@ -6,12 +6,72 @@
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::ptr_arg)]
 
+use chrono::{Datelike, Timelike};
 use sqlparser::ast::{BinaryOperator, Expr, UnaryOperator, Value as SqlValue};
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
-use yachtsql_storage::{Row, Schema};
+use yachtsql_storage::Schema;
 
 use crate::catalog::TableData;
+use crate::record::Record;
+
+pub fn parse_byte_string_escapes(s: &str) -> Vec<u8> {
+    let mut result = Vec::new();
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.peek() {
+                Some('x') | Some('X') => {
+                    chars.next();
+                    let mut hex = String::new();
+                    for _ in 0..2 {
+                        if let Some(&c) = chars.peek() {
+                            if c.is_ascii_hexdigit() {
+                                hex.push(c);
+                                chars.next();
+                            }
+                        }
+                    }
+                    if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                        result.push(byte);
+                    }
+                }
+                Some('n') => {
+                    chars.next();
+                    result.push(b'\n');
+                }
+                Some('t') => {
+                    chars.next();
+                    result.push(b'\t');
+                }
+                Some('r') => {
+                    chars.next();
+                    result.push(b'\r');
+                }
+                Some('\\') => {
+                    chars.next();
+                    result.push(b'\\');
+                }
+                Some('\'') => {
+                    chars.next();
+                    result.push(b'\'');
+                }
+                Some('"') => {
+                    chars.next();
+                    result.push(b'"');
+                }
+                _ => {
+                    result.push(b'\\');
+                }
+            }
+        } else {
+            let mut buf = [0u8; 4];
+            let encoded = c.encode_utf8(&mut buf);
+            result.extend_from_slice(encoded.as_bytes());
+        }
+    }
+    result
+}
 
 pub struct Evaluator<'a> {
     schema: &'a Schema,
@@ -22,7 +82,7 @@ impl<'a> Evaluator<'a> {
         Self { schema }
     }
 
-    pub fn evaluate(&self, expr: &Expr, row: &Row) -> Result<Value> {
+    pub fn evaluate(&self, expr: &Expr, record: &Record) -> Result<Value> {
         match expr {
             Expr::Identifier(ident) => {
                 let name = ident.value.to_uppercase();
@@ -32,7 +92,7 @@ impl<'a> Evaluator<'a> {
                     .iter()
                     .position(|f| f.name.to_uppercase() == name)
                     .ok_or_else(|| Error::ColumnNotFound(ident.value.clone()))?;
-                Ok(row.values().get(idx).cloned().unwrap_or(Value::null()))
+                Ok(record.values().get(idx).cloned().unwrap_or(Value::null()))
             }
 
             Expr::CompoundIdentifier(parts) => {
@@ -56,80 +116,85 @@ impl<'a> Evaluator<'a> {
                             || f.name.to_uppercase().ends_with(&format!(".{}", last_name))
                     })
                     .ok_or_else(|| Error::ColumnNotFound(full_name.clone()))?;
-                Ok(row.values().get(idx).cloned().unwrap_or(Value::null()))
+                Ok(record.values().get(idx).cloned().unwrap_or(Value::null()))
             }
 
             Expr::Value(val) => self.evaluate_literal(&val.value),
 
             Expr::BinaryOp { left, op, right } => {
-                let left_val = self.evaluate(left, row)?;
-                let right_val = self.evaluate(right, row)?;
+                let left_val = self.evaluate(left, record)?;
+                let right_val = self.evaluate(right, record)?;
                 self.evaluate_binary_op(&left_val, op, &right_val)
             }
 
             Expr::UnaryOp { op, expr } => {
-                let val = self.evaluate(expr, row)?;
+                let val = self.evaluate(expr, record)?;
                 self.evaluate_unary_op(op, &val)
             }
 
             Expr::IsNull(inner) => {
-                let val = self.evaluate(inner, row)?;
+                let val = self.evaluate(inner, record)?;
                 Ok(Value::bool_val(val.is_null()))
             }
 
             Expr::IsNotNull(inner) => {
-                let val = self.evaluate(inner, row)?;
+                let val = self.evaluate(inner, record)?;
                 Ok(Value::bool_val(!val.is_null()))
             }
 
-            Expr::Nested(inner) => self.evaluate(inner, row),
+            Expr::Nested(inner) => self.evaluate(inner, record),
 
-            Expr::Function(func) => self.evaluate_function(func, row),
+            Expr::Function(func) => self.evaluate_function(func, record),
 
             Expr::Case {
                 operand,
                 conditions,
                 else_result,
                 ..
-            } => self.evaluate_case(operand.as_deref(), conditions, else_result.as_deref(), row),
+            } => self.evaluate_case(
+                operand.as_deref(),
+                conditions,
+                else_result.as_deref(),
+                record,
+            ),
 
-            Expr::Array(arr) => self.evaluate_array(arr, row),
+            Expr::Array(arr) => self.evaluate_array(arr, record),
 
             Expr::InList {
                 expr,
                 list,
                 negated,
-            } => self.evaluate_in_list(expr, list, *negated, row),
+            } => self.evaluate_in_list(expr, list, *negated, record),
 
             Expr::Between {
                 expr,
                 low,
                 high,
                 negated,
-            } => self.evaluate_between(expr, low, high, *negated, row),
+            } => self.evaluate_between(expr, low, high, *negated, record),
 
             Expr::Like {
                 expr,
                 pattern,
                 negated,
                 ..
-            } => self.evaluate_like(expr, pattern, *negated, row),
+            } => self.evaluate_like(expr, pattern, *negated, record),
 
             Expr::ILike {
                 expr,
                 pattern,
                 negated,
                 ..
-            } => self.evaluate_ilike(expr, pattern, *negated, row),
+            } => self.evaluate_ilike(expr, pattern, *negated, record),
 
             Expr::Cast {
                 expr, data_type, ..
-            } => self.evaluate_cast(expr, data_type, row),
+            } => self.evaluate_cast(expr, data_type, record),
 
             Expr::Tuple(exprs) => {
                 let mut values = Vec::with_capacity(exprs.len());
                 for e in exprs {
-                    values.push(self.evaluate(e, row)?);
+                    values.push(self.evaluate(e, record)?);
                 }
                 Ok(Value::array(values))
             }
@@ -137,7 +202,7 @@ impl<'a> Evaluator<'a> {
             Expr::TypedString(ts) => self.evaluate_typed_string(&ts.data_type, &ts.value),
 
             Expr::CompoundFieldAccess { root, access_chain } => {
-                self.evaluate_compound_field_access(root, access_chain, row)
+                self.evaluate_compound_field_access(root, access_chain, record)
             }
 
             Expr::InSubquery {
@@ -152,9 +217,9 @@ impl<'a> Evaluator<'a> {
                 "Subquery not yet supported in evaluator".to_string(),
             )),
 
-            Expr::Struct { values, fields } => self.evaluate_struct_expr(values, row),
+            Expr::Struct { values, fields } => self.evaluate_struct_expr(values, record),
 
-            Expr::Named { expr, name } => self.evaluate(expr, row),
+            Expr::Named { expr, name } => self.evaluate(expr, record),
 
             Expr::Trim {
                 expr: inner,
@@ -162,7 +227,7 @@ impl<'a> Evaluator<'a> {
                 trim_what,
                 trim_characters,
             } => {
-                let val = self.evaluate(inner, row)?;
+                let val = self.evaluate(inner, record)?;
                 if val.is_null() {
                     return Ok(Value::null());
                 }
@@ -173,13 +238,13 @@ impl<'a> Evaluator<'a> {
 
                 let chars_to_trim: Option<Vec<char>> = if let Some(chars_expr) = trim_characters {
                     if !chars_expr.is_empty() {
-                        let first = self.evaluate(&chars_expr[0], row)?;
+                        let first = self.evaluate(&chars_expr[0], record)?;
                         first.as_str().map(|s| s.chars().collect())
                     } else {
                         None
                     }
                 } else if let Some(what_expr) = trim_what {
-                    let what_val = self.evaluate(what_expr, row)?;
+                    let what_val = self.evaluate(what_expr, record)?;
                     what_val.as_str().map(|s| s.chars().collect())
                 } else {
                     None
@@ -216,7 +281,7 @@ impl<'a> Evaluator<'a> {
                 special: _,
                 shorthand: _,
             } => {
-                let val = self.evaluate(inner, row)?;
+                let val = self.evaluate(inner, record)?;
                 if val.is_null() {
                     return Ok(Value::null());
                 }
@@ -226,7 +291,7 @@ impl<'a> Evaluator<'a> {
                 })?;
 
                 let start = if let Some(from_expr) = substring_from {
-                    let from_val = self.evaluate(from_expr, row)?;
+                    let from_val = self.evaluate(from_expr, record)?;
                     from_val.as_i64().unwrap_or(1) as usize
                 } else {
                     1
@@ -239,7 +304,7 @@ impl<'a> Evaluator<'a> {
                 }
 
                 let result = if let Some(for_expr) = substring_for {
-                    let len_val = self.evaluate(for_expr, row)?;
+                    let len_val = self.evaluate(for_expr, record)?;
                     let len = len_val.as_i64().unwrap_or(0) as usize;
                     chars[start_idx..].iter().take(len).collect()
                 } else {
@@ -249,8 +314,8 @@ impl<'a> Evaluator<'a> {
             }
 
             Expr::IsDistinctFrom(left, right) => {
-                let l = self.evaluate(left, row)?;
-                let r = self.evaluate(right, row)?;
+                let l = self.evaluate(left, record)?;
+                let r = self.evaluate(right, record)?;
                 let distinct = match (l.is_null(), r.is_null()) {
                     (true, true) => false,
                     (true, false) | (false, true) => true,
@@ -260,8 +325,8 @@ impl<'a> Evaluator<'a> {
             }
 
             Expr::IsNotDistinctFrom(left, right) => {
-                let l = self.evaluate(left, row)?;
-                let r = self.evaluate(right, row)?;
+                let l = self.evaluate(left, record)?;
+                let r = self.evaluate(right, record)?;
                 let not_distinct = match (l.is_null(), r.is_null()) {
                     (true, true) => true,
                     (true, false) | (false, true) => false,
@@ -276,9 +341,9 @@ impl<'a> Evaluator<'a> {
                 overlay_from,
                 overlay_for,
             } => {
-                let s = self.evaluate(expr, row)?;
-                let what = self.evaluate(overlay_what, row)?;
-                let from = self.evaluate(overlay_from, row)?;
+                let s = self.evaluate(expr, record)?;
+                let what = self.evaluate(overlay_what, record)?;
+                let from = self.evaluate(overlay_from, record)?;
 
                 if s.is_null() {
                     return Ok(Value::null());
@@ -293,7 +358,7 @@ impl<'a> Evaluator<'a> {
                 let start = if from_idx > 0 { from_idx - 1 } else { 0 };
 
                 let for_len = if let Some(for_expr) = overlay_for {
-                    let for_val = self.evaluate(for_expr, row)?;
+                    let for_val = self.evaluate(for_expr, record)?;
                     for_val.as_i64().unwrap_or(what_str.len() as i64) as usize
                 } else {
                     what_str.len()
@@ -312,8 +377,8 @@ impl<'a> Evaluator<'a> {
             }
 
             Expr::Position { expr, r#in } => {
-                let needle = self.evaluate(expr, row)?;
-                let haystack = self.evaluate(r#in, row)?;
+                let needle = self.evaluate(expr, record)?;
+                let haystack = self.evaluate(r#in, record)?;
 
                 if needle.is_null() || haystack.is_null() {
                     return Ok(Value::null());
@@ -335,6 +400,105 @@ impl<'a> Evaluator<'a> {
                 Ok(Value::int64(pos))
             }
 
+            Expr::Interval(interval) => {
+                let num = self.evaluate(&interval.value, record)?;
+                let amount = num.as_i64().unwrap_or(0);
+                let unit = interval
+                    .leading_field
+                    .as_ref()
+                    .map(|f| format!("{:?}", f).to_uppercase())
+                    .unwrap_or_else(|| "SECOND".to_string());
+                let interval_val = match unit.as_str() {
+                    "YEAR" => yachtsql_core::types::Interval::from_months(amount as i32 * 12),
+                    "MONTH" => yachtsql_core::types::Interval::from_months(amount as i32),
+                    "DAY" => yachtsql_core::types::Interval::from_days(amount as i32),
+                    "HOUR" => yachtsql_core::types::Interval::from_hours(amount),
+                    "MINUTE" => yachtsql_core::types::Interval::new(
+                        0,
+                        0,
+                        amount * yachtsql_core::types::Interval::MICROS_PER_MINUTE,
+                    ),
+                    "SECOND" => yachtsql_core::types::Interval::new(
+                        0,
+                        0,
+                        amount * yachtsql_core::types::Interval::MICROS_PER_SECOND,
+                    ),
+                    _ => yachtsql_core::types::Interval::new(0, amount as i32, 0),
+                };
+                Ok(Value::interval(interval_val))
+            }
+
+            Expr::Extract { field, expr, .. } => {
+                let val = self.evaluate(expr, record)?;
+                if val.is_null() {
+                    return Ok(Value::null());
+                }
+
+                let field_str = format!("{}", field);
+                if let Some(date) = val.as_date() {
+                    let result = match field_str.to_uppercase().as_str() {
+                        "YEAR" => date.year() as i64,
+                        "MONTH" => date.month() as i64,
+                        "DAY" => date.day() as i64,
+                        "DAYOFWEEK" => date.weekday().num_days_from_sunday() as i64 + 1,
+                        "DAYOFYEAR" => date.ordinal() as i64,
+                        "WEEK" => date.iso_week().week() as i64,
+                        "QUARTER" => ((date.month() - 1) / 3 + 1) as i64,
+                        _ => {
+                            return Err(Error::UnsupportedFeature(format!(
+                                "EXTRACT {} not supported for DATE",
+                                field_str
+                            )));
+                        }
+                    };
+                    return Ok(Value::int64(result));
+                }
+
+                if let Some(ts) = val.as_timestamp() {
+                    let result = match field_str.to_uppercase().as_str() {
+                        "YEAR" => ts.year() as i64,
+                        "MONTH" => ts.month() as i64,
+                        "DAY" => ts.day() as i64,
+                        "HOUR" => ts.hour() as i64,
+                        "MINUTE" => ts.minute() as i64,
+                        "SECOND" => ts.second() as i64,
+                        "DAYOFWEEK" => ts.weekday().num_days_from_sunday() as i64 + 1,
+                        "DAYOFYEAR" => ts.ordinal() as i64,
+                        "WEEK" => ts.iso_week().week() as i64,
+                        "QUARTER" => ((ts.month() - 1) / 3 + 1) as i64,
+                        _ => {
+                            return Err(Error::UnsupportedFeature(format!(
+                                "EXTRACT {} not supported for TIMESTAMP",
+                                field_str
+                            )));
+                        }
+                    };
+                    return Ok(Value::int64(result));
+                }
+
+                if let Some(time) = val.as_time() {
+                    let result = match field_str.to_uppercase().as_str() {
+                        "HOUR" => time.hour() as i64,
+                        "MINUTE" => time.minute() as i64,
+                        "SECOND" => time.second() as i64,
+                        "MILLISECOND" => (time.nanosecond() / 1_000_000) as i64,
+                        "MICROSECOND" => (time.nanosecond() / 1_000) as i64,
+                        _ => {
+                            return Err(Error::UnsupportedFeature(format!(
+                                "EXTRACT {} not supported for TIME",
+                                field_str
+                            )));
+                        }
+                    };
+                    return Ok(Value::int64(result));
+                }
+
+                Err(Error::TypeMismatch {
+                    expected: "DATE, TIME, or TIMESTAMP".to_string(),
+                    actual: val.data_type().to_string(),
+                })
+            }
+
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression type not yet supported: {:?}",
                 expr
@@ -342,7 +506,7 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn evaluate_struct_expr(&self, values: &[Expr], row: &Row) -> Result<Value> {
+    fn evaluate_struct_expr(&self, values: &[Expr], record: &Record) -> Result<Value> {
         let mut struct_fields = indexmap::IndexMap::new();
         for (i, expr) in values.iter().enumerate() {
             match expr {
@@ -350,11 +514,11 @@ impl<'a> Evaluator<'a> {
                     expr: inner_expr,
                     name,
                 } => {
-                    let val = self.evaluate(inner_expr, row)?;
+                    let val = self.evaluate(inner_expr, record)?;
                     struct_fields.insert(name.value.clone(), val);
                 }
                 _ => {
-                    let val = self.evaluate(expr, row)?;
+                    let val = self.evaluate(expr, record)?;
                     struct_fields.insert(format!("_field{}", i), val);
                 }
             }
@@ -427,14 +591,14 @@ impl<'a> Evaluator<'a> {
         &self,
         root: &Expr,
         access_chain: &[sqlparser::ast::AccessExpr],
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
-        let mut current = self.evaluate(root, row)?;
+        let mut current = self.evaluate(root, record)?;
 
         for access in access_chain {
             match access {
                 sqlparser::ast::AccessExpr::Subscript(subscript) => {
-                    current = self.apply_subscript(current, subscript, row)?;
+                    current = self.apply_subscript(current, subscript, record)?;
                 }
                 sqlparser::ast::AccessExpr::Dot(field_expr) => match field_expr {
                     Expr::Identifier(ident) => {
@@ -465,11 +629,11 @@ impl<'a> Evaluator<'a> {
         &self,
         base_val: Value,
         subscript: &sqlparser::ast::Subscript,
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
         match subscript {
             sqlparser::ast::Subscript::Index { index } => {
-                let idx_val = self.evaluate(index, row)?;
+                let idx_val = self.evaluate(index, record)?;
                 let idx = idx_val.as_i64().ok_or_else(|| Error::TypeMismatch {
                     expected: "INT64".to_string(),
                     actual: idx_val.data_type().to_string(),
@@ -524,37 +688,37 @@ impl<'a> Evaluator<'a> {
         operand: Option<&Expr>,
         conditions: &[sqlparser::ast::CaseWhen],
         else_result: Option<&Expr>,
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
         match operand {
             Some(op_expr) => {
-                let op_val = self.evaluate(op_expr, row)?;
+                let op_val = self.evaluate(op_expr, record)?;
                 for cond in conditions {
-                    let when_val = self.evaluate(&cond.condition, row)?;
+                    let when_val = self.evaluate(&cond.condition, record)?;
                     if op_val == when_val {
-                        return self.evaluate(&cond.result, row);
+                        return self.evaluate(&cond.result, record);
                     }
                 }
             }
             None => {
                 for cond in conditions {
-                    let cond_val = self.evaluate(&cond.condition, row)?;
+                    let cond_val = self.evaluate(&cond.condition, record)?;
                     if let Some(true) = cond_val.as_bool() {
-                        return self.evaluate(&cond.result, row);
+                        return self.evaluate(&cond.result, record);
                     }
                 }
             }
         }
         match else_result {
-            Some(else_expr) => self.evaluate(else_expr, row),
+            Some(else_expr) => self.evaluate(else_expr, record),
             None => Ok(Value::null()),
         }
     }
 
-    fn evaluate_array(&self, arr: &sqlparser::ast::Array, row: &Row) -> Result<Value> {
+    fn evaluate_array(&self, arr: &sqlparser::ast::Array, record: &Record) -> Result<Value> {
         let mut values = Vec::with_capacity(arr.elem.len());
         for elem in &arr.elem {
-            values.push(self.evaluate(elem, row)?);
+            values.push(self.evaluate(elem, record)?);
         }
         Ok(Value::array(values))
     }
@@ -564,16 +728,16 @@ impl<'a> Evaluator<'a> {
         expr: &Expr,
         list: &[Expr],
         negated: bool,
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
-        let val = self.evaluate(expr, row)?;
+        let val = self.evaluate(expr, record)?;
         if val.is_null() {
             return Ok(Value::null());
         }
         let mut found = false;
         let mut has_null = false;
         for item in list {
-            let item_val = self.evaluate(item, row)?;
+            let item_val = self.evaluate(item, record)?;
             if item_val.is_null() {
                 has_null = true;
             } else if val == item_val {
@@ -597,11 +761,11 @@ impl<'a> Evaluator<'a> {
         low: &Expr,
         high: &Expr,
         negated: bool,
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
-        let val = self.evaluate(expr, row)?;
-        let low_val = self.evaluate(low, row)?;
-        let high_val = self.evaluate(high, row)?;
+        let val = self.evaluate(expr, record)?;
+        let low_val = self.evaluate(low, record)?;
+        let high_val = self.evaluate(high, record)?;
 
         if val.is_null() || low_val.is_null() || high_val.is_null() {
             return Ok(Value::null());
@@ -619,10 +783,10 @@ impl<'a> Evaluator<'a> {
         expr: &Expr,
         pattern: &Expr,
         negated: bool,
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
-        let val = self.evaluate(expr, row)?;
-        let pat = self.evaluate(pattern, row)?;
+        let val = self.evaluate(expr, record)?;
+        let pat = self.evaluate(pattern, record)?;
 
         if val.is_null() || pat.is_null() {
             return Ok(Value::null());
@@ -646,10 +810,10 @@ impl<'a> Evaluator<'a> {
         expr: &Expr,
         pattern: &Expr,
         negated: bool,
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
-        let val = self.evaluate(expr, row)?;
-        let pat = self.evaluate(pattern, row)?;
+        let val = self.evaluate(expr, record)?;
+        let pat = self.evaluate(pattern, record)?;
 
         if val.is_null() || pat.is_null() {
             return Ok(Value::null());
@@ -687,9 +851,9 @@ impl<'a> Evaluator<'a> {
         &self,
         expr: &Expr,
         target_type: &sqlparser::ast::DataType,
-        row: &Row,
+        record: &Record,
     ) -> Result<Value> {
-        let val = self.evaluate(expr, row)?;
+        let val = self.evaluate(expr, record)?;
         if val.is_null() {
             return Ok(Value::null());
         }
@@ -877,7 +1041,9 @@ impl<'a> Evaluator<'a> {
                 Ok(Value::string(s.clone()))
             }
             SqlValue::SingleQuotedByteStringLiteral(s)
-            | SqlValue::DoubleQuotedByteStringLiteral(s) => Ok(Value::bytes(s.as_bytes().to_vec())),
+            | SqlValue::DoubleQuotedByteStringLiteral(s) => {
+                Ok(Value::bytes(parse_byte_string_escapes(s)))
+            }
             SqlValue::Boolean(b) => Ok(Value::bool_val(*b)),
             SqlValue::Null => Ok(Value::null()),
             SqlValue::HexStringLiteral(s) => {
@@ -1105,9 +1271,9 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn evaluate_function(&self, func: &sqlparser::ast::Function, row: &Row) -> Result<Value> {
+    fn evaluate_function(&self, func: &sqlparser::ast::Function, record: &Record) -> Result<Value> {
         let name = func.name.to_string().to_uppercase();
-        let args = self.extract_function_args(func, row)?;
+        let args = self.extract_function_args(func, record)?;
 
         match name.as_str() {
             "COALESCE" => {
@@ -2672,7 +2838,7 @@ impl<'a> Evaluator<'a> {
     fn extract_function_args(
         &self,
         func: &sqlparser::ast::Function,
-        row: &Row,
+        record: &Record,
     ) -> Result<Vec<Value>> {
         let mut args = Vec::new();
         if let sqlparser::ast::FunctionArguments::List(arg_list) = &func.args {
@@ -2681,7 +2847,7 @@ impl<'a> Evaluator<'a> {
                     sqlparser::ast::FunctionArgExpr::Expr(expr),
                 ) = arg
                 {
-                    args.push(self.evaluate(expr, row)?);
+                    args.push(self.evaluate(expr, record)?);
                 }
             }
         }
@@ -2701,8 +2867,8 @@ impl<'a> Evaluator<'a> {
         std::cmp::Ordering::Equal
     }
 
-    pub fn evaluate_to_bool(&self, expr: &Expr, row: &Row) -> Result<bool> {
-        let val = self.evaluate(expr, row)?;
+    pub fn evaluate_to_bool(&self, expr: &Expr, record: &Record) -> Result<bool> {
+        let val = self.evaluate(expr, record)?;
         if val.is_null() {
             return Ok(false);
         }

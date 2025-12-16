@@ -1,6 +1,5 @@
 use sqlparser::ast::CteAsMaterialized;
 use yachtsql_core::types::DataType;
-use yachtsql_storage::schema::GeneratedExpression;
 
 use crate::expr::Expr;
 
@@ -337,7 +336,6 @@ pub enum AlterTableOperation {
         if_not_exists: bool,
         not_null: bool,
         default_value: Option<Expr>,
-        generated_expression: Option<GeneratedExpression>,
     },
     DropColumn {
         column_name: String,

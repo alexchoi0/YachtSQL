@@ -2,27 +2,18 @@ use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, Value};
 
 use super::Table;
-use crate::storage_backend::{StorageBackend, TableStorage};
 use crate::{Column, Field, Schema};
 
 pub trait TableSchemaOps {
     fn add_column(&mut self, field: Field, default_value: Option<Value>) -> Result<()>;
-
     fn drop_column(&mut self, column_name: &str) -> Result<()>;
-
     fn rename_column(&mut self, old_name: &str, new_name: &str) -> Result<()>;
-
     fn alter_column(
         &mut self,
         column_name: &str,
         new_data_type: Option<DataType>,
         set_not_null: Option<bool>,
-        set_default: Option<Value>,
-        drop_default: bool,
     ) -> Result<()>;
-
-    fn rename_table(&mut self, new_name: &str) -> Result<()>;
-
     fn schema_mut(&mut self) -> &mut Schema;
 }
 
@@ -44,40 +35,27 @@ impl TableSchemaOps for Table {
         }
 
         let value_to_insert = default_value.unwrap_or(Value::null());
+        let mut column = Column::new(&field.data_type, 100);
 
-        let current_row_count = self.row_count();
-
-        match &mut self.storage {
-            StorageBackend::Columnar(storage) => {
-                let mut column = Column::new(&field.data_type, 100);
-
-                if current_row_count > 0 {
-                    for _ in 0..current_row_count {
-                        column.push(value_to_insert.clone())?;
-                    }
-                }
-
-                storage.columns_mut().insert(field.name.clone(), column);
-            }
-            StorageBackend::Row(storage) => {
-                if current_row_count > 0 {
-                    storage.add_column_with_default(value_to_insert)?;
-                }
+        if current_row_count > 0 {
+            for _ in 0..current_row_count {
+                column.push(value_to_insert.clone())?;
             }
         }
 
+        self.storage
+            .columns_mut()
+            .insert(field.name.clone(), column);
+
         let mut new_fields = self.schema.fields().to_vec();
         new_fields.push(field);
-        let mut new_schema = Schema::from_fields(new_fields);
-        copy_constraints_to_schema(self, &mut new_schema);
-        self.schema = new_schema;
+        self.schema = Schema::from_fields(new_fields);
 
         Ok(())
     }
 
     fn drop_column(&mut self, column_name: &str) -> Result<()> {
-        let col_idx = self
-            .schema
+        self.schema
             .field_index(column_name)
             .ok_or_else(|| Error::invalid_query(format!("Column '{}' not found", column_name)))?;
 
@@ -87,14 +65,7 @@ impl TableSchemaOps for Table {
             ));
         }
 
-        match &mut self.storage {
-            StorageBackend::Columnar(storage) => {
-                storage.columns_mut().shift_remove(column_name);
-            }
-            StorageBackend::Row(storage) => {
-                storage.drop_column_at_index(col_idx)?;
-            }
-        }
+        self.storage.columns_mut().shift_remove(column_name);
 
         let new_fields: Vec<Field> = self
             .schema
@@ -103,16 +74,12 @@ impl TableSchemaOps for Table {
             .filter(|f| f.name != column_name)
             .cloned()
             .collect();
-        let mut new_schema = Schema::from_fields(new_fields);
-        copy_constraints_excluding_column(self, &mut new_schema, column_name);
-        self.schema = new_schema;
+        self.schema = Schema::from_fields(new_fields);
 
         Ok(())
     }
 
     fn rename_column(&mut self, old_name: &str, new_name: &str) -> Result<()> {
-        use crate::schema::CheckConstraint;
-
         if self.schema.field_index(old_name).is_none() {
             return Err(Error::invalid_query(format!(
                 "Column '{}' not found",
@@ -127,10 +94,10 @@ impl TableSchemaOps for Table {
             )));
         }
 
-        if let StorageBackend::Columnar(storage) = &mut self.storage
-            && let Some(column) = storage.columns_mut().shift_remove(old_name)
-        {
-            storage.columns_mut().insert(new_name.to_string(), column);
+        if let Some(column) = self.storage.columns_mut().shift_remove(old_name) {
+            self.storage
+                .columns_mut()
+                .insert(new_name.to_string(), column);
         }
 
         let new_fields: Vec<Field> = self
@@ -144,15 +111,7 @@ impl TableSchemaOps for Table {
                         data_type: f.data_type.clone(),
                         mode: f.mode,
                         description: f.description.clone(),
-                        default_value: f.default_value.clone(),
-                        is_unique: f.is_unique,
-                        identity_generation: f.identity_generation,
-                        identity_sequence_name: f.identity_sequence_name.clone(),
-                        identity_sequence_config: f.identity_sequence_config.clone(),
-                        generated_expression: f.generated_expression.clone(),
-                        collation: f.collation.clone(),
                         source_table: f.source_table.clone(),
-                        domain_name: f.domain_name.clone(),
                     }
                 } else {
                     f.clone()
@@ -160,54 +119,7 @@ impl TableSchemaOps for Table {
             })
             .collect();
 
-        let mut new_schema = Schema::from_fields(new_fields);
-
-        if let Some(pk) = self.schema.primary_key() {
-            let new_pk: Vec<String> = pk
-                .iter()
-                .map(|col| {
-                    if col == old_name {
-                        new_name.to_string()
-                    } else {
-                        col.clone()
-                    }
-                })
-                .collect();
-            new_schema.set_primary_key(new_pk);
-        }
-
-        for unique in self.schema.unique_constraints() {
-            let new_columns: Vec<String> = unique
-                .columns
-                .iter()
-                .map(|col| {
-                    if col == old_name {
-                        new_name.to_string()
-                    } else {
-                        col.clone()
-                    }
-                })
-                .collect();
-            new_schema.add_unique_constraint(crate::schema::UniqueConstraint {
-                name: unique.name.clone(),
-                columns: new_columns,
-                enforced: unique.enforced,
-                nulls_distinct: unique.nulls_distinct,
-            });
-        }
-
-        for check in self.schema.check_constraints() {
-            let updated_expression =
-                rename_column_in_expression(&check.expression, old_name, new_name);
-            let updated_check = CheckConstraint {
-                name: check.name.clone(),
-                expression: updated_expression,
-                enforced: check.enforced,
-            };
-            new_schema.add_check_constraint(updated_check);
-        }
-
-        self.schema = new_schema;
+        self.schema = Schema::from_fields(new_fields);
 
         Ok(())
     }
@@ -217,10 +129,8 @@ impl TableSchemaOps for Table {
         column_name: &str,
         new_data_type: Option<DataType>,
         set_not_null: Option<bool>,
-        _set_default: Option<Value>,
-        _drop_default: bool,
     ) -> Result<()> {
-        if !self.column_map().contains_key(column_name) {
+        if !self.storage.columns().contains_key(column_name) {
             return Err(Error::invalid_query(format!(
                 "Column '{}' not found",
                 column_name
@@ -228,12 +138,11 @@ impl TableSchemaOps for Table {
         }
 
         if let Some(true) = set_not_null {
-            let col_idx = self.schema.field_index(column_name).unwrap();
-            let row_count = self.row_count();
+            let column = self.storage.columns().get(column_name).unwrap();
 
-            for row_idx in 0..row_count {
-                let row = self.get_row(row_idx)?;
-                if row.values()[col_idx].is_null() {
+            for i in 0..column.len() {
+                let value = column.get(i)?;
+                if value.is_null() {
                     return Err(Error::invalid_query(format!(
                         "Cannot add NOT NULL constraint to column '{}': existing data contains NULL values",
                         column_name
@@ -266,84 +175,12 @@ impl TableSchemaOps for Table {
             }
         }
 
-        let mut new_schema = Schema::from_fields(new_fields);
-        copy_constraints_to_schema(self, &mut new_schema);
-        self.schema = new_schema;
-        Ok(())
-    }
-
-    fn rename_table(&mut self, _new_name: &str) -> Result<()> {
+        self.schema = Schema::from_fields(new_fields);
         Ok(())
     }
 
     fn schema_mut(&mut self) -> &mut Schema {
         &mut self.schema
-    }
-}
-
-pub(super) fn copy_constraints_to_schema(table: &Table, target_schema: &mut Schema) {
-    if let Some(pk) = table.schema.primary_key() {
-        target_schema.set_primary_key(pk.to_vec());
-    }
-
-    for unique in table.schema.unique_constraints() {
-        target_schema.add_unique_constraint(unique.clone());
-    }
-
-    for check in table.schema.check_constraints() {
-        target_schema.add_check_constraint(check.clone());
-    }
-}
-
-pub(super) fn copy_constraints_excluding_column(
-    table: &Table,
-    target_schema: &mut Schema,
-    excluded_column: &str,
-) {
-    if let Some(pk) = table.schema.primary_key() {
-        let new_pk: Vec<String> = pk
-            .iter()
-            .filter(|col| *col != excluded_column)
-            .cloned()
-            .collect();
-        if !new_pk.is_empty() {
-            target_schema.set_primary_key(new_pk);
-        }
-    }
-
-    for unique in table.schema.unique_constraints() {
-        let new_columns: Vec<String> = unique
-            .columns
-            .iter()
-            .filter(|col| *col != excluded_column)
-            .cloned()
-            .collect();
-        if !new_columns.is_empty() {
-            target_schema.add_unique_constraint(crate::schema::UniqueConstraint {
-                name: unique.name.clone(),
-                columns: new_columns,
-                enforced: unique.enforced,
-                nulls_distinct: unique.nulls_distinct,
-            });
-        }
-    }
-
-    for check in table.schema.check_constraints() {
-        target_schema.add_check_constraint(check.clone());
-    }
-}
-
-fn rename_column_in_expression(expression: &str, old_name: &str, new_name: &str) -> String {
-    let pattern = format!(
-        r"(^|[\s(,])({})($|[\s),<>=!+\-*/])",
-        regex::escape(old_name)
-    );
-
-    if let Ok(re) = regex::Regex::new(&pattern) {
-        re.replace_all(expression, format!("${{1}}{}${{3}}", new_name))
-            .to_string()
-    } else {
-        expression.to_string()
     }
 }
 
@@ -353,38 +190,22 @@ impl Table {
         column_name: &str,
         new_type: &DataType,
     ) -> Result<()> {
-        match &mut self.storage {
-            StorageBackend::Columnar(storage) => {
-                let old_column = storage.columns_mut().get_mut(column_name).ok_or_else(|| {
-                    Error::invalid_query(format!("Column '{}' not found", column_name))
-                })?;
+        let old_column = self
+            .storage
+            .columns_mut()
+            .get_mut(column_name)
+            .ok_or_else(|| Error::invalid_query(format!("Column '{}' not found", column_name)))?;
 
-                let row_count = old_column.len();
-                let mut new_column = Column::new(new_type, row_count);
+        let row_count = old_column.len();
+        let mut new_column = Column::new(new_type, row_count);
 
-                for i in 0..row_count {
-                    let old_value = old_column.get(i)?;
-                    let new_value = convert_value_to_type(&old_value, new_type)?;
-                    new_column.push(new_value)?;
-                }
-
-                *old_column = new_column;
-            }
-            StorageBackend::Row(storage) => {
-                let col_idx = self.schema.field_index(column_name).ok_or_else(|| {
-                    Error::invalid_query(format!("Column '{}' not found", column_name))
-                })?;
-
-                let row_count = storage.row_count();
-                for row_idx in 0..row_count {
-                    let row = storage.get_row(row_idx, &self.schema)?;
-                    let old_value = &row.values()[col_idx];
-                    let new_value = convert_value_to_type(old_value, new_type)?;
-
-                    storage.update_cell(row_idx, col_idx, new_value)?;
-                }
-            }
+        for i in 0..row_count {
+            let old_value = old_column.get(i)?;
+            let new_value = convert_value_to_type(&old_value, new_type)?;
+            new_column.push(new_value)?;
         }
+
+        *old_column = new_column;
 
         Ok(())
     }

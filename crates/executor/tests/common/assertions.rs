@@ -1,6 +1,6 @@
 use yachtsql::Table;
 use yachtsql_core::types::Value;
-use yachtsql_storage::{Row, Schema};
+use yachtsql_storage::Schema;
 
 pub fn assert_batch_eq(actual: &Table, expected: &Table) {
     let mut errors = Vec::new();
@@ -138,8 +138,7 @@ fn format_schema(schema: &Schema) -> String {
 }
 
 pub fn build_batch(schema: Schema, values: Vec<Vec<Value>>) -> Table {
-    let rows = values.into_iter().map(Row::from_values).collect();
-    Table::from_rows(schema, rows).expect("Failed to build Table")
+    Table::from_values(schema, values).expect("Failed to build Table")
 }
 
 fn pretty_print_batch(batch: &Table) -> String {

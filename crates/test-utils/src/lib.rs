@@ -6,9 +6,8 @@
 #![warn(rustdoc::broken_intra_doc_links)]
 #![allow(missing_docs)]
 
-use yachtsql::{QueryExecutor, Result, Schema, Table, Value};
+use yachtsql::{QueryExecutor, Record, Result, Schema, Table, Value};
 use yachtsql_parser::DialectType;
-use yachtsql_storage::Row;
 
 pub fn setup_executor() -> QueryExecutor {
     QueryExecutor::with_dialect(DialectType::BigQuery)
@@ -26,13 +25,12 @@ pub fn assert_batch_empty(batch: &yachtsql::Table) {
         "expected zero columns but schema has {} fields",
         batch.schema().fields().len()
     );
-    if let Some(cols) = batch.columns() {
-        assert!(
-            cols.is_empty(),
-            "expected zero column buffers but found {}",
-            cols.len()
-        );
-    }
+    let cols = batch.columns();
+    assert!(
+        cols.is_empty(),
+        "expected zero column buffers but found {}",
+        cols.len()
+    );
 }
 
 pub fn assert_float_eq(actual: f64, expected: f64, epsilon: f64) {
@@ -527,8 +525,8 @@ pub fn assert_exception_message_contains(diag: &yachtsql::Table, fragments: &[&s
 }
 
 pub fn build_batch(schema: Schema, rows: Vec<Vec<Value>>) -> Table {
-    let row_objs: Vec<Row> = rows.into_iter().map(Row::from_values).collect();
-    Table::from_rows(schema, row_objs).expect("Failed to build Table")
+    let row_objs: Vec<Record> = rows.into_iter().map(Record::from_values).collect();
+    Table::from_records(schema, row_objs).expect("Failed to build Table")
 }
 
 fn values_equal(actual: &Value, expected: &Value, epsilon: f64) -> bool {

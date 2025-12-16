@@ -17,10 +17,11 @@ use sqlparser::parser::Parser;
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::{DataType, StructField, Value};
 use yachtsql_parser::DialectType;
-use yachtsql_storage::{Column, Field, Row, Schema};
+use yachtsql_storage::{Column, Field, Schema};
 
 use crate::catalog::{Catalog, TableData};
-use crate::evaluator::Evaluator;
+use crate::evaluator::{Evaluator, parse_byte_string_escapes};
+use crate::record::Record;
 use crate::table::Table;
 
 pub struct QueryExecutor {
@@ -162,12 +163,13 @@ impl QueryExecutor {
             }
         }
 
-        Table::from_rows(schema, rows)
+        let values: Vec<Vec<Value>> = rows.into_iter().map(|r| r.into_values()).collect();
+        Table::from_values(schema, values)
     }
 
-    fn evaluate_select_without_from(&self, select: &Select) -> Result<(Schema, Vec<Row>)> {
+    fn evaluate_select_without_from(&self, select: &Select) -> Result<(Schema, Vec<Record>)> {
         let empty_schema = Schema::new();
-        let empty_row = Row::from_values(vec![]);
+        let empty_record = Record::from_values(vec![]);
         let evaluator = Evaluator::new(&empty_schema);
 
         let mut result_values = Vec::new();
@@ -176,12 +178,12 @@ impl QueryExecutor {
         for (idx, item) in select.projection.iter().enumerate() {
             match item {
                 SelectItem::UnnamedExpr(expr) => {
-                    let val = evaluator.evaluate(expr, &empty_row)?;
+                    let val = evaluator.evaluate(expr, &empty_record)?;
                     result_values.push(val.clone());
                     field_names.push(self.expr_to_alias(expr, idx));
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
-                    let val = evaluator.evaluate(expr, &empty_row)?;
+                    let val = evaluator.evaluate(expr, &empty_record)?;
                     result_values.push(val.clone());
                     field_names.push(alias.value.clone());
                 }
@@ -200,16 +202,16 @@ impl QueryExecutor {
             .collect();
 
         let schema = Schema::from_fields(fields);
-        let row = Row::from_values(result_values);
+        let row = Record::from_values(result_values);
 
         Ok((schema, vec![row]))
     }
 
-    fn evaluate_select_with_from(&self, select: &Select) -> Result<(Schema, Vec<Row>)> {
+    fn evaluate_select_with_from(&self, select: &Select) -> Result<(Schema, Vec<Record>)> {
         let (input_schema, input_rows) = self.get_from_data(&select.from)?;
         let evaluator = Evaluator::new(&input_schema);
 
-        let mut filtered_rows: Vec<Row> = if let Some(selection) = &select.selection {
+        let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
             input_rows
                 .iter()
                 .filter(|row| evaluator.evaluate_to_bool(selection, row).unwrap_or(false))
@@ -245,11 +247,11 @@ impl QueryExecutor {
         &self,
         select: &Select,
         order_by: &Option<OrderBy>,
-    ) -> Result<(Schema, Vec<Row>, bool)> {
+    ) -> Result<(Schema, Vec<Record>, bool)> {
         let (input_schema, input_rows) = self.get_from_data(&select.from)?;
         let evaluator = Evaluator::new(&input_schema);
 
-        let mut filtered_rows: Vec<Row> = if let Some(selection) = &select.selection {
+        let mut filtered_rows: Vec<Record> = if let Some(selection) = &select.selection {
             input_rows
                 .iter()
                 .filter(|row| evaluator.evaluate_to_bool(selection, row).unwrap_or(false))
@@ -356,7 +358,7 @@ impl QueryExecutor {
         false
     }
 
-    fn get_from_data(&self, from: &[TableWithJoins]) -> Result<(Schema, Vec<Row>)> {
+    fn get_from_data(&self, from: &[TableWithJoins]) -> Result<(Schema, Vec<Record>)> {
         if from.is_empty() {
             return Err(Error::InvalidQuery("FROM clause is empty".to_string()));
         }
@@ -396,7 +398,7 @@ impl QueryExecutor {
         Ok((schema, rows))
     }
 
-    fn get_table_factor_data(&self, table_factor: &TableFactor) -> Result<(Schema, Vec<Row>)> {
+    fn get_table_factor_data(&self, table_factor: &TableFactor) -> Result<(Schema, Vec<Record>)> {
         match table_factor {
             TableFactor::Table { name, alias, .. } => {
                 let table_name = name.to_string();
@@ -477,11 +479,11 @@ impl QueryExecutor {
     fn execute_join(
         &self,
         left_schema: &Schema,
-        left_rows: &[Row],
+        left_rows: &[Record],
         right_schema: &Schema,
-        right_rows: &[Row],
+        right_rows: &[Record],
         join_op: &ast::JoinOperator,
-    ) -> Result<(Schema, Vec<Row>)> {
+    ) -> Result<(Schema, Vec<Record>)> {
         let combined_schema = Schema::from_fields(
             left_schema
                 .fields()
@@ -538,27 +540,27 @@ impl QueryExecutor {
         &self,
         combined_schema: &Schema,
         left_schema: &Schema,
-        left_rows: &[Row],
+        left_rows: &[Record],
         right_schema: &Schema,
-        right_rows: &[Row],
+        right_rows: &[Record],
         constraint: &ast::JoinConstraint,
-    ) -> Result<(Schema, Vec<Row>)> {
+    ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::new(combined_schema);
         let mut result_rows = Vec::new();
 
-        for left_row in left_rows {
-            for right_row in right_rows {
-                let combined_values: Vec<Value> = left_row
+        for left_record in left_rows {
+            for right_record in right_rows {
+                let combined_values: Vec<Value> = left_record
                     .values()
                     .iter()
-                    .chain(right_row.values().iter())
+                    .chain(right_record.values().iter())
                     .cloned()
                     .collect();
-                let combined_row = Row::from_values(combined_values);
+                let combined_record = Record::from_values(combined_values);
 
                 let matches = match constraint {
                     ast::JoinConstraint::On(expr) => {
-                        evaluator.evaluate_to_bool(expr, &combined_row)?
+                        evaluator.evaluate_to_bool(expr, &combined_record)?
                     }
                     ast::JoinConstraint::None => true,
                     _ => {
@@ -569,7 +571,7 @@ impl QueryExecutor {
                 };
 
                 if matches {
-                    result_rows.push(combined_row);
+                    result_rows.push(combined_record);
                 }
             }
         }
@@ -581,31 +583,31 @@ impl QueryExecutor {
         &self,
         combined_schema: &Schema,
         left_schema: &Schema,
-        left_rows: &[Row],
+        left_rows: &[Record],
         right_schema: &Schema,
-        right_rows: &[Row],
+        right_rows: &[Record],
         constraint: &ast::JoinConstraint,
-    ) -> Result<(Schema, Vec<Row>)> {
+    ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::new(combined_schema);
         let mut result_rows = Vec::new();
         let null_right: Vec<Value> = (0..right_schema.field_count())
             .map(|_| Value::null())
             .collect();
 
-        for left_row in left_rows {
+        for left_record in left_rows {
             let mut found_match = false;
-            for right_row in right_rows {
-                let combined_values: Vec<Value> = left_row
+            for right_record in right_rows {
+                let combined_values: Vec<Value> = left_record
                     .values()
                     .iter()
-                    .chain(right_row.values().iter())
+                    .chain(right_record.values().iter())
                     .cloned()
                     .collect();
-                let combined_row = Row::from_values(combined_values);
+                let combined_record = Record::from_values(combined_values);
 
                 let matches = match constraint {
                     ast::JoinConstraint::On(expr) => {
-                        evaluator.evaluate_to_bool(expr, &combined_row)?
+                        evaluator.evaluate_to_bool(expr, &combined_record)?
                     }
                     ast::JoinConstraint::None => true,
                     _ => {
@@ -616,18 +618,18 @@ impl QueryExecutor {
                 };
 
                 if matches {
-                    result_rows.push(combined_row);
+                    result_rows.push(combined_record);
                     found_match = true;
                 }
             }
             if !found_match {
-                let combined_values: Vec<Value> = left_row
+                let combined_values: Vec<Value> = left_record
                     .values()
                     .iter()
                     .chain(null_right.iter())
                     .cloned()
                     .collect();
-                result_rows.push(Row::from_values(combined_values));
+                result_rows.push(Record::from_values(combined_values));
             }
         }
 
@@ -638,31 +640,31 @@ impl QueryExecutor {
         &self,
         combined_schema: &Schema,
         left_schema: &Schema,
-        left_rows: &[Row],
+        left_rows: &[Record],
         right_schema: &Schema,
-        right_rows: &[Row],
+        right_rows: &[Record],
         constraint: &ast::JoinConstraint,
-    ) -> Result<(Schema, Vec<Row>)> {
+    ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::new(combined_schema);
         let mut result_rows = Vec::new();
         let null_left: Vec<Value> = (0..left_schema.field_count())
             .map(|_| Value::null())
             .collect();
 
-        for right_row in right_rows {
+        for right_record in right_rows {
             let mut found_match = false;
-            for left_row in left_rows {
-                let combined_values: Vec<Value> = left_row
+            for left_record in left_rows {
+                let combined_values: Vec<Value> = left_record
                     .values()
                     .iter()
-                    .chain(right_row.values().iter())
+                    .chain(right_record.values().iter())
                     .cloned()
                     .collect();
-                let combined_row = Row::from_values(combined_values);
+                let combined_record = Record::from_values(combined_values);
 
                 let matches = match constraint {
                     ast::JoinConstraint::On(expr) => {
-                        evaluator.evaluate_to_bool(expr, &combined_row)?
+                        evaluator.evaluate_to_bool(expr, &combined_record)?
                     }
                     ast::JoinConstraint::None => true,
                     _ => {
@@ -673,17 +675,17 @@ impl QueryExecutor {
                 };
 
                 if matches {
-                    result_rows.push(combined_row);
+                    result_rows.push(combined_record);
                     found_match = true;
                 }
             }
             if !found_match {
                 let combined_values: Vec<Value> = null_left
                     .iter()
-                    .chain(right_row.values().iter())
+                    .chain(right_record.values().iter())
                     .cloned()
                     .collect();
-                result_rows.push(Row::from_values(combined_values));
+                result_rows.push(Record::from_values(combined_values));
             }
         }
 
@@ -694,11 +696,11 @@ impl QueryExecutor {
         &self,
         combined_schema: &Schema,
         left_schema: &Schema,
-        left_rows: &[Row],
+        left_rows: &[Record],
         right_schema: &Schema,
-        right_rows: &[Row],
+        right_rows: &[Record],
         constraint: &ast::JoinConstraint,
-    ) -> Result<(Schema, Vec<Row>)> {
+    ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::new(combined_schema);
         let mut result_rows = Vec::new();
         let null_left: Vec<Value> = (0..left_schema.field_count())
@@ -709,20 +711,20 @@ impl QueryExecutor {
             .collect();
         let mut right_matched: Vec<bool> = vec![false; right_rows.len()];
 
-        for left_row in left_rows {
+        for left_record in left_rows {
             let mut found_match = false;
             for (right_idx, right_row) in right_rows.iter().enumerate() {
-                let combined_values: Vec<Value> = left_row
+                let combined_values: Vec<Value> = left_record
                     .values()
                     .iter()
                     .chain(right_row.values().iter())
                     .cloned()
                     .collect();
-                let combined_row = Row::from_values(combined_values);
+                let combined_record = Record::from_values(combined_values);
 
                 let matches = match constraint {
                     ast::JoinConstraint::On(expr) => {
-                        evaluator.evaluate_to_bool(expr, &combined_row)?
+                        evaluator.evaluate_to_bool(expr, &combined_record)?
                     }
                     ast::JoinConstraint::None => true,
                     _ => {
@@ -733,19 +735,19 @@ impl QueryExecutor {
                 };
 
                 if matches {
-                    result_rows.push(combined_row);
+                    result_rows.push(combined_record);
                     found_match = true;
                     right_matched[right_idx] = true;
                 }
             }
             if !found_match {
-                let combined_values: Vec<Value> = left_row
+                let combined_values: Vec<Value> = left_record
                     .values()
                     .iter()
                     .chain(null_right.iter())
                     .cloned()
                     .collect();
-                result_rows.push(Row::from_values(combined_values));
+                result_rows.push(Record::from_values(combined_values));
             }
         }
 
@@ -756,7 +758,7 @@ impl QueryExecutor {
                     .chain(right_row.values().iter())
                     .cloned()
                     .collect();
-                result_rows.push(Row::from_values(combined_values));
+                result_rows.push(Record::from_values(combined_values));
             }
         }
 
@@ -766,10 +768,10 @@ impl QueryExecutor {
     fn execute_cross_join(
         &self,
         left_schema: &Schema,
-        left_rows: &[Row],
+        left_rows: &[Record],
         right_schema: &Schema,
-        right_rows: &[Row],
-    ) -> Result<(Schema, Vec<Row>)> {
+        right_rows: &[Record],
+    ) -> Result<(Schema, Vec<Record>)> {
         let combined_schema = Schema::from_fields(
             left_schema
                 .fields()
@@ -780,15 +782,15 @@ impl QueryExecutor {
         );
 
         let mut result_rows = Vec::new();
-        for left_row in left_rows {
-            for right_row in right_rows {
-                let combined_values: Vec<Value> = left_row
+        for left_record in left_rows {
+            for right_record in right_rows {
+                let combined_values: Vec<Value> = left_record
                     .values()
                     .iter()
-                    .chain(right_row.values().iter())
+                    .chain(right_record.values().iter())
                     .cloned()
                     .collect();
-                result_rows.push(Row::from_values(combined_values));
+                result_rows.push(Record::from_values(combined_values));
             }
         }
 
@@ -862,17 +864,17 @@ impl QueryExecutor {
     fn execute_aggregate_query(
         &self,
         input_schema: &Schema,
-        rows: &[Row],
+        rows: &[Record],
         select: &Select,
-    ) -> Result<(Schema, Vec<Row>)> {
+    ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::new(input_schema);
 
         let group_by_is_empty =
             matches!(&select.group_by, ast::GroupByExpr::Expressions(v, _) if v.is_empty());
-        let groups: Vec<(Vec<Value>, Vec<&Row>)> = if group_by_is_empty {
+        let groups: Vec<(Vec<Value>, Vec<&Record>)> = if group_by_is_empty {
             vec![(vec![], rows.iter().collect())]
         } else {
-            let mut group_map: HashMap<String, (Vec<Value>, Vec<&Row>)> = HashMap::new();
+            let mut group_map: HashMap<String, (Vec<Value>, Vec<&Record>)> = HashMap::new();
 
             for row in rows {
                 let mut group_key_values = Vec::new();
@@ -949,7 +951,7 @@ impl QueryExecutor {
                 );
             }
 
-            result_rows.push(Row::from_values(row_values));
+            result_rows.push(Record::from_values(row_values));
         }
 
         let schema = Schema::from_fields(output_fields.unwrap_or_default());
@@ -977,7 +979,7 @@ impl QueryExecutor {
         &self,
         expr: &Expr,
         input_schema: &Schema,
-        group_rows: &[&Row],
+        group_rows: &[&Record],
         group_key: &[Value],
         group_by: &ast::GroupByExpr,
     ) -> Result<Value> {
@@ -1135,7 +1137,7 @@ impl QueryExecutor {
         name: &str,
         func: &ast::Function,
         input_schema: &Schema,
-        group_rows: &[&Row],
+        group_rows: &[&Record],
     ) -> Result<Value> {
         let evaluator = Evaluator::new(input_schema);
 
@@ -1431,9 +1433,9 @@ impl QueryExecutor {
     fn project_rows(
         &self,
         input_schema: &Schema,
-        rows: &[Row],
+        rows: &[Record],
         projection: &[SelectItem],
-    ) -> Result<(Schema, Vec<Row>)> {
+    ) -> Result<(Schema, Vec<Record>)> {
         let evaluator = Evaluator::new(input_schema);
 
         let mut all_cols: Vec<(String, DataType)> = Vec::new();
@@ -1446,21 +1448,21 @@ impl QueryExecutor {
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
-                    let sample_row = rows.first().cloned().unwrap_or_else(|| {
-                        Row::from_values(vec![Value::null(); input_schema.field_count()])
+                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                        Record::from_values(vec![Value::null(); input_schema.field_count()])
                     });
                     let val = evaluator
-                        .evaluate(expr, &sample_row)
+                        .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
                     let name = self.expr_to_alias(expr, idx);
                     all_cols.push((name, val.data_type()));
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
-                    let sample_row = rows.first().cloned().unwrap_or_else(|| {
-                        Row::from_values(vec![Value::null(); input_schema.field_count()])
+                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
+                        Record::from_values(vec![Value::null(); input_schema.field_count()])
                     });
                     let val = evaluator
-                        .evaluate(expr, &sample_row)
+                        .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
                     all_cols.push((alias.value.clone(), val.data_type()));
                 }
@@ -1493,13 +1495,13 @@ impl QueryExecutor {
                     _ => {}
                 }
             }
-            output_rows.push(Row::from_values(values));
+            output_rows.push(Record::from_values(values));
         }
 
         Ok((output_schema, output_rows))
     }
 
-    fn sort_rows(&self, schema: &Schema, rows: &mut Vec<Row>, order_by: &OrderBy) -> Result<()> {
+    fn sort_rows(&self, schema: &Schema, rows: &mut Vec<Record>, order_by: &OrderBy) -> Result<()> {
         let evaluator = Evaluator::new(schema);
 
         let exprs: &[OrderByExpr] = match &order_by.kind {
@@ -1616,9 +1618,9 @@ impl QueryExecutor {
             .collect();
 
         let schema = Schema::from_fields(fields);
-        let rows: Vec<Row> = all_rows.into_iter().map(Row::from_values).collect();
+        let rows: Vec<Record> = all_rows.into_iter().map(Record::from_values).collect();
 
-        Table::from_rows(schema, rows)
+        Table::from_records(schema, rows)
     }
 
     fn execute_create_table(&mut self, create: &ast::CreateTable) -> Result<Table> {
@@ -1734,7 +1736,7 @@ impl QueryExecutor {
                     }
 
                     let table_data = self.catalog.get_table_mut(&table_name).unwrap();
-                    table_data.rows.push(Row::from_values(row_values));
+                    table_data.rows.push(Record::from_values(row_values));
                 }
             }
             SetExpr::Select(select) => {
@@ -1754,7 +1756,7 @@ impl QueryExecutor {
                     for (val_idx, &col_idx) in column_indices.iter().enumerate() {
                         row_values[col_idx] = values[val_idx].clone();
                     }
-                    table_data.rows.push(Row::from_values(row_values));
+                    table_data.rows.push(Record::from_values(row_values));
                 }
             }
             _ => {
@@ -1814,7 +1816,7 @@ impl QueryExecutor {
                     let new_val = evaluator.evaluate(expr, row)?;
                     values[*col_idx] = new_val;
                 }
-                *row = Row::from_values(values);
+                *row = Record::from_values(values);
             }
         }
 
@@ -2112,7 +2114,9 @@ impl QueryExecutor {
                 Ok(Value::string(s.clone()))
             }
             SqlValue::SingleQuotedByteStringLiteral(s)
-            | SqlValue::DoubleQuotedByteStringLiteral(s) => Ok(Value::bytes(s.as_bytes().to_vec())),
+            | SqlValue::DoubleQuotedByteStringLiteral(s) => {
+                Ok(Value::bytes(parse_byte_string_escapes(s)))
+            }
             SqlValue::HexStringLiteral(s) => {
                 let bytes = hex::decode(s).unwrap_or_default();
                 Ok(Value::bytes(bytes))

@@ -1,9 +1,11 @@
-//! Table data structure for query results.
+//! Table data structure for query results - columnar storage only.
 
 use yachtsql_core::error::{Error, Result};
 use yachtsql_core::types::coercion::CoercionRules;
 use yachtsql_core::types::{DataType, Value};
-use yachtsql_storage::{Column, Row, Schema};
+use yachtsql_storage::{Column, Schema};
+
+use crate::record::Record;
 
 #[inline]
 fn are_types_compatible(col_type: &DataType, schema_type: &DataType) -> bool {
@@ -36,20 +38,13 @@ fn are_types_compatible(col_type: &DataType, schema_type: &DataType) -> bool {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageFormat {
-    Row,
     Column,
-}
-
-#[derive(Debug, Clone)]
-enum StorageData {
-    Rows(Vec<Row>),
-    Columns(Vec<Column>),
 }
 
 #[derive(Debug, Clone)]
 pub struct Table {
     schema: Schema,
-    storage: StorageData,
+    columns: Vec<Column>,
     num_rows: usize,
 }
 
@@ -112,30 +107,43 @@ impl Table {
 
         Ok(Self {
             schema,
-            storage: StorageData::Columns(columns),
+            columns,
             num_rows,
         })
     }
 
-    pub fn from_rows(schema: Schema, rows: Vec<Row>) -> Result<Self> {
-        let num_rows = rows.len();
+    pub fn from_records(schema: Schema, records: Vec<Record>) -> Result<Self> {
+        if records.is_empty() {
+            return Ok(Self::empty(schema));
+        }
 
-        for (i, row) in rows.iter().enumerate() {
-            if row.values().len() != schema.field_count() {
+        let num_rows = records.len();
+        let num_cols = schema.field_count();
+
+        for (i, record) in records.iter().enumerate() {
+            if record.values().len() != num_cols {
                 return Err(Error::schema_mismatch(format!(
-                    "Row {} has {} values, expected {}",
+                    "Record {} has {} values, expected {}",
                     i,
-                    row.values().len(),
-                    schema.field_count()
+                    record.values().len(),
+                    num_cols
                 )));
             }
         }
 
-        Ok(Self {
-            schema,
-            storage: StorageData::Rows(rows),
-            num_rows,
-        })
+        let mut columns: Vec<Column> = schema
+            .fields()
+            .iter()
+            .map(|field| Column::new(&field.data_type, num_rows))
+            .collect();
+
+        for record in records {
+            for (col_idx, value) in record.into_values().into_iter().enumerate() {
+                columns[col_idx].push(value)?;
+            }
+        }
+
+        Self::new(schema, columns)
     }
 
     pub fn empty(schema: Schema) -> Self {
@@ -147,7 +155,7 @@ impl Table {
 
         Self {
             schema,
-            storage: StorageData::Columns(columns),
+            columns,
             num_rows: 0,
         }
     }
@@ -194,27 +202,18 @@ impl Table {
     }
 
     pub fn column(&self, index: usize) -> Option<&Column> {
-        match &self.storage {
-            StorageData::Columns(columns) => columns.get(index),
-            StorageData::Rows(_) => None,
-        }
+        self.columns.get(index)
     }
 
-    pub fn columns(&self) -> Option<&[Column]> {
-        match &self.storage {
-            StorageData::Columns(columns) => Some(columns.as_slice()),
-            StorageData::Rows(_) => None,
-        }
+    pub fn columns(&self) -> &[Column] {
+        &self.columns
     }
 
     pub fn storage_format(&self) -> StorageFormat {
-        match &self.storage {
-            StorageData::Rows(_) => StorageFormat::Row,
-            StorageData::Columns(_) => StorageFormat::Column,
-        }
+        StorageFormat::Column
     }
 
-    pub fn row(&self, index: usize) -> Result<Row> {
+    pub fn row(&self, index: usize) -> Result<Record> {
         if index >= self.num_rows {
             return Err(Error::InvalidOperation(format!(
                 "Row index {} out of bounds (num_rows: {})",
@@ -222,66 +221,22 @@ impl Table {
             )));
         }
 
-        match &self.storage {
-            StorageData::Rows(rows) => Ok(rows[index].clone()),
-            StorageData::Columns(columns) => {
-                let mut values = Vec::with_capacity(self.schema.field_count());
-                for column in columns {
-                    values.push(column.get(index)?);
-                }
-                Ok(Row::from_values(values))
-            }
+        let mut values = Vec::with_capacity(self.schema.field_count());
+        for column in &self.columns {
+            values.push(column.get(index)?);
         }
+        Ok(Record::from_values(values))
     }
 
-    pub fn rows(&self) -> Result<Vec<Row>> {
-        match &self.storage {
-            StorageData::Rows(rows) => Ok(rows.clone()),
-            StorageData::Columns(_) => {
-                let mut result = Vec::with_capacity(self.num_rows);
-                for i in 0..self.num_rows {
-                    result.push(self.row(i)?);
-                }
-                Ok(result)
-            }
+    pub fn rows(&self) -> Result<Vec<Record>> {
+        let mut result = Vec::with_capacity(self.num_rows);
+        for i in 0..self.num_rows {
+            result.push(self.row(i)?);
         }
+        Ok(result)
     }
 
     pub fn is_empty(&self) -> bool {
         self.num_rows == 0
-    }
-
-    pub fn to_column_format(&self) -> Result<Self> {
-        match &self.storage {
-            StorageData::Columns(_) => Ok(self.clone()),
-            StorageData::Rows(rows) => {
-                if rows.is_empty() {
-                    return Ok(Self::empty(self.schema.clone()));
-                }
-
-                let num_cols = self.schema.field_count();
-                let mut columns: Vec<Column> = self
-                    .schema
-                    .fields()
-                    .iter()
-                    .map(|field| Column::new(&field.data_type, self.num_rows))
-                    .collect();
-
-                for row in rows {
-                    let values = row.values();
-                    for (col_idx, value) in values.iter().enumerate() {
-                        if col_idx < num_cols {
-                            columns[col_idx].push(value.clone())?;
-                        }
-                    }
-                }
-
-                Ok(Self {
-                    schema: self.schema.clone(),
-                    storage: StorageData::Columns(columns),
-                    num_rows: self.num_rows,
-                })
-            }
-        }
     }
 }

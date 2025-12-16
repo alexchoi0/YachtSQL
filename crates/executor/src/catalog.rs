@@ -3,12 +3,14 @@
 use std::collections::HashMap;
 
 use yachtsql_core::error::{Error, Result};
-use yachtsql_storage::{Row, Schema};
+use yachtsql_storage::Schema;
+
+use crate::record::Record;
 
 #[derive(Debug, Clone)]
 pub struct TableData {
     pub schema: Schema,
-    pub rows: Vec<Row>,
+    pub rows: Vec<Record>,
 }
 
 impl TableData {
