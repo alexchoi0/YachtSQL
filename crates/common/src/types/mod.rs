@@ -67,8 +67,9 @@ impl fmt::Display for DataType {
     }
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
 pub enum Value {
+    #[default]
     Null,
     Bool(bool),
     Int64(i64),
@@ -468,12 +469,6 @@ impl fmt::Display for Value {
             Value::Geography(v) => write!(f, "{}", v),
             Value::Interval(v) => write!(f, "{}-{} {}", v.months, v.days, v.nanos),
         }
-    }
-}
-
-impl Default for Value {
-    fn default() -> Self {
-        Value::Null
     }
 }
 

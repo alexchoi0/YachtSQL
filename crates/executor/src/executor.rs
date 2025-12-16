@@ -2822,10 +2822,7 @@ impl QueryExecutor {
                             partition_size,
                         );
                         let frame_indices: Vec<usize> = if start_idx <= end_idx {
-                            sorted_indices[start_idx..=end_idx]
-                                .iter()
-                                .copied()
-                                .collect()
+                            sorted_indices[start_idx..=end_idx].to_vec()
                         } else {
                             vec![]
                         };
@@ -2840,8 +2837,7 @@ impl QueryExecutor {
                     }
                 } else if has_order_by {
                     for end_pos in 0..partition_size {
-                        let running_indices: Vec<usize> =
-                            sorted_indices[..=end_pos].iter().copied().collect();
+                        let running_indices: Vec<usize> = sorted_indices[..=end_pos].to_vec();
                         let agg_result = self.compute_window_aggregate(
                             name,
                             func,
@@ -2914,19 +2910,19 @@ impl QueryExecutor {
                         .collect();
 
                     if prev_values.as_ref() != Some(&curr_values) {
-                        for j in group_end..i {
-                            ranks[j] = i;
+                        for rank in ranks.iter_mut().take(i).skip(group_end) {
+                            *rank = i;
                         }
                         group_end = i;
                     }
                     prev_values = Some(curr_values);
                 }
-                for j in group_end..partition_size {
-                    ranks[j] = partition_size;
+                for rank in ranks.iter_mut().take(partition_size).skip(group_end) {
+                    *rank = partition_size;
                 }
 
-                for i in 0..partition_size {
-                    let cume = ranks[i] as f64 / partition_size as f64;
+                for rank in ranks.iter().take(partition_size) {
+                    let cume = *rank as f64 / partition_size as f64;
                     results.push(Value::float64(cume));
                 }
             }

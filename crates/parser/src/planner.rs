@@ -684,6 +684,10 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn sql_type_to_data_type(&self, sql_type: &ast::DataType) -> DataType {
+        Self::convert_sql_type(sql_type)
+    }
+
+    fn convert_sql_type(sql_type: &ast::DataType) -> DataType {
         match sql_type {
             ast::DataType::Boolean | ast::DataType::Bool => DataType::Bool,
             ast::DataType::Int64 | ast::DataType::BigInt(_) => DataType::Int64,
@@ -707,9 +711,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             ast::DataType::JSON | ast::DataType::JSONB => DataType::Json,
             ast::DataType::Array(inner) => {
                 let element_type = match inner {
-                    ast::ArrayElemTypeDef::AngleBracket(dt) => self.sql_type_to_data_type(&dt),
-                    ast::ArrayElemTypeDef::SquareBracket(dt, _) => self.sql_type_to_data_type(&dt),
-                    ast::ArrayElemTypeDef::Parenthesis(dt) => self.sql_type_to_data_type(&dt),
+                    ast::ArrayElemTypeDef::AngleBracket(dt) => Self::convert_sql_type(dt),
+                    ast::ArrayElemTypeDef::SquareBracket(dt, _) => Self::convert_sql_type(dt),
+                    ast::ArrayElemTypeDef::Parenthesis(dt) => Self::convert_sql_type(dt),
                     ast::ArrayElemTypeDef::None => DataType::Unknown,
                 };
                 DataType::Array(Box::new(element_type))
@@ -729,6 +733,10 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn is_aggregate_expr(&self, expr: &ast::Expr) -> bool {
+        Self::check_aggregate_expr(expr)
+    }
+
+    fn check_aggregate_expr(expr: &ast::Expr) -> bool {
         match expr {
             ast::Expr::Function(func) => {
                 let name = func.name.to_string().to_uppercase();
@@ -745,10 +753,10 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 )
             }
             ast::Expr::BinaryOp { left, right, .. } => {
-                self.is_aggregate_expr(left) || self.is_aggregate_expr(right)
+                Self::check_aggregate_expr(left) || Self::check_aggregate_expr(right)
             }
-            ast::Expr::UnaryOp { expr, .. } => self.is_aggregate_expr(expr),
-            ast::Expr::Nested(inner) => self.is_aggregate_expr(inner),
+            ast::Expr::UnaryOp { expr, .. } => Self::check_aggregate_expr(expr),
+            ast::Expr::Nested(inner) => Self::check_aggregate_expr(inner),
             _ => false,
         }
     }
@@ -765,6 +773,10 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn infer_expr_type(&self, expr: &Expr, schema: &PlanSchema) -> DataType {
+        Self::compute_expr_type(expr, schema)
+    }
+
+    fn compute_expr_type(expr: &Expr, schema: &PlanSchema) -> DataType {
         match expr {
             Expr::Literal(lit) => lit.data_type(),
             Expr::Column { name, index, .. } => if let Some(idx) = index {
@@ -786,8 +798,8 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     | BinaryOp::Or => DataType::Bool,
                     BinaryOp::Concat => DataType::String,
                     _ => {
-                        let left_type = self.infer_expr_type(left, schema);
-                        let right_type = self.infer_expr_type(right, schema);
+                        let left_type = Self::compute_expr_type(left, schema);
+                        let right_type = Self::compute_expr_type(right, schema);
                         if left_type == DataType::Float64 || right_type == DataType::Float64 {
                             DataType::Float64
                         } else if left_type == DataType::Int64 || right_type == DataType::Int64 {
@@ -802,7 +814,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 use yachtsql_ir::UnaryOp;
                 match op {
                     UnaryOp::Not => DataType::Bool,
-                    _ => self.infer_expr_type(expr, schema),
+                    _ => Self::compute_expr_type(expr, schema),
                 }
             }
             Expr::Aggregate { func, .. } => {
@@ -823,7 +835,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             | Expr::InList { .. }
             | Expr::Between { .. }
             | Expr::Like { .. } => DataType::Bool,
-            Expr::Alias { expr, .. } => self.infer_expr_type(expr, schema),
+            Expr::Alias { expr, .. } => Self::compute_expr_type(expr, schema),
             _ => DataType::Unknown,
         }
     }

@@ -342,7 +342,7 @@ impl Column {
                 nulls.push(false);
             }
             (Column::DateTime { data, nulls }, Value::Null) => {
-                data.push(chrono::NaiveDateTime::UNIX_EPOCH);
+                data.push(chrono::DateTime::UNIX_EPOCH.naive_utc());
                 nulls.push(true);
             }
             (Column::DateTime { data, nulls }, Value::DateTime(v)) => {
@@ -479,7 +479,7 @@ impl Column {
                 nulls.set(index, false);
             }
             (Column::DateTime { data, nulls }, Value::Null) => {
-                data[index] = chrono::NaiveDateTime::UNIX_EPOCH;
+                data[index] = chrono::DateTime::UNIX_EPOCH.naive_utc();
                 nulls.set(index, true);
             }
             (Column::DateTime { data, nulls }, Value::DateTime(v)) => {

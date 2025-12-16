@@ -399,18 +399,16 @@ impl ExprPlanner {
                                 });
                             }
                         },
-                        ast::FunctionArg::Named { arg, .. } => match arg {
-                            ast::FunctionArgExpr::Expr(e) => {
+                        ast::FunctionArg::Named { arg, .. } => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
                                 args.push(Self::plan_expr(e, schema)?);
                             }
-                            _ => {}
-                        },
-                        ast::FunctionArg::ExprNamed { arg, .. } => match arg {
-                            ast::FunctionArgExpr::Expr(e) => {
+                        }
+                        ast::FunctionArg::ExprNamed { arg, .. } => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
                                 args.push(Self::plan_expr(e, schema)?);
                             }
-                            _ => {}
-                        },
+                        }
                     }
                 }
                 Ok(args)
