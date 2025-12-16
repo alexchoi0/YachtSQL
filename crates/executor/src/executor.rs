@@ -6553,6 +6553,29 @@ impl QueryExecutor {
                 let right_val = self.evaluate_literal_expr(right)?;
                 self.evaluate_binary_op_values(&left_val, op, &right_val)
             }
+            Expr::Function(func) => {
+                let name = func.name.to_string().to_uppercase();
+                let mut args = Vec::new();
+                if let ast::FunctionArguments::List(list) = &func.args {
+                    for arg in &list.args {
+                        match arg {
+                            ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)) => {
+                                args.push(self.evaluate_literal_expr(e)?);
+                            }
+                            ast::FunctionArg::Named { arg, .. } => {
+                                if let ast::FunctionArgExpr::Expr(e) = arg {
+                                    args.push(self.evaluate_literal_expr(e)?);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                let empty_schema = Schema::new();
+                let evaluator =
+                    Evaluator::with_user_functions(&empty_schema, self.catalog.get_functions());
+                evaluator.evaluate_function_with_args(&name, &args)
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression not supported in this context: {:?}",
                 expr
