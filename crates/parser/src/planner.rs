@@ -307,14 +307,17 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     fields.push(PlanField::new(alias.value.clone(), data_type));
                     expressions.push(planned_expr);
                 }
-                ast::SelectItem::Wildcard(_) => {
+                ast::SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
                     for (i, field) in input.schema().fields.iter().enumerate() {
-                        expressions.push(Expr::Column {
-                            table: field.table.clone(),
-                            name: field.name.clone(),
-                            index: Some(i),
-                        });
-                        fields.push(field.clone());
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            expressions.push(Expr::Column {
+                                table: field.table.clone(),
+                                name: field.name.clone(),
+                                index: Some(i),
+                            });
+                            fields.push(field.clone());
+                        }
                     }
                 }
                 ast::SelectItem::QualifiedWildcard(name, _) => {
@@ -862,5 +865,21 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             },
             _ => Err(Error::parse_error("OFFSET must be a literal number")),
         }
+    }
+
+    fn get_except_columns(
+        opts: &ast::WildcardAdditionalOptions,
+    ) -> std::collections::HashSet<String> {
+        opts.opt_except
+            .as_ref()
+            .map(|except| {
+                let mut cols = std::collections::HashSet::new();
+                cols.insert(except.first_element.value.to_lowercase());
+                for ident in &except.additional_elements {
+                    cols.insert(ident.value.to_lowercase());
+                }
+                cols
+            })
+            .unwrap_or_default()
     }
 }

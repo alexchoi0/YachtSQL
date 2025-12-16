@@ -57,6 +57,107 @@ fn test_subquery_in_from_clause() {
 }
 
 #[test]
+fn test_subquery_literal_values() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(r#"SELECT * FROM (SELECT "apple" AS fruit, "carrot" AS vegetable)"#)
+        .unwrap();
+
+    assert_table_eq!(result, [["apple", "carrot"]]);
+}
+
+#[test]
+fn test_cte_with_qualified_star() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            r#"WITH groceries AS
+              (SELECT "milk" AS dairy,
+               "eggs" AS protein,
+               "bread" AS grain)
+            SELECT g.*
+            FROM groceries AS g"#,
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["milk", "eggs", "bread"]]);
+}
+
+#[test]
+fn test_cte_with_star() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            r#"WITH groceries AS
+              (SELECT "milk" AS dairy,
+               "eggs" AS protein,
+               "bread" AS grain)
+            SELECT *
+            FROM groceries AS g"#,
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["milk", "eggs", "bread"]]);
+}
+
+#[test]
+#[ignore = "ARRAY<STRUCT<...>> literal parsing and struct.* expansion not supported"]
+fn test_array_struct_offset_star() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            r#"WITH locations AS
+              (SELECT ARRAY<STRUCT<city STRING, state STRING>>[("Seattle", "Washington"),
+                ("Phoenix", "Arizona")] AS location)
+            SELECT l.location[offset(0)].*
+            FROM locations l"#,
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["Seattle", "Washington"]]);
+}
+
+#[test]
+fn test_select_star_except() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            r#"WITH orders AS
+              (SELECT 5 as order_id,
+              "sprocket" as item_name,
+              200 as quantity)
+            SELECT * EXCEPT (order_id)
+            FROM orders"#,
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["sprocket", 200]]);
+}
+
+#[test]
+fn test_select_star_replace() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            r#"WITH orders AS
+              (SELECT 5 as order_id,
+              "sprocket" as item_name,
+              200 as quantity)
+            SELECT * REPLACE (quantity * 2 AS quantity)
+            FROM orders"#,
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[5, "sprocket", 400]]);
+}
+
+#[test]
 #[ignore = "Implement me!"]
 fn test_subquery_with_aggregation() {
     let mut executor = create_executor();

@@ -4088,20 +4088,54 @@ impl QueryExecutor {
         }
 
         let evaluator = Evaluator::with_user_functions(input_schema, self.catalog.get_functions());
+        let sample_record = rows.first().cloned().unwrap_or_else(|| {
+            Record::from_values(vec![Value::null(); input_schema.field_count()])
+        });
 
         let mut all_cols: Vec<(String, DataType)> = Vec::new();
 
         for (idx, item) in projection.iter().enumerate() {
             match item {
-                SelectItem::Wildcard(_) => {
+                SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
+                    let replace_map = Self::get_replace_map(opts);
                     for field in input_schema.fields() {
-                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            if let Some(replace_expr) = replace_map.get(&field.name.to_lowercase())
+                            {
+                                let val = evaluator
+                                    .evaluate(replace_expr, &sample_record)
+                                    .unwrap_or(Value::null());
+                                all_cols.push((field.name.clone(), val.data_type()));
+                            } else {
+                                all_cols.push((field.name.clone(), field.data_type.clone()));
+                            }
+                        }
+                    }
+                }
+                SelectItem::QualifiedWildcard(name, opts) => {
+                    let table_name = name.to_string();
+                    let except_cols = Self::get_except_columns(opts);
+                    let replace_map = Self::get_replace_map(opts);
+                    for field in input_schema.fields() {
+                        let matches_table = field
+                            .source_table
+                            .as_ref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                        if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                            if let Some(replace_expr) = replace_map.get(&field.name.to_lowercase())
+                            {
+                                let val = evaluator
+                                    .evaluate(replace_expr, &sample_record)
+                                    .unwrap_or(Value::null());
+                                all_cols.push((field.name.clone(), val.data_type()));
+                            } else {
+                                all_cols.push((field.name.clone(), field.data_type.clone()));
+                            }
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
-                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
-                        Record::from_values(vec![Value::null(); input_schema.field_count()])
-                    });
                     let val = evaluator
                         .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
@@ -4109,18 +4143,10 @@ impl QueryExecutor {
                     all_cols.push((name, val.data_type()));
                 }
                 SelectItem::ExprWithAlias { expr, alias } => {
-                    let sample_record = rows.first().cloned().unwrap_or_else(|| {
-                        Record::from_values(vec![Value::null(); input_schema.field_count()])
-                    });
                     let val = evaluator
                         .evaluate(expr, &sample_record)
                         .unwrap_or(Value::null());
                     all_cols.push((alias.value.clone(), val.data_type()));
-                }
-                _ => {
-                    return Err(Error::UnsupportedFeature(
-                        "Unsupported projection item".to_string(),
-                    ));
                 }
             }
         }
@@ -4136,14 +4162,47 @@ impl QueryExecutor {
             let mut values = Vec::new();
             for item in projection {
                 match item {
-                    SelectItem::Wildcard(_) => {
-                        values.extend(row.values().iter().cloned());
+                    SelectItem::Wildcard(opts) => {
+                        let except_cols = Self::get_except_columns(opts);
+                        let replace_map = Self::get_replace_map(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            if !except_cols.contains(&field.name.to_lowercase()) {
+                                if let Some(replace_expr) =
+                                    replace_map.get(&field.name.to_lowercase())
+                                {
+                                    let val = evaluator.evaluate(replace_expr, row)?;
+                                    values.push(val);
+                                } else {
+                                    values.push(row.values()[i].clone());
+                                }
+                            }
+                        }
+                    }
+                    SelectItem::QualifiedWildcard(name, opts) => {
+                        let table_name = name.to_string();
+                        let except_cols = Self::get_except_columns(opts);
+                        let replace_map = Self::get_replace_map(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            let matches_table = field
+                                .source_table
+                                .as_ref()
+                                .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                            if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                                if let Some(replace_expr) =
+                                    replace_map.get(&field.name.to_lowercase())
+                                {
+                                    let val = evaluator.evaluate(replace_expr, row)?;
+                                    values.push(val);
+                                } else {
+                                    values.push(row.values()[i].clone());
+                                }
+                            }
+                        }
                     }
                     SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
                         let val = evaluator.evaluate(expr, row)?;
                         values.push(val);
                     }
-                    _ => {}
                 }
             }
             output_rows.push(Record::from_values(values));
@@ -4165,9 +4224,25 @@ impl QueryExecutor {
 
         for (idx, item) in projection.iter().enumerate() {
             match item {
-                SelectItem::Wildcard(_) => {
+                SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
                     for field in input_schema.fields() {
-                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
+                    }
+                }
+                SelectItem::QualifiedWildcard(name, opts) => {
+                    let table_name = name.to_string();
+                    let except_cols = Self::get_except_columns(opts);
+                    for field in input_schema.fields() {
+                        let matches_table = field
+                            .source_table
+                            .as_ref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                        if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
@@ -4207,11 +4282,6 @@ impl QueryExecutor {
                         all_cols.push((alias.value.clone(), val.data_type()));
                     }
                 }
-                _ => {
-                    return Err(Error::UnsupportedFeature(
-                        "Unsupported projection item".to_string(),
-                    ));
-                }
             }
         }
 
@@ -4228,8 +4298,26 @@ impl QueryExecutor {
 
             for item in projection {
                 match item {
-                    SelectItem::Wildcard(_) => {
-                        base_values.extend(row.values().iter().cloned());
+                    SelectItem::Wildcard(opts) => {
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            if !except_cols.contains(&field.name.to_lowercase()) {
+                                base_values.push(row.values()[i].clone());
+                            }
+                        }
+                    }
+                    SelectItem::QualifiedWildcard(name, opts) => {
+                        let table_name = name.to_string();
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            let matches_table = field
+                                .source_table
+                                .as_ref()
+                                .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                            if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                                base_values.push(row.values()[i].clone());
+                            }
+                        }
                     }
                     SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
                         let val = evaluator.evaluate(expr, row)?;
@@ -4244,7 +4332,6 @@ impl QueryExecutor {
                             base_values.push(val);
                         }
                     }
-                    _ => {}
                 }
             }
 
@@ -6352,9 +6439,25 @@ impl QueryExecutor {
 
         for (idx, item) in projection.iter().enumerate() {
             match item {
-                SelectItem::Wildcard(_) => {
+                SelectItem::Wildcard(opts) => {
+                    let except_cols = Self::get_except_columns(opts);
                     for field in input_schema.fields() {
-                        all_cols.push((field.name.clone(), field.data_type.clone()));
+                        if !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
+                    }
+                }
+                SelectItem::QualifiedWildcard(name, opts) => {
+                    let table_name = name.to_string();
+                    let except_cols = Self::get_except_columns(opts);
+                    for field in input_schema.fields() {
+                        let matches_table = field
+                            .source_table
+                            .as_ref()
+                            .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                        if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                            all_cols.push((field.name.clone(), field.data_type.clone()));
+                        }
                     }
                 }
                 SelectItem::UnnamedExpr(expr) => {
@@ -6376,11 +6479,6 @@ impl QueryExecutor {
                     )?;
                     all_cols.push((alias.value.clone(), data_type));
                 }
-                _ => {
-                    return Err(Error::UnsupportedFeature(
-                        "Unsupported projection item".to_string(),
-                    ));
-                }
             }
         }
 
@@ -6395,8 +6493,26 @@ impl QueryExecutor {
             let mut values = Vec::new();
             for item in projection {
                 match item {
-                    SelectItem::Wildcard(_) => {
-                        values.extend(row.values().iter().cloned());
+                    SelectItem::Wildcard(opts) => {
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            if !except_cols.contains(&field.name.to_lowercase()) {
+                                values.push(row.values()[i].clone());
+                            }
+                        }
+                    }
+                    SelectItem::QualifiedWildcard(name, opts) => {
+                        let table_name = name.to_string();
+                        let except_cols = Self::get_except_columns(opts);
+                        for (i, field) in input_schema.fields().iter().enumerate() {
+                            let matches_table = field
+                                .source_table
+                                .as_ref()
+                                .is_some_and(|t| t.eq_ignore_ascii_case(&table_name));
+                            if matches_table && !except_cols.contains(&field.name.to_lowercase()) {
+                                values.push(row.values()[i].clone());
+                            }
+                        }
                     }
                     SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
                         let val = self.evaluate_expr_with_window_results(
@@ -6408,7 +6524,6 @@ impl QueryExecutor {
                         )?;
                         values.push(val);
                     }
-                    _ => {}
                 }
             }
             output_rows.push(Record::from_values(values));
@@ -8537,6 +8652,35 @@ impl QueryExecutor {
             })
             .collect::<Vec<_>>()
             .join(".")
+    }
+
+    fn get_except_columns(
+        opts: &ast::WildcardAdditionalOptions,
+    ) -> std::collections::HashSet<String> {
+        opts.opt_except
+            .as_ref()
+            .map(|except| {
+                let mut cols = std::collections::HashSet::new();
+                cols.insert(except.first_element.value.to_lowercase());
+                for ident in &except.additional_elements {
+                    cols.insert(ident.value.to_lowercase());
+                }
+                cols
+            })
+            .unwrap_or_default()
+    }
+
+    fn get_replace_map(opts: &ast::WildcardAdditionalOptions) -> HashMap<String, Expr> {
+        opts.opt_replace
+            .as_ref()
+            .map(|replace| {
+                replace
+                    .items
+                    .iter()
+                    .map(|item| (item.column_name.value.to_lowercase(), item.expr.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 
