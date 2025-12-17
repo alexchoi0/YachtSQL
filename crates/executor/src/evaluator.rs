@@ -7934,6 +7934,38 @@ impl<'a> Evaluator<'a> {
             Expr::IsNotNull(inner) => {
                 Expr::IsNotNull(Box::new(self.substitute_udf_params(inner, params, args)))
             }
+            Expr::Struct { values, fields } => Expr::Struct {
+                values: values
+                    .iter()
+                    .map(|v| {
+                        if let Expr::Identifier(ident) = v {
+                            let ident_upper = ident.value.to_uppercase();
+                            for (i, param) in params.iter().enumerate() {
+                                let param_name = match &param.name {
+                                    Some(n) => n.value.to_uppercase(),
+                                    None => continue,
+                                };
+                                if param_name == ident_upper {
+                                    return Expr::Named {
+                                        expr: Box::new(args[i].clone()),
+                                        name: ident.clone(),
+                                    };
+                                }
+                            }
+                        }
+                        self.substitute_udf_params(v, params, args)
+                    })
+                    .collect(),
+                fields: fields.clone(),
+            },
+            Expr::Array(arr) => Expr::Array(sqlparser::ast::Array {
+                elem: arr
+                    .elem
+                    .iter()
+                    .map(|e| self.substitute_udf_params(e, params, args))
+                    .collect(),
+                named: arr.named,
+            }),
             _ => expr.clone(),
         }
     }

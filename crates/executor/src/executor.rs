@@ -970,6 +970,220 @@ fn split_script_statements(body: &str) -> Vec<String> {
     statements
 }
 
+#[derive(Debug, Clone)]
+struct ParsedProcedure {
+    name: String,
+    or_replace: bool,
+    parameters: Vec<ast::ProcedureParam>,
+    body: String,
+}
+
+fn parse_create_procedure_begin_end(sql: &str) -> Option<ParsedProcedure> {
+    let trimmed = sql.trim();
+    let upper = trimmed.to_uppercase();
+
+    if !upper.starts_with("CREATE") {
+        return None;
+    }
+
+    let after_create = trimmed[6..].trim();
+    let after_create_upper = after_create.to_uppercase();
+
+    let (or_replace, rest) = if after_create_upper.starts_with("OR REPLACE") {
+        (true, after_create[10..].trim())
+    } else {
+        (false, after_create)
+    };
+
+    let rest_upper = rest.to_uppercase();
+    if !rest_upper.starts_with("PROCEDURE") {
+        return None;
+    }
+
+    let after_procedure = rest[9..].trim();
+
+    let paren_start = after_procedure.find('(')?;
+    let name = after_procedure[..paren_start].trim().to_string();
+
+    let paren_end = find_matching_paren(&after_procedure[paren_start..])?;
+    let params_str = &after_procedure[paren_start + 1..paren_start + paren_end];
+    let parameters = parse_procedure_params(params_str);
+
+    let after_params = after_procedure[paren_start + paren_end + 1..].trim();
+    let after_params_upper = after_params.to_uppercase();
+
+    if !after_params_upper.starts_with("BEGIN") {
+        return None;
+    }
+
+    let begin_pos = 5;
+    let after_begin = &after_params[begin_pos..];
+
+    let end_pos = find_procedure_end_position(after_begin)?;
+    let body = after_begin[..end_pos].trim().to_string();
+
+    Some(ParsedProcedure {
+        name,
+        or_replace,
+        parameters,
+        body,
+    })
+}
+
+fn parse_procedure_params(params_str: &str) -> Vec<ast::ProcedureParam> {
+    let mut params = Vec::new();
+    let trimmed = params_str.trim();
+    if trimmed.is_empty() {
+        return params;
+    }
+
+    for part in split_params(trimmed) {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+
+        let upper = part.to_uppercase();
+        let (mode, rest) = if upper.starts_with("IN ") && !upper.starts_with("INOUT") {
+            (Some(ast::ArgMode::In), part[3..].trim())
+        } else if upper.starts_with("OUT ") {
+            (Some(ast::ArgMode::Out), part[4..].trim())
+        } else if upper.starts_with("INOUT ") {
+            (Some(ast::ArgMode::InOut), part[6..].trim())
+        } else {
+            (None, part)
+        };
+
+        let tokens: Vec<&str> = rest.split_whitespace().collect();
+        if tokens.len() >= 2 {
+            let param_name = tokens[0];
+            let type_str = tokens[1..].join(" ");
+            if let Some(data_type) = parse_sql_type(&type_str) {
+                params.push(ast::ProcedureParam {
+                    name: ast::Ident::new(param_name),
+                    data_type,
+                    mode,
+                });
+            }
+        }
+    }
+
+    params
+}
+
+fn split_params(s: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0;
+
+    for c in s.chars() {
+        match c {
+            '<' | '(' => {
+                depth += 1;
+                current.push(c);
+            }
+            '>' | ')' => {
+                depth -= 1;
+                current.push(c);
+            }
+            ',' if depth == 0 => {
+                result.push(current.clone());
+                current.clear();
+            }
+            _ => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        result.push(current);
+    }
+    result
+}
+
+fn parse_sql_type(type_str: &str) -> Option<ast::DataType> {
+    let upper = type_str.to_uppercase();
+    let upper = upper.trim();
+
+    match upper {
+        "INT64" | "INTEGER" | "INT" => Some(ast::DataType::Int64),
+        "FLOAT64" | "FLOAT" | "DOUBLE" => Some(ast::DataType::Float64),
+        "BOOL" | "BOOLEAN" => Some(ast::DataType::Bool),
+        "STRING" | "TEXT" => Some(ast::DataType::String(None)),
+        "BYTES" => Some(ast::DataType::Bytes(None)),
+        "DATE" => Some(ast::DataType::Date),
+        "DATETIME" => Some(ast::DataType::Datetime(None)),
+        "TIME" => Some(ast::DataType::Time(None, ast::TimezoneInfo::None)),
+        "TIMESTAMP" => Some(ast::DataType::Timestamp(None, ast::TimezoneInfo::None)),
+        "NUMERIC" => Some(ast::DataType::Numeric(ast::ExactNumberInfo::None)),
+        "JSON" => Some(ast::DataType::JSON),
+        _ => {
+            if upper.starts_with("ARRAY<") {
+                Some(ast::DataType::Array(ast::ArrayElemTypeDef::None))
+            } else if upper.starts_with("STRUCT<") {
+                Some(ast::DataType::Struct(
+                    vec![],
+                    ast::StructBracketKind::AngleBrackets,
+                ))
+            } else {
+                Some(ast::DataType::Custom(
+                    ast::ObjectName(vec![ast::ObjectNamePart::Identifier(ast::Ident::new(
+                        type_str,
+                    ))]),
+                    vec![],
+                ))
+            }
+        }
+    }
+}
+
+fn find_procedure_end_position(s: &str) -> Option<usize> {
+    let upper = s.to_uppercase();
+    let mut i = 0;
+    let mut depth = 1;
+
+    while i < upper.len() {
+        let remaining = &upper[i..];
+
+        let is_word_boundary = i == 0
+            || !s
+                .chars()
+                .nth(i - 1)
+                .map(|c| c.is_alphanumeric() || c == '_')
+                .unwrap_or(false);
+
+        if is_word_boundary {
+            if remaining.starts_with("BEGIN") {
+                let after = remaining.get(5..);
+                if after
+                    .map(|a| {
+                        a.is_empty() || a.starts_with(char::is_whitespace) || a.starts_with(';')
+                    })
+                    .unwrap_or(true)
+                {
+                    depth += 1;
+                }
+            }
+
+            if remaining.starts_with("END") {
+                let after = remaining.get(3..);
+                if after
+                    .map(|a| {
+                        a.is_empty() || a.starts_with(char::is_whitespace) || a.starts_with(';')
+                    })
+                    .unwrap_or(true)
+                {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(i);
+                    }
+                }
+            }
+        }
+
+        i += 1;
+    }
+    None
+}
+
 pub struct QueryExecutor {
     catalog: Catalog,
     variables: Vec<HashMap<String, ScriptVariable>>,
@@ -1235,6 +1449,10 @@ impl QueryExecutor {
             return self
                 .execute_leave_iterate(is_leave, label.as_deref())
                 .map(|(t, _)| t);
+        }
+
+        if let Some(proc) = parse_create_procedure_begin_end(trimmed) {
+            return self.execute_create_procedure_parsed(&proc);
         }
 
         let dialect = BigQueryDialect {};
@@ -6495,6 +6713,47 @@ impl QueryExecutor {
         Ok(Table::empty(Schema::new()))
     }
 
+    fn execute_create_procedure_parsed(&mut self, parsed: &ParsedProcedure) -> Result<Table> {
+        let statements = split_script_statements(&parsed.body);
+        let dialect = BigQueryDialect {};
+        let mut parsed_stmts = Vec::new();
+
+        for stmt_sql in statements {
+            let stmt_sql = stmt_sql.trim();
+            if stmt_sql.is_empty() {
+                continue;
+            }
+            match Parser::parse_sql(&dialect, stmt_sql) {
+                Ok(stmts) => {
+                    for stmt in stmts {
+                        parsed_stmts.push(stmt);
+                    }
+                }
+                Err(e) => {
+                    return Err(Error::ParseError(format!(
+                        "Error parsing procedure body: {}",
+                        e
+                    )));
+                }
+            }
+        }
+
+        let body = ast::ConditionalStatements::BeginEnd(ast::BeginEndStatements {
+            begin_token: ast::helpers::attached_token::AttachedToken::empty(),
+            statements: parsed_stmts,
+            end_token: ast::helpers::attached_token::AttachedToken::empty(),
+        });
+
+        let proc = UserProcedure {
+            name: parsed.name.clone(),
+            parameters: parsed.parameters.clone(),
+            body,
+        };
+
+        self.catalog.create_procedure(proc, parsed.or_replace)?;
+        Ok(Table::empty(Schema::new()))
+    }
+
     fn execute_drop_procedure(
         &mut self,
         proc_desc: &[ast::FunctionDesc],
@@ -6518,16 +6777,18 @@ impl QueryExecutor {
             .ok_or_else(|| Error::invalid_query(format!("Procedure not found: {}", name)))?
             .clone();
 
-        let args = self.extract_call_args(func)?;
+        let (args, arg_var_refs) = self.extract_call_args_with_refs(func)?;
 
-        let mut param_values: HashMap<String, Value> = HashMap::new();
+        self.push_scope();
+
         for (i, param) in proc.parameters.iter().enumerate() {
             let param_name = param.name.value.to_uppercase();
             let value = args.get(i).cloned().unwrap_or(Value::null());
-            param_values.insert(param_name, value);
+            let data_type = value.data_type();
+            self.declare_variable(&param_name, data_type, Some(value));
         }
 
-        match &proc.body {
+        let result = match &proc.body {
             ast::ConditionalStatements::Sequence { statements } => {
                 let mut result = Table::empty(Schema::new());
                 for stmt in statements {
@@ -6542,26 +6803,60 @@ impl QueryExecutor {
                 }
                 Ok(result)
             }
+        };
+
+        let mut out_values: Vec<(String, Value)> = Vec::new();
+        for (i, param) in proc.parameters.iter().enumerate() {
+            let is_out_or_inout = matches!(
+                param.mode,
+                Some(ast::ArgMode::Out) | Some(ast::ArgMode::InOut)
+            );
+            if is_out_or_inout {
+                if let Some(var_ref) = arg_var_refs.get(i).and_then(|r| r.as_ref()) {
+                    let param_name = param.name.value.to_uppercase();
+                    if let Some(var) = self.get_variable(&param_name) {
+                        out_values.push((var_ref.clone(), var.value.clone()));
+                    }
+                }
+            }
         }
+
+        self.pop_scope();
+
+        for (var_name, value) in out_values {
+            self.set_variable(&var_name, value)?;
+        }
+
+        result
     }
 
-    fn extract_call_args(&self, func: &ast::Function) -> Result<Vec<Value>> {
+    fn extract_call_args_with_refs(
+        &self,
+        func: &ast::Function,
+    ) -> Result<(Vec<Value>, Vec<Option<String>>)> {
         let empty_record = Record::from_values(vec![]);
         let empty_schema = Schema::new();
         let evaluator = Evaluator::with_user_functions(&empty_schema, self.catalog.get_functions());
 
         match &func.args {
-            ast::FunctionArguments::None => Ok(vec![]),
+            ast::FunctionArguments::None => Ok((vec![], vec![])),
             ast::FunctionArguments::Subquery(_) => Err(Error::UnsupportedFeature(
                 "Subquery arguments not supported in CALL".to_string(),
             )),
             ast::FunctionArguments::List(list) => {
                 let mut args = Vec::new();
+                let mut var_refs = Vec::new();
                 for arg in &list.args {
                     match arg {
                         ast::FunctionArg::Unnamed(arg_expr) => match arg_expr {
                             ast::FunctionArgExpr::Expr(expr) => {
-                                args.push(evaluator.evaluate(expr, &empty_record)?);
+                                let (value, var_ref) = self.evaluate_call_arg_with_ref(
+                                    expr,
+                                    &evaluator,
+                                    &empty_record,
+                                )?;
+                                args.push(value);
+                                var_refs.push(var_ref);
                             }
                             ast::FunctionArgExpr::Wildcard => {
                                 return Err(Error::InvalidQuery(
@@ -6577,7 +6872,13 @@ impl QueryExecutor {
                         ast::FunctionArg::Named { arg, .. }
                         | ast::FunctionArg::ExprNamed { arg, .. } => match arg {
                             ast::FunctionArgExpr::Expr(expr) => {
-                                args.push(evaluator.evaluate(expr, &empty_record)?);
+                                let (value, var_ref) = self.evaluate_call_arg_with_ref(
+                                    expr,
+                                    &evaluator,
+                                    &empty_record,
+                                )?;
+                                args.push(value);
+                                var_refs.push(var_ref);
                             }
                             _ => {
                                 return Err(Error::InvalidQuery(
@@ -6587,7 +6888,30 @@ impl QueryExecutor {
                         },
                     }
                 }
-                Ok(args)
+                Ok((args, var_refs))
+            }
+        }
+    }
+
+    fn evaluate_call_arg_with_ref(
+        &self,
+        expr: &Expr,
+        evaluator: &Evaluator,
+        record: &Record,
+    ) -> Result<(Value, Option<String>)> {
+        match expr {
+            Expr::Identifier(ident) if ident.value.starts_with('@') => {
+                let var_name = ident.value.clone();
+                let value = if let Some(var) = self.get_variable(&var_name) {
+                    var.value.clone()
+                } else {
+                    Value::null()
+                };
+                Ok((value, Some(var_name)))
+            }
+            _ => {
+                let value = evaluator.evaluate(expr, record)?;
+                Ok((value, None))
             }
         }
     }
