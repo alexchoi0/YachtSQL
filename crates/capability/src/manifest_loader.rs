@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::config::RegistryConfig;
 use crate::error::{CapabilityError, Result};
 use crate::feature_ids::lookup_feature_id;
-use crate::manifests::{bigquery_capabilities, clickhouse_capabilities, postgres_capabilities};
+use crate::manifests::{bigquery_capabilities, postgres_capabilities};
 use crate::{FeatureId, profiles};
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +31,6 @@ pub fn load_manifest(source: &str) -> Result<HashSet<FeatureId>> {
     match source {
         "postgres" => return Ok(postgres_capabilities()),
         "bigquery" => return Ok(bigquery_capabilities()),
-        "clickhouse" => return Ok(clickhouse_capabilities()),
         _ => {}
     }
 
@@ -65,7 +64,7 @@ fn load_manifest_from_file(path: &str) -> Result<HashSet<FeatureId>> {
     }
 
     let dialect = manifest.metadata.dialect.as_str();
-    if dialect != "postgres" && dialect != "bigquery" && dialect != "clickhouse" {
+    if dialect != "postgres" && dialect != "bigquery" {
         return Err(CapabilityError::UnsupportedDialect {
             dialect: dialect.to_string(),
         });
@@ -222,24 +221,6 @@ mod tests {
         assert!(
             features.contains(&FeatureId("BQ_QUALIFY_CLAUSE")),
             "BigQuery should support BQ_QUALIFY_CLAUSE"
-        );
-    }
-
-    #[test]
-    fn test_load_clickhouse_manifest() {
-        let result = load_dialect_manifest("clickhouse");
-        assert!(result.is_ok(), "Should load clickhouse manifest");
-
-        let features = result.unwrap();
-        assert!(!features.is_empty(), "Should have enabled features");
-
-        assert!(
-            features.contains(&FeatureId("CH_ARRAY_JOIN")),
-            "ClickHouse should support CH_ARRAY_JOIN"
-        );
-        assert!(
-            features.contains(&FeatureId("CH_LAMBDA_FUNCTIONS")),
-            "ClickHouse should support CH_LAMBDA_FUNCTIONS"
         );
     }
 

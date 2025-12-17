@@ -149,24 +149,6 @@ pub fn get_setting(_name: &str) -> Result<Value> {
     Ok(Value::string("1".to_string()))
 }
 
-pub fn transform(
-    value: Value,
-    from_array: &[Value],
-    to_array: &[Value],
-    default: Value,
-) -> Result<Value> {
-    for (i, from_val) in from_array.iter().enumerate() {
-        if &value == from_val {
-            return if i < to_array.len() {
-                Ok(to_array[i].clone())
-            } else {
-                Ok(default)
-            };
-        }
-    }
-    Ok(default)
-}
-
 pub fn model_evaluate(_model_name: &str, _args: Vec<Value>) -> Result<Value> {
     Ok(Value::float64(0.0))
 }

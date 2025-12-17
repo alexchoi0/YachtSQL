@@ -2444,26 +2444,6 @@ impl ProjectionWithExprExec {
                     .to_string();
                 yachtsql_functions::misc::get_setting(&name)
             }
-            "TRANSFORM" => {
-                if args.len() < 4 {
-                    return Err(Error::invalid_query(
-                        "transform requires 4 arguments".to_string(),
-                    ));
-                }
-                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                let from_array = Self::evaluate_expr(&args[1], batch, row_idx)?;
-                let to_array = Self::evaluate_expr(&args[2], batch, row_idx)?;
-                let default = Self::evaluate_expr(&args[3], batch, row_idx)?;
-                let from_vec = from_array
-                    .as_array()
-                    .ok_or_else(|| Error::type_mismatch("ARRAY", "other"))?
-                    .clone();
-                let to_vec = to_array
-                    .as_array()
-                    .ok_or_else(|| Error::type_mismatch("ARRAY", "other"))?
-                    .clone();
-                yachtsql_functions::misc::transform(value, &from_vec, &to_vec, default)
-            }
             "MODELEVALUATE" => {
                 if args.is_empty() {
                     return Err(Error::invalid_query(
@@ -2480,15 +2460,6 @@ impl ProjectionWithExprExec {
                     .map(|a| Self::evaluate_expr(a, batch, row_idx))
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 yachtsql_functions::misc::model_evaluate(&model_name, values)
-            }
-            "RUNNINGACCUMULATE" => {
-                if args.is_empty() {
-                    return Err(Error::invalid_query(
-                        "runningAccumulate requires 1 argument".to_string(),
-                    ));
-                }
-                let value = Self::evaluate_expr(&args[0], batch, row_idx)?;
-                Ok(value)
             }
             "HASCOLUMNINTABLE" => Ok(Value::bool_val(true)),
             "HEX" => {
@@ -3954,11 +3925,6 @@ impl ProjectionWithExprExec {
                     ))
                 }
             }
-            "TOLOWCARDINALITY" => Self::eval_to_low_cardinality(args, batch, row_idx),
-            "LOWCARDINALITYINDICES" => Self::eval_low_cardinality_indices(args, batch, row_idx),
-            "LOWCARDINALITYKEYS" => Self::eval_low_cardinality_keys(args, batch, row_idx),
-            "TOUUID" => Self::eval_to_uuid(args, batch, row_idx),
-
             "L2DISTANCE" => {
                 if args.len() != 2 {
                     return Err(Error::invalid_query("L2Distance requires 2 arguments"));

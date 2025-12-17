@@ -684,14 +684,6 @@ impl ProjectionWithExprExec {
                 }
             }
 
-            FunctionName::Custom(s) if s == "TRANSFORM" => {
-                if args.len() >= 3 {
-                    Self::infer_expr_type_with_schema(&args[2], schema)
-                } else {
-                    None
-                }
-            }
-
             FunctionName::Custom(s)
                 if matches!(
                     s.as_str(),

@@ -95,18 +95,8 @@ fn is_bigquery_function(function_name: &str) -> bool {
             .any(|f| f.eq_ignore_ascii_case(function_name))
 }
 
-fn is_clickhouse_function(function_name: &str) -> bool {
-    use yachtsql_functions::dialects::*;
-
-    let scalars = clickhouse_scalar_functions();
-    let aggregates = clickhouse_aggregate_functions();
-
-    scalars
-        .iter()
-        .any(|f| f.eq_ignore_ascii_case(function_name))
-        || aggregates
-            .iter()
-            .any(|f| f.eq_ignore_ascii_case(function_name))
+fn is_clickhouse_function(_function_name: &str) -> bool {
+    false
 }
 
 #[cfg(test)]
@@ -120,15 +110,12 @@ mod tests {
     fn core_functions_available_in_all_dialects() {
         let pg_registry = FeatureRegistry::new(DialectType::PostgreSQL);
         let bq_registry = FeatureRegistry::new(DialectType::BigQuery);
-        let ch_registry = FeatureRegistry::new(DialectType::ClickHouse);
 
         assert!(validate_function("UPPER", &pg_registry).is_ok());
         assert!(validate_function("UPPER", &bq_registry).is_ok());
-        assert!(validate_function("UPPER", &ch_registry).is_ok());
 
         assert!(validate_function("COUNT", &pg_registry).is_ok());
         assert!(validate_function("COUNT", &bq_registry).is_ok());
-        assert!(validate_function("COUNT", &ch_registry).is_ok());
     }
 
     #[test]
@@ -150,15 +137,6 @@ mod tests {
     }
 
     #[test]
-    fn clickhouse_specific_functions() {
-        let ch_registry = FeatureRegistry::new(DialectType::ClickHouse);
-        let pg_registry = FeatureRegistry::new(DialectType::PostgreSQL);
-
-        assert!(validate_function("UNIQ_EXACT", &ch_registry).is_ok());
-        assert!(validate_function("UNIQ_EXACT", &pg_registry).is_err());
-    }
-
-    #[test]
     fn case_insensitive_validation() {
         let pg_registry = FeatureRegistry::new(DialectType::PostgreSQL);
 
@@ -171,10 +149,8 @@ mod tests {
     fn yachtsql_system_functions_available_in_all_dialects() {
         let pg_registry = FeatureRegistry::new(DialectType::PostgreSQL);
         let bq_registry = FeatureRegistry::new(DialectType::BigQuery);
-        let ch_registry = FeatureRegistry::new(DialectType::ClickHouse);
 
         assert!(validate_function("yachtsql.is_feature_enabled", &pg_registry).is_ok());
         assert!(validate_function("YACHTSQL.IS_FEATURE_ENABLED", &bq_registry).is_ok());
-        assert!(validate_function("YachtSQL.is_feature_enabled", &ch_registry).is_ok());
     }
 }

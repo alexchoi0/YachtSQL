@@ -93,17 +93,9 @@ pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
 # Default is 10 samples for faster iteration during development
 bench-large-sample = []
 
-# ClickHouse dialect tests (disabled by default due to initialization issues)
-clickhouse-tests = []
-
 [[bench]]
 name = "postgresql"
 path = "benches/postgresql/main.rs"
-harness = false
-
-[[bench]]
-name = "clickhouse"
-path = "benches/clickhouse/main.rs"
 harness = false
 
 [[bench]]
@@ -127,7 +119,6 @@ members = [
     "crates/capability",
     "crates/core",
     "crates/dialects/bigquery",
-    "crates/dialects/clickhouse",
     "crates/dialects/core",
     "crates/dialects/postgres",
     "crates/executor",

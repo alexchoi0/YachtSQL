@@ -4143,15 +4143,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "yachtsql-dialects-clickhouse"
-version = "0.1.0"
-dependencies = [
- "yachtsql-capability",
- "yachtsql-dialects-core",
- "yachtsql-parser",
-]
-
-[[package]]
 name = "yachtsql-dialects-core"
 version = "0.1.0"
 dependencies = [

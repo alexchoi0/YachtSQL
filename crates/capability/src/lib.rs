@@ -25,7 +25,7 @@ pub use feature_ids::{FeatureId, *};
 pub use manifest_loader::{
     default_capabilities, load_dialect_manifest, load_layered_manifest_with_config, load_manifest,
 };
-pub use manifests::{bigquery_capabilities, clickhouse_capabilities, postgres_capabilities};
+pub use manifests::{bigquery_capabilities, postgres_capabilities};
 pub use profiles::{development_profile, get_profile, production_profile, testing_profile};
 pub use registry::{CapabilitySnapshot, FeatureRegistry};
 pub use sql_features::{

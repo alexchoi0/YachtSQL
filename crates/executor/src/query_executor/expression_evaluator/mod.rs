@@ -8424,33 +8424,6 @@ impl<'a> ExpressionEvaluator<'a> {
                     .to_string();
                 yachtsql_functions::misc::get_setting(&name)
             }
-            "TRANSFORM" => {
-                if args.len() < 4 {
-                    return Err(Error::InvalidQuery(
-                        "transform() requires 4 arguments (value, from_array, to_array, default)"
-                            .to_string(),
-                    ));
-                }
-                let value = self.evaluate_function_arg(&args[0], row)?;
-                let from_array = self.evaluate_function_arg(&args[1], row)?;
-                let to_array = self.evaluate_function_arg(&args[2], row)?;
-                let default = self.evaluate_function_arg(&args[3], row)?;
-                let from_vec = from_array
-                    .as_array()
-                    .ok_or_else(|| Error::TypeMismatch {
-                        expected: "ARRAY".to_string(),
-                        actual: "other".to_string(),
-                    })?
-                    .clone();
-                let to_vec = to_array
-                    .as_array()
-                    .ok_or_else(|| Error::TypeMismatch {
-                        expected: "ARRAY".to_string(),
-                        actual: "other".to_string(),
-                    })?
-                    .clone();
-                yachtsql_functions::misc::transform(value, &from_vec, &to_vec, default)
-            }
             "MODELEVALUATE" => {
                 if args.is_empty() {
                     return Err(Error::InvalidQuery(
@@ -8471,15 +8444,6 @@ impl<'a> ExpressionEvaluator<'a> {
                     .map(|a| self.evaluate_function_arg(a, row))
                     .collect::<Result<Vec<_>>>()?;
                 yachtsql_functions::misc::model_evaluate(&model_name, values)
-            }
-            "RUNNINGACCUMULATE" => {
-                if args.is_empty() {
-                    return Err(Error::InvalidQuery(
-                        "runningAccumulate() requires 1 argument".to_string(),
-                    ));
-                }
-                let value = self.evaluate_function_arg(&args[0], row)?;
-                Ok(value)
             }
             "HASCOLUMNINTABLE" => Ok(Value::bool_val(true)),
             "HEX" => {
