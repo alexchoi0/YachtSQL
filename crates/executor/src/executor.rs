@@ -9586,9 +9586,22 @@ impl QueryExecutor {
                     .as_i64()
                     .unwrap_or(1) as usize;
                 let n = n.max(1);
-                for i in 0..partition_size {
-                    let bucket = (i * n / partition_size) + 1;
+                let base_size = partition_size / n;
+                let extra = partition_size % n;
+                let mut bucket = 1usize;
+                let mut in_bucket = 0usize;
+                for _ in 0..partition_size {
+                    let bucket_size = if bucket <= extra {
+                        base_size + 1
+                    } else {
+                        base_size
+                    };
                     results.push(Value::int64(bucket as i64));
+                    in_bucket += 1;
+                    if in_bucket >= bucket_size && bucket < n {
+                        bucket += 1;
+                        in_bucket = 0;
+                    }
                 }
             }
             "LAG" => {

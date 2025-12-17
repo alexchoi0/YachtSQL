@@ -110,7 +110,6 @@ fn test_top_products_by_revenue() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_monthly_revenue_trend() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -200,7 +199,6 @@ fn test_moving_average() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_rank_products_by_sales() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -299,7 +297,6 @@ fn test_percentile_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_ntile_quartiles() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -582,7 +579,6 @@ fn test_funnel_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_retention_analysis() {
     let mut executor = create_executor();
     executor
@@ -680,7 +676,6 @@ fn test_abc_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_rfm_analysis() {
     let mut executor = create_executor();
     executor
