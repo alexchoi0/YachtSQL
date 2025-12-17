@@ -631,7 +631,6 @@ fn test_retention_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_abc_analysis() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -1108,7 +1107,6 @@ fn test_weighted_average() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_anomaly_detection_zscore() {
     let mut executor = create_executor();
     executor

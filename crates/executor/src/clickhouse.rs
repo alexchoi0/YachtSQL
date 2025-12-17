@@ -208,12 +208,18 @@ impl ClickHouseExecutor {
 
         let expressions = self.parse_array_join_expressions(array_join_exprs_str);
 
-        let from_re = Regex::new(r"(?i)\bFROM\s+(\w+)").unwrap();
-        let processed_sql = if let Some(caps) = from_re.captures(before) {
-            let table_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            format!("SELECT * FROM {}", table_name)
+        let from_subquery_re = Regex::new(r"(?i)\bFROM\s*\(").unwrap();
+        let processed_sql = if from_subquery_re.is_match(before) {
+            let from_pos = before.to_uppercase().find("FROM").unwrap_or(0);
+            format!("SELECT * {}", &before[from_pos..].trim())
         } else {
-            before.trim().to_string()
+            let from_re = Regex::new(r"(?i)\bFROM\s+(\w+)").unwrap();
+            if let Some(caps) = from_re.captures(before) {
+                let table_name = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                format!("SELECT * FROM {}", table_name)
+            } else {
+                before.trim().to_string()
+            }
         };
 
         let original_sql = sql.to_string();
@@ -262,6 +268,7 @@ impl ClickHouseExecutor {
 
         let mut result_rows = Vec::new();
         let mut new_fields: Vec<Field> = schema.fields().to_vec();
+        let mut element_types: Vec<DataType> = vec![DataType::Unknown; clause.expressions.len()];
 
         for expr in &clause.expressions {
             let alias = expr.alias.as_ref().unwrap_or(&expr.expr);
@@ -272,11 +279,14 @@ impl ClickHouseExecutor {
             let mut arrays: Vec<Vec<Value>> = Vec::new();
             let mut max_len = 0;
 
-            for expr in &clause.expressions {
+            for (expr_idx, expr) in clause.expressions.iter().enumerate() {
                 let array_val = self.evaluate_array_expr(&expr.expr, schema, row, &evaluator)?;
                 if let Some(arr) = array_val.as_array() {
                     if arr.len() > max_len {
                         max_len = arr.len();
+                    }
+                    if !arr.is_empty() && element_types[expr_idx] == DataType::Unknown {
+                        element_types[expr_idx] = arr[0].data_type();
                     }
                     arrays.push(arr.to_vec());
                 } else if array_val.is_null() {
@@ -307,6 +317,14 @@ impl ClickHouseExecutor {
                     new_row_values.push(val);
                 }
                 result_rows.push(Record::from_values(new_row_values));
+            }
+        }
+
+        for (i, element_type) in element_types.iter().enumerate() {
+            let field_idx = schema.fields().len() + i;
+            if field_idx < new_fields.len() {
+                new_fields[field_idx] =
+                    Field::nullable(new_fields[field_idx].name.clone(), element_type.clone());
             }
         }
 
@@ -523,9 +541,40 @@ impl ClickHouseExecutor {
         cte_tables: &HashMap<String, Table>,
     ) -> Result<(Schema, Vec<Record>)> {
         match table_factor {
-            TableFactor::Table { name, alias, .. } => {
+            TableFactor::Table {
+                name, alias, args, ..
+            } => {
                 let table_name = name.to_string();
                 let table_name_upper = table_name.to_uppercase();
+
+                if table_name_upper == "NUMBERS"
+                    && let Some(table_args) = args
+                {
+                    let empty_schema = Schema::new();
+                    let empty_record = Record::from_values(vec![]);
+                    let evaluator = Evaluator::new(&empty_schema);
+
+                    let n =
+                        if let Some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr))) =
+                            table_args.args.first()
+                        {
+                            evaluator
+                                .evaluate(expr, &empty_record)?
+                                .as_i64()
+                                .unwrap_or(0)
+                        } else {
+                            0
+                        };
+
+                    let schema = Schema::from_fields(vec![Field::nullable(
+                        "number".to_string(),
+                        DataType::Int64,
+                    )]);
+                    let rows: Vec<Record> = (0..n)
+                        .map(|i| Record::from_values(vec![Value::int64(i)]))
+                        .collect();
+                    return Ok((schema, rows));
+                }
 
                 let table_data = cte_tables
                     .get(&table_name_upper)

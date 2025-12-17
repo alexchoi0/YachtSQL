@@ -36,7 +36,6 @@ fn test_array_join_left() {
 }
 
 #[test]
-#[ignore = "Requires function expressions in ARRAY JOIN"]
 fn test_array_join_with_array_enumerate() {
     let mut executor = create_clickhouse_executor();
     executor
@@ -98,7 +97,6 @@ fn test_array_join_with_map() {
 }
 
 #[test]
-#[ignore = "Requires subquery support in ARRAY JOIN"]
 fn test_array_join_in_subquery() {
     let mut executor = create_clickhouse_executor();
 

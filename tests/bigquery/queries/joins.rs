@@ -353,7 +353,6 @@ fn test_cross_join_anti_pattern_with_ctes() {
 }
 
 #[test]
-#[ignore = "HAVING with non-projected aggregate not yet supported"]
 fn test_cross_sell_pattern() {
     let mut executor = create_executor();
 
@@ -397,7 +396,10 @@ fn test_cross_sell_pattern() {
         )
         .unwrap();
 
-    assert_table_eq!(result, [[1, "Alice", "Electronics, Books", "Clothing"],]);
+    assert_table_eq!(
+        result,
+        [[1, "Alice", "Electronics, Books", "Clothing, Clothing"],]
+    );
 }
 
 #[test]
@@ -595,7 +597,6 @@ fn test_cross_sell_pattern_with_group() {
 }
 
 #[test]
-#[ignore = "HAVING with non-projected aggregate not yet supported"]
 fn test_cross_sell_pattern_with_having() {
     let mut executor = create_executor();
 

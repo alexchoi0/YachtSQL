@@ -2850,10 +2850,42 @@ impl QueryExecutor {
                 name,
                 alias,
                 sample,
+                args,
                 ..
             } => {
                 let table_name = name.to_string();
                 let table_name_upper = table_name.to_uppercase();
+
+                if table_name_upper == "NUMBERS" {
+                    if let Some(table_args) = args {
+                        let empty_schema = Schema::new();
+                        let empty_record = Record::from_values(vec![]);
+                        let evaluator = Evaluator::new(&empty_schema);
+
+                        let n = if let Some(first_arg) = table_args.args.first() {
+                            match first_arg {
+                                ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => {
+                                    evaluator
+                                        .evaluate(expr, &empty_record)?
+                                        .as_i64()
+                                        .unwrap_or(0)
+                                }
+                                _ => 0,
+                            }
+                        } else {
+                            0
+                        };
+
+                        let schema = Schema::from_fields(vec![Field::nullable(
+                            "number".to_string(),
+                            DataType::Int64,
+                        )]);
+                        let rows: Vec<Record> = (0..n)
+                            .map(|i| Record::from_values(vec![Value::int64(i)]))
+                            .collect();
+                        return Ok((schema, rows));
+                    }
+                }
 
                 if let Some(cte_table) = cte_tables.get(&table_name_upper) {
                     let table_data = cte_table.clone();
@@ -3680,6 +3712,23 @@ impl QueryExecutor {
         let mut output_fields: Option<Vec<Field>> = None;
 
         for (group_key, group_rows, active_indices) in &groups {
+            if let Some(having) = &select.having {
+                let having_result = self.evaluate_aggregate_expr_with_grouping_ctes(
+                    having,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    &group_exprs,
+                    active_indices,
+                    cte_tables,
+                )?;
+                match having_result {
+                    Value::Bool(true) => {}
+                    Value::Bool(false) | Value::Null => continue,
+                    _ => continue,
+                }
+            }
+
             let mut row_values = Vec::new();
             let mut field_names = Vec::new();
 
@@ -9653,8 +9702,37 @@ impl QueryExecutor {
                         results.push(agg_result);
                     }
                 } else if has_order_by {
-                    for end_pos in 0..partition_size {
-                        let running_indices: Vec<usize> = sorted_indices[..=end_pos].to_vec();
+                    let order_by = match over {
+                        ast::WindowType::WindowSpec(spec) => spec.order_by.clone(),
+                        _ => vec![],
+                    };
+
+                    let mut peer_groups: Vec<(usize, usize)> = Vec::new();
+                    let mut group_start = 0;
+                    let mut prev_values: Option<Vec<Value>> = None;
+
+                    for (i, &idx) in sorted_indices.iter().enumerate() {
+                        let curr_values: Vec<Value> = order_by
+                            .iter()
+                            .map(|ob| {
+                                evaluator
+                                    .evaluate(&ob.expr, &rows[idx])
+                                    .unwrap_or(Value::null())
+                            })
+                            .collect();
+
+                        if let Some(prev) = &prev_values {
+                            if curr_values != *prev {
+                                peer_groups.push((group_start, i - 1));
+                                group_start = i;
+                            }
+                        }
+                        prev_values = Some(curr_values);
+                    }
+                    peer_groups.push((group_start, partition_size - 1));
+
+                    for (group_start, group_end) in &peer_groups {
+                        let running_indices: Vec<usize> = sorted_indices[..=*group_end].to_vec();
                         let agg_result = self.compute_window_aggregate(
                             name,
                             func,
@@ -9662,7 +9740,9 @@ impl QueryExecutor {
                             &running_indices,
                             evaluator,
                         )?;
-                        results.push(agg_result);
+                        for _ in *group_start..=*group_end {
+                            results.push(agg_result.clone());
+                        }
                     }
                 } else {
                     let agg_result =
