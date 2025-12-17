@@ -3735,18 +3735,27 @@ impl QueryExecutor {
                 );
             }
 
+            if let Some(having) = &select.having {
+                let having_result = self.evaluate_having_with_aggregates(
+                    having,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    &group_exprs,
+                    active_indices,
+                    cte_tables,
+                    &row_values,
+                    &field_names,
+                )?;
+                if !having_result {
+                    continue;
+                }
+            }
+
             result_rows.push(Record::from_values(row_values));
         }
 
         let schema = Schema::from_fields(output_fields.unwrap_or_default());
-
-        if let Some(having) = &select.having {
-            let field_names: Vec<String> = schema.fields().iter().map(|f| f.name.clone()).collect();
-            result_rows.retain(|row| {
-                self.evaluate_having_expr(having, row, &field_names)
-                    .unwrap_or(false)
-            });
-        }
 
         let has_window_funcs = self.has_window_functions(&select.projection);
         if has_window_funcs {
@@ -4331,6 +4340,179 @@ impl QueryExecutor {
                 let name = ident.value.to_uppercase();
                 if let Some(idx) = field_names.iter().position(|f| f.to_uppercase() == name) {
                     return Ok(row.values()[idx].clone());
+                }
+                Ok(Value::null())
+            }
+            Expr::Value(v) => self.sql_value_to_value(&v.value),
+            _ => Ok(Value::null()),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn evaluate_having_with_aggregates(
+        &self,
+        expr: &Expr,
+        input_schema: &Schema,
+        group_rows: &[&Record],
+        group_key: &[Value],
+        group_exprs: &[Expr],
+        active_indices: &[usize],
+        cte_tables: &HashMap<String, Table>,
+        row_values: &[Value],
+        field_names: &[String],
+    ) -> Result<bool> {
+        let val = self.evaluate_having_value_with_aggregates(
+            expr,
+            input_schema,
+            group_rows,
+            group_key,
+            group_exprs,
+            active_indices,
+            cte_tables,
+            row_values,
+            field_names,
+        )?;
+        match val {
+            Value::Bool(b) => Ok(b),
+            _ => Ok(false),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn evaluate_having_value_with_aggregates(
+        &self,
+        expr: &Expr,
+        input_schema: &Schema,
+        group_rows: &[&Record],
+        group_key: &[Value],
+        group_exprs: &[Expr],
+        active_indices: &[usize],
+        cte_tables: &HashMap<String, Table>,
+        row_values: &[Value],
+        field_names: &[String],
+    ) -> Result<Value> {
+        match expr {
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_having_value_with_aggregates(
+                    left,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                    cte_tables,
+                    row_values,
+                    field_names,
+                )?;
+                let right_val = self.evaluate_having_value_with_aggregates(
+                    right,
+                    input_schema,
+                    group_rows,
+                    group_key,
+                    group_exprs,
+                    active_indices,
+                    cte_tables,
+                    row_values,
+                    field_names,
+                )?;
+                match op {
+                    ast::BinaryOperator::Gt => {
+                        if left_val.is_null() || right_val.is_null() {
+                            return Ok(Value::Bool(false));
+                        }
+                        Ok(Value::Bool(
+                            self.compare_values(&left_val, &right_val)
+                                == std::cmp::Ordering::Greater,
+                        ))
+                    }
+                    ast::BinaryOperator::Lt => {
+                        if left_val.is_null() || right_val.is_null() {
+                            return Ok(Value::Bool(false));
+                        }
+                        Ok(Value::Bool(
+                            self.compare_values(&left_val, &right_val) == std::cmp::Ordering::Less,
+                        ))
+                    }
+                    ast::BinaryOperator::GtEq => {
+                        if left_val.is_null() || right_val.is_null() {
+                            return Ok(Value::Bool(false));
+                        }
+                        Ok(Value::Bool(
+                            self.compare_values(&left_val, &right_val) != std::cmp::Ordering::Less,
+                        ))
+                    }
+                    ast::BinaryOperator::LtEq => {
+                        if left_val.is_null() || right_val.is_null() {
+                            return Ok(Value::Bool(false));
+                        }
+                        Ok(Value::Bool(
+                            self.compare_values(&left_val, &right_val)
+                                != std::cmp::Ordering::Greater,
+                        ))
+                    }
+                    ast::BinaryOperator::Eq => {
+                        if left_val.is_null() && right_val.is_null() {
+                            return Ok(Value::Bool(true));
+                        }
+                        if left_val.is_null() || right_val.is_null() {
+                            return Ok(Value::Bool(false));
+                        }
+                        Ok(Value::Bool(left_val == right_val))
+                    }
+                    ast::BinaryOperator::NotEq => {
+                        if left_val.is_null() && right_val.is_null() {
+                            return Ok(Value::Bool(false));
+                        }
+                        if left_val.is_null() || right_val.is_null() {
+                            return Ok(Value::Bool(true));
+                        }
+                        Ok(Value::Bool(left_val != right_val))
+                    }
+                    ast::BinaryOperator::And => {
+                        let l = left_val.as_bool().unwrap_or(false);
+                        let r = right_val.as_bool().unwrap_or(false);
+                        Ok(Value::Bool(l && r))
+                    }
+                    ast::BinaryOperator::Or => {
+                        let l = left_val.as_bool().unwrap_or(false);
+                        let r = right_val.as_bool().unwrap_or(false);
+                        Ok(Value::Bool(l || r))
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
+            Expr::Function(func) => {
+                let name = func.name.to_string().to_uppercase();
+                if let Some(idx) = field_names
+                    .iter()
+                    .position(|f| f.to_uppercase() == name || f.to_uppercase().contains(&name))
+                {
+                    return Ok(row_values[idx].clone());
+                }
+                if self.is_aggregate_function(&name) {
+                    return self.evaluate_aggregate_expr_with_grouping_ctes(
+                        expr,
+                        input_schema,
+                        group_rows,
+                        group_key,
+                        group_exprs,
+                        active_indices,
+                        cte_tables,
+                    );
+                }
+                for (idx, _field_name) in field_names.iter().enumerate() {
+                    if let Some(val) = row_values.get(idx) {
+                        if val.as_i64().is_some() || val.as_f64().is_some() {
+                            return Ok(val.clone());
+                        }
+                    }
+                }
+                Ok(Value::null())
+            }
+            Expr::Identifier(ident) => {
+                let name = ident.value.to_uppercase();
+                if let Some(idx) = field_names.iter().position(|f| f.to_uppercase() == name) {
+                    return Ok(row_values[idx].clone());
                 }
                 Ok(Value::null())
             }

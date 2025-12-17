@@ -745,7 +745,6 @@ fn test_rfm_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_time_series_decomposition() {
     let mut executor = create_executor();
     executor
@@ -787,9 +786,9 @@ fn test_time_series_decomposition() {
             [d(2024, 1, 5), 120, 119.0, 1.0],
             [d(2024, 1, 6), 125, 125.0, 0.0],
             [d(2024, 1, 7), 130, 130.0, 0.0],
-            [d(2024, 1, 8), 135, 133.6, 1.4],
+            [d(2024, 1, 8), 135, 133.6, 1.4000000000000057],
             [d(2024, 1, 9), 140, 135.75, 4.25],
-            [d(2024, 1, 10), 138, 137.66666666666666, 0.33333333333333712],
+            [d(2024, 1, 10), 138, 137.66666666666666, 0.3333333333333428],
         ]
     );
 }
@@ -1076,7 +1075,6 @@ fn test_variance_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_weighted_average() {
     let mut executor = create_executor();
     executor

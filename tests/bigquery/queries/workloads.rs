@@ -711,7 +711,6 @@ fn test_order_size_distribution() {
 }
 
 #[test]
-#[ignore = "STRING_AGG deduplication issue"]
 fn test_cross_sell_opportunities() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
