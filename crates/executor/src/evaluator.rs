@@ -366,7 +366,7 @@ fn geometry_geodesic_distance(geom1: &Geometry<f64>, geom2: &Geometry<f64>) -> f
 }
 
 pub struct Evaluator<'a> {
-    schema: &'a Schema,
+    pub schema: &'a Schema,
     user_functions: Option<&'a HashMap<String, UserFunction>>,
 }
 
@@ -509,6 +509,23 @@ impl<'a> Evaluator<'a> {
                             }
                             return Err(Error::ColumnNotFound(full_name.clone()));
                         }
+                        if let Some(json_val) = base_val.as_json() {
+                            let mut current = json_val.clone();
+                            for part in &parts[1..] {
+                                match &current {
+                                    serde_json::Value::Object(obj) => {
+                                        current = obj
+                                            .get(&part.value)
+                                            .cloned()
+                                            .unwrap_or(serde_json::Value::Null);
+                                    }
+                                    _ => {
+                                        return Ok(Value::null());
+                                    }
+                                }
+                            }
+                            return Ok(Value::json(current));
+                        }
                     }
                     if let Some(base_idx) = self
                         .schema
@@ -593,15 +610,17 @@ impl<'a> Evaluator<'a> {
                 expr,
                 pattern,
                 negated,
+                any,
                 ..
-            } => self.evaluate_like(expr, pattern, *negated, record),
+            } => self.evaluate_like_with_quantifier(expr, pattern, *negated, *any, record),
 
             Expr::ILike {
                 expr,
                 pattern,
                 negated,
+                any,
                 ..
-            } => self.evaluate_ilike(expr, pattern, *negated, record),
+            } => self.evaluate_ilike_with_quantifier(expr, pattern, *negated, *any, record),
 
             Expr::Cast {
                 expr,
@@ -1165,6 +1184,17 @@ impl<'a> Evaluator<'a> {
                                 .find(|(name, _)| name.to_uppercase() == field_name)
                                 .map(|(_, v)| v.clone())
                                 .unwrap_or_else(Value::null);
+                        } else if let Some(json_val) = current.as_json() {
+                            let field_name = &ident.value;
+                            match json_val {
+                                serde_json::Value::Object(obj) => {
+                                    let found = obj.get(field_name).cloned();
+                                    current = found.map(Value::json).unwrap_or_else(Value::null);
+                                }
+                                _ => {
+                                    return Ok(Value::null());
+                                }
+                            }
                         } else {
                             return Ok(Value::null());
                         }
@@ -1417,56 +1447,154 @@ impl<'a> Evaluator<'a> {
         Ok(Value::bool_val(if negated { !in_range } else { in_range }))
     }
 
-    fn evaluate_like(
+    fn extract_pattern_list(&self, pattern: &Expr, record: &Record) -> Result<Option<Vec<String>>> {
+        match pattern {
+            Expr::Function(func) => {
+                let func_name = func.name.to_string().to_uppercase();
+                match func_name.as_str() {
+                    "ALL" | "ANY" => {
+                        let args = self.extract_function_args(func, record)?;
+                        let patterns: Result<Vec<String>> = args
+                            .into_iter()
+                            .map(|v| {
+                                v.as_str().map(|s| s.to_string()).ok_or_else(|| {
+                                    Error::TypeMismatch {
+                                        expected: "STRING".to_string(),
+                                        actual: v.data_type().to_string(),
+                                    }
+                                })
+                            })
+                            .collect();
+                        Ok(Some(patterns?))
+                    }
+                    _ => Ok(None),
+                }
+            }
+            Expr::Tuple(exprs) => {
+                let patterns: Result<Vec<String>> = exprs
+                    .iter()
+                    .map(|e| {
+                        let v = self.evaluate(e, record)?;
+                        v.as_str()
+                            .map(|s| s.to_string())
+                            .ok_or_else(|| Error::TypeMismatch {
+                                expected: "STRING".to_string(),
+                                actual: v.data_type().to_string(),
+                            })
+                    })
+                    .collect();
+                Ok(Some(patterns?))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn is_like_all_pattern(&self, pattern: &Expr) -> bool {
+        match pattern {
+            Expr::Function(func) => {
+                let func_name = func.name.to_string().to_uppercase();
+                func_name == "ALL"
+            }
+            _ => false,
+        }
+    }
+
+    fn evaluate_like_with_quantifier(
         &self,
         expr: &Expr,
         pattern: &Expr,
         negated: bool,
+        any: bool,
         record: &Record,
     ) -> Result<Value> {
         let val = self.evaluate(expr, record)?;
-        let pat = self.evaluate(pattern, record)?;
-
-        if val.is_null() || pat.is_null() {
+        if val.is_null() {
             return Ok(Value::null());
         }
-
         let val_str = val.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: val.data_type().to_string(),
         })?;
+
+        let is_all = self.is_like_all_pattern(pattern);
+
+        if let Some(patterns) = self.extract_pattern_list(pattern, record)? {
+            if any {
+                let any_match = patterns.iter().any(|p| self.like_match(val_str, p, false));
+                return Ok(Value::bool_val(if negated {
+                    !any_match
+                } else {
+                    any_match
+                }));
+            }
+            if is_all {
+                let all_match = patterns.iter().all(|p| self.like_match(val_str, p, false));
+                return Ok(Value::bool_val(if negated {
+                    !all_match
+                } else {
+                    all_match
+                }));
+            }
+        }
+
+        let pat = self.evaluate(pattern, record)?;
+        if pat.is_null() {
+            return Ok(Value::null());
+        }
         let pat_str = pat.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: pat.data_type().to_string(),
         })?;
-
         let matches = self.like_match(val_str, pat_str, false);
         Ok(Value::bool_val(if negated { !matches } else { matches }))
     }
 
-    fn evaluate_ilike(
+    fn evaluate_ilike_with_quantifier(
         &self,
         expr: &Expr,
         pattern: &Expr,
         negated: bool,
+        any: bool,
         record: &Record,
     ) -> Result<Value> {
         let val = self.evaluate(expr, record)?;
-        let pat = self.evaluate(pattern, record)?;
-
-        if val.is_null() || pat.is_null() {
+        if val.is_null() {
             return Ok(Value::null());
         }
-
         let val_str = val.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: val.data_type().to_string(),
         })?;
+
+        let is_all = self.is_like_all_pattern(pattern);
+
+        if let Some(patterns) = self.extract_pattern_list(pattern, record)? {
+            if any {
+                let any_match = patterns.iter().any(|p| self.like_match(val_str, p, true));
+                return Ok(Value::bool_val(if negated {
+                    !any_match
+                } else {
+                    any_match
+                }));
+            }
+            if is_all {
+                let all_match = patterns.iter().all(|p| self.like_match(val_str, p, true));
+                return Ok(Value::bool_val(if negated {
+                    !all_match
+                } else {
+                    all_match
+                }));
+            }
+        }
+
+        let pat = self.evaluate(pattern, record)?;
+        if pat.is_null() {
+            return Ok(Value::null());
+        }
         let pat_str = pat.as_str().ok_or_else(|| Error::TypeMismatch {
             expected: "STRING".to_string(),
             actual: pat.data_type().to_string(),
         })?;
-
         let matches = self.like_match(val_str, pat_str, true);
         Ok(Value::bool_val(if negated { !matches } else { matches }))
     }
@@ -1532,6 +1660,24 @@ impl<'a> Evaluator<'a> {
                 if let Some(b) = val.as_bool() {
                     return Ok(Value::int64(if b { 1 } else { 0 }));
                 }
+                if let Some(jv) = val.as_json() {
+                    match jv {
+                        serde_json::Value::Number(n) => {
+                            if let Some(i) = n.as_i64() {
+                                return Ok(Value::int64(i));
+                            }
+                            if let Some(f) = n.as_f64() {
+                                return Ok(Value::int64(f as i64));
+                            }
+                        }
+                        serde_json::Value::String(s) => {
+                            if let Ok(i) = s.parse::<i64>() {
+                                return Ok(Value::int64(i));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 if is_safe {
                     return Ok(Value::null());
                 }
@@ -1556,6 +1702,21 @@ impl<'a> Evaluator<'a> {
                 if let Some(s) = val.as_str() {
                     if let Ok(f) = s.parse::<f64>() {
                         return Ok(Value::float64(f));
+                    }
+                }
+                if let Some(jv) = val.as_json() {
+                    match jv {
+                        serde_json::Value::Number(n) => {
+                            if let Some(f) = n.as_f64() {
+                                return Ok(Value::float64(f));
+                            }
+                        }
+                        serde_json::Value::String(s) => {
+                            if let Ok(f) = s.parse::<f64>() {
+                                return Ok(Value::float64(f));
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 if is_safe {
@@ -1583,6 +1744,13 @@ impl<'a> Evaluator<'a> {
                         }
                     }
                 }
+                if let Some(jv) = val.as_json() {
+                    match jv {
+                        serde_json::Value::String(s) => return Ok(Value::string(s.clone())),
+                        serde_json::Value::Null => return Ok(Value::null()),
+                        other => return Ok(Value::string(other.to_string())),
+                    }
+                }
                 Ok(Value::string(val.to_string()))
             }
             sqlparser::ast::DataType::Boolean | sqlparser::ast::DataType::Bool => {
@@ -1599,6 +1767,21 @@ impl<'a> Evaluator<'a> {
                     }
                     if lower == "false" || lower == "0" || lower == "no" {
                         return Ok(Value::bool_val(false));
+                    }
+                }
+                if let Some(jv) = val.as_json() {
+                    match jv {
+                        serde_json::Value::Bool(b) => return Ok(Value::bool_val(*b)),
+                        serde_json::Value::String(s) => {
+                            let lower = s.to_lowercase();
+                            if lower == "true" || lower == "1" || lower == "yes" {
+                                return Ok(Value::bool_val(true));
+                            }
+                            if lower == "false" || lower == "0" || lower == "no" {
+                                return Ok(Value::bool_val(false));
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 if is_safe {
@@ -2114,22 +2297,24 @@ impl<'a> Evaluator<'a> {
         })
     }
 
-    fn numeric_op<F, G>(&self, left: &Value, right: &Value, int_op: F, float_op: G) -> Result<Value>
+    fn numeric_op<F, G, H>(
+        &self,
+        left: &Value,
+        right: &Value,
+        int_op: F,
+        float_op: G,
+        decimal_op: H,
+    ) -> Result<Value>
     where
         F: Fn(i64, i64) -> i64,
         G: Fn(f64, f64) -> f64,
+        H: Fn(rust_decimal::Decimal, rust_decimal::Decimal) -> rust_decimal::Decimal,
     {
         if let (Some(l), Some(r)) = (left.as_i64(), right.as_i64()) {
             return Ok(Value::int64(int_op(l, r)));
         }
         if let (Some(l), Some(r)) = (left.as_numeric(), right.as_numeric()) {
-            use rust_decimal::prelude::ToPrimitive;
-            if let (Some(lf), Some(rf)) = (l.to_f64(), r.to_f64()) {
-                return Ok(Value::numeric(
-                    rust_decimal::Decimal::from_f64_retain(float_op(lf, rf))
-                        .unwrap_or(rust_decimal::Decimal::ZERO),
-                ));
-            }
+            return Ok(Value::numeric(decimal_op(l, r)));
         }
         let l = left
             .as_f64()
@@ -2228,7 +2413,7 @@ impl<'a> Evaluator<'a> {
             }));
         }
 
-        self.numeric_op(left, right, |a, b| a + b, |a, b| a + b)
+        self.numeric_op(left, right, |a, b| a + b, |a, b| a + b, |a, b| a + b)
     }
 
     fn sub_op(&self, left: &Value, right: &Value) -> Result<Value> {
@@ -2292,7 +2477,7 @@ impl<'a> Evaluator<'a> {
             }));
         }
 
-        self.numeric_op(left, right, |a, b| a - b, |a, b| a - b)
+        self.numeric_op(left, right, |a, b| a - b, |a, b| a - b, |a, b| a - b)
     }
 
     fn mul_op(&self, left: &Value, right: &Value) -> Result<Value> {
@@ -2318,7 +2503,7 @@ impl<'a> Evaluator<'a> {
             }
         }
 
-        self.numeric_op(left, right, |a, b| a * b, |a, b| a * b)
+        self.numeric_op(left, right, |a, b| a * b, |a, b| a * b, |a, b| a * b)
     }
 
     fn evaluate_unary_op(&self, op: &UnaryOperator, val: &Value) -> Result<Value> {
@@ -3023,6 +3208,24 @@ impl<'a> Evaluator<'a> {
                 if let Some(f) = args[0].as_f64() {
                     return Ok(Value::int64(f as i64));
                 }
+                if let Some(jv) = args[0].as_json() {
+                    match jv {
+                        serde_json::Value::Number(n) => {
+                            if let Some(i) = n.as_i64() {
+                                return Ok(Value::int64(i));
+                            }
+                            if let Some(f) = n.as_f64() {
+                                return Ok(Value::int64(f as i64));
+                            }
+                        }
+                        serde_json::Value::String(s) => {
+                            if let Ok(i) = s.parse::<i64>() {
+                                return Ok(Value::int64(i));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 if let Some(s) = args[0].as_str() {
                     if let Ok(i) = s.parse::<i64>() {
                         return Ok(Value::int64(i));
@@ -3048,6 +3251,21 @@ impl<'a> Evaluator<'a> {
                 if let Some(i) = args[0].as_i64() {
                     return Ok(Value::float64(i as f64));
                 }
+                if let Some(jv) = args[0].as_json() {
+                    match jv {
+                        serde_json::Value::Number(n) => {
+                            if let Some(f) = n.as_f64() {
+                                return Ok(Value::float64(f));
+                            }
+                        }
+                        serde_json::Value::String(s) => {
+                            if let Ok(f) = s.parse::<f64>() {
+                                return Ok(Value::float64(f));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 if let Some(s) = args[0].as_str() {
                     if let Ok(f) = s.parse::<f64>() {
                         return Ok(Value::float64(f));
@@ -3064,6 +3282,16 @@ impl<'a> Evaluator<'a> {
                 if args[0].is_null() {
                     return Ok(Value::null());
                 }
+                if let Some(jv) = args[0].as_json() {
+                    let result = match jv {
+                        serde_json::Value::String(s) => s.clone(),
+                        serde_json::Value::Number(n) => n.to_string(),
+                        serde_json::Value::Bool(b) => b.to_string(),
+                        serde_json::Value::Null => return Ok(Value::null()),
+                        other => other.to_string(),
+                    };
+                    return Ok(Value::string(result));
+                }
                 Ok(Value::string(args[0].to_string()))
             }
             "BOOL" | "BOOLEAN" => {
@@ -3078,6 +3306,21 @@ impl<'a> Evaluator<'a> {
                 }
                 if let Some(i) = args[0].as_i64() {
                     return Ok(Value::bool_val(i != 0));
+                }
+                if let Some(jv) = args[0].as_json() {
+                    match jv {
+                        serde_json::Value::Bool(b) => return Ok(Value::bool_val(*b)),
+                        serde_json::Value::String(s) => {
+                            let lower = s.to_lowercase();
+                            if lower == "true" || lower == "1" {
+                                return Ok(Value::bool_val(true));
+                            }
+                            if lower == "false" || lower == "0" {
+                                return Ok(Value::bool_val(false));
+                            }
+                        }
+                        _ => {}
+                    }
                 }
                 if let Some(s) = args[0].as_str() {
                     let lower = s.to_lowercase();
@@ -3361,9 +3604,15 @@ impl<'a> Evaluator<'a> {
                 if args[0].is_null() || args[1].is_null() {
                     return Ok(Value::null());
                 }
-                let json_str = args[0].as_str().unwrap_or_default();
                 let path = args[1].as_str().unwrap_or_default();
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let json_val_opt = if let Some(jv) = args[0].as_json() {
+                    Some(jv.clone())
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s).ok()
+                } else {
+                    None
+                };
+                if let Some(json_val) = json_val_opt {
                     let result = self.json_path_extract(&json_val, path);
                     return Ok(result
                         .map(|v| Value::string(v.to_string()))
@@ -3380,8 +3629,14 @@ impl<'a> Evaluator<'a> {
                 if args[0].is_null() {
                     return Ok(Value::null());
                 }
-                let json_str = args[0].as_str().unwrap_or_default();
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let json_val_opt = if let Some(jv) = args[0].as_json() {
+                    Some(jv.clone())
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s).ok()
+                } else {
+                    None
+                };
+                if let Some(json_val) = json_val_opt {
                     let type_name = match json_val {
                         serde_json::Value::Null => "null",
                         serde_json::Value::Bool(_) => "boolean",
@@ -3711,12 +3966,16 @@ impl<'a> Evaluator<'a> {
                 } else {
                     0
                 };
+                if let Some(i) = args[0].as_i64() {
+                    return Ok(Value::int64(i));
+                }
+                if let Some(d) = args[0].as_numeric() {
+                    let truncated = d.trunc_with_scale(decimals.max(0) as u32);
+                    return Ok(Value::numeric(truncated));
+                }
                 if let Some(f) = args[0].as_f64() {
                     let multiplier = 10f64.powi(decimals);
                     return Ok(Value::float64((f * multiplier).trunc() / multiplier));
-                }
-                if let Some(i) = args[0].as_i64() {
-                    return Ok(Value::int64(i));
                 }
                 Ok(Value::null())
             }
@@ -5703,13 +5962,28 @@ impl<'a> Evaluator<'a> {
                 }
                 Ok(Value::bool_val(false))
             }
-            "RANGE" => Ok(Value::string("RANGE".to_string())),
+            "RANGE" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE requires 2 arguments".to_string(),
+                    ));
+                }
+                let start = if args[0].is_null() {
+                    None
+                } else {
+                    Some(args[0].clone())
+                };
+                let end = if args[1].is_null() {
+                    None
+                } else {
+                    Some(args[1].clone())
+                };
+                Ok(Value::range(start, end))
+            }
             "JSON_ARRAY" => {
                 let json_arr: Vec<serde_json::Value> =
                     args.iter().map(|v| self.value_to_json(v)).collect();
-                Ok(Value::string(
-                    serde_json::Value::Array(json_arr).to_string(),
-                ))
+                Ok(Value::json(serde_json::Value::Array(json_arr)))
             }
             "JSON_OBJECT" => {
                 let mut obj = serde_json::Map::new();
@@ -5724,22 +5998,245 @@ impl<'a> Evaluator<'a> {
             }
             "JSON_REMOVE" => {
                 if args.len() < 2 {
+                    return Err(Error::InvalidQuery(
+                        "JSON_REMOVE requires at least 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
                     return Ok(Value::null());
                 }
-                Ok(args[0].clone())
+                let mut json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s)
+                        .map_err(|_| Error::InvalidQuery("Invalid JSON".to_string()))?
+                } else {
+                    return Err(Error::TypeMismatch {
+                        expected: "JSON or STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    });
+                };
+                for arg in args.iter().skip(1) {
+                    let path = arg.as_str().ok_or_else(|| Error::TypeMismatch {
+                        expected: "STRING".to_string(),
+                        actual: arg.data_type().to_string(),
+                    })?;
+                    json_val = self.json_path_remove(json_val, path);
+                }
+                Ok(Value::string(json_val.to_string()))
             }
             "JSON_STRIP_NULLS" => {
-                if args.is_empty() || args[0].is_null() {
+                if args.is_empty() {
+                    return Err(Error::InvalidQuery(
+                        "JSON_STRIP_NULLS requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
                     return Ok(Value::null());
                 }
-                Ok(args[0].clone())
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s)
+                        .map_err(|_| Error::InvalidQuery("Invalid JSON".to_string()))?
+                } else {
+                    return Err(Error::TypeMismatch {
+                        expected: "JSON or STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    });
+                };
+                let result = self.json_strip_nulls(json_val);
+                Ok(Value::string(result.to_string()))
             }
-            "JSON_VALUE_ARRAY" | "JSON_QUERY_ARRAY" => Ok(Value::array(vec![])),
-            "LAX_INT64" | "LAX_FLOAT64" | "LAX_STRING" | "LAX_BOOL" => {
+            "JSON_VALUE_ARRAY" => {
+                if args.is_empty() {
+                    return Err(Error::InvalidQuery(
+                        "JSON_VALUE_ARRAY requires at least 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s)
+                        .map_err(|_| Error::InvalidQuery("Invalid JSON".to_string()))?
+                } else {
+                    return Err(Error::TypeMismatch {
+                        expected: "JSON or STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    });
+                };
+                let target = if args.len() > 1 {
+                    let path = args[1].as_str().unwrap_or("$");
+                    self.json_path_extract(&json_val, path)
+                        .unwrap_or(serde_json::Value::Null)
+                } else {
+                    json_val
+                };
+                match target {
+                    serde_json::Value::Array(arr) => {
+                        let values: Vec<Value> = arr
+                            .iter()
+                            .map(|v| match v {
+                                serde_json::Value::String(s) => Value::string(s.clone()),
+                                serde_json::Value::Number(n) => Value::string(n.to_string()),
+                                serde_json::Value::Bool(b) => Value::string(b.to_string()),
+                                serde_json::Value::Null => Value::null(),
+                                _ => Value::null(),
+                            })
+                            .collect();
+                        Ok(Value::array(values))
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
+            "JSON_QUERY_ARRAY" => {
+                if args.is_empty() {
+                    return Err(Error::InvalidQuery(
+                        "JSON_QUERY_ARRAY requires at least 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else if let Some(s) = args[0].as_str() {
+                    serde_json::from_str::<serde_json::Value>(s)
+                        .map_err(|_| Error::InvalidQuery("Invalid JSON".to_string()))?
+                } else {
+                    return Err(Error::TypeMismatch {
+                        expected: "JSON or STRING".to_string(),
+                        actual: args[0].data_type().to_string(),
+                    });
+                };
+                let target = if args.len() > 1 {
+                    let path = args[1].as_str().unwrap_or("$");
+                    self.json_path_extract(&json_val, path)
+                        .unwrap_or(serde_json::Value::Null)
+                } else {
+                    json_val
+                };
+                match target {
+                    serde_json::Value::Array(arr) => {
+                        let values: Vec<Value> =
+                            arr.iter().map(|v| Value::json(v.clone())).collect();
+                        Ok(Value::array(values))
+                    }
+                    _ => Ok(Value::null()),
+                }
+            }
+            "LAX_INT64" => {
                 if args.is_empty() || args[0].is_null() {
                     return Ok(Value::null());
                 }
-                Ok(args[0].clone())
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else {
+                    return Ok(Value::null());
+                };
+                match json_val {
+                    serde_json::Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            Ok(Value::int64(i))
+                        } else if let Some(f) = n.as_f64() {
+                            Ok(Value::int64(f as i64))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    serde_json::Value::String(s) => {
+                        if let Ok(i) = s.parse::<i64>() {
+                            Ok(Value::int64(i))
+                        } else if let Ok(f) = s.parse::<f64>() {
+                            Ok(Value::int64(f as i64))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    serde_json::Value::Bool(b) => Ok(Value::int64(if b { 1 } else { 0 })),
+                    _ => Ok(Value::null()),
+                }
+            }
+            "LAX_FLOAT64" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else {
+                    return Ok(Value::null());
+                };
+                match json_val {
+                    serde_json::Value::Number(n) => {
+                        if let Some(f) = n.as_f64() {
+                            Ok(Value::float64(f))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    serde_json::Value::String(s) => {
+                        if let Ok(f) = s.parse::<f64>() {
+                            Ok(Value::float64(f))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    serde_json::Value::Bool(b) => Ok(Value::float64(if b { 1.0 } else { 0.0 })),
+                    _ => Ok(Value::null()),
+                }
+            }
+            "LAX_STRING" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else {
+                    return Ok(Value::null());
+                };
+                match json_val {
+                    serde_json::Value::String(s) => Ok(Value::string(s)),
+                    serde_json::Value::Number(n) => Ok(Value::string(n.to_string())),
+                    serde_json::Value::Bool(b) => Ok(Value::string(b.to_string())),
+                    serde_json::Value::Null => Ok(Value::null()),
+                    _ => Ok(Value::null()),
+                }
+            }
+            "LAX_BOOL" => {
+                if args.is_empty() || args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let json_val = if let Some(jv) = args[0].as_json() {
+                    jv.clone()
+                } else {
+                    return Ok(Value::null());
+                };
+                match json_val {
+                    serde_json::Value::Bool(b) => Ok(Value::bool_val(b)),
+                    serde_json::Value::String(s) => {
+                        let lower = s.to_lowercase();
+                        if lower == "true" {
+                            Ok(Value::bool_val(true))
+                        } else if lower == "false" {
+                            Ok(Value::bool_val(false))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    serde_json::Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            Ok(Value::bool_val(i != 0))
+                        } else if let Some(f) = n.as_f64() {
+                            Ok(Value::bool_val(f != 0.0))
+                        } else {
+                            Ok(Value::null())
+                        }
+                    }
+                    _ => Ok(Value::null()),
+                }
             }
             "APPROX_COUNT_DISTINCT" => Ok(Value::int64(0)),
             "APPROX_QUANTILES" => Ok(Value::array(vec![Value::null()])),
@@ -6614,8 +7111,194 @@ impl<'a> Evaluator<'a> {
                     Ok(Value::null())
                 }
             }
-            "RANGE_OVERLAPS" | "RANGE_CONTAINS" | "RANGE_INTERSECTS" => Ok(Value::bool_val(false)),
-            "RANGE_START" | "RANGE_END" => Ok(Value::null()),
+            "RANGE_OVERLAPS" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_OVERLAPS requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let range1 = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let range2 = args[1].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+                Ok(Value::bool_val(range1.overlaps(range2)))
+            }
+            "RANGE_CONTAINS" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_CONTAINS requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                if args[1].is_null() {
+                    return Ok(Value::bool_val(false));
+                }
+                Ok(Value::bool_val(range.contains(&args[1])))
+            }
+            "RANGE_INTERSECT" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_INTERSECT requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let range1 = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let range2 = args[1].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+                match range1.intersect(range2) {
+                    Some(r) => Ok(Value::range_val(r)),
+                    None => Ok(Value::null()),
+                }
+            }
+            "RANGE_START" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_START requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                match range.start() {
+                    Some(v) => Ok(v.clone()),
+                    None => Ok(Value::null()),
+                }
+            }
+            "RANGE_END" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "RANGE_END requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                match range.end() {
+                    Some(v) => Ok(v.clone()),
+                    None => Ok(Value::null()),
+                }
+            }
+            "GENERATE_RANGE_ARRAY" => {
+                if args.len() != 2 {
+                    return Err(Error::InvalidQuery(
+                        "GENERATE_RANGE_ARRAY requires 2 arguments".to_string(),
+                    ));
+                }
+                if args[0].is_null() || args[1].is_null() {
+                    return Ok(Value::null());
+                }
+                let range = args[0].as_range().ok_or_else(|| Error::TypeMismatch {
+                    expected: "RANGE".to_string(),
+                    actual: args[0].data_type().to_string(),
+                })?;
+                let interval = args[1].as_interval().ok_or_else(|| Error::TypeMismatch {
+                    expected: "INTERVAL".to_string(),
+                    actual: args[1].data_type().to_string(),
+                })?;
+
+                let start = match range.start() {
+                    Some(v) => v.clone(),
+                    None => return Ok(Value::null()),
+                };
+                let end = match range.end() {
+                    Some(v) => v.clone(),
+                    None => return Ok(Value::null()),
+                };
+
+                let mut result = Vec::new();
+
+                if let (Some(start_date), Some(end_date)) = (start.as_date(), end.as_date()) {
+                    let mut current_date = start_date;
+                    while current_date < end_date {
+                        let next_date = if interval.days > 0 {
+                            current_date + chrono::Duration::days(interval.days as i64)
+                        } else if interval.months > 0 {
+                            let month = current_date.month0() as i32 + interval.months;
+                            let year = current_date.year() + month / 12;
+                            let month = (month % 12) as u32;
+                            chrono::NaiveDate::from_ymd_opt(
+                                year,
+                                month + 1,
+                                current_date.day().min(28),
+                            )
+                            .unwrap_or(current_date)
+                        } else {
+                            break;
+                        };
+
+                        let range_end = if next_date > end_date {
+                            end_date
+                        } else {
+                            next_date
+                        };
+                        result.push(Value::range(
+                            Some(Value::date(current_date)),
+                            Some(Value::date(range_end)),
+                        ));
+                        current_date = next_date;
+                    }
+                } else if let (Some(start_ts), Some(end_ts)) =
+                    (start.as_timestamp(), end.as_timestamp())
+                {
+                    let mut current_ts = start_ts;
+                    while current_ts < end_ts {
+                        let duration = chrono::Duration::nanoseconds(interval.nanos)
+                            + chrono::Duration::days(interval.days as i64);
+                        let next_ts = current_ts + duration;
+                        let range_end = if next_ts > end_ts { end_ts } else { next_ts };
+                        result.push(Value::range(
+                            Some(Value::timestamp(current_ts)),
+                            Some(Value::timestamp(range_end)),
+                        ));
+                        current_ts = next_ts;
+                    }
+                } else if let (Some(start_dt), Some(end_dt)) =
+                    (start.as_datetime(), end.as_datetime())
+                {
+                    let mut current_dt = start_dt;
+                    while current_dt < end_dt {
+                        let duration = chrono::Duration::nanoseconds(interval.nanos)
+                            + chrono::Duration::days(interval.days as i64);
+                        let next_dt = current_dt + duration;
+                        let range_end = if next_dt > end_dt { end_dt } else { next_dt };
+                        result.push(Value::range(
+                            Some(Value::datetime(current_dt)),
+                            Some(Value::datetime(range_end)),
+                        ));
+                        current_dt = next_dt;
+                    }
+                }
+
+                Ok(Value::array(result))
+            }
             "ROW_NUMBER" | "RANK" | "DENSE_RANK" | "PERCENT_RANK" | "CUME_DIST" | "NTILE" => {
                 Ok(Value::int64(1))
             }
@@ -7259,6 +7942,9 @@ impl<'a> Evaluator<'a> {
         if value.is_null() {
             return serde_json::Value::Null;
         }
+        if let Some(jv) = value.as_json() {
+            return jv.clone();
+        }
         if let Some(b) = value.as_bool() {
             return serde_json::Value::Bool(b);
         }
@@ -7350,6 +8036,56 @@ impl<'a> Evaluator<'a> {
 
         set_recursive(&mut json, &parts, new_value);
         json
+    }
+
+    fn json_path_remove(&self, mut json: serde_json::Value, path: &str) -> serde_json::Value {
+        let path = path.trim_start_matches('$');
+        let parts: Vec<&str> = path.split('.').filter(|s| !s.is_empty()).collect();
+
+        if parts.is_empty() {
+            return json;
+        }
+
+        fn remove_recursive(current: &mut serde_json::Value, parts: &[&str]) {
+            if parts.is_empty() {
+                return;
+            }
+
+            let part = parts[0].trim();
+            let remaining = &parts[1..];
+
+            if remaining.is_empty() {
+                if let serde_json::Value::Object(map) = current {
+                    map.remove(part);
+                }
+            } else if let serde_json::Value::Object(map) = current {
+                if let Some(entry) = map.get_mut(part) {
+                    remove_recursive(entry, remaining);
+                }
+            }
+        }
+
+        remove_recursive(&mut json, &parts);
+        json
+    }
+
+    fn json_strip_nulls(&self, json: serde_json::Value) -> serde_json::Value {
+        match json {
+            serde_json::Value::Object(map) => {
+                let filtered: serde_json::Map<String, serde_json::Value> = map
+                    .into_iter()
+                    .filter(|(_, v)| !v.is_null())
+                    .map(|(k, v)| (k, self.json_strip_nulls(v)))
+                    .collect();
+                serde_json::Value::Object(filtered)
+            }
+            serde_json::Value::Array(arr) => {
+                let filtered: Vec<serde_json::Value> =
+                    arr.into_iter().map(|v| self.json_strip_nulls(v)).collect();
+                serde_json::Value::Array(filtered)
+            }
+            other => other,
+        }
     }
 
     fn extract_function_args(

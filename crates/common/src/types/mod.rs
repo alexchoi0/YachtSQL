@@ -25,6 +25,7 @@ pub enum DataType {
     Struct(Vec<StructField>),
     Array(Box<DataType>),
     Interval,
+    Range(Box<DataType>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -63,6 +64,7 @@ impl fmt::Display for DataType {
             }
             DataType::Array(inner) => write!(f, "ARRAY<{}>", inner),
             DataType::Interval => write!(f, "INTERVAL"),
+            DataType::Range(inner) => write!(f, "RANGE<{}>", inner),
         }
     }
 }
@@ -86,6 +88,7 @@ pub enum Value {
     Struct(Vec<(String, Value)>),
     Geography(String),
     Interval(IntervalValue),
+    Range(RangeValue),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,6 +138,96 @@ impl IntervalValue {
 }
 
 pub type Interval = IntervalValue;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RangeValue {
+    pub start: Option<Box<Value>>,
+    pub end: Option<Box<Value>>,
+}
+
+impl RangeValue {
+    pub fn new(start: Option<Value>, end: Option<Value>) -> Self {
+        Self {
+            start: start.map(Box::new),
+            end: end.map(Box::new),
+        }
+    }
+
+    pub fn start(&self) -> Option<&Value> {
+        self.start.as_deref()
+    }
+
+    pub fn end(&self) -> Option<&Value> {
+        self.end.as_deref()
+    }
+
+    pub fn contains(&self, value: &Value) -> bool {
+        let after_start = match &self.start {
+            Some(start) => value >= start.as_ref(),
+            None => true,
+        };
+        let before_end = match &self.end {
+            Some(end) => value < end.as_ref(),
+            None => true,
+        };
+        after_start && before_end
+    }
+
+    pub fn overlaps(&self, other: &RangeValue) -> bool {
+        let self_start = self.start.as_deref();
+        let self_end = self.end.as_deref();
+        let other_start = other.start.as_deref();
+        let other_end = other.end.as_deref();
+
+        let start_before_other_end = match (self_start, other_end) {
+            (Some(s), Some(e)) => s < e,
+            _ => true,
+        };
+        let other_start_before_end = match (other_start, self_end) {
+            (Some(s), Some(e)) => s < e,
+            _ => true,
+        };
+        start_before_other_end && other_start_before_end
+    }
+
+    pub fn intersect(&self, other: &RangeValue) -> Option<RangeValue> {
+        if !self.overlaps(other) {
+            return None;
+        }
+
+        let new_start = match (&self.start, &other.start) {
+            (Some(a), Some(b)) => Some(if a.as_ref() > b.as_ref() {
+                a.as_ref().clone()
+            } else {
+                b.as_ref().clone()
+            }),
+            (Some(a), None) => Some(a.as_ref().clone()),
+            (None, Some(b)) => Some(b.as_ref().clone()),
+            (None, None) => None,
+        };
+
+        let new_end = match (&self.end, &other.end) {
+            (Some(a), Some(b)) => Some(if a.as_ref() < b.as_ref() {
+                a.as_ref().clone()
+            } else {
+                b.as_ref().clone()
+            }),
+            (Some(a), None) => Some(a.as_ref().clone()),
+            (None, Some(b)) => Some(b.as_ref().clone()),
+            (None, None) => None,
+        };
+
+        Some(RangeValue::new(new_start, new_end))
+    }
+
+    pub fn element_type(&self) -> DataType {
+        self.start
+            .as_ref()
+            .map(|v| v.data_type())
+            .or_else(|| self.end.as_ref().map(|v| v.data_type()))
+            .unwrap_or(DataType::Unknown)
+    }
+}
 
 impl Value {
     pub fn null() -> Self {
@@ -209,6 +302,14 @@ impl Value {
         })
     }
 
+    pub fn range(start: Option<Value>, end: Option<Value>) -> Self {
+        Value::Range(RangeValue::new(start, end))
+    }
+
+    pub fn range_val(v: RangeValue) -> Self {
+        Value::Range(v)
+    }
+
     pub fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }
@@ -246,6 +347,7 @@ impl Value {
             }
             Value::Geography(_) => DataType::Geography,
             Value::Interval(_) => DataType::Interval,
+            Value::Range(r) => DataType::Range(Box::new(r.element_type())),
         }
     }
 
@@ -362,6 +464,13 @@ impl Value {
         }
     }
 
+    pub fn as_range(&self) -> Option<&RangeValue> {
+        match self {
+            Value::Range(r) => Some(r),
+            _ => None,
+        }
+    }
+
     pub fn into_string(self) -> Option<String> {
         match self {
             Value::String(s) => Some(s),
@@ -427,6 +536,19 @@ impl fmt::Debug for Value {
                 "INTERVAL {} months {} days {} nanos",
                 v.months, v.days, v.nanos
             ),
+            Value::Range(r) => {
+                write!(f, "RANGE(")?;
+                match &r.start {
+                    Some(s) => write!(f, "{:?}", s)?,
+                    None => write!(f, "NULL")?,
+                }
+                write!(f, ", ")?;
+                match &r.end {
+                    Some(e) => write!(f, "{:?}", e)?,
+                    None => write!(f, "NULL")?,
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -468,6 +590,19 @@ impl fmt::Display for Value {
             }
             Value::Geography(v) => write!(f, "{}", v),
             Value::Interval(v) => write!(f, "{}-{} {}", v.months, v.days, v.nanos),
+            Value::Range(r) => {
+                write!(f, "[")?;
+                match &r.start {
+                    Some(s) => write!(f, "{}", s)?,
+                    None => write!(f, "UNBOUNDED")?,
+                }
+                write!(f, ", ")?;
+                match &r.end {
+                    Some(e) => write!(f, "{}", e)?,
+                    None => write!(f, "UNBOUNDED")?,
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -507,6 +642,7 @@ impl std::hash::Hash for Value {
                 v.days.hash(state);
                 v.nanos.hash(state);
             }
+            Value::Range(r) => r.hash(state),
         }
     }
 }

@@ -64,7 +64,6 @@ fn test_keys_rotate_keyset() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_aead_encrypt() {
     let mut executor = create_executor();
 
@@ -156,7 +155,6 @@ fn test_deterministic_decrypt_bytes() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_keyset_in_table() {
     let mut executor = create_executor();
 
@@ -180,7 +178,6 @@ fn test_keyset_in_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_encrypt_column_data() {
     let mut executor = create_executor();
 
@@ -261,7 +258,6 @@ fn test_safe_divide() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_safe_multiply() {
     let mut executor = create_executor();
 
@@ -272,7 +268,6 @@ fn test_safe_multiply() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_safe_negate() {
     let mut executor = create_executor();
 
@@ -283,7 +278,6 @@ fn test_safe_negate() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_safe_add() {
     let mut executor = create_executor();
 
@@ -294,7 +288,6 @@ fn test_safe_add() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_safe_subtract() {
     let mut executor = create_executor();
 
