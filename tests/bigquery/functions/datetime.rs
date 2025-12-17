@@ -467,3 +467,56 @@ fn test_extract_dayofyear() {
         .unwrap();
     assert_table_eq!(result, [[167]]);
 }
+
+#[test]
+fn test_datetime_constructor_from_parts() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT DATETIME(2024, 6, 15, 14, 30, 45)")
+        .unwrap();
+    assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 45)]]);
+}
+
+#[test]
+fn test_datetime_constructor_from_date_and_time() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT DATETIME(DATE '2024-06-15', TIME '14:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
+}
+
+#[test]
+fn test_datetime_constructor_from_date() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT DATETIME(DATE '2024-06-15')")
+        .unwrap();
+    assert_table_eq!(result, [[dt(2024, 6, 15, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_datetime_constructor_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT DATETIME(TIMESTAMP '2024-06-15 14:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
+}
+
+#[test]
+fn test_datetime_constructor_null() {
+    let mut executor = create_executor();
+    let result = executor.execute_sql("SELECT DATETIME(NULL)").unwrap();
+    assert!(result.num_rows() == 1);
+    assert!(result.get_row(0).unwrap().values()[0].is_null());
+}
+
+#[test]
+fn test_datetime_constructor_from_string() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT DATETIME('2024-06-15 14:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
+}

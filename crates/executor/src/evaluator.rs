@@ -4205,6 +4205,98 @@ impl<'a> Evaluator<'a> {
                 }
                 Ok(Value::null())
             }
+            "DATETIME" => {
+                if args.is_empty() {
+                    return Err(Error::InvalidQuery(
+                        "DATETIME requires arguments".to_string(),
+                    ));
+                }
+                if args.iter().any(|a| a.is_null()) {
+                    return Ok(Value::null());
+                }
+                match args.len() {
+                    1 => {
+                        if let Some(ts) = args[0].as_timestamp() {
+                            return Ok(Value::datetime(ts.naive_utc()));
+                        }
+                        if let Some(dt) = args[0].as_datetime() {
+                            return Ok(Value::datetime(dt));
+                        }
+                        if let Some(d) = args[0].as_date() {
+                            return Ok(Value::datetime(d.and_hms_opt(0, 0, 0).unwrap()));
+                        }
+                        if let Some(s) = args[0].as_str() {
+                            if let Ok(dt) =
+                                chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                            {
+                                return Ok(Value::datetime(dt));
+                            }
+                            if let Ok(dt) =
+                                chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
+                            {
+                                return Ok(Value::datetime(dt));
+                            }
+                            if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+                                return Ok(Value::datetime(d.and_hms_opt(0, 0, 0).unwrap()));
+                            }
+                        }
+                        Ok(Value::null())
+                    }
+                    2 => {
+                        if let (Some(d), Some(t)) = (args[0].as_date(), args[1].as_time()) {
+                            return Ok(Value::datetime(d.and_time(t)));
+                        }
+                        if let Some(ts) = args[0].as_timestamp() {
+                            return Ok(Value::datetime(ts.naive_utc()));
+                        }
+                        Ok(Value::null())
+                    }
+                    6 => {
+                        let year = args[0].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[0].data_type().to_string(),
+                        })? as i32;
+                        let month = args[1].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[1].data_type().to_string(),
+                        })? as u32;
+                        let day = args[2].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[2].data_type().to_string(),
+                        })? as u32;
+                        let hour = args[3].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[3].data_type().to_string(),
+                        })? as u32;
+                        let minute = args[4].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[4].data_type().to_string(),
+                        })? as u32;
+                        let second = args[5].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[5].data_type().to_string(),
+                        })? as u32;
+                        let date =
+                            chrono::NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
+                                Error::InvalidQuery(format!(
+                                    "Invalid date: {}-{}-{}",
+                                    year, month, day
+                                ))
+                            })?;
+                        let dt = date.and_hms_opt(hour, minute, second).ok_or_else(|| {
+                            Error::InvalidQuery(format!(
+                                "Invalid time: {}:{}:{}",
+                                hour, minute, second
+                            ))
+                        })?;
+                        Ok(Value::datetime(dt))
+                    }
+                    _ => Err(Error::InvalidQuery(format!(
+                        "DATETIME requires 1, 2, or 6 arguments, got {}",
+                        args.len()
+                    ))),
+                }
+            }
             "CURRENT_DATE" => {
                 let today = chrono::Utc::now().date_naive();
                 Ok(Value::date(today))

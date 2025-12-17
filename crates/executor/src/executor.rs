@@ -9200,21 +9200,31 @@ impl QueryExecutor {
                     }
                     "LENGTH" | "CHAR_LENGTH" | "CHARACTER_LENGTH" | "BYTE_LENGTH"
                     | "OCTET_LENGTH" | "BIT_LENGTH" | "INSTR" | "LOCATE" | "POSITION"
-                    | "STRPOS" | "ASCII" => Some(DataType::Int64),
+                    | "STRPOS" | "ASCII" | "DATE_DIFF" | "TIME_DIFF" | "TIMESTAMP_DIFF"
+                    | "DATETIME_DIFF" | "UNIX_DATE" | "UNIX_SECONDS" | "UNIX_MILLIS"
+                    | "UNIX_MICROS" => Some(DataType::Int64),
                     "UPPER" | "LOWER" | "TRIM" | "LTRIM" | "RTRIM" | "LPAD" | "RPAD" | "CONCAT"
                     | "SUBSTR" | "SUBSTRING" | "REPLACE" | "REVERSE" | "REPEAT" | "LEFT"
                     | "RIGHT" | "FORMAT" | "TO_HEX" | "FROM_HEX" | "TO_BASE64" | "FROM_BASE64"
-                    | "REGEXP_REPLACE" => Some(DataType::String),
-                    "DATE" | "CURRENT_DATE" | "DATE_ADD" | "DATE_SUB" | "DATE_TRUNC" => {
-                        Some(DataType::Date)
+                    | "REGEXP_REPLACE" | "FORMAT_DATE" | "FORMAT_DATETIME" | "FORMAT_TIME"
+                    | "FORMAT_TIMESTAMP" | "CAST" | "SAFE_CAST" | "STRING" => {
+                        Some(DataType::String)
                     }
-                    "TIME" | "CURRENT_TIME" | "TIME_ADD" | "TIME_SUB" | "TIME_TRUNC" => {
-                        Some(DataType::Time)
-                    }
+                    "DATE"
+                    | "CURRENT_DATE"
+                    | "DATE_ADD"
+                    | "DATE_SUB"
+                    | "DATE_TRUNC"
+                    | "DATE_FROM_UNIX_DATE"
+                    | "LAST_DAY"
+                    | "PARSE_DATE" => Some(DataType::Date),
+                    "TIME" | "CURRENT_TIME" | "TIME_ADD" | "TIME_SUB" | "TIME_TRUNC"
+                    | "PARSE_TIME" => Some(DataType::Time),
                     "DATETIME" | "CURRENT_DATETIME" | "DATETIME_ADD" | "DATETIME_SUB"
-                    | "DATETIME_TRUNC" => Some(DataType::DateTime),
+                    | "DATETIME_TRUNC" | "PARSE_DATETIME" => Some(DataType::DateTime),
                     "TIMESTAMP" | "CURRENT_TIMESTAMP" | "TIMESTAMP_ADD" | "TIMESTAMP_SUB"
-                    | "TIMESTAMP_TRUNC" => Some(DataType::Timestamp),
+                    | "TIMESTAMP_TRUNC" | "TIMESTAMP_SECONDS" | "TIMESTAMP_MILLIS"
+                    | "TIMESTAMP_MICROS" | "PARSE_TIMESTAMP" | "NOW" => Some(DataType::Timestamp),
                     "BOOL" | "STARTS_WITH" | "ENDS_WITH" | "CONTAINS" | "REGEXP_CONTAINS" => {
                         Some(DataType::Bool)
                     }
