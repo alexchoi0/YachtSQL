@@ -4912,6 +4912,13 @@ impl<'a> Evaluator<'a> {
                                 arg.as_i64()
                                     .map(|n| format!("{:.prec$}", n as f64, prec = precision))
                             })
+                            .or_else(|| {
+                                arg.as_numeric().and_then(|n| {
+                                    use rust_decimal::prelude::ToPrimitive;
+                                    n.to_f64()
+                                        .map(|f| format!("{:.prec$}", f, prec = precision))
+                                })
+                            })
                             .unwrap_or_default();
                         result = format!("{}{}{}", &result[..pos], replacement, &result[end_pos..]);
                     }
