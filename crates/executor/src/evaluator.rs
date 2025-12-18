@@ -3444,6 +3444,29 @@ impl<'a> Evaluator<'a> {
                 let result = hasher.finalize();
                 Ok(Value::bytes(result.to_vec()))
             }
+            "FARM_FINGERPRINT" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery(
+                        "FARM_FINGERPRINT requires 1 argument".to_string(),
+                    ));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let input = if let Some(s) = args[0].as_str() {
+                    s.as_bytes().to_vec()
+                } else if let Some(b) = args[0].as_bytes() {
+                    b.to_vec()
+                } else {
+                    return Ok(Value::null());
+                };
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                input.hash(&mut hasher);
+                let hash = hasher.finish() as i64;
+                Ok(Value::int64(hash))
+            }
             "INT64" | "INT" => {
                 if args.len() != 1 {
                     return Err(Error::InvalidQuery("INT64 requires 1 argument".to_string()));
@@ -5513,6 +5536,82 @@ impl<'a> Evaluator<'a> {
                     }
                 }
                 Ok(Value::array(result))
+            }
+            "GENERATE_TIMESTAMP_ARRAY" => {
+                if args.len() < 2 || args.len() > 3 {
+                    return Err(Error::InvalidQuery(format!(
+                        "{} requires 2 or 3 arguments",
+                        name
+                    )));
+                }
+                let start_ts = args[0].as_timestamp();
+                let end_ts = args[1].as_timestamp();
+                let start_date = args[0].as_date();
+                let end_date = args[1].as_date();
+
+                if let (Some(start), Some(end)) = (start_ts, end_ts) {
+                    let step_micros: i64 = if args.len() == 3 {
+                        if let Some(interval) = args[2].as_interval() {
+                            (interval.days as i64) * 86400 * 1_000_000 + interval.nanos / 1_000
+                        } else {
+                            86400 * 1_000_000
+                        }
+                    } else {
+                        86400 * 1_000_000
+                    };
+                    if step_micros == 0 {
+                        return Err(Error::InvalidQuery("Interval step cannot be 0".to_string()));
+                    }
+                    let mut result = Vec::new();
+                    let start_micros = start.timestamp_micros();
+                    let end_micros = end.timestamp_micros();
+                    let mut curr = start_micros;
+                    if step_micros > 0 {
+                        while curr <= end_micros {
+                            if let Some(ts) = chrono::DateTime::from_timestamp_micros(curr) {
+                                result.push(Value::timestamp(ts));
+                            }
+                            curr += step_micros;
+                        }
+                    } else {
+                        while curr >= end_micros {
+                            if let Some(ts) = chrono::DateTime::from_timestamp_micros(curr) {
+                                result.push(Value::timestamp(ts));
+                            }
+                            curr += step_micros;
+                        }
+                    }
+                    return Ok(Value::array(result));
+                }
+                if let (Some(start), Some(end)) = (start_date, end_date) {
+                    let step_days: i64 = if args.len() == 3 {
+                        if let Some(interval) = args[2].as_interval() {
+                            interval.days as i64
+                        } else {
+                            1
+                        }
+                    } else {
+                        1
+                    };
+                    if step_days == 0 {
+                        return Err(Error::InvalidQuery("Interval step cannot be 0".to_string()));
+                    }
+                    let mut result = Vec::new();
+                    let mut curr = start;
+                    if step_days > 0 {
+                        while curr <= end {
+                            result.push(Value::date(curr));
+                            curr += chrono::Duration::days(step_days);
+                        }
+                    } else {
+                        while curr >= end {
+                            result.push(Value::date(curr));
+                            curr += chrono::Duration::days(step_days);
+                        }
+                    }
+                    return Ok(Value::array(result));
+                }
+                Ok(Value::null())
             }
             "ARRAY_SLICE" => {
                 if args.len() != 3 {

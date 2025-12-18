@@ -213,3 +213,529 @@ fn test_nested_subquery() {
 
     assert_table_eq!(result, [["Charlie"], ["Diana"],]);
 }
+
+#[test]
+fn test_dedup_pattern_with_row_number() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE test_table (db_id INT64, db_basis_t INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO test_table VALUES (1, 100, 'a'), (1, 200, 'b'), (2, 100, 'c')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "WITH latest AS (
+                SELECT db_id, MAX(db_basis_t) as latest_db_basis_t
+                FROM test_table
+                GROUP BY db_id
+            ),
+            dedupe AS (
+                SELECT T.*,
+                    ROW_NUMBER() OVER (PARTITION BY T.db_id) as row_number_id
+                FROM test_table T
+                INNER JOIN latest L
+                ON T.db_id = L.db_id AND T.db_basis_t = L.latest_db_basis_t
+            )
+            SELECT * EXCEPT (row_number_id, db_basis_t)
+            FROM dedupe
+            WHERE row_number_id = 1
+            ORDER BY db_id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "b"], [2, "c"]]);
+}
+
+#[test]
+fn test_array_agg_ignore_nulls() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE test_data (id INT64, val STRING)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO test_data VALUES (1, 'a'), (1, NULL), (1, 'b'), (2, NULL), (2, 'c')",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT id, ARRAY_AGG(val IGNORE NULLS) as vals FROM test_data GROUP BY id ORDER BY id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, ["a", "b"]], [2, ["c"]]]);
+}
+
+#[test]
+fn test_backtick_quoted_table() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE `my-table` (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO `my-table` VALUES (1, 'test')")
+        .unwrap();
+
+    let result = executor.execute_sql("SELECT * FROM `my-table`").unwrap();
+
+    assert_table_eq!(result, [[1, "test"]]);
+}
+
+#[test]
+fn test_correlated_scalar_subquery_order_by_non_projected() {
+    let mut executor = create_executor();
+    setup_tables(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+                d.id,
+                d.name,
+                (SELECT e.name
+                 FROM employees e
+                 WHERE e.dept_id = d.id
+                 ORDER BY e.salary DESC
+                 LIMIT 1) AS top_earner
+            FROM departments d
+            ORDER BY d.id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "Engineering", "Bob"], [2, "Sales", "Diana"],]);
+}
+
+#[test]
+fn test_array_agg_with_order_by() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE events (order_id INT64, code STRING, ts INT64)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO events VALUES (1, 'A', 100), (1, 'B', 300), (1, 'C', 200), (2, 'X', 50)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT order_id, ARRAY_AGG(code ORDER BY ts DESC) as codes FROM events GROUP BY order_id ORDER BY order_id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, ["B", "C", "A"]], [2, ["X"]]]);
+}
+
+#[test]
+fn test_array_agg_ignore_nulls_with_order_by() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE events (order_id INT64, code STRING, ts INT64)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO events VALUES (1, 'A', 100), (1, NULL, 300), (1, 'B', 200), (2, NULL, 50), (2, 'X', 100)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT order_id, ARRAY_AGG(code IGNORE NULLS ORDER BY ts DESC) as codes FROM events GROUP BY order_id ORDER BY order_id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, ["B", "A"]], [2, ["X"]]]);
+}
+
+#[test]
+fn test_safe_offset_on_array() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE data (id INT64, vals ARRAY<STRING>)")
+        .unwrap();
+    executor
+        .execute_sql(r#"INSERT INTO data VALUES (1, ['a', 'b', 'c']), (2, ['x']), (3, [])"#)
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT id, vals[SAFE_OFFSET(0)] as first_val FROM data ORDER BY id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "a"], [2, "x"], [3, null]]);
+}
+
+#[test]
+fn test_exists_with_unnest() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE orders (id INT64, status_codes ARRAY<STRING>)")
+        .unwrap();
+    executor
+        .execute_sql(r#"INSERT INTO orders VALUES (1, ['100', '129', '200']), (2, ['100', '200']), (3, ['219A', '300'])"#)
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT id, EXISTS (SELECT c FROM UNNEST(status_codes) c WHERE c = '129' LIMIT 1) AS has_129 FROM orders ORDER BY id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, true], [2, false], [3, false]]);
+}
+
+#[test]
+fn test_exists_with_unnest_like_pattern() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE orders (id INT64, status_codes ARRAY<STRING>)")
+        .unwrap();
+    executor
+        .execute_sql(r#"INSERT INTO orders VALUES (1, ['100', '129', '200']), (2, ['100', '200']), (3, ['219A', '300'])"#)
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT id, EXISTS (SELECT c FROM UNNEST(status_codes) c WHERE c LIKE '219%' LIMIT 1) AS has_219x FROM orders ORDER BY id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, false], [2, false], [3, true]]);
+}
+
+#[test]
+fn test_exists_with_unnest_in_list() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE orders (id INT64, status_codes ARRAY<STRING>)")
+        .unwrap();
+    executor
+        .execute_sql(r#"INSERT INTO orders VALUES (1, ['610', '200']), (2, ['100', '200']), (3, ['611', '612'])"#)
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT id, EXISTS (SELECT c FROM UNNEST(status_codes) c WHERE c IN ('610', '611', '612') LIMIT 1) AS has_complete FROM orders ORDER BY id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, true], [2, false], [3, true]]);
+}
+
+#[test]
+fn test_farm_fingerprint() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql("SELECT FARM_FINGERPRINT('hello') AS hash")
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    let hash = records[0].values()[0].as_i64().unwrap();
+    assert_ne!(hash, 0);
+
+    let result2 = executor
+        .execute_sql("SELECT FARM_FINGERPRINT('hello') = FARM_FINGERPRINT('hello') AS same, FARM_FINGERPRINT('hello') = FARM_FINGERPRINT('world') AS different")
+        .unwrap();
+
+    assert_table_eq!(result2, [[true, false]]);
+}
+
+#[test]
+fn test_generate_timestamp_array() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql("SELECT ARRAY_LENGTH(GENERATE_TIMESTAMP_ARRAY(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-03 00:00:00', INTERVAL 1 DAY)) AS len")
+        .unwrap();
+
+    assert_table_eq!(result, [[3]]);
+}
+
+#[test]
+fn test_generate_date_array() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql("SELECT GENERATE_DATE_ARRAY(DATE '2024-01-01', DATE '2024-01-05', INTERVAL 1 DAY) AS dates")
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    let arr = records[0].values()[0].as_array().unwrap();
+    assert_eq!(arr.len(), 5);
+}
+
+#[test]
+fn test_logical_or() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE flags (grp INT64, flag BOOL)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO flags VALUES (1, true), (1, false), (2, false), (2, false), (3, NULL)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT grp, LOGICAL_OR(flag) AS any_true FROM flags GROUP BY grp ORDER BY grp",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, true], [2, false], [3, false]]);
+}
+
+#[test]
+fn test_logical_and() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE flags (grp INT64, flag BOOL)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO flags VALUES (1, true), (1, true), (2, true), (2, false), (3, NULL)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT grp, LOGICAL_AND(flag) AS all_true FROM flags GROUP BY grp ORDER BY grp",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, true], [2, false], [3, null]]);
+}
+
+#[test]
+fn test_array_select_as_struct() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE items (id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO items VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT ARRAY(SELECT AS STRUCT id, name FROM items WHERE id <= 2 ORDER BY id) AS arr",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    let arr = records[0].values()[0].as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    let s0 = arr[0].as_struct().unwrap();
+    assert_eq!(s0[0].0, "id");
+    assert_eq!(s0[0].1.as_i64().unwrap(), 1);
+    assert_eq!(s0[1].0, "name");
+    assert_eq!(s0[1].1.as_str().unwrap(), "Alice");
+    let s1 = arr[1].as_struct().unwrap();
+    assert_eq!(s1[0].1.as_i64().unwrap(), 2);
+    assert_eq!(s1[1].1.as_str().unwrap(), "Bob");
+}
+
+#[test]
+fn test_temp_function_basic() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TEMP FUNCTION double_it(x INT64) AS (x * 2)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT double_it(5) AS doubled")
+        .unwrap();
+
+    assert_table_eq!(result, [[10]]);
+}
+
+#[test]
+fn test_temp_function_string() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TEMP FUNCTION greet(name STRING) AS (CONCAT('Hello, ', name, '!'))")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT greet('World') AS greeting")
+        .unwrap();
+
+    assert_table_eq!(result, [["Hello, World!"]]);
+}
+
+#[test]
+fn test_temp_function_complex() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            r#"CREATE TEMP FUNCTION to_uuid(s STRING)
+            AS (
+                CONCAT(SUBSTR(TO_HEX(SHA256(s)), 0, 8),
+                       '-',
+                       SUBSTR(TO_HEX(SHA256(s)), 8, 4),
+                       '-',
+                       SUBSTR(TO_HEX(SHA256(s)), 12, 4),
+                       '-',
+                       SUBSTR(TO_HEX(SHA256(s)), 16, 4),
+                       '-',
+                       SUBSTR(TO_HEX(SHA256(s)), 20, 12))
+            )"#,
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT to_uuid('hello') = to_uuid('hello') AS same, to_uuid('hello') = to_uuid('world') AS diff")
+        .unwrap();
+
+    assert_table_eq!(result, [[true, false]]);
+}
+
+#[test]
+fn test_temp_function_in_expression() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TEMP FUNCTION add_one(x INT64) AS (x + 1)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT add_one(add_one(5)) AS nested, add_one(10) + add_one(20) AS sum")
+        .unwrap();
+
+    assert_table_eq!(result, [[7, 32]]);
+}
+
+#[test]
+fn test_complex_union_with_nested_subqueries() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            r#"CREATE TABLE partner_data (
+                user_id STRING,
+                app_id STRING,
+                app_type STRING,
+                lddr_source STRING,
+                premium FLOAT64,
+                visit_time DATETIME,
+                issued_time DATETIME
+            )"#,
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            r#"INSERT INTO partner_data VALUES
+                ('u1', 'a1', 'ladder', 'lincoln', 1000.0, DATETIME '2024-01-01 10:00:00', DATETIME '2024-01-15 10:00:00'),
+                ('u2', 'a2', 'ladder', 'lincoln', 2000.0, DATETIME '2024-01-02 10:00:00', DATETIME '2024-01-20 10:00:00'),
+                ('u3', 'a3', 'other', 'lincoln', 1500.0, DATETIME '2024-01-03 10:00:00', DATETIME '2024-01-25 10:00:00')
+            "#,
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            r#"
+            SELECT
+              'type-a' AS rule_type,
+              sub.user_id,
+              sub.app_id,
+              ROUND(CAST(1.2 * premium AS FLOAT64), 2) AS payment
+            FROM (
+                SELECT user_id, app_id, premium
+                FROM partner_data
+                WHERE visit_time <= issued_time
+                  AND visit_time IS NOT NULL
+                  AND IFNULL(lddr_source, '') = 'lincoln'
+            ) sub
+            WHERE app_id IN ('a1', 'a2')
+            UNION ALL
+            SELECT
+              'type-b' AS rule_type,
+              tbl.user_id,
+              tbl.app_id,
+              ROUND(CAST(300 AS FLOAT64), 2) AS payment
+            FROM partner_data tbl
+            INNER JOIN (
+                SELECT user_id, ARRAY_AGG(app_id ORDER BY issued_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS first_app
+                FROM partner_data
+                WHERE issued_time IS NOT NULL
+                GROUP BY user_id
+            ) first_apps ON tbl.user_id = first_apps.user_id AND tbl.app_id = first_apps.first_app
+            WHERE COALESCE(tbl.visit_time, tbl.issued_time) <= tbl.issued_time
+            ORDER BY rule_type, user_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["type-a", "u1", "a1", 1200.0],
+            ["type-a", "u2", "a2", 2400.0],
+            ["type-b", "u1", "a1", 300.0],
+            ["type-b", "u2", "a2", 300.0],
+            ["type-b", "u3", "a3", 300.0],
+        ]
+    );
+}
+
+#[test]
+fn test_array_agg_struct_field_access() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            r#"CREATE TABLE attribution_data (
+                user_id STRING,
+                partner STRING,
+                visit_time DATETIME,
+                external_id STRING,
+                medium STRING,
+                source STRING,
+                campaign STRING
+            )"#,
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            r#"INSERT INTO attribution_data VALUES
+                ('u1', 'partner_a', DATETIME '2024-01-01 10:00:00', 'ext1', 'web', 'google', 'campaign1'),
+                ('u1', 'partner_a', DATETIME '2024-01-05 10:00:00', 'ext2', 'mobile', 'facebook', 'campaign2'),
+                ('u2', 'partner_b', DATETIME '2024-01-02 10:00:00', 'ext3', 'web', 'bing', 'campaign3'),
+                ('u3', 'partner_a', DATETIME '2024-01-03 10:00:00', 'ext4', 'app', 'direct', 'campaign4')
+            "#,
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            r#"
+            SELECT DISTINCT *
+            FROM (
+                SELECT
+                    user_id,
+                    partner,
+                    external_id,
+                    medium,
+                    source,
+                    campaign
+                FROM attribution_data
+                WHERE source IN ('google', 'direct')
+                UNION ALL
+                SELECT
+                    user_id,
+                    partner,
+                    ARRAY_AGG(external_id IGNORE NULLS ORDER BY visit_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS external_id,
+                    ARRAY_AGG(medium IGNORE NULLS ORDER BY visit_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS medium,
+                    ARRAY_AGG(source IGNORE NULLS ORDER BY visit_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS source,
+                    ARRAY_AGG(campaign IGNORE NULLS ORDER BY visit_time DESC LIMIT 1)[SAFE_OFFSET(0)] AS campaign
+                FROM attribution_data
+                WHERE source IN ('facebook', 'bing')
+                GROUP BY user_id, partner
+            )
+            ORDER BY user_id, partner, external_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["u1", "partner_a", "ext1", "web", "google", "campaign1"],
+            ["u1", "partner_a", "ext2", "mobile", "facebook", "campaign2"],
+            ["u2", "partner_b", "ext3", "web", "bing", "campaign3"],
+            ["u3", "partner_a", "ext4", "app", "direct", "campaign4"],
+        ]
+    );
+}

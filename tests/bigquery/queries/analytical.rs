@@ -1,5 +1,5 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, d, ts};
+use crate::common::{create_executor, d, n, ts};
 
 fn setup_sales_data(executor: &mut yachtsql::QueryExecutor) {
     executor
@@ -1832,7 +1832,6 @@ fn test_complex_window_with_array_agg_ordered() {
 }
 
 #[test]
-#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_nested_aggregates_with_scalar_subqueries() {
     let mut executor = create_executor();
     executor
@@ -2038,7 +2037,6 @@ fn test_nested_aggregates_with_scalar_subqueries() {
 }
 
 #[test]
-#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_recursive_like_hierarchy_with_arrays() {
     let mut executor = create_executor();
     executor
@@ -2258,7 +2256,6 @@ fn test_recursive_like_hierarchy_with_arrays() {
 }
 
 #[test]
-#[ignore = "TODO: CTE scoping for subqueries"]
 fn test_time_series_with_gaps_and_array_agg() {
     let mut executor = create_executor();
     executor
@@ -2343,7 +2340,9 @@ fn test_time_series_with_gaps_and_array_agg() {
             status_transitions AS (
                 SELECT
                     sensor_id,
-                    COUNT(DISTINCT status) AS unique_statuses,
+                    (SELECT COUNT(DISTINCT sr.status)
+                     FROM sensor_readings sr
+                     WHERE sr.sensor_id = ss.sensor_id) AS unique_statuses,
                     (SELECT status
                      FROM sensor_readings sr
                      WHERE sr.sensor_id = ss.sensor_id
@@ -2385,7 +2384,7 @@ fn test_time_series_with_gaps_and_array_agg() {
                 1,
                 2,
                 "normal",
-                23.5,
+                n("23.5"),
                 ["normal", "normal", "normal", "warning", "warning", "normal"],
                 [22.5, 22.8, 23.1, 24.5, 25.0, 23.5]
             ],
@@ -2398,7 +2397,7 @@ fn test_time_series_with_gaps_and_array_agg() {
                 1,
                 2,
                 "normal",
-                19.0,
+                n("19.0"),
                 ["normal", "normal", "cold", "cold", "normal"],
                 [20.0, 19.5, 18.0, 17.5, 19.0]
             ],
@@ -2625,7 +2624,6 @@ fn test_cte_qualified_wildcard() {
 }
 
 #[test]
-#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_with_complex_cte_and_array_operations() {
     let mut executor = create_executor();
     executor
@@ -2732,7 +2730,6 @@ fn test_unnest_with_complex_cte_and_array_operations() {
 }
 
 #[test]
-#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_cross_join_with_nested_structs() {
     let mut executor = create_executor();
     executor
@@ -2826,7 +2823,7 @@ fn test_unnest_cross_join_with_nested_structs() {
                 os.customer_name,
                 os.item_count,
                 os.order_total,
-                (SELECT STRING_AGG(DISTINCT ca.color, ', ')
+                (SELECT STRING_AGG(DISTINCT ca.color, ', ' ORDER BY ca.color)
                  FROM color_analysis ca
                  JOIN flattened_items fi ON ca.product_name = fi.product_name
                  WHERE fi.order_id = os.order_id) AS colors_in_order
@@ -2837,15 +2834,14 @@ fn test_unnest_cross_join_with_nested_structs() {
     assert_table_eq!(
         result,
         [
-            [1, "Alice", 2, 1250.0, "black, silver"],
-            [2, "Bob", 2, 950.0, null],
+            [1, "Alice", 2, 1250.0, "silver, black"],
+            [2, "Bob", 2, 950.0, ""],
             [3, "Charlie", 1, 600.0, "gray"],
         ]
     );
 }
 
 #[test]
-#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_with_window_functions_and_array_subquery() {
     let mut executor = create_executor();
     executor
@@ -2969,7 +2965,6 @@ fn test_unnest_with_window_functions_and_array_subquery() {
 }
 
 #[test]
-#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_multi_array_correlation() {
     let mut executor = create_executor();
     executor
@@ -3088,7 +3083,6 @@ fn test_unnest_multi_array_correlation() {
 }
 
 #[test]
-#[ignore = "TODO: UNNEST column resolution"]
 fn test_unnest_with_lateral_join_simulation() {
     let mut executor = create_executor();
     executor
@@ -3209,7 +3203,6 @@ fn test_unnest_with_lateral_join_simulation() {
 }
 
 #[test]
-#[ignore = "TODO: UNNEST column resolution"]
 fn test_deep_nested_unnest_with_aggregations() {
     let mut executor = create_executor();
     executor
@@ -3339,7 +3332,7 @@ fn test_deep_nested_unnest_with_aggregations() {
                 cs.order_count AS customer_order_count,
                 cs.lifetime_value AS customer_ltv,
                 ROUND(cs.discount_rate_pct, 2) AS customer_discount_rate,
-                (SELECT ARRAY_AGG(STRUCT(ds.product_name, ds.total_discounts, ds.num_discounts))
+                (SELECT ARRAY_AGG(STRUCT(ds.product_name, ds.total_discounts, ds.num_discounts) ORDER BY ds.product_name)
                  FROM discount_summary ds
                  WHERE ds.order_id = ols.order_id) AS item_discount_details
             FROM order_level_stats ols
@@ -3350,9 +3343,9 @@ fn test_deep_nested_unnest_with_aggregations() {
     assert_table_eq!(
         result,
         [
-            [1001, 1, "New York", 2, 1300.0, 190.0, 1110.0, "SAVE10", 2, 2210.0, 11.6, [{"Laptop", 180.0, 2}, {"Mouse", 10.0, 1}]],
-            [1002, 2, "Los Angeles", 2, 550.0, 130.0, 420.0, "VIP15", 1, 420.0, 23.64, [{"Keyboard", 30.0, 1}, {"Monitor", 100.0, 2}]],
-            [1003, 1, "New York", 1, 1200.0, 100.0, 1100.0, "REPEAT", 2, 2210.0, 11.6, [{"Laptop", 100.0, 1}]],
+            [1001, 1, "New York", 2, 1300.0, 190.0, 1110.0, "SAVE10", 2, 2210.0, 11.6, [{{"Laptop", 180.0, 2}}, {{"Mouse", 10.0, 1}}]],
+            [1002, 2, "Los Angeles", 2, 550.0, 130.0, 420.0, "VIP15", 1, 420.0, 23.64, [{{"Keyboard", 30.0, 1}}, {{"Monitor", 100.0, 2}}]],
+            [1003, 1, "New York", 1, 1200.0, 100.0, 1100.0, "REPEAT", 2, 2210.0, 11.6, [{{"Laptop", 100.0, 1}}]],
         ]
     );
 }

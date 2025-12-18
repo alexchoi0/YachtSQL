@@ -471,3 +471,81 @@ fn test_cume_dist() {
         ]
     );
 }
+
+#[test]
+fn test_named_window() {
+    let mut executor = create_executor();
+    setup_tables(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT employee, amount, SUM(amount) OVER w AS running_sum
+             FROM sales
+             WINDOW w AS (ORDER BY amount)
+             ORDER BY amount",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["Charlie", 800, 800],
+            ["Alice", 1000, 1800],
+            ["Diana", 1200, 3000],
+            ["Bob", 1500, 4500],
+            ["Alice", 2000, 6500],
+        ]
+    );
+}
+
+#[test]
+fn test_named_window_with_partition() {
+    let mut executor = create_executor();
+    setup_tables(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT employee, department, amount, ROW_NUMBER() OVER w AS rn
+             FROM sales
+             WINDOW w AS (PARTITION BY department ORDER BY amount DESC)
+             ORDER BY department, rn",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["Diana", "Clothing", 1200, 1],
+            ["Charlie", "Clothing", 800, 2],
+            ["Alice", "Electronics", 2000, 1],
+            ["Bob", "Electronics", 1500, 2],
+            ["Alice", "Electronics", 1000, 3],
+        ]
+    );
+}
+
+#[test]
+fn test_named_window_with_rows_between() {
+    let mut executor = create_executor();
+    setup_tables(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT employee, amount, SUM(amount) OVER w AS rolling_sum
+             FROM sales
+             WINDOW w AS (ORDER BY amount ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+             ORDER BY amount",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["Charlie", 800, 800],
+            ["Alice", 1000, 1800],
+            ["Diana", 1200, 2200],
+            ["Bob", 1500, 2700],
+            ["Alice", 2000, 3500],
+        ]
+    );
+}

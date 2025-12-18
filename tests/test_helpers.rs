@@ -56,6 +56,9 @@ macro_rules! val {
         $crate::common::array($crate::vals![$($elem)*])
     };
     ({}) => { $crate::common::stv(vec![]) };
+    ({{ $($val:tt)* }}) => {
+        $crate::common::stv_numeric($crate::vals![$($val)*])
+    };
     ({ $($val:tt)* }) => {
         $crate::common::stv($crate::vals![$($val)*])
     };
@@ -185,7 +188,41 @@ pub fn stv(vals: Vec<Value>) -> Value {
     Value::struct_val(
         vals.into_iter()
             .enumerate()
-            .map(|(i, v)| (format!("f{}", i), v))
+            .map(|(i, v)| (format!("_field{}", i), v))
+            .collect(),
+    )
+}
+
+pub fn stv_numeric(vals: Vec<Value>) -> Value {
+    Value::struct_val(
+        vals.into_iter()
+            .enumerate()
+            .map(|(i, v)| {
+                let coerced = match v {
+                    Value::Float64(f) => {
+                        let d = rust_decimal::Decimal::from_f64_retain(f.0)
+                            .unwrap_or(rust_decimal::Decimal::ZERO);
+                        Value::numeric(d)
+                    }
+                    Value::Null
+                    | Value::Bool(_)
+                    | Value::Int64(_)
+                    | Value::Numeric(_)
+                    | Value::String(_)
+                    | Value::Bytes(_)
+                    | Value::Date(_)
+                    | Value::Time(_)
+                    | Value::DateTime(_)
+                    | Value::Timestamp(_)
+                    | Value::Json(_)
+                    | Value::Array(_)
+                    | Value::Struct(_)
+                    | Value::Geography(_)
+                    | Value::Interval(_)
+                    | Value::Range(_) => v,
+                };
+                (format!("_field{}", i), coerced)
+            })
             .collect(),
     )
 }

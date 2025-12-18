@@ -468,3 +468,54 @@ fn test_array_agg_with_order_by_and_limit() {
         .unwrap();
     assert_table_eq!(result, [[1, "b"], [2, "c"]]);
 }
+
+#[test]
+fn test_array_agg_struct_basic() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE items_struct (id INT64, name STRING, price FLOAT64)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "INSERT INTO items_struct VALUES (1, 'A', 10.0), (1, 'B', 20.0), (2, 'C', 30.0)",
+        )
+        .unwrap();
+    let result = executor
+        .execute_sql(
+            "SELECT id, ARRAY_AGG(STRUCT(name, price)) as items FROM items_struct GROUP BY id ORDER BY id",
+        )
+        .unwrap();
+    assert_table_eq!(result, [
+        [1, [{"A", 10.0}, {"B", 20.0}]],
+        [2, [{"C", 30.0}]]
+    ]);
+}
+
+#[test]
+fn test_array_agg_struct_in_correlated_subquery() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE orders_s (order_id INT64, customer STRING)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE items_s (order_id INT64, name STRING, price INT64)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO orders_s VALUES (1, 'Alice'), (2, 'Bob')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO items_s VALUES (1, 'A', 10), (1, 'B', 20), (2, 'C', 30)")
+        .unwrap();
+    let result = executor
+        .execute_sql(
+            "SELECT o.order_id, o.customer,
+                    (SELECT ARRAY_AGG(STRUCT(i.name, i.price)) FROM items_s i WHERE i.order_id = o.order_id) as items
+             FROM orders_s o
+             ORDER BY o.order_id",
+        )
+        .unwrap();
+    assert_table_eq!(result, [
+        [1, "Alice", [{"A", 10}, {"B", 20}]],
+        [2, "Bob", [{"C", 30}]]
+    ]);
+}
