@@ -6407,10 +6407,36 @@ impl<'a> IrEvaluator<'a> {
         }
         match (&args[0], &args[1]) {
             (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
-            (Value::Range(_), Value::Range(_)) => Ok(Value::Bool(false)),
+            (Value::Range(r1), Value::Range(r2)) => {
+                let (start1, end1) = (r1.start.as_deref(), r1.end.as_deref());
+                let (start2, end2) = (r2.start.as_deref(), r2.end.as_deref());
+                let overlaps = match (start1, end1, start2, end2) {
+                    (Some(s1), Some(e1), Some(s2), Some(e2)) => {
+                        self.value_less_than(s1, e2) && self.value_less_than(s2, e1)
+                    }
+                    (None, Some(e1), Some(s2), _) => self.value_less_than(s2, e1),
+                    (Some(s1), None, _, Some(e2)) => self.value_less_than(s1, e2),
+                    (None, _, _, None) | (_, None, None, _) => true,
+                    _ => false,
+                };
+                Ok(Value::Bool(overlaps))
+            }
             _ => Err(Error::InvalidQuery(
                 "RANGE_OVERLAPS expects range arguments".into(),
             )),
+        }
+    }
+
+    fn value_less_than(&self, a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::Int64(x), Value::Int64(y)) => x < y,
+            (Value::Float64(x), Value::Float64(y)) => x < y,
+            (Value::Date(x), Value::Date(y)) => x < y,
+            (Value::DateTime(x), Value::DateTime(y)) => x < y,
+            (Value::Timestamp(x), Value::Timestamp(y)) => x < y,
+            (Value::Time(x), Value::Time(y)) => x < y,
+            (Value::String(x), Value::String(y)) => x < y,
+            _ => false,
         }
     }
 
