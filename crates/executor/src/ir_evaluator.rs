@@ -4399,6 +4399,7 @@ impl<'a> IrEvaluator<'a> {
             "JSON_STRIP_NULLS" => self.fn_json_strip_nulls(args),
             "JSON_QUERY_ARRAY" => self.fn_json_query_array(args),
             "JSON_VALUE_ARRAY" => self.fn_json_value_array(args),
+            "JSON_EXTRACT_STRING_ARRAY" => self.fn_json_extract_string_array(args),
             "JSON_KEYS" => self.fn_json_keys(args),
             "REGEXP_INSTR" => self.fn_regexp_instr(args),
             "NET.IP_IN_NET" => self.fn_net_ip_in_net(args),
@@ -5951,27 +5952,32 @@ impl<'a> IrEvaluator<'a> {
         if args.is_empty() {
             return Ok(Value::Null);
         }
-        match &args[0] {
-            Value::Null => Ok(Value::Null),
-            Value::Json(j) => {
-                if let Some(arr) = j.as_array() {
-                    let values: Vec<Value> = arr.iter().map(|v| Value::Json(v.clone())).collect();
-                    Ok(Value::Array(values))
-                } else {
-                    Ok(Value::Array(vec![]))
+        let json_val = match &args[0] {
+            Value::Null => return Ok(Value::Null),
+            Value::Json(j) => j.clone(),
+            Value::String(s) => match serde_json::from_str::<serde_json::Value>(s) {
+                Ok(j) => j,
+                Err(_) => return Ok(Value::Array(vec![])),
+            },
+            _ => return Ok(Value::Null),
+        };
+        let json_to_extract = if args.len() > 1 {
+            if let Value::String(path) = &args[1] {
+                match extract_json_path(&json_val, path)? {
+                    Some(v) => v,
+                    None => return Ok(Value::Array(vec![])),
                 }
+            } else {
+                json_val
             }
-            Value::String(s) => {
-                let parsed: serde_json::Value =
-                    serde_json::from_str(s).unwrap_or(serde_json::Value::Null);
-                if let Some(arr) = parsed.as_array() {
-                    let values: Vec<Value> = arr.iter().map(|v| Value::Json(v.clone())).collect();
-                    Ok(Value::Array(values))
-                } else {
-                    Ok(Value::Array(vec![]))
-                }
-            }
-            _ => Ok(Value::Null),
+        } else {
+            json_val
+        };
+        if let Some(arr) = json_to_extract.as_array() {
+            let values: Vec<Value> = arr.iter().map(|v| Value::Json(v.clone())).collect();
+            Ok(Value::Array(values))
+        } else {
+            Ok(Value::Array(vec![]))
         }
     }
 
@@ -5979,33 +5985,90 @@ impl<'a> IrEvaluator<'a> {
         if args.is_empty() {
             return Ok(Value::Null);
         }
-        match &args[0] {
-            Value::Null => Ok(Value::Null),
-            Value::Json(j) => {
-                if let Some(arr) = j.as_array() {
-                    let values: Vec<Value> = arr
-                        .iter()
-                        .map(|v| match v {
-                            serde_json::Value::String(s) => Value::String(s.clone()),
-                            serde_json::Value::Number(n) => {
-                                if let Some(i) = n.as_i64() {
-                                    Value::Int64(i)
-                                } else if let Some(f) = n.as_f64() {
-                                    Value::Float64(OrderedFloat(f))
-                                } else {
-                                    Value::Null
-                                }
-                            }
-                            serde_json::Value::Bool(b) => Value::Bool(*b),
-                            _ => Value::Null,
-                        })
-                        .collect();
-                    Ok(Value::Array(values))
-                } else {
-                    Ok(Value::Array(vec![]))
+        let json_val = match &args[0] {
+            Value::Null => return Ok(Value::Null),
+            Value::Json(j) => j.clone(),
+            Value::String(s) => match serde_json::from_str::<serde_json::Value>(s) {
+                Ok(j) => j,
+                Err(_) => return Ok(Value::Array(vec![])),
+            },
+            _ => return Ok(Value::Null),
+        };
+        let json_to_extract = if args.len() > 1 {
+            if let Value::String(path) = &args[1] {
+                match extract_json_path(&json_val, path)? {
+                    Some(v) => v,
+                    None => return Ok(Value::Array(vec![])),
                 }
+            } else {
+                json_val
             }
-            _ => Ok(Value::Null),
+        } else {
+            json_val
+        };
+        if let Some(arr) = json_to_extract.as_array() {
+            let values: Vec<Value> = arr
+                .iter()
+                .map(|v| match v {
+                    serde_json::Value::String(s) => Value::String(s.clone()),
+                    serde_json::Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            Value::Int64(i)
+                        } else if let Some(f) = n.as_f64() {
+                            Value::Float64(OrderedFloat(f))
+                        } else {
+                            Value::Null
+                        }
+                    }
+                    serde_json::Value::Bool(b) => Value::Bool(*b),
+                    _ => Value::Null,
+                })
+                .collect();
+            Ok(Value::Array(values))
+        } else {
+            Ok(Value::Array(vec![]))
+        }
+    }
+
+    fn fn_json_extract_string_array(&self, args: &[Value]) -> Result<Value> {
+        if args.is_empty() {
+            return Ok(Value::Null);
+        }
+        let json_val = match &args[0] {
+            Value::Null => return Ok(Value::Null),
+            Value::Json(j) => j.clone(),
+            Value::String(s) => match serde_json::from_str::<serde_json::Value>(s) {
+                Ok(j) => j,
+                Err(_) => return Ok(Value::Array(vec![])),
+            },
+            _ => return Ok(Value::Null),
+        };
+        let json_to_extract = if args.len() > 1 {
+            if let Value::String(path) = &args[1] {
+                match extract_json_path(&json_val, path)? {
+                    Some(v) => v,
+                    None => return Ok(Value::Array(vec![])),
+                }
+            } else {
+                json_val
+            }
+        } else {
+            json_val
+        };
+        if let Some(arr) = json_to_extract.as_array() {
+            let values: Vec<Value> = arr
+                .iter()
+                .map(|v| match v {
+                    serde_json::Value::String(s) => Value::String(s.clone()),
+                    serde_json::Value::Number(n) => Value::String(n.to_string()),
+                    serde_json::Value::Bool(b) => Value::String(b.to_string()),
+                    serde_json::Value::Null => Value::Null,
+                    _ => Value::String(v.to_string()),
+                })
+                .collect();
+            Ok(Value::Array(values))
+        } else {
+            Ok(Value::Array(vec![]))
         }
     }
 
