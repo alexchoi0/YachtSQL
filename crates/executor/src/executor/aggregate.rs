@@ -26,10 +26,8 @@ impl<'a> PlanExecutor<'a> {
         let mut result = Table::empty(result_schema);
 
         if group_by.is_empty() {
-            let mut accumulators: Vec<Accumulator> = aggregates
-                .iter()
-                .map(Accumulator::from_expr)
-                .collect();
+            let mut accumulators: Vec<Accumulator> =
+                aggregates.iter().map(Accumulator::from_expr).collect();
 
             for record in input_table.rows()? {
                 for (acc, agg_expr) in accumulators.iter_mut().zip(aggregates.iter()) {
@@ -47,6 +45,9 @@ impl<'a> PlanExecutor<'a> {
                         let arg_val = extract_agg_arg(&evaluator, agg_expr, &record)?;
                         let sort_keys = extract_order_by_keys(&evaluator, agg_expr, &record)?;
                         acc.accumulate_array_agg(&arg_val, sort_keys)?;
+                    } else if matches!(acc, Accumulator::Covariance { .. }) {
+                        let (x, y) = extract_bivariate_args(&evaluator, agg_expr, &record)?;
+                        acc.accumulate_bivariate(&x, &y)?;
                     } else {
                         let arg_val = extract_agg_arg(&evaluator, agg_expr, &record)?;
                         acc.accumulate(&arg_val)?;
@@ -70,12 +71,9 @@ impl<'a> PlanExecutor<'a> {
                     .map(|v| format!("{:?}", v))
                     .collect();
 
-                let accumulators = groups.entry(group_key_strings.clone()).or_insert_with(|| {
-                    aggregates
-                        .iter()
-                        .map(Accumulator::from_expr)
-                        .collect()
-                });
+                let accumulators = groups
+                    .entry(group_key_strings.clone())
+                    .or_insert_with(|| aggregates.iter().map(Accumulator::from_expr).collect());
                 group_keys
                     .entry(group_key_strings.clone())
                     .or_insert(group_key_values);
@@ -95,6 +93,9 @@ impl<'a> PlanExecutor<'a> {
                         let arg_val = extract_agg_arg(&evaluator, agg_expr, &record)?;
                         let sort_keys = extract_order_by_keys(&evaluator, agg_expr, &record)?;
                         acc.accumulate_array_agg(&arg_val, sort_keys)?;
+                    } else if matches!(acc, Accumulator::Covariance { .. }) {
+                        let (x, y) = extract_bivariate_args(&evaluator, agg_expr, &record)?;
+                        acc.accumulate_bivariate(&x, &y)?;
                     } else {
                         let arg_val = extract_agg_arg(&evaluator, agg_expr, &record)?;
                         acc.accumulate(&arg_val)?;
@@ -189,7 +190,99 @@ fn extract_conditional_agg_args(
             }
         }
         Expr::Alias { expr, .. } => extract_conditional_agg_args(evaluator, expr, record),
-        _ => Ok((Value::Null, false)),
+        Expr::Literal(_)
+        | Expr::Column { .. }
+        | Expr::BinaryOp { .. }
+        | Expr::UnaryOp { .. }
+        | Expr::ScalarFunction { .. }
+        | Expr::Window { .. }
+        | Expr::AggregateWindow { .. }
+        | Expr::Case { .. }
+        | Expr::Cast { .. }
+        | Expr::IsNull { .. }
+        | Expr::IsDistinctFrom { .. }
+        | Expr::InList { .. }
+        | Expr::InSubquery { .. }
+        | Expr::InUnnest { .. }
+        | Expr::Exists { .. }
+        | Expr::Between { .. }
+        | Expr::Like { .. }
+        | Expr::Extract { .. }
+        | Expr::Substring { .. }
+        | Expr::Trim { .. }
+        | Expr::Position { .. }
+        | Expr::Overlay { .. }
+        | Expr::Array { .. }
+        | Expr::ArrayAccess { .. }
+        | Expr::Struct { .. }
+        | Expr::StructAccess { .. }
+        | Expr::TypedString { .. }
+        | Expr::Interval { .. }
+        | Expr::Wildcard { .. }
+        | Expr::Subquery(_)
+        | Expr::ScalarSubquery(_)
+        | Expr::Parameter { .. }
+        | Expr::Variable { .. }
+        | Expr::Placeholder { .. }
+        | Expr::Lambda { .. }
+        | Expr::AtTimeZone { .. }
+        | Expr::JsonAccess { .. } => Ok((Value::Null, false)),
+    }
+}
+
+fn extract_bivariate_args(
+    evaluator: &IrEvaluator,
+    agg_expr: &Expr,
+    record: &yachtsql_storage::Record,
+) -> Result<(Value, Value)> {
+    match agg_expr {
+        Expr::Aggregate { args, .. } => {
+            if args.len() >= 2 {
+                let x = evaluator.evaluate(&args[0], record)?;
+                let y = evaluator.evaluate(&args[1], record)?;
+                Ok((x, y))
+            } else {
+                Ok((Value::Null, Value::Null))
+            }
+        }
+        Expr::Alias { expr, .. } => extract_bivariate_args(evaluator, expr, record),
+        Expr::Literal(_)
+        | Expr::Column { .. }
+        | Expr::BinaryOp { .. }
+        | Expr::UnaryOp { .. }
+        | Expr::ScalarFunction { .. }
+        | Expr::Window { .. }
+        | Expr::AggregateWindow { .. }
+        | Expr::Case { .. }
+        | Expr::Cast { .. }
+        | Expr::IsNull { .. }
+        | Expr::IsDistinctFrom { .. }
+        | Expr::InList { .. }
+        | Expr::InSubquery { .. }
+        | Expr::InUnnest { .. }
+        | Expr::Exists { .. }
+        | Expr::Between { .. }
+        | Expr::Like { .. }
+        | Expr::Extract { .. }
+        | Expr::Substring { .. }
+        | Expr::Trim { .. }
+        | Expr::Position { .. }
+        | Expr::Overlay { .. }
+        | Expr::Array { .. }
+        | Expr::ArrayAccess { .. }
+        | Expr::Struct { .. }
+        | Expr::StructAccess { .. }
+        | Expr::TypedString { .. }
+        | Expr::Interval { .. }
+        | Expr::Wildcard { .. }
+        | Expr::Subquery(_)
+        | Expr::ScalarSubquery(_)
+        | Expr::Parameter { .. }
+        | Expr::Variable { .. }
+        | Expr::Placeholder { .. }
+        | Expr::Lambda { .. }
+        | Expr::AtTimeZone { .. }
+        | Expr::JsonAccess { .. } => Ok((Value::Null, Value::Null)),
     }
 }
 
@@ -427,15 +520,51 @@ fn has_ignore_nulls(expr: &Expr) -> bool {
 fn extract_string_agg_separator(expr: &Expr) -> String {
     match expr {
         Expr::Aggregate { args, .. } => {
-            if args.len() >= 2 {
-                if let Expr::Literal(yachtsql_ir::Literal::String(s)) = &args[1] {
-                    return s.clone();
-                }
+            if args.len() >= 2
+                && let Expr::Literal(yachtsql_ir::Literal::String(s)) = &args[1]
+            {
+                return s.clone();
             }
             ",".to_string()
         }
         Expr::Alias { expr, .. } => extract_string_agg_separator(expr),
-        _ => ",".to_string(),
+        Expr::Literal(_)
+        | Expr::Column { .. }
+        | Expr::BinaryOp { .. }
+        | Expr::UnaryOp { .. }
+        | Expr::ScalarFunction { .. }
+        | Expr::Window { .. }
+        | Expr::AggregateWindow { .. }
+        | Expr::Case { .. }
+        | Expr::Cast { .. }
+        | Expr::IsNull { .. }
+        | Expr::IsDistinctFrom { .. }
+        | Expr::InList { .. }
+        | Expr::InSubquery { .. }
+        | Expr::InUnnest { .. }
+        | Expr::Exists { .. }
+        | Expr::Between { .. }
+        | Expr::Like { .. }
+        | Expr::Extract { .. }
+        | Expr::Substring { .. }
+        | Expr::Trim { .. }
+        | Expr::Position { .. }
+        | Expr::Overlay { .. }
+        | Expr::Array { .. }
+        | Expr::ArrayAccess { .. }
+        | Expr::Struct { .. }
+        | Expr::StructAccess { .. }
+        | Expr::TypedString { .. }
+        | Expr::Interval { .. }
+        | Expr::Wildcard { .. }
+        | Expr::Subquery(_)
+        | Expr::ScalarSubquery(_)
+        | Expr::Parameter { .. }
+        | Expr::Variable { .. }
+        | Expr::Placeholder { .. }
+        | Expr::Lambda { .. }
+        | Expr::AtTimeZone { .. }
+        | Expr::JsonAccess { .. } => ",".to_string(),
     }
 }
 
@@ -480,6 +609,22 @@ enum Accumulator {
     },
     MinIf(Option<Value>),
     MaxIf(Option<Value>),
+    Covariance {
+        count: i64,
+        mean_x: f64,
+        mean_y: f64,
+        c_xy: f64,
+        m2_x: f64,
+        m2_y: f64,
+        is_sample: bool,
+        stat_type: CovarianceStatType,
+    },
+}
+
+#[derive(Clone, Copy)]
+enum CovarianceStatType {
+    Covariance,
+    Correlation,
 }
 
 impl Accumulator {
@@ -554,13 +699,38 @@ impl Accumulator {
                 AggregateFunction::Grouping
                 | AggregateFunction::ApproxQuantiles
                 | AggregateFunction::ApproxTopCount
-                | AggregateFunction::ApproxTopSum
-                | AggregateFunction::Corr
-                | AggregateFunction::CovarPop
-                | AggregateFunction::CovarSamp => Accumulator::Count(0),
-                AggregateFunction::ApproxCountDistinct => {
-                    Accumulator::CountDistinct(Vec::new())
-                }
+                | AggregateFunction::ApproxTopSum => Accumulator::Count(0),
+                AggregateFunction::Corr => Accumulator::Covariance {
+                    count: 0,
+                    mean_x: 0.0,
+                    mean_y: 0.0,
+                    c_xy: 0.0,
+                    m2_x: 0.0,
+                    m2_y: 0.0,
+                    is_sample: false,
+                    stat_type: CovarianceStatType::Correlation,
+                },
+                AggregateFunction::CovarPop => Accumulator::Covariance {
+                    count: 0,
+                    mean_x: 0.0,
+                    mean_y: 0.0,
+                    c_xy: 0.0,
+                    m2_x: 0.0,
+                    m2_y: 0.0,
+                    is_sample: false,
+                    stat_type: CovarianceStatType::Covariance,
+                },
+                AggregateFunction::CovarSamp => Accumulator::Covariance {
+                    count: 0,
+                    mean_x: 0.0,
+                    mean_y: 0.0,
+                    c_xy: 0.0,
+                    m2_x: 0.0,
+                    m2_y: 0.0,
+                    is_sample: true,
+                    stat_type: CovarianceStatType::Covariance,
+                },
+                AggregateFunction::ApproxCountDistinct => Accumulator::CountDistinct(Vec::new()),
             },
             None => Accumulator::Count(0),
         }
@@ -712,7 +882,8 @@ impl Accumulator {
             Accumulator::SumIf(_)
             | Accumulator::AvgIf { .. }
             | Accumulator::MinIf(_)
-            | Accumulator::MaxIf(_) => {}
+            | Accumulator::MaxIf(_)
+            | Accumulator::Covariance { .. } => {}
         }
         Ok(())
     }
@@ -728,7 +899,27 @@ impl Accumulator {
                 }
                 items.push((value.clone(), sort_keys));
             }
-            _ => {
+            Accumulator::Count(_)
+            | Accumulator::CountIf(_)
+            | Accumulator::Sum(_)
+            | Accumulator::Avg { .. }
+            | Accumulator::Min(_)
+            | Accumulator::Max(_)
+            | Accumulator::StringAgg { .. }
+            | Accumulator::First(_)
+            | Accumulator::Last(_)
+            | Accumulator::CountDistinct(_)
+            | Accumulator::BitAnd(_)
+            | Accumulator::BitOr(_)
+            | Accumulator::BitXor(_)
+            | Accumulator::LogicalAnd(_)
+            | Accumulator::LogicalOr(_)
+            | Accumulator::Variance { .. }
+            | Accumulator::SumIf(_)
+            | Accumulator::AvgIf { .. }
+            | Accumulator::MinIf(_)
+            | Accumulator::MaxIf(_)
+            | Accumulator::Covariance { .. } => {
                 self.accumulate(value)?;
             }
         }
@@ -795,7 +986,73 @@ impl Accumulator {
                     });
                 }
             }
-            _ => {}
+            Accumulator::Count(_)
+            | Accumulator::CountIf(_)
+            | Accumulator::Sum(_)
+            | Accumulator::Avg { .. }
+            | Accumulator::Min(_)
+            | Accumulator::Max(_)
+            | Accumulator::ArrayAgg { .. }
+            | Accumulator::StringAgg { .. }
+            | Accumulator::First(_)
+            | Accumulator::Last(_)
+            | Accumulator::CountDistinct(_)
+            | Accumulator::BitAnd(_)
+            | Accumulator::BitOr(_)
+            | Accumulator::BitXor(_)
+            | Accumulator::LogicalAnd(_)
+            | Accumulator::LogicalOr(_)
+            | Accumulator::Variance { .. }
+            | Accumulator::Covariance { .. } => {}
+        }
+        Ok(())
+    }
+
+    fn accumulate_bivariate(&mut self, x: &Value, y: &Value) -> Result<()> {
+        let x_val = if let Some(f) = x.as_f64() {
+            Some(f)
+        } else if let Some(i) = x.as_i64() {
+            Some(i as f64)
+        } else if let Value::Numeric(d) = x {
+            use rust_decimal::prelude::ToPrimitive;
+            d.to_f64()
+        } else {
+            None
+        };
+        let y_val = if let Some(f) = y.as_f64() {
+            Some(f)
+        } else if let Some(i) = y.as_i64() {
+            Some(i as f64)
+        } else if let Value::Numeric(d) = y {
+            use rust_decimal::prelude::ToPrimitive;
+            d.to_f64()
+        } else {
+            None
+        };
+
+        if let (Some(x), Some(y)) = (x_val, y_val) {
+            if let Accumulator::Covariance {
+                count,
+                mean_x,
+                mean_y,
+                c_xy,
+                m2_x,
+                m2_y,
+                ..
+            } = self
+            {
+                *count += 1;
+                let n = *count as f64;
+                let delta_x = x - *mean_x;
+                let delta_y = y - *mean_y;
+                *mean_x += delta_x / n;
+                *mean_y += delta_y / n;
+                let delta_x2 = x - *mean_x;
+                let delta_y2 = y - *mean_y;
+                *c_xy += delta_x * delta_y2;
+                *m2_x += delta_x * delta_x2;
+                *m2_y += delta_y * delta_y2;
+            }
         }
         Ok(())
     }
@@ -883,6 +1140,39 @@ impl Accumulator {
             }
             Accumulator::MinIf(min) => min.clone().unwrap_or(Value::Null),
             Accumulator::MaxIf(max) => max.clone().unwrap_or(Value::Null),
+            Accumulator::Covariance {
+                count,
+                c_xy,
+                m2_x,
+                m2_y,
+                is_sample,
+                stat_type,
+                ..
+            } => {
+                if *count < 2 {
+                    return Value::Null;
+                }
+                let divisor = if *is_sample {
+                    (*count - 1) as f64
+                } else {
+                    *count as f64
+                };
+                match stat_type {
+                    CovarianceStatType::Covariance => Value::Float64(OrderedFloat(*c_xy / divisor)),
+                    CovarianceStatType::Correlation => {
+                        let var_x = *m2_x / *count as f64;
+                        let var_y = *m2_y / *count as f64;
+                        if var_x <= 0.0 || var_y <= 0.0 {
+                            return Value::Null;
+                        }
+                        let std_x = var_x.sqrt();
+                        let std_y = var_y.sqrt();
+                        let cov = *c_xy / *count as f64;
+                        let corr = cov / (std_x * std_y);
+                        Value::Float64(OrderedFloat(corr))
+                    }
+                }
+            }
         }
     }
 }
