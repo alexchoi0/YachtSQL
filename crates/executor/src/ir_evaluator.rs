@@ -1190,7 +1190,7 @@ impl<'a> IrEvaluator<'a> {
             .enumerate()
             .map(|(i, (name, expr))| {
                 let val = self.evaluate(expr, record)?;
-                let field_name = name.clone().unwrap_or_else(|| format!("_{}", i));
+                let field_name = name.clone().unwrap_or_else(|| format!("_field{}", i));
                 Ok((field_name, val))
             })
             .collect();
