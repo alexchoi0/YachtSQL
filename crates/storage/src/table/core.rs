@@ -265,6 +265,18 @@ impl Table {
         self.schema = Schema::from_fields(fields);
         Ok(())
     }
+
+    pub fn with_schema(&self, new_schema: Schema) -> Table {
+        let mut new_columns = IndexMap::new();
+        for (old_col, new_field) in self.columns.values().zip(new_schema.fields().iter()) {
+            new_columns.insert(new_field.name.clone(), old_col.clone());
+        }
+        Table {
+            schema: new_schema,
+            columns: new_columns,
+            row_count: self.row_count,
+        }
+    }
 }
 
 pub trait TableSchemaOps {

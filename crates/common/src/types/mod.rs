@@ -89,6 +89,7 @@ pub enum Value {
     Geography(String),
     Interval(IntervalValue),
     Range(RangeValue),
+    Default,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -348,6 +349,7 @@ impl Value {
             Value::Geography(_) => DataType::Geography,
             Value::Interval(_) => DataType::Interval,
             Value::Range(r) => DataType::Range(Box::new(r.element_type())),
+            Value::Default => DataType::Unknown,
         }
     }
 
@@ -549,6 +551,7 @@ impl fmt::Debug for Value {
                 }
                 write!(f, ")")
             }
+            Value::Default => write!(f, "DEFAULT"),
         }
     }
 }
@@ -603,6 +606,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, ")")
             }
+            Value::Default => write!(f, "DEFAULT"),
         }
     }
 }
@@ -643,6 +647,7 @@ impl std::hash::Hash for Value {
                 v.nanos.hash(state);
             }
             Value::Range(r) => r.hash(state),
+            Value::Default => {}
         }
     }
 }

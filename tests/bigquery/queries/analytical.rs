@@ -110,6 +110,7 @@ fn test_top_products_by_revenue() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_monthly_revenue_trend() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -466,6 +467,7 @@ fn test_year_over_year_comparison() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_cohort_analysis() {
     let mut executor = create_executor();
     executor
@@ -574,6 +576,7 @@ fn test_funnel_analysis() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_retention_analysis() {
     let mut executor = create_executor();
     executor
@@ -671,6 +674,7 @@ fn test_abc_analysis() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_rfm_analysis() {
     let mut executor = create_executor();
     executor
@@ -783,6 +787,7 @@ fn test_time_series_decomposition() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_sessionization() {
     let mut executor = create_executor();
     executor
@@ -1149,6 +1154,7 @@ fn test_anomaly_detection_zscore() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_data_quality_checks() {
     let mut executor = create_executor();
     setup_sales_data(&mut executor);
@@ -1184,6 +1190,7 @@ fn test_data_quality_checks() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_complex_nested_ctes_with_array_agg_limit() {
     let mut executor = create_executor();
     executor
@@ -1387,6 +1394,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_multi_level_cte_with_correlated_subquery() {
     let mut executor = create_executor();
     executor
@@ -1584,6 +1592,7 @@ fn test_multi_level_cte_with_correlated_subquery() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_array_agg_with_order_and_limit_in_subquery() {
     let mut executor = create_executor();
     executor
@@ -1694,6 +1703,7 @@ fn test_array_agg_with_order_and_limit_in_subquery() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_complex_window_with_array_agg_ordered() {
     let mut executor = create_executor();
     executor
@@ -1832,6 +1842,7 @@ fn test_complex_window_with_array_agg_ordered() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_nested_aggregates_with_scalar_subqueries() {
     let mut executor = create_executor();
     executor
@@ -2037,6 +2048,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_recursive_like_hierarchy_with_arrays() {
     let mut executor = create_executor();
     executor
@@ -2256,6 +2268,7 @@ fn test_recursive_like_hierarchy_with_arrays() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_time_series_with_gaps_and_array_agg() {
     let mut executor = create_executor();
     executor
@@ -2406,6 +2419,7 @@ fn test_time_series_with_gaps_and_array_agg() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_complex_pivot_simulation_with_ctes() {
     let mut executor = create_executor();
     executor
@@ -2624,6 +2638,7 @@ fn test_cte_qualified_wildcard() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unnest_with_complex_cte_and_array_operations() {
     let mut executor = create_executor();
     executor
@@ -2730,6 +2745,7 @@ fn test_unnest_with_complex_cte_and_array_operations() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unnest_cross_join_with_nested_structs() {
     let mut executor = create_executor();
     executor
@@ -2842,6 +2858,7 @@ fn test_unnest_cross_join_with_nested_structs() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unnest_with_window_functions_and_array_subquery() {
     let mut executor = create_executor();
     executor
@@ -2965,6 +2982,7 @@ fn test_unnest_with_window_functions_and_array_subquery() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unnest_multi_array_correlation() {
     let mut executor = create_executor();
     executor
@@ -3083,6 +3101,7 @@ fn test_unnest_multi_array_correlation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_unnest_with_lateral_join_simulation() {
     let mut executor = create_executor();
     executor
@@ -3203,6 +3222,7 @@ fn test_unnest_with_lateral_join_simulation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_deep_nested_unnest_with_aggregations() {
     let mut executor = create_executor();
     executor

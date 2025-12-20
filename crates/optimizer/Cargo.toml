@@ -1,0 +1,11 @@
+[package]
+name = "yachtsql-optimizer"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "YachtSQL query optimizer - transforms LogicalPlan to PhysicalPlan"
+
+[dependencies]
+yachtsql-common = { path = "../common" }
+yachtsql-ir = { path = "../ir" }
+serde = { version = "1.0", features = ["derive"] }

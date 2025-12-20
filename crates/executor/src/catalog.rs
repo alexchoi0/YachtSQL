@@ -1,22 +1,15 @@
-//! In-memory catalog for storing table metadata and data.
-
 use std::collections::{HashMap, HashSet};
 
-use sqlparser::ast::{ConditionalStatements, Expr, OperateFunctionArg, ProcedureParam};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
+use yachtsql_ir::{Expr, FunctionArg, FunctionBody, LogicalPlan, ProcedureArg};
+use yachtsql_parser::CatalogProvider;
 use yachtsql_storage::{Schema, Table};
-
-#[derive(Debug, Clone)]
-pub enum FunctionBody {
-    Sql(Box<Expr>),
-    JavaScript(String),
-}
 
 #[derive(Debug, Clone)]
 pub struct UserFunction {
     pub name: String,
-    pub parameters: Vec<OperateFunctionArg>,
+    pub parameters: Vec<FunctionArg>,
     pub return_type: DataType,
     pub body: FunctionBody,
     pub is_temporary: bool,
@@ -25,8 +18,8 @@ pub struct UserFunction {
 #[derive(Debug, Clone)]
 pub struct UserProcedure {
     pub name: String,
-    pub parameters: Vec<ProcedureParam>,
-    pub body: ConditionalStatements,
+    pub parameters: Vec<ProcedureArg>,
+    pub body: Vec<LogicalPlan>,
 }
 
 #[derive(Debug, Clone)]
@@ -405,5 +398,11 @@ impl Catalog {
 
     pub fn view_exists(&self, name: &str) -> bool {
         self.views.contains_key(&name.to_uppercase())
+    }
+}
+
+impl CatalogProvider for Catalog {
+    fn get_table_schema(&self, name: &str) -> Option<Schema> {
+        self.get_table(name).map(|t| t.schema().clone())
     }
 }

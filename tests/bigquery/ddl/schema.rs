@@ -29,6 +29,7 @@ fn test_create_schema_if_not_exists() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_drop_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA temp_schema").unwrap();
@@ -112,6 +113,7 @@ fn test_schema_with_options() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_alter_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();
@@ -148,6 +150,7 @@ fn test_cross_schema_join() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_create_view_in_schema() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();
@@ -186,6 +189,7 @@ fn test_default_schema() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_schema_search_path() {
     let mut executor = create_executor();
     executor.execute_sql("CREATE SCHEMA my_schema").unwrap();

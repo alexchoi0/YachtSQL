@@ -11,10 +11,8 @@ yachtsql-common = { path = "../common" }
 yachtsql-storage = { path = "../storage" }
 yachtsql-parser = { path = "../parser" }
 yachtsql-ir = { path = "../ir" }
+yachtsql-optimizer = { path = "../optimizer" }
 yachtsql-functions = { path = "../functions" }
-
-# SQL parsing
-sqlparser = { version = "0.59", features = ["visitor"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

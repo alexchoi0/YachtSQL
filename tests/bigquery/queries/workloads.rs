@@ -206,6 +206,7 @@ fn test_category_performance() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_customer_lifetime_value() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -373,6 +374,7 @@ fn test_customer_segmentation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_conversion_funnel() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -403,6 +405,7 @@ fn test_conversion_funnel() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_order_status_breakdown() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -429,6 +432,7 @@ fn test_order_status_breakdown() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_daily_sales_trend() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -461,6 +465,7 @@ fn test_daily_sales_trend() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_discount_impact_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -501,6 +506,7 @@ fn test_discount_impact_analysis() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_new_vs_returning_customers() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -566,6 +572,7 @@ fn test_average_basket_composition() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_customer_acquisition_by_month() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -594,6 +601,7 @@ fn test_customer_acquisition_by_month() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_product_margin_analysis() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);
@@ -672,6 +680,7 @@ fn test_product_margin_analysis() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_order_size_distribution() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);

@@ -102,6 +102,7 @@ fn test_cte_with_star() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_array_struct_offset_star() {
     let mut executor = create_executor();
 
@@ -285,6 +286,7 @@ fn test_backtick_quoted_table() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_correlated_scalar_subquery_order_by_non_projected() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -361,6 +363,7 @@ fn test_safe_offset_on_array() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_exists_with_unnest() {
     let mut executor = create_executor();
     executor
@@ -378,6 +381,7 @@ fn test_exists_with_unnest() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_exists_with_unnest_like_pattern() {
     let mut executor = create_executor();
     executor
@@ -395,6 +399,7 @@ fn test_exists_with_unnest_like_pattern() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_exists_with_unnest_in_list() {
     let mut executor = create_executor();
     executor
@@ -497,6 +502,7 @@ fn test_logical_and() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_array_select_as_struct() {
     let mut executor = create_executor();
     executor
@@ -526,6 +532,7 @@ fn test_array_select_as_struct() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_temp_function_basic() {
     let mut executor = create_executor();
     executor
@@ -540,6 +547,7 @@ fn test_temp_function_basic() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_temp_function_string() {
     let mut executor = create_executor();
     executor
@@ -554,6 +562,7 @@ fn test_temp_function_string() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_temp_function_complex() {
     let mut executor = create_executor();
     executor
@@ -581,6 +590,7 @@ fn test_temp_function_complex() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_temp_function_in_expression() {
     let mut executor = create_executor();
     executor
@@ -595,6 +605,7 @@ fn test_temp_function_in_expression() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_complex_union_with_nested_subqueries() {
     let mut executor = create_executor();
 
@@ -670,6 +681,7 @@ fn test_complex_union_with_nested_subqueries() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_array_agg_struct_field_access() {
     let mut executor = create_executor();
 

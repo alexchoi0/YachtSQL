@@ -4952,6 +4952,7 @@ dependencies = [
  "yachtsql-executor",
  "yachtsql-functions",
  "yachtsql-ir",
+ "yachtsql-optimizer",
  "yachtsql-parser",
  "yachtsql-storage",
  "yachtsql-test-utils",
@@ -5035,7 +5036,6 @@ dependencies = [
  "sha1",
  "sha2",
  "siphasher",
- "sqlparser",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",
@@ -5050,6 +5050,7 @@ dependencies = [
  "yachtsql-common",
  "yachtsql-functions",
  "yachtsql-ir",
+ "yachtsql-optimizer",
  "yachtsql-parser",
  "yachtsql-storage",
  "yachtsql-test-utils",
@@ -5113,6 +5114,15 @@ dependencies = [
  "yachtsql-common",
  "yachtsql-storage",
  "yachtsql-test-utils",
+]
+
+[[package]]
+name = "yachtsql-optimizer"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "yachtsql-common",
+ "yachtsql-ir",
 ]
 
 [[package]]

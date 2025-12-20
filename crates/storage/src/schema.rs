@@ -114,14 +114,21 @@ impl Schema {
         match table {
             Some(tbl) => {
                 let qualified_name = format!("{}.{}", tbl, name);
-                if let Some(idx) = self.fields.iter().position(|f| f.name == qualified_name) {
+                if let Some(idx) = self
+                    .fields
+                    .iter()
+                    .position(|f| f.name.eq_ignore_ascii_case(&qualified_name))
+                {
                     return Some(idx);
                 }
                 self.fields.iter().position(|f| {
-                    f.name == name
-                        && f.source_table
-                            .as_ref()
-                            .is_some_and(|src| src == tbl || src.ends_with(&format!(".{}", tbl)))
+                    f.name.eq_ignore_ascii_case(name)
+                        && f.source_table.as_ref().is_some_and(|src| {
+                            src.eq_ignore_ascii_case(tbl)
+                                || src
+                                    .to_lowercase()
+                                    .ends_with(&format!(".{}", tbl.to_lowercase()))
+                        })
                 })
             }
             None => self.field_index(name),

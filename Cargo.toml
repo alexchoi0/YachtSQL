@@ -10,6 +10,7 @@ description = "YachtSQL - Lightweight in-memory SQL test database with columnar 
 yachtsql-common = { path = "crates/common" }
 yachtsql-storage = { path = "crates/storage" }
 yachtsql-ir = { path = "crates/ir" }
+yachtsql-optimizer = { path = "crates/optimizer" }
 yachtsql-parser = { path = "crates/parser" }
 yachtsql-functions = { path = "crates/functions" }
 yachtsql-executor = { path = "crates/executor" }
@@ -113,6 +114,7 @@ members = [
     "crates/executor",
     "crates/functions",
     "crates/ir",
+    "crates/optimizer",
     "crates/parser",
     "crates/storage",
     "crates/test-utils",

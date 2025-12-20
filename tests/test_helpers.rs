@@ -219,7 +219,8 @@ pub fn stv_numeric(vals: Vec<Value>) -> Value {
                     | Value::Struct(_)
                     | Value::Geography(_)
                     | Value::Interval(_)
-                    | Value::Range(_) => v,
+                    | Value::Range(_)
+                    | Value::Default => v,
                 };
                 (format!("_field{}", i), coerced)
             })

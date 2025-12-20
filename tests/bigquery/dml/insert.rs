@@ -212,3 +212,24 @@ fn test_insert_with_subquery() {
 
     assert_table_eq!(result, [[1, "Widget", 100]]);
 }
+
+#[test]
+fn test_insert_with_expression_default() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE events (id INT64, name STRING, created_date DATE DEFAULT CURRENT_DATE())",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO events (id, name) VALUES (1, 'login')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT id, name, created_date IS NOT NULL AS has_date FROM events")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "login", true]]);
+}

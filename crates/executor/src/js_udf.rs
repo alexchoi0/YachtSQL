@@ -107,6 +107,7 @@ fn value_to_js(mv8: &MiniV8, value: &Value) -> Result<JsValue, String> {
                 .map_err(|e| format!("Failed to set range end: {}", e))?;
             Ok(JsValue::Object(obj))
         }
+        Value::Default => Ok(JsValue::Null),
     }
 }
 
@@ -280,7 +281,8 @@ mod tests {
             | Value::Array(_)
             | Value::Geography(_)
             | Value::Interval(_)
-            | Value::Range(_) => panic!("Expected struct result"),
+            | Value::Range(_)
+            | Value::Default => panic!("Expected struct result"),
         }
     }
 

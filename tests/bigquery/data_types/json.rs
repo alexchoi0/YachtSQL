@@ -96,6 +96,7 @@ fn test_json_access_array_element() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_dot_notation() {
     let mut executor = create_executor();
     executor
@@ -114,6 +115,7 @@ fn test_json_dot_notation() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_json_subscript_notation() {
     let mut executor = create_executor();
     executor

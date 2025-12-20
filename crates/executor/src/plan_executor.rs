@@ -81,9 +81,9 @@ impl<'a> PlanExecutor<'a> {
                 or_replace,
             } => self.execute_create_table(table_name, columns, *if_not_exists, *or_replace),
             LogicalPlan::DropTable {
-                table_name,
+                table_names,
                 if_exists,
-            } => self.execute_drop_table(table_name, *if_exists),
+            } => self.execute_drop_tables(table_names, *if_exists),
             LogicalPlan::AlterTable { .. } => Err(Error::UnsupportedFeature(
                 "AlterTable not yet implemented in IR plan executor".into(),
             )),
@@ -213,11 +213,16 @@ impl<'a> PlanExecutor<'a> {
         Ok(Table::empty(Schema::new()))
     }
 
-    fn execute_drop_table(&mut self, table_name: &str, if_exists: bool) -> Result<Table> {
-        if self.catalog.get_table(table_name).is_none() && !if_exists {
-            return Err(Error::TableNotFound(table_name.to_string()));
+    fn execute_drop_tables(&mut self, table_names: &[String], if_exists: bool) -> Result<Table> {
+        for table_name in table_names {
+            if self.catalog.get_table(table_name).is_none() {
+                if if_exists {
+                    continue;
+                }
+                return Err(Error::TableNotFound(table_name.to_string()));
+            }
+            self.catalog.drop_table(table_name)?;
         }
-        self.catalog.drop_table(table_name)?;
         Ok(Table::empty(Schema::new()))
     }
 
@@ -260,11 +265,13 @@ mod tests {
                     name: "id".to_string(),
                     data_type: DataType::Int64,
                     nullable: false,
+                    default_value: None,
                 },
                 yachtsql_ir::ColumnDef {
                     name: "name".to_string(),
                     data_type: DataType::String,
                     nullable: true,
+                    default_value: None,
                 },
             ],
             if_not_exists: false,
@@ -290,6 +297,7 @@ mod tests {
                 name: "id".to_string(),
                 data_type: DataType::Int64,
                 nullable: false,
+                default_value: None,
             }],
             if_not_exists: false,
             or_replace: false,
@@ -302,6 +310,7 @@ mod tests {
                 name: "id".to_string(),
                 data_type: DataType::Int64,
                 nullable: false,
+                default_value: None,
             }],
             if_not_exists: true,
             or_replace: false,
@@ -321,6 +330,7 @@ mod tests {
                 name: "id".to_string(),
                 data_type: DataType::Int64,
                 nullable: false,
+                default_value: None,
             }],
             if_not_exists: false,
             or_replace: false,
@@ -328,7 +338,7 @@ mod tests {
         executor.execute(&create_plan).unwrap();
 
         let drop_plan = LogicalPlan::DropTable {
-            table_name: "test_table".to_string(),
+            table_names: vec!["test_table".to_string()],
             if_exists: false,
         };
         let result = executor.execute(&drop_plan);

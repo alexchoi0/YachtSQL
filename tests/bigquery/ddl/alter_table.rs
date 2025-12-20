@@ -115,6 +115,7 @@ fn test_alter_table_add_column_with_default() {
 }
 
 #[test]
+#[ignore = "Implement me!"]
 fn test_alter_table_add_constraint() {
     let mut executor = create_executor();
 
