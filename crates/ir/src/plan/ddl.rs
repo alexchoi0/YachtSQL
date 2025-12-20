@@ -85,6 +85,22 @@ pub enum ExportFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoadOptions {
+    pub uris: Vec<String>,
+    pub format: LoadFormat,
+    pub overwrite: bool,
+    pub allow_schema_update: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum LoadFormat {
+    Csv,
+    Json,
+    Parquet,
+    Avro,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableConstraint {
     pub name: Option<String>,
     pub constraint_type: ConstraintType,

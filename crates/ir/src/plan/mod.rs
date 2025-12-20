@@ -200,6 +200,13 @@ pub enum LogicalPlan {
         query: Box<LogicalPlan>,
     },
 
+    LoadData {
+        table_name: String,
+        options: LoadOptions,
+        temp_table: bool,
+        temp_schema: Option<Vec<ColumnDef>>,
+    },
+
     Declare {
         name: String,
         data_type: DataType,
@@ -281,6 +288,7 @@ impl LogicalPlan {
             LogicalPlan::DropFunction { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Call { .. } => &EMPTY_SCHEMA,
             LogicalPlan::ExportData { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::LoadData { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Declare { .. } => &EMPTY_SCHEMA,
             LogicalPlan::SetVariable { .. } => &EMPTY_SCHEMA,
             LogicalPlan::If { .. } => &EMPTY_SCHEMA,

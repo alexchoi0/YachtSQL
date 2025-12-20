@@ -1,7 +1,8 @@
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterTableOp, Assignment, ColumnDef, CteDefinition, ExportOptions, Expr, FunctionArg,
-    FunctionBody, JoinType, MergeClause, PlanSchema, RaiseLevel, SortExpr, UnnestColumn,
+    FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, RaiseLevel, SortExpr,
+    UnnestColumn,
 };
 use yachtsql_optimizer::PhysicalPlan;
 
@@ -206,6 +207,13 @@ pub enum ExecutorPlan {
     ExportData {
         options: ExportOptions,
         query: Box<ExecutorPlan>,
+    },
+
+    LoadData {
+        table_name: String,
+        options: LoadOptions,
+        temp_table: bool,
+        temp_schema: Option<Vec<ColumnDef>>,
     },
 
     Declare {
@@ -555,6 +563,18 @@ impl ExecutorPlan {
             PhysicalPlan::ExportData { options, query } => ExecutorPlan::ExportData {
                 options: options.clone(),
                 query: Box::new(Self::from_physical(query)),
+            },
+
+            PhysicalPlan::LoadData {
+                table_name,
+                options,
+                temp_table,
+                temp_schema,
+            } => ExecutorPlan::LoadData {
+                table_name: table_name.clone(),
+                options: options.clone(),
+                temp_table: *temp_table,
+                temp_schema: temp_schema.clone(),
             },
 
             PhysicalPlan::Declare {
