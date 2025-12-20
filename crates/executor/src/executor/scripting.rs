@@ -1,6 +1,7 @@
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, Value};
-use yachtsql_ir::{Expr, RaiseLevel};
+use yachtsql_ir::{Expr, ProcedureArgMode, RaiseLevel};
+use yachtsql_optimizer::optimize;
 use yachtsql_storage::{Record, Schema, Table};
 
 use super::PlanExecutor;
@@ -9,15 +10,73 @@ use crate::plan::ExecutorPlan;
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_call(&mut self, procedure_name: &str, args: &[Expr]) -> Result<Table> {
-        let _proc = self
+        let proc = self
             .catalog
             .get_procedure(procedure_name)
             .ok_or_else(|| Error::InvalidQuery(format!("Procedure not found: {}", procedure_name)))?
             .clone();
 
-        Err(Error::UnsupportedFeature(
-            "CALL not yet fully implemented in new executor".into(),
-        ))
+        let empty_schema = Schema::new();
+        let empty_record = Record::from_values(vec![]);
+        let evaluator = IrEvaluator::new(&empty_schema);
+
+        let mut out_var_mappings: Vec<(String, String)> = Vec::new();
+
+        for (i, param) in proc.parameters.iter().enumerate() {
+            let param_name = param.name.to_uppercase();
+
+            match param.mode {
+                ProcedureArgMode::In => {
+                    let value = if let Some(arg_expr) = args.get(i) {
+                        evaluator.evaluate(arg_expr, &empty_record)?
+                    } else {
+                        default_value_for_type(&param.data_type)
+                    };
+                    self.variables.insert(param_name.clone(), value.clone());
+                    self.session.set_variable(&param_name, value);
+                }
+                ProcedureArgMode::Out => {
+                    let value = default_value_for_type(&param.data_type);
+                    self.variables.insert(param_name.clone(), value.clone());
+                    self.session.set_variable(&param_name, value);
+
+                    if let Some(Expr::Variable { name }) = args.get(i) {
+                        out_var_mappings.push((param_name.clone(), name.clone()));
+                    }
+                }
+                ProcedureArgMode::InOut => {
+                    let value = if let Some(arg_expr) = args.get(i) {
+                        evaluator.evaluate(arg_expr, &empty_record)?
+                    } else {
+                        default_value_for_type(&param.data_type)
+                    };
+                    self.variables.insert(param_name.clone(), value.clone());
+                    self.session.set_variable(&param_name, value);
+
+                    if let Some(Expr::Variable { name }) = args.get(i) {
+                        out_var_mappings.push((param_name.clone(), name.clone()));
+                    }
+                }
+            }
+        }
+
+        let mut last_result = Table::empty(Schema::new());
+
+        for body_plan in &proc.body {
+            let physical_plan = optimize(body_plan)?;
+            let executor_plan = ExecutorPlan::from_physical(&physical_plan);
+            last_result = self.execute_plan(&executor_plan)?;
+        }
+
+        for (param_name, var_name) in out_var_mappings {
+            if let Some(value) = self.variables.get(&param_name).cloned() {
+                let var_name_upper = var_name.trim_start_matches('@').to_uppercase();
+                self.variables.insert(var_name_upper.clone(), value.clone());
+                self.session.set_variable(&var_name_upper, value);
+            }
+        }
+
+        Ok(last_result)
     }
 
     pub fn execute_declare(

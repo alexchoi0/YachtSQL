@@ -2,11 +2,12 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, Value};
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, ColumnDef, ExportOptions, FunctionArg, FunctionBody,
+    ProcedureArg,
 };
 use yachtsql_storage::{Field, FieldMode, Schema, Table, TableSchemaOps};
 
 use super::PlanExecutor;
-use crate::catalog::{ColumnDefault, UserFunction};
+use crate::catalog::{ColumnDefault, UserFunction, UserProcedure};
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::ExecutorPlan;
 
@@ -290,5 +291,422 @@ impl<'a> PlanExecutor<'a> {
             .map_err(|_| Error::TableNotFound(snapshot_name.to_string()))?;
 
         Ok(Table::empty(Schema::new()))
+    }
+
+    pub fn execute_create_procedure(
+        &mut self,
+        name: &str,
+        args: &[ProcedureArg],
+        body: &[ExecutorPlan],
+        or_replace: bool,
+    ) -> Result<Table> {
+        let body_plans = body
+            .iter()
+            .map(|p| executor_plan_to_logical_plan(p))
+            .collect();
+        let proc = UserProcedure {
+            name: name.to_string(),
+            parameters: args.to_vec(),
+            body: body_plans,
+        };
+        self.catalog.create_procedure(proc, or_replace)?;
+        Ok(Table::empty(Schema::new()))
+    }
+
+    pub fn execute_drop_procedure(&mut self, name: &str, if_exists: bool) -> Result<Table> {
+        if !self.catalog.procedure_exists(name) {
+            if if_exists {
+                return Ok(Table::empty(Schema::new()));
+            }
+            return Err(Error::InvalidQuery(format!(
+                "Procedure not found: {}",
+                name
+            )));
+        }
+        self.catalog.drop_procedure(name)?;
+        Ok(Table::empty(Schema::new()))
+    }
+}
+
+fn executor_plan_to_logical_plan(plan: &ExecutorPlan) -> yachtsql_ir::LogicalPlan {
+    use yachtsql_ir::LogicalPlan;
+    match plan {
+        ExecutorPlan::TableScan {
+            table_name,
+            schema,
+            projection,
+        } => LogicalPlan::Scan {
+            table_name: table_name.clone(),
+            schema: schema.clone(),
+            projection: projection.clone(),
+        },
+        ExecutorPlan::Filter { input, predicate } => LogicalPlan::Filter {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            predicate: predicate.clone(),
+        },
+        ExecutorPlan::Project {
+            input,
+            expressions,
+            schema,
+        } => LogicalPlan::Project {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            expressions: expressions.clone(),
+            schema: schema.clone(),
+        },
+        ExecutorPlan::NestedLoopJoin {
+            left,
+            right,
+            join_type,
+            condition,
+            schema,
+        } => LogicalPlan::Join {
+            left: Box::new(executor_plan_to_logical_plan(left)),
+            right: Box::new(executor_plan_to_logical_plan(right)),
+            join_type: *join_type,
+            condition: condition.clone(),
+            schema: schema.clone(),
+        },
+        ExecutorPlan::CrossJoin {
+            left,
+            right,
+            schema,
+        } => LogicalPlan::Join {
+            left: Box::new(executor_plan_to_logical_plan(left)),
+            right: Box::new(executor_plan_to_logical_plan(right)),
+            join_type: yachtsql_ir::JoinType::Cross,
+            condition: None,
+            schema: schema.clone(),
+        },
+        ExecutorPlan::HashAggregate {
+            input,
+            group_by,
+            aggregates,
+            schema,
+        } => LogicalPlan::Aggregate {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            group_by: group_by.clone(),
+            aggregates: aggregates.clone(),
+            schema: schema.clone(),
+        },
+        ExecutorPlan::Sort { input, sort_exprs } => LogicalPlan::Sort {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            sort_exprs: sort_exprs.clone(),
+        },
+        ExecutorPlan::Limit {
+            input,
+            limit,
+            offset,
+        } => LogicalPlan::Limit {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            limit: *limit,
+            offset: *offset,
+        },
+        ExecutorPlan::TopN {
+            input,
+            sort_exprs,
+            limit,
+        } => LogicalPlan::Limit {
+            input: Box::new(LogicalPlan::Sort {
+                input: Box::new(executor_plan_to_logical_plan(input)),
+                sort_exprs: sort_exprs.clone(),
+            }),
+            limit: Some(*limit),
+            offset: None,
+        },
+        ExecutorPlan::Distinct { input } => LogicalPlan::Distinct {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+        },
+        ExecutorPlan::Union {
+            inputs,
+            all,
+            schema,
+        } => {
+            let mut iter = inputs.iter();
+            let first = iter.next().map(executor_plan_to_logical_plan);
+            iter.fold(first, |acc, p| {
+                Some(LogicalPlan::SetOperation {
+                    left: Box::new(acc.unwrap()),
+                    right: Box::new(executor_plan_to_logical_plan(p)),
+                    op: yachtsql_ir::SetOperationType::Union,
+                    all: *all,
+                    schema: schema.clone(),
+                })
+            })
+            .unwrap_or_else(|| LogicalPlan::Empty {
+                schema: schema.clone(),
+            })
+        }
+        ExecutorPlan::Intersect {
+            left,
+            right,
+            all,
+            schema,
+        } => LogicalPlan::SetOperation {
+            left: Box::new(executor_plan_to_logical_plan(left)),
+            right: Box::new(executor_plan_to_logical_plan(right)),
+            op: yachtsql_ir::SetOperationType::Intersect,
+            all: *all,
+            schema: schema.clone(),
+        },
+        ExecutorPlan::Except {
+            left,
+            right,
+            all,
+            schema,
+        } => LogicalPlan::SetOperation {
+            left: Box::new(executor_plan_to_logical_plan(left)),
+            right: Box::new(executor_plan_to_logical_plan(right)),
+            op: yachtsql_ir::SetOperationType::Except,
+            all: *all,
+            schema: schema.clone(),
+        },
+        ExecutorPlan::Window {
+            input,
+            window_exprs,
+            schema,
+        } => LogicalPlan::Window {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            window_exprs: window_exprs.clone(),
+            schema: schema.clone(),
+        },
+        ExecutorPlan::Unnest {
+            input,
+            columns,
+            schema,
+        } => LogicalPlan::Unnest {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            columns: columns.clone(),
+            schema: schema.clone(),
+        },
+        ExecutorPlan::Qualify { input, predicate } => LogicalPlan::Qualify {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            predicate: predicate.clone(),
+        },
+        ExecutorPlan::WithCte { ctes, body } => LogicalPlan::WithCte {
+            ctes: ctes.clone(),
+            body: Box::new(executor_plan_to_logical_plan(body)),
+        },
+        ExecutorPlan::Values { values, schema } => LogicalPlan::Values {
+            values: values.clone(),
+            schema: schema.clone(),
+        },
+        ExecutorPlan::Empty { schema } => LogicalPlan::Empty {
+            schema: schema.clone(),
+        },
+        ExecutorPlan::Insert {
+            table_name,
+            columns,
+            source,
+        } => LogicalPlan::Insert {
+            table_name: table_name.clone(),
+            columns: columns.clone(),
+            source: Box::new(executor_plan_to_logical_plan(source)),
+        },
+        ExecutorPlan::Update {
+            table_name,
+            assignments,
+            filter,
+        } => LogicalPlan::Update {
+            table_name: table_name.clone(),
+            assignments: assignments.clone(),
+            filter: filter.clone(),
+        },
+        ExecutorPlan::Delete { table_name, filter } => LogicalPlan::Delete {
+            table_name: table_name.clone(),
+            filter: filter.clone(),
+        },
+        ExecutorPlan::Merge {
+            target_table,
+            source,
+            on,
+            clauses,
+        } => LogicalPlan::Merge {
+            target_table: target_table.clone(),
+            source: Box::new(executor_plan_to_logical_plan(source)),
+            on: on.clone(),
+            clauses: clauses.clone(),
+        },
+        ExecutorPlan::CreateTable {
+            table_name,
+            columns,
+            if_not_exists,
+            or_replace,
+        } => LogicalPlan::CreateTable {
+            table_name: table_name.clone(),
+            columns: columns.clone(),
+            if_not_exists: *if_not_exists,
+            or_replace: *or_replace,
+        },
+        ExecutorPlan::DropTable {
+            table_names,
+            if_exists,
+        } => LogicalPlan::DropTable {
+            table_names: table_names.clone(),
+            if_exists: *if_exists,
+        },
+        ExecutorPlan::AlterTable {
+            table_name,
+            operation,
+        } => LogicalPlan::AlterTable {
+            table_name: table_name.clone(),
+            operation: operation.clone(),
+        },
+        ExecutorPlan::Truncate { table_name } => LogicalPlan::Truncate {
+            table_name: table_name.clone(),
+        },
+        ExecutorPlan::CreateView {
+            name,
+            query,
+            query_sql,
+            column_aliases,
+            or_replace,
+            if_not_exists,
+        } => LogicalPlan::CreateView {
+            name: name.clone(),
+            query: Box::new(executor_plan_to_logical_plan(query)),
+            query_sql: query_sql.clone(),
+            column_aliases: column_aliases.clone(),
+            or_replace: *or_replace,
+            if_not_exists: *if_not_exists,
+        },
+        ExecutorPlan::DropView { name, if_exists } => LogicalPlan::DropView {
+            name: name.clone(),
+            if_exists: *if_exists,
+        },
+        ExecutorPlan::CreateSchema {
+            name,
+            if_not_exists,
+        } => LogicalPlan::CreateSchema {
+            name: name.clone(),
+            if_not_exists: *if_not_exists,
+        },
+        ExecutorPlan::DropSchema {
+            name,
+            if_exists,
+            cascade,
+        } => LogicalPlan::DropSchema {
+            name: name.clone(),
+            if_exists: *if_exists,
+            cascade: *cascade,
+        },
+        ExecutorPlan::CreateFunction {
+            name,
+            args,
+            return_type,
+            body,
+            or_replace,
+        } => LogicalPlan::CreateFunction {
+            name: name.clone(),
+            args: args.clone(),
+            return_type: return_type.clone(),
+            body: body.clone(),
+            or_replace: *or_replace,
+        },
+        ExecutorPlan::DropFunction { name, if_exists } => LogicalPlan::DropFunction {
+            name: name.clone(),
+            if_exists: *if_exists,
+        },
+        ExecutorPlan::CreateProcedure {
+            name,
+            args,
+            body,
+            or_replace,
+        } => LogicalPlan::CreateProcedure {
+            name: name.clone(),
+            args: args.clone(),
+            body: body.iter().map(executor_plan_to_logical_plan).collect(),
+            or_replace: *or_replace,
+        },
+        ExecutorPlan::DropProcedure { name, if_exists } => LogicalPlan::DropProcedure {
+            name: name.clone(),
+            if_exists: *if_exists,
+        },
+        ExecutorPlan::Call {
+            procedure_name,
+            args,
+        } => LogicalPlan::Call {
+            procedure_name: procedure_name.clone(),
+            args: args.clone(),
+        },
+        ExecutorPlan::ExportData { options, query } => LogicalPlan::ExportData {
+            options: options.clone(),
+            query: Box::new(executor_plan_to_logical_plan(query)),
+        },
+        ExecutorPlan::Declare {
+            name,
+            data_type,
+            default,
+        } => LogicalPlan::Declare {
+            name: name.clone(),
+            data_type: data_type.clone(),
+            default: default.clone(),
+        },
+        ExecutorPlan::SetVariable { name, value } => LogicalPlan::SetVariable {
+            name: name.clone(),
+            value: value.clone(),
+        },
+        ExecutorPlan::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => LogicalPlan::If {
+            condition: condition.clone(),
+            then_branch: then_branch
+                .iter()
+                .map(executor_plan_to_logical_plan)
+                .collect(),
+            else_branch: else_branch
+                .as_ref()
+                .map(|b| b.iter().map(executor_plan_to_logical_plan).collect()),
+        },
+        ExecutorPlan::While { condition, body } => LogicalPlan::While {
+            condition: condition.clone(),
+            body: body.iter().map(executor_plan_to_logical_plan).collect(),
+        },
+        ExecutorPlan::Loop { body, label } => LogicalPlan::Loop {
+            body: body.iter().map(executor_plan_to_logical_plan).collect(),
+            label: label.clone(),
+        },
+        ExecutorPlan::For {
+            variable,
+            query,
+            body,
+        } => LogicalPlan::For {
+            variable: variable.clone(),
+            query: Box::new(executor_plan_to_logical_plan(query)),
+            body: body.iter().map(executor_plan_to_logical_plan).collect(),
+        },
+        ExecutorPlan::Return { value } => LogicalPlan::Return {
+            value: value.clone(),
+        },
+        ExecutorPlan::Raise { message, level } => LogicalPlan::Raise {
+            message: message.clone(),
+            level: *level,
+        },
+        ExecutorPlan::Break => LogicalPlan::Break,
+        ExecutorPlan::Continue => LogicalPlan::Continue,
+        ExecutorPlan::CreateSnapshot {
+            snapshot_name,
+            source_name,
+            if_not_exists,
+        } => LogicalPlan::CreateSnapshot {
+            snapshot_name: snapshot_name.clone(),
+            source_name: source_name.clone(),
+            if_not_exists: *if_not_exists,
+        },
+        ExecutorPlan::DropSnapshot {
+            snapshot_name,
+            if_exists,
+        } => LogicalPlan::DropSnapshot {
+            snapshot_name: snapshot_name.clone(),
+            if_exists: *if_exists,
+        },
+        ExecutorPlan::Repeat {
+            body,
+            until_condition,
+        } => LogicalPlan::Repeat {
+            body: body.iter().map(executor_plan_to_logical_plan).collect(),
+            until_condition: until_condition.clone(),
+        },
     }
 }

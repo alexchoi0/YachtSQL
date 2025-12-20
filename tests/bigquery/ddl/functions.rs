@@ -187,7 +187,7 @@ fn test_function_in_select() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore = "Requires custom BEGIN...END parser not yet in new executor"]
 fn test_create_procedure() {
     let mut executor = create_executor();
 

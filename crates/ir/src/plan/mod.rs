@@ -192,6 +192,18 @@ pub enum LogicalPlan {
         if_exists: bool,
     },
 
+    CreateProcedure {
+        name: String,
+        args: Vec<ProcedureArg>,
+        body: Vec<LogicalPlan>,
+        or_replace: bool,
+    },
+
+    DropProcedure {
+        name: String,
+        if_exists: bool,
+    },
+
     Call {
         procedure_name: String,
         args: Vec<Expr>,
@@ -297,6 +309,8 @@ impl LogicalPlan {
             LogicalPlan::DropSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateFunction { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropFunction { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::CreateProcedure { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::DropProcedure { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Call { .. } => &EMPTY_SCHEMA,
             LogicalPlan::ExportData { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Declare { .. } => &EMPTY_SCHEMA,

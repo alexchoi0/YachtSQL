@@ -7134,7 +7134,7 @@ fn trunc_date(date: &NaiveDate, part: &str) -> Result<NaiveDate> {
             let days_from_monday = date.weekday().num_days_from_monday();
             Ok(*date - chrono::Duration::days(days_from_monday as i64))
         }
-        "DAY" | _ => Ok(*date),
+        _ => Ok(*date),
     }
 }
 
@@ -7168,7 +7168,7 @@ fn trunc_datetime(dt: &NaiveDateTime, part: &str) -> Result<NaiveDateTime> {
         "MINUTE" => NaiveDate::from_ymd_opt(dt.year(), dt.month(), dt.day())
             .and_then(|d| d.and_hms_opt(dt.hour(), dt.minute(), 0))
             .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into())),
-        "SECOND" | _ => Ok(*dt),
+        _ => Ok(*dt),
     }
 }
 
@@ -7178,7 +7178,7 @@ fn trunc_time(time: &NaiveTime, part: &str) -> Result<NaiveTime> {
             .ok_or_else(|| Error::InvalidQuery("Invalid time".into())),
         "MINUTE" => NaiveTime::from_hms_opt(time.hour(), time.minute(), 0)
             .ok_or_else(|| Error::InvalidQuery("Invalid time".into())),
-        "SECOND" | _ => Ok(*time),
+        _ => Ok(*time),
     }
 }
 
@@ -7199,24 +7199,6 @@ fn format_time_with_pattern(time: &NaiveTime, pattern: &str) -> Result<String> {
 
 fn bq_format_to_chrono(bq_format: &str) -> String {
     bq_format
-        .replace("%Y", "%Y")
-        .replace("%m", "%m")
-        .replace("%d", "%d")
-        .replace("%H", "%H")
-        .replace("%M", "%M")
-        .replace("%S", "%S")
-        .replace("%A", "%A")
-        .replace("%B", "%B")
-        .replace("%a", "%a")
-        .replace("%b", "%b")
-        .replace("%j", "%j")
-        .replace("%U", "%U")
-        .replace("%W", "%W")
-        .replace("%w", "%w")
-        .replace("%e", "%e")
-        .replace("%I", "%I")
-        .replace("%p", "%p")
-        .replace("%Z", "%Z")
         .replace("%F", "%Y-%m-%d")
         .replace("%T", "%H:%M:%S")
         .replace("%R", "%H:%M")

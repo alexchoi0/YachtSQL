@@ -1,7 +1,8 @@
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterTableOp, Assignment, ColumnDef, CteDefinition, ExportOptions, Expr, FunctionArg,
-    FunctionBody, JoinType, MergeClause, PlanSchema, RaiseLevel, SortExpr, UnnestColumn,
+    FunctionBody, JoinType, MergeClause, PlanSchema, ProcedureArg, RaiseLevel, SortExpr,
+    UnnestColumn,
 };
 use yachtsql_optimizer::PhysicalPlan;
 
@@ -200,6 +201,18 @@ pub enum ExecutorPlan {
         if_exists: bool,
     },
 
+    CreateProcedure {
+        name: String,
+        args: Vec<ProcedureArg>,
+        body: Vec<ExecutorPlan>,
+        or_replace: bool,
+    },
+
+    DropProcedure {
+        name: String,
+        if_exists: bool,
+    },
+
     Call {
         procedure_name: String,
         args: Vec<Expr>,
@@ -310,7 +323,7 @@ impl ExecutorPlan {
             } => ExecutorPlan::NestedLoopJoin {
                 left: Box::new(Self::from_physical(left)),
                 right: Box::new(Self::from_physical(right)),
-                join_type: join_type.clone(),
+                join_type: *join_type,
                 condition: condition.clone(),
                 schema: schema.clone(),
             },
@@ -562,6 +575,23 @@ impl ExecutorPlan {
             },
 
             PhysicalPlan::DropFunction { name, if_exists } => ExecutorPlan::DropFunction {
+                name: name.clone(),
+                if_exists: *if_exists,
+            },
+
+            PhysicalPlan::CreateProcedure {
+                name,
+                args,
+                body,
+                or_replace,
+            } => ExecutorPlan::CreateProcedure {
+                name: name.clone(),
+                args: args.clone(),
+                body: body.iter().map(Self::from_physical).collect(),
+                or_replace: *or_replace,
+            },
+
+            PhysicalPlan::DropProcedure { name, if_exists } => ExecutorPlan::DropProcedure {
                 name: name.clone(),
                 if_exists: *if_exists,
             },

@@ -342,6 +342,29 @@ impl PhysicalPlanner {
                 if_exists: *if_exists,
             }),
 
+            LogicalPlan::CreateProcedure {
+                name,
+                args,
+                body,
+                or_replace,
+            } => {
+                let body = body
+                    .iter()
+                    .map(|stmt| self.plan(stmt))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(PhysicalPlan::CreateProcedure {
+                    name: name.clone(),
+                    args: args.clone(),
+                    body,
+                    or_replace: *or_replace,
+                })
+            }
+
+            LogicalPlan::DropProcedure { name, if_exists } => Ok(PhysicalPlan::DropProcedure {
+                name: name.clone(),
+                if_exists: *if_exists,
+            }),
+
             LogicalPlan::Call {
                 procedure_name,
                 args,
@@ -751,6 +774,20 @@ impl PhysicalPlan {
             },
             PhysicalPlan::DropFunction { name, if_exists } => {
                 LogicalPlan::DropFunction { name, if_exists }
+            }
+            PhysicalPlan::CreateProcedure {
+                name,
+                args,
+                body,
+                or_replace,
+            } => LogicalPlan::CreateProcedure {
+                name,
+                args,
+                body: body.into_iter().map(|p| p.into_logical()).collect(),
+                or_replace,
+            },
+            PhysicalPlan::DropProcedure { name, if_exists } => {
+                LogicalPlan::DropProcedure { name, if_exists }
             }
             PhysicalPlan::Call {
                 procedure_name,

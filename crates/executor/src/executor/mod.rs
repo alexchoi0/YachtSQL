@@ -212,6 +212,15 @@ impl<'a> PlanExecutor<'a> {
             ExecutorPlan::DropFunction { name, if_exists } => {
                 self.execute_drop_function(name, *if_exists)
             }
+            ExecutorPlan::CreateProcedure {
+                name,
+                args,
+                body,
+                or_replace,
+            } => self.execute_create_procedure(name, args, body, *or_replace),
+            ExecutorPlan::DropProcedure { name, if_exists } => {
+                self.execute_drop_procedure(name, *if_exists)
+            }
             ExecutorPlan::Call {
                 procedure_name,
                 args,

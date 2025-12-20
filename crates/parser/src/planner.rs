@@ -6,7 +6,8 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, CteDefinition, Expr,
-    JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, SetOperationType, SortExpr,
+    JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
+    ProcedureArgMode, SetOperationType, SortExpr,
 };
 use yachtsql_storage::Schema;
 
@@ -93,6 +94,31 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::Rollback { .. } => Ok(LogicalPlan::Empty {
                 schema: PlanSchema::new(),
             }),
+            Statement::CreateProcedure {
+                or_alter,
+                name,
+                params,
+                body,
+                ..
+            } => self.plan_create_procedure(name, params, body, *or_alter),
+            Statement::DropProcedure {
+                if_exists,
+                proc_desc,
+                ..
+            } => {
+                let name = proc_desc
+                    .first()
+                    .map(|desc| desc.name.to_string())
+                    .ok_or_else(|| {
+                        Error::parse_error("DROP PROCEDURE requires a procedure name")
+                    })?;
+
+                Ok(LogicalPlan::DropProcedure {
+                    name,
+                    if_exists: *if_exists,
+                })
+            }
+            Statement::Call(func) => self.plan_call(func),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -3349,5 +3375,79 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Expr::Cast { data_type, .. } => data_type.clone(),
             _ => DataType::String,
         }
+    }
+
+    fn plan_create_procedure(
+        &self,
+        name: &ast::ObjectName,
+        params: &Option<Vec<ast::ProcedureParam>>,
+        body: &ast::ConditionalStatements,
+        or_replace: bool,
+    ) -> Result<LogicalPlan> {
+        let proc_name = name.to_string();
+        let args = match params {
+            Some(params) => params
+                .iter()
+                .map(|p| {
+                    let mode = match p.mode {
+                        Some(ast::ArgMode::In) => ProcedureArgMode::In,
+                        Some(ast::ArgMode::Out) => ProcedureArgMode::Out,
+                        Some(ast::ArgMode::InOut) => ProcedureArgMode::InOut,
+                        None => ProcedureArgMode::In,
+                    };
+                    ProcedureArg {
+                        name: p.name.value.clone(),
+                        data_type: Self::convert_sql_type(&p.data_type),
+                        mode,
+                    }
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+
+        let body_plans = self.plan_conditional_statements(body)?;
+
+        Ok(LogicalPlan::CreateProcedure {
+            name: proc_name,
+            args,
+            body: body_plans,
+            or_replace,
+        })
+    }
+
+    fn plan_conditional_statements(
+        &self,
+        stmts: &ast::ConditionalStatements,
+    ) -> Result<Vec<LogicalPlan>> {
+        stmts
+            .statements()
+            .iter()
+            .map(|s| self.plan_statement(s))
+            .collect()
+    }
+
+    fn plan_call(&self, func: &ast::Function) -> Result<LogicalPlan> {
+        let procedure_name = func.name.to_string();
+        let args = match &func.args {
+            ast::FunctionArguments::List(args) => args
+                .args
+                .iter()
+                .filter_map(|arg| match arg {
+                    ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(e)) => {
+                        ExprPlanner::plan_expr(e, &PlanSchema::new()).ok()
+                    }
+                    _ => None,
+                })
+                .collect(),
+            ast::FunctionArguments::None => Vec::new(),
+            ast::FunctionArguments::Subquery(_) => {
+                return Err(Error::unsupported("Subquery in CALL not supported"));
+            }
+        };
+
+        Ok(LogicalPlan::Call {
+            procedure_name,
+            args,
+        })
     }
 }
