@@ -40,6 +40,7 @@ use yachtsql_optimizer::PhysicalPlan;
 use yachtsql_storage::{Field, FieldMode, Schema, Table};
 
 use crate::catalog::Catalog;
+use crate::ir_evaluator::UserFunctionDef;
 use crate::plan::ExecutorPlan;
 use crate::session::Session;
 
@@ -48,16 +49,49 @@ pub struct PlanExecutor<'a> {
     session: &'a mut Session,
     variables: HashMap<String, Value>,
     cte_results: HashMap<String, Table>,
+    user_function_defs: HashMap<String, UserFunctionDef>,
 }
 
 impl<'a> PlanExecutor<'a> {
     pub fn new(catalog: &'a mut Catalog, session: &'a mut Session) -> Self {
+        let user_function_defs = catalog
+            .get_functions()
+            .iter()
+            .map(|(name, func)| {
+                (
+                    name.clone(),
+                    UserFunctionDef {
+                        parameters: func.parameters.clone(),
+                        body: func.body.clone(),
+                    },
+                )
+            })
+            .collect();
+
         Self {
             catalog,
             session,
             variables: HashMap::new(),
             cte_results: HashMap::new(),
+            user_function_defs,
         }
+    }
+
+    fn refresh_user_functions(&mut self) {
+        self.user_function_defs = self
+            .catalog
+            .get_functions()
+            .iter()
+            .map(|(name, func)| {
+                (
+                    name.clone(),
+                    UserFunctionDef {
+                        parameters: func.parameters.clone(),
+                        body: func.body.clone(),
+                    },
+                )
+            })
+            .collect();
     }
 
     pub fn execute(&mut self, plan: &PhysicalPlan) -> Result<Table> {
@@ -211,7 +245,17 @@ impl<'a> PlanExecutor<'a> {
                 return_type,
                 body,
                 or_replace,
-            } => self.execute_create_function(name, args, return_type, body, *or_replace),
+                if_not_exists,
+                is_temp,
+            } => self.execute_create_function(
+                name,
+                args,
+                return_type,
+                body,
+                *or_replace,
+                *if_not_exists,
+                *is_temp,
+            ),
             ExecutorPlan::DropFunction { name, if_exists } => {
                 self.execute_drop_function(name, *if_exists)
             }

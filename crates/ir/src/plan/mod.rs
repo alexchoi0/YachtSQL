@@ -186,6 +186,8 @@ pub enum LogicalPlan {
         return_type: DataType,
         body: FunctionBody,
         or_replace: bool,
+        if_not_exists: bool,
+        is_temp: bool,
     },
 
     DropFunction {

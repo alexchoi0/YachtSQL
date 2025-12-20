@@ -16,7 +16,7 @@ impl<'a> PlanExecutor<'a> {
         if Self::expr_contains_subquery(predicate) {
             self.execute_filter_with_subquery(&input_table, predicate)
         } else {
-            let evaluator = IrEvaluator::new(&schema);
+            let evaluator = IrEvaluator::new(&schema).with_user_functions(&self.user_function_defs);
             let mut result = Table::empty(schema.clone());
 
             for record in input_table.rows()? {
@@ -97,7 +97,8 @@ impl<'a> PlanExecutor<'a> {
                         std::cmp::Ordering::Greater | std::cmp::Ordering::Equal
                     ))),
                     _ => {
-                        let evaluator = IrEvaluator::new(outer_schema);
+                        let evaluator = IrEvaluator::new(outer_schema)
+                            .with_user_functions(&self.user_function_defs);
                         evaluator.evaluate(expr, outer_record)
                     }
                 }
@@ -111,7 +112,8 @@ impl<'a> PlanExecutor<'a> {
             }
             Expr::Subquery(subquery) => self.evaluate_scalar_subquery(subquery),
             _ => {
-                let evaluator = IrEvaluator::new(outer_schema);
+                let evaluator =
+                    IrEvaluator::new(outer_schema).with_user_functions(&self.user_function_defs);
                 evaluator.evaluate(expr, outer_record)
             }
         }
