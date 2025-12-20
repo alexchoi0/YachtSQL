@@ -4554,6 +4554,7 @@ impl<'a> IrEvaluator<'a> {
             "REGEXP_SUBSTR" => self.fn_regexp_substr(args),
             "ARRAY_SLICE" => self.fn_array_slice(args),
             "ARRAYENUMERATE" => self.fn_array_enumerate(args),
+            "HLL_COUNT_EXTRACT" => self.fn_hll_count_extract(args),
             _ => Err(Error::UnsupportedFeature(format!(
                 "Scalar function Custom(\"{}\") not yet implemented in IR evaluator",
                 name
@@ -7553,6 +7554,49 @@ impl<'a> IrEvaluator<'a> {
             }
             _ => Expr::Literal(Literal::Null),
         }
+    }
+
+    fn fn_hll_count_extract(&self, args: &[Value]) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Error::InvalidQuery(
+                "HLL_COUNT_EXTRACT requires 1 argument".to_string(),
+            ));
+        }
+        if args[0].is_null() {
+            return Ok(Value::Null);
+        }
+        let sketch_str = args[0].as_str().ok_or_else(|| Error::TypeMismatch {
+            expected: "STRING".to_string(),
+            actual: args[0].data_type().to_string(),
+        })?;
+        if let Some(encoded) = sketch_str.strip_prefix("HLL_SKETCH:p14:") {
+            if let Ok(registers) =
+                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded)
+            {
+                let m = registers.len() as f64;
+                let mut sum: f64 = 0.0;
+                let mut zeros = 0i32;
+                for &r in &registers {
+                    sum += 2.0_f64.powf(-(r as f64));
+                    if r == 0 {
+                        zeros += 1;
+                    }
+                }
+                let alpha_m = 0.7213 / (1.0 + 1.079 / m);
+                let raw_est = alpha_m * m * m / sum;
+                let estimate = if raw_est <= 2.5 * m && zeros > 0 {
+                    m * (m / zeros as f64).ln()
+                } else {
+                    raw_est
+                };
+                return Ok(Value::Int64(estimate.round() as i64));
+            }
+        } else if let Some(rest) = sketch_str.strip_prefix("HLL_SKETCH:p15:n") {
+            if let Ok(count) = rest.parse::<i64>() {
+                return Ok(Value::Int64(count));
+            }
+        }
+        Ok(Value::Int64(0))
     }
 }
 

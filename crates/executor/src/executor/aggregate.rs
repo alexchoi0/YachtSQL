@@ -49,6 +49,10 @@ impl<'a> PlanExecutor<'a> {
                     } else if matches!(acc, Accumulator::Covariance { .. }) {
                         let (x, y) = extract_bivariate_args(&evaluator, agg_expr, &record)?;
                         acc.accumulate_bivariate(&x, &y)?;
+                    } else if matches!(acc, Accumulator::ApproxTopSum { .. }) {
+                        let (value, weight) =
+                            extract_bivariate_args(&evaluator, agg_expr, &record)?;
+                        acc.accumulate_approx_top_sum(&value, &weight)?;
                     } else {
                         let arg_val = extract_agg_arg(&evaluator, agg_expr, &record)?;
                         acc.accumulate(&arg_val)?;
@@ -125,6 +129,10 @@ impl<'a> PlanExecutor<'a> {
                         } else if matches!(acc, Accumulator::Covariance { .. }) {
                             let (x, y) = extract_bivariate_args(&evaluator, agg_expr, record)?;
                             acc.accumulate_bivariate(&x, &y)?;
+                        } else if matches!(acc, Accumulator::ApproxTopSum { .. }) {
+                            let (value, weight) =
+                                extract_bivariate_args(&evaluator, agg_expr, record)?;
+                            acc.accumulate_approx_top_sum(&value, &weight)?;
                         } else {
                             let arg_val = extract_agg_arg(&evaluator, agg_expr, record)?;
                             acc.accumulate(&arg_val)?;
@@ -177,6 +185,10 @@ impl<'a> PlanExecutor<'a> {
                     } else if matches!(acc, Accumulator::Covariance { .. }) {
                         let (x, y) = extract_bivariate_args(&evaluator, agg_expr, &record)?;
                         acc.accumulate_bivariate(&x, &y)?;
+                    } else if matches!(acc, Accumulator::ApproxTopSum { .. }) {
+                        let (value, weight) =
+                            extract_bivariate_args(&evaluator, agg_expr, &record)?;
+                        acc.accumulate_approx_top_sum(&value, &weight)?;
                     } else {
                         let arg_val = extract_agg_arg(&evaluator, agg_expr, &record)?;
                         acc.accumulate(&arg_val)?;
@@ -606,6 +618,58 @@ fn has_ignore_nulls(expr: &Expr) -> bool {
     }
 }
 
+fn extract_int_arg(expr: &Expr, index: usize) -> Option<i64> {
+    match expr {
+        Expr::Aggregate { args, .. } => {
+            if args.len() > index {
+                if let Expr::Literal(yachtsql_ir::Literal::Int64(n)) = &args[index] {
+                    return Some(*n);
+                }
+            }
+            None
+        }
+        Expr::Alias { expr, .. } => extract_int_arg(expr, index),
+        Expr::Literal(_)
+        | Expr::Column { .. }
+        | Expr::BinaryOp { .. }
+        | Expr::UnaryOp { .. }
+        | Expr::ScalarFunction { .. }
+        | Expr::Window { .. }
+        | Expr::AggregateWindow { .. }
+        | Expr::Case { .. }
+        | Expr::Cast { .. }
+        | Expr::IsNull { .. }
+        | Expr::IsDistinctFrom { .. }
+        | Expr::InList { .. }
+        | Expr::InSubquery { .. }
+        | Expr::InUnnest { .. }
+        | Expr::Exists { .. }
+        | Expr::Between { .. }
+        | Expr::Like { .. }
+        | Expr::Extract { .. }
+        | Expr::Substring { .. }
+        | Expr::Trim { .. }
+        | Expr::Position { .. }
+        | Expr::Overlay { .. }
+        | Expr::Array { .. }
+        | Expr::ArrayAccess { .. }
+        | Expr::Struct { .. }
+        | Expr::StructAccess { .. }
+        | Expr::TypedString { .. }
+        | Expr::Interval { .. }
+        | Expr::Wildcard { .. }
+        | Expr::Subquery(_)
+        | Expr::ScalarSubquery(_)
+        | Expr::Parameter { .. }
+        | Expr::Variable { .. }
+        | Expr::Placeholder { .. }
+        | Expr::Lambda { .. }
+        | Expr::AtTimeZone { .. }
+        | Expr::JsonAccess { .. }
+        | Expr::Default => None,
+    }
+}
+
 fn extract_string_agg_separator(expr: &Expr) -> String {
     match expr {
         Expr::Aggregate { args, .. } => {
@@ -715,6 +779,18 @@ enum Accumulator {
     GroupingId {
         value: i64,
     },
+    ApproxQuantiles {
+        values: Vec<f64>,
+        num_quantiles: usize,
+    },
+    ApproxTopCount {
+        counts: std::collections::HashMap<String, i64>,
+        top_n: usize,
+    },
+    ApproxTopSum {
+        sums: std::collections::HashMap<String, f64>,
+        top_n: usize,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -794,9 +870,27 @@ impl Accumulator {
                 },
                 AggregateFunction::Grouping => Accumulator::Grouping { value: 0 },
                 AggregateFunction::GroupingId => Accumulator::GroupingId { value: 0 },
-                AggregateFunction::ApproxQuantiles
-                | AggregateFunction::ApproxTopCount
-                | AggregateFunction::ApproxTopSum => Accumulator::Count(0),
+                AggregateFunction::ApproxQuantiles => {
+                    let num_quantiles = extract_int_arg(expr, 1).unwrap_or(100) as usize;
+                    Accumulator::ApproxQuantiles {
+                        values: Vec::new(),
+                        num_quantiles,
+                    }
+                }
+                AggregateFunction::ApproxTopCount => {
+                    let top_n = extract_int_arg(expr, 1).unwrap_or(10) as usize;
+                    Accumulator::ApproxTopCount {
+                        counts: std::collections::HashMap::new(),
+                        top_n,
+                    }
+                }
+                AggregateFunction::ApproxTopSum => {
+                    let top_n = extract_int_arg(expr, 2).unwrap_or(10) as usize;
+                    Accumulator::ApproxTopSum {
+                        sums: std::collections::HashMap::new(),
+                        top_n,
+                    }
+                }
                 AggregateFunction::Corr => Accumulator::Covariance {
                     count: 0,
                     mean_x: 0.0,
@@ -983,6 +1077,31 @@ impl Accumulator {
             | Accumulator::Covariance { .. }
             | Accumulator::Grouping { .. }
             | Accumulator::GroupingId { .. } => {}
+            Accumulator::ApproxQuantiles { values, .. } => {
+                if value.is_null() {
+                    return Ok(());
+                }
+                let v = if let Some(f) = value.as_f64() {
+                    Some(f)
+                } else if let Some(i) = value.as_i64() {
+                    Some(i as f64)
+                } else if let Value::Numeric(d) = value {
+                    use rust_decimal::prelude::ToPrimitive;
+                    d.to_f64()
+                } else {
+                    None
+                };
+                if let Some(x) = v {
+                    values.push(x);
+                }
+            }
+            Accumulator::ApproxTopCount { counts, .. } => {
+                if !value.is_null() {
+                    let key = format!("{:?}", value);
+                    *counts.entry(key).or_insert(0) += 1;
+                }
+            }
+            Accumulator::ApproxTopSum { .. } => {}
         }
         Ok(())
     }
@@ -1018,7 +1137,10 @@ impl Accumulator {
             | Accumulator::AvgIf { .. }
             | Accumulator::MinIf(_)
             | Accumulator::MaxIf(_)
-            | Accumulator::Covariance { .. } => {
+            | Accumulator::Covariance { .. }
+            | Accumulator::ApproxQuantiles { .. }
+            | Accumulator::ApproxTopCount { .. }
+            | Accumulator::ApproxTopSum { .. } => {
                 self.accumulate(value)?;
             }
             Accumulator::Grouping { .. } | Accumulator::GroupingId { .. } => {}
@@ -1105,7 +1227,10 @@ impl Accumulator {
             | Accumulator::Variance { .. }
             | Accumulator::Covariance { .. }
             | Accumulator::Grouping { .. }
-            | Accumulator::GroupingId { .. } => {}
+            | Accumulator::GroupingId { .. }
+            | Accumulator::ApproxQuantiles { .. }
+            | Accumulator::ApproxTopCount { .. }
+            | Accumulator::ApproxTopSum { .. } => {}
         }
         Ok(())
     }
@@ -1155,6 +1280,27 @@ impl Accumulator {
                 *m2_x += delta_x * delta_x2;
                 *m2_y += delta_y * delta_y2;
             }
+        }
+        Ok(())
+    }
+
+    fn accumulate_approx_top_sum(&mut self, value: &Value, weight: &Value) -> Result<()> {
+        if let Accumulator::ApproxTopSum { sums, .. } = self {
+            if value.is_null() || weight.is_null() {
+                return Ok(());
+            }
+            let key = format!("{:?}", value);
+            let w = if let Some(f) = weight.as_f64() {
+                f
+            } else if let Some(i) = weight.as_i64() {
+                i as f64
+            } else if let Value::Numeric(d) = weight {
+                use rust_decimal::prelude::ToPrimitive;
+                d.to_f64().unwrap_or(0.0)
+            } else {
+                0.0
+            };
+            *sums.entry(key).or_insert(0.0) += w;
         }
         Ok(())
     }
@@ -1277,6 +1423,80 @@ impl Accumulator {
             }
             Accumulator::Grouping { value } => Value::Int64(*value),
             Accumulator::GroupingId { value } => Value::Int64(*value),
+            Accumulator::ApproxQuantiles {
+                values,
+                num_quantiles,
+            } => {
+                if values.is_empty() {
+                    return Value::Array(vec![]);
+                }
+                let mut sorted = values.clone();
+                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                let n = sorted.len();
+                let mut quantiles = Vec::with_capacity(*num_quantiles + 1);
+                for i in 0..=*num_quantiles {
+                    let pos = (i as f64 / *num_quantiles as f64) * (n - 1) as f64;
+                    let idx = pos.floor() as usize;
+                    let frac = pos - idx as f64;
+                    let val = if idx + 1 < n {
+                        sorted[idx] * (1.0 - frac) + sorted[idx + 1] * frac
+                    } else {
+                        sorted[idx]
+                    };
+                    quantiles.push(Value::Float64(OrderedFloat(val)));
+                }
+                Value::Array(quantiles)
+            }
+            Accumulator::ApproxTopCount { counts, top_n } => {
+                let mut entries: Vec<_> = counts.iter().collect();
+                entries.sort_by(|a, b| b.1.cmp(a.1));
+                entries.truncate(*top_n);
+                let result: Vec<Value> = entries
+                    .into_iter()
+                    .map(|(key, count)| {
+                        let parsed_val = if key.starts_with("String(\"") && key.ends_with("\")") {
+                            Value::String(key[8..key.len() - 2].to_string())
+                        } else if key.starts_with("Int64(") && key.ends_with(")") {
+                            key[6..key.len() - 1]
+                                .parse::<i64>()
+                                .map(Value::Int64)
+                                .unwrap_or_else(|_| Value::String(key.clone()))
+                        } else {
+                            Value::String(key.clone())
+                        };
+                        Value::Struct(vec![
+                            ("value".to_string(), parsed_val),
+                            ("count".to_string(), Value::Int64(*count)),
+                        ])
+                    })
+                    .collect();
+                Value::Array(result)
+            }
+            Accumulator::ApproxTopSum { sums, top_n } => {
+                let mut entries: Vec<_> = sums.iter().collect();
+                entries.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
+                entries.truncate(*top_n);
+                let result: Vec<Value> = entries
+                    .into_iter()
+                    .map(|(key, sum)| {
+                        let parsed_val = if key.starts_with("String(\"") && key.ends_with("\")") {
+                            Value::String(key[8..key.len() - 2].to_string())
+                        } else if key.starts_with("Int64(") && key.ends_with(")") {
+                            key[6..key.len() - 1]
+                                .parse::<i64>()
+                                .map(Value::Int64)
+                                .unwrap_or_else(|_| Value::String(key.clone()))
+                        } else {
+                            Value::String(key.clone())
+                        };
+                        Value::Struct(vec![
+                            ("value".to_string(), parsed_val),
+                            ("sum".to_string(), Value::Float64(OrderedFloat(*sum))),
+                        ])
+                    })
+                    .collect();
+                Value::Array(result)
+            }
         }
     }
 
