@@ -182,7 +182,8 @@ fn collect_union_terms(
         | LogicalPlan::LoadData { .. }
         | LogicalPlan::Repeat { .. }
         | LogicalPlan::CreateSnapshot { .. }
-        | LogicalPlan::DropSnapshot { .. } => {
+        | LogicalPlan::DropSnapshot { .. }
+        | LogicalPlan::Sample { .. } => {
             if references_table(plan, cte_name) {
                 recursives.push(plan.clone());
             } else {
@@ -260,5 +261,6 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
         LogicalPlan::Repeat { body, .. } => body.iter().any(|p| references_table(p, table_name)),
         LogicalPlan::CreateSnapshot { .. } => false,
         LogicalPlan::DropSnapshot { .. } => false,
+        LogicalPlan::Sample { input, .. } => references_table(input, table_name),
     }
 }

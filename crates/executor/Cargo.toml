@@ -81,6 +81,7 @@ cityhasher = "0.1"
 
 # AES encryption
 aes = "0.8"
+aes-gcm = "0.10"
 cbc = "0.1"
 ecb = "0.1"
 

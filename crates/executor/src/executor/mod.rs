@@ -8,6 +8,7 @@ mod join;
 mod limit;
 mod project;
 mod qualify;
+mod sample;
 mod scan;
 mod scripting;
 mod set_ops;
@@ -104,6 +105,11 @@ impl<'a> PlanExecutor<'a> {
             ExecutorPlan::TableScan {
                 table_name, schema, ..
             } => self.execute_scan(table_name, schema),
+            ExecutorPlan::Sample {
+                input,
+                sample_type,
+                sample_value,
+            } => self.execute_sample(input, sample_type, *sample_value),
             ExecutorPlan::Filter { input, predicate } => self.execute_filter(input, predicate),
             ExecutorPlan::Project {
                 input,

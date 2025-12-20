@@ -1514,5 +1514,17 @@ fn executor_plan_to_logical_plan(plan: &ExecutorPlan) -> yachtsql_ir::LogicalPla
             temp_table: *temp_table,
             temp_schema: temp_schema.clone(),
         },
+        ExecutorPlan::Sample {
+            input,
+            sample_type,
+            sample_value,
+        } => LogicalPlan::Sample {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            sample_type: match sample_type {
+                yachtsql_optimizer::SampleType::Rows => yachtsql_ir::SampleType::Rows,
+                yachtsql_optimizer::SampleType::Percent => yachtsql_ir::SampleType::Percent,
+            },
+            sample_value: *sample_value,
+        },
     }
 }

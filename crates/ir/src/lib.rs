@@ -10,7 +10,7 @@ pub use expr::{
 pub use plan::{
     AlterColumnAction, AlterTableOp, ConstraintType, CteDefinition, ExportFormat, ExportOptions,
     FunctionArg, FunctionBody, JoinType, LoadFormat, LoadOptions, LogicalPlan, MergeClause,
-    NamedWindowDefinition, ProcedureArg, ProcedureArgMode, RaiseLevel, SetOperationType,
-    TableConstraint, UnnestColumn, WindowSpec,
+    NamedWindowDefinition, ProcedureArg, ProcedureArgMode, RaiseLevel, SampleType,
+    SetOperationType, TableConstraint, UnnestColumn, WindowSpec,
 };
 pub use schema::{Assignment, ColumnDef, EMPTY_SCHEMA, PlanField, PlanSchema};

@@ -1,7 +1,7 @@
 mod physical_plan;
 mod planner;
 
-pub use physical_plan::PhysicalPlan;
+pub use physical_plan::{PhysicalPlan, SampleType};
 pub use planner::PhysicalPlanner;
 use yachtsql_common::error::Result;
 use yachtsql_ir::LogicalPlan;

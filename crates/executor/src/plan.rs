@@ -4,7 +4,7 @@ use yachtsql_ir::{
     FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg, RaiseLevel,
     SortExpr, UnnestColumn,
 };
-use yachtsql_optimizer::PhysicalPlan;
+use yachtsql_optimizer::{PhysicalPlan, SampleType};
 
 #[derive(Debug, Clone)]
 pub enum ExecutorPlan {
@@ -12,6 +12,12 @@ pub enum ExecutorPlan {
         table_name: String,
         schema: PlanSchema,
         projection: Option<Vec<usize>>,
+    },
+
+    Sample {
+        input: Box<ExecutorPlan>,
+        sample_type: SampleType,
+        sample_value: i64,
     },
 
     Filter {
@@ -312,6 +318,16 @@ impl ExecutorPlan {
                 table_name: table_name.clone(),
                 schema: schema.clone(),
                 projection: projection.clone(),
+            },
+
+            PhysicalPlan::Sample {
+                input,
+                sample_type,
+                sample_value,
+            } => ExecutorPlan::Sample {
+                input: Box::new(Self::from_physical(input)),
+                sample_type: *sample_type,
+                sample_value: *sample_value,
             },
 
             PhysicalPlan::Filter { input, predicate } => ExecutorPlan::Filter {
