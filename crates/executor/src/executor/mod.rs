@@ -273,6 +273,12 @@ impl<'a> PlanExecutor<'a> {
                 args,
             } => self.execute_call(procedure_name, args),
             ExecutorPlan::ExportData { options, query } => self.execute_export(options, query),
+            ExecutorPlan::LoadData {
+                table_name,
+                options,
+                temp_table,
+                temp_schema,
+            } => self.execute_load(table_name, options, *temp_table, temp_schema.as_ref()),
             ExecutorPlan::Declare {
                 name,
                 data_type,

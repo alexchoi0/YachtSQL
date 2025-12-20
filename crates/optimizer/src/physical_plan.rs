@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterTableOp, Assignment, ColumnDef, CteDefinition, ExportOptions, Expr, FunctionArg,
-    FunctionBody, JoinType, MergeClause, PlanSchema, ProcedureArg, RaiseLevel, SortExpr,
-    UnnestColumn,
+    FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg, RaiseLevel,
+    SortExpr, UnnestColumn,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -226,6 +226,13 @@ pub enum PhysicalPlan {
         query: Box<PhysicalPlan>,
     },
 
+    LoadData {
+        table_name: String,
+        options: LoadOptions,
+        temp_table: bool,
+        temp_schema: Option<Vec<ColumnDef>>,
+    },
+
     Declare {
         name: String,
         data_type: DataType,
@@ -330,6 +337,7 @@ impl PhysicalPlan {
             PhysicalPlan::DropProcedure { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::Call { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::ExportData { .. } => &EMPTY_SCHEMA,
+            PhysicalPlan::LoadData { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::Declare { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::SetVariable { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::If { .. } => &EMPTY_SCHEMA,

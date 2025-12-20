@@ -387,6 +387,18 @@ impl PhysicalPlanner {
                 })
             }
 
+            LogicalPlan::LoadData {
+                table_name,
+                options,
+                temp_table,
+                temp_schema,
+            } => Ok(PhysicalPlan::LoadData {
+                table_name: table_name.clone(),
+                options: options.clone(),
+                temp_table: *temp_table,
+                temp_schema: temp_schema.clone(),
+            }),
+
             LogicalPlan::Declare {
                 name,
                 data_type,
@@ -811,6 +823,17 @@ impl PhysicalPlan {
             PhysicalPlan::ExportData { options, query } => LogicalPlan::ExportData {
                 options,
                 query: Box::new(query.into_logical()),
+            },
+            PhysicalPlan::LoadData {
+                table_name,
+                options,
+                temp_table,
+                temp_schema,
+            } => LogicalPlan::LoadData {
+                table_name,
+                options,
+                temp_table,
+                temp_schema,
             },
             PhysicalPlan::Declare {
                 name,
