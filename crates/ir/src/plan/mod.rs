@@ -157,6 +157,7 @@ pub enum LogicalPlan {
     CreateView {
         name: String,
         query: Box<LogicalPlan>,
+        query_sql: String,
         or_replace: bool,
         if_not_exists: bool,
     },
@@ -175,6 +176,11 @@ pub enum LogicalPlan {
         name: String,
         if_exists: bool,
         cascade: bool,
+    },
+
+    AlterSchema {
+        name: String,
+        options: Vec<(String, String)>,
     },
 
     CreateFunction {
@@ -277,6 +283,7 @@ impl LogicalPlan {
             LogicalPlan::DropView { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropSchema { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::AlterSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateFunction { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropFunction { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Call { .. } => &EMPTY_SCHEMA,

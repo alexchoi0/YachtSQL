@@ -8,8 +8,9 @@ pub use expr::{
     WindowFunction,
 };
 pub use plan::{
-    AlterColumnAction, AlterTableOp, CteDefinition, ExportFormat, ExportOptions, FunctionArg,
-    FunctionBody, JoinType, LogicalPlan, MergeClause, NamedWindowDefinition, ProcedureArg,
-    ProcedureArgMode, RaiseLevel, SetOperationType, UnnestColumn, WindowSpec,
+    AlterColumnAction, AlterTableOp, ConstraintType, CteDefinition, ExportFormat, ExportOptions,
+    FunctionArg, FunctionBody, JoinType, LogicalPlan, MergeClause, NamedWindowDefinition,
+    ProcedureArg, ProcedureArgMode, RaiseLevel, SetOperationType, TableConstraint, UnnestColumn,
+    WindowSpec,
 };
 pub use schema::{Assignment, ColumnDef, EMPTY_SCHEMA, PlanField, PlanSchema};

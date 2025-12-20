@@ -1,7 +1,7 @@
-use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Timelike, Utc};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, Value};
-use yachtsql_ir::{Assignment, Expr, MergeClause};
+use yachtsql_ir::{Assignment, Expr, Literal, LogicalPlan, MergeClause};
 use yachtsql_storage::{Schema, Table};
 
 use super::PlanExecutor;
@@ -229,6 +229,11 @@ impl<'a> PlanExecutor<'a> {
     }
 
     pub fn execute_delete(&mut self, table_name: &str, filter: Option<&Expr>) -> Result<Table> {
+        let resolved_filter = match filter {
+            Some(expr) => Some(self.resolve_subqueries_in_expr(expr)?),
+            None => None,
+        };
+
         let table = self
             .catalog
             .get_table(table_name)
@@ -241,7 +246,7 @@ impl<'a> PlanExecutor<'a> {
         let mut new_table = Table::empty(schema.clone());
 
         for record in table.rows()? {
-            let should_delete = match filter {
+            let should_delete = match &resolved_filter {
                 Some(expr) => evaluator
                     .evaluate(expr, &record)?
                     .as_bool()
@@ -257,6 +262,108 @@ impl<'a> PlanExecutor<'a> {
         self.catalog.replace_table(table_name, new_table)?;
 
         Ok(Table::empty(Schema::new()))
+    }
+
+    fn resolve_subqueries_in_expr(&mut self, expr: &Expr) -> Result<Expr> {
+        match expr {
+            Expr::InSubquery {
+                expr: inner_expr,
+                subquery,
+                negated,
+            } => {
+                let subquery_result = self.execute_logical_plan(subquery)?;
+                let values = self.table_column_to_expr_list(&subquery_result)?;
+                let resolved_expr = self.resolve_subqueries_in_expr(inner_expr)?;
+                Ok(Expr::InList {
+                    expr: Box::new(resolved_expr),
+                    list: values,
+                    negated: *negated,
+                })
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let resolved_left = self.resolve_subqueries_in_expr(left)?;
+                let resolved_right = self.resolve_subqueries_in_expr(right)?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(resolved_left),
+                    op: *op,
+                    right: Box::new(resolved_right),
+                })
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                let resolved_expr = self.resolve_subqueries_in_expr(inner)?;
+                Ok(Expr::UnaryOp {
+                    op: *op,
+                    expr: Box::new(resolved_expr),
+                })
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    fn execute_logical_plan(&mut self, plan: &LogicalPlan) -> Result<Table> {
+        let physical_plan = yachtsql_optimizer::optimize(plan)?;
+        let executor_plan = ExecutorPlan::from_physical(&physical_plan);
+        self.execute_plan(&executor_plan)
+    }
+
+    fn table_column_to_expr_list(&self, table: &Table) -> Result<Vec<Expr>> {
+        if table.schema().fields().is_empty() {
+            return Ok(vec![]);
+        }
+        let mut exprs = Vec::with_capacity(table.row_count());
+        for record in table.rows()? {
+            if let Some(val) = record.values().first() {
+                exprs.push(Self::value_to_literal_expr(val));
+            }
+        }
+        Ok(exprs)
+    }
+
+    fn value_to_literal_expr(value: &Value) -> Expr {
+        let literal = match value {
+            Value::Null => Literal::Null,
+            Value::Bool(b) => Literal::Bool(*b),
+            Value::Int64(n) => Literal::Int64(*n),
+            Value::Float64(f) => Literal::Float64(*f),
+            Value::String(s) => Literal::String(s.clone()),
+            Value::Bytes(b) => Literal::Bytes(b.clone()),
+            Value::Numeric(n) => Literal::Numeric(*n),
+            Value::Json(j) => Literal::Json(j.clone()),
+            Value::Date(d) => {
+                let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+                Literal::Date(d.signed_duration_since(epoch).num_days() as i32)
+            }
+            Value::Time(t) => Literal::Time(t.num_seconds_from_midnight() as i64 * 1_000_000_000),
+            Value::DateTime(dt) => Literal::Datetime(dt.and_utc().timestamp_micros()),
+            Value::Timestamp(ts) => Literal::Timestamp(ts.timestamp_micros()),
+            Value::Interval(i) => Literal::Interval {
+                months: i.months,
+                days: i.days,
+                nanos: i.nanos,
+            },
+            Value::Array(arr) => {
+                let items: Vec<Literal> = arr
+                    .iter()
+                    .filter_map(|v| match Self::value_to_literal_expr(v) {
+                        Expr::Literal(lit) => Some(lit),
+                        _ => None,
+                    })
+                    .collect();
+                Literal::Array(items)
+            }
+            Value::Struct(fields) => {
+                let items: Vec<(String, Literal)> = fields
+                    .iter()
+                    .filter_map(|(name, val)| match Self::value_to_literal_expr(val) {
+                        Expr::Literal(lit) => Some((name.clone(), lit)),
+                        _ => None,
+                    })
+                    .collect();
+                Literal::Struct(items)
+            }
+            Value::Geography(_) | Value::Range(_) | Value::Default => Literal::Null,
+        };
+        Expr::Literal(literal)
     }
 
     pub fn execute_merge(

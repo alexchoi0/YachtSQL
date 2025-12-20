@@ -181,9 +181,10 @@ impl<'a> PlanExecutor<'a> {
             ExecutorPlan::CreateView {
                 name,
                 query,
+                query_sql,
                 or_replace,
                 if_not_exists,
-            } => self.execute_create_view(name, query, *or_replace, *if_not_exists),
+            } => self.execute_create_view(name, query_sql, *or_replace, *if_not_exists),
             ExecutorPlan::DropView { name, if_exists } => self.execute_drop_view(name, *if_exists),
             ExecutorPlan::CreateSchema {
                 name,
@@ -194,6 +195,7 @@ impl<'a> PlanExecutor<'a> {
                 if_exists,
                 cascade,
             } => self.execute_drop_schema(name, *if_exists, *cascade),
+            ExecutorPlan::AlterSchema { name, options } => self.execute_alter_schema(name, options),
             ExecutorPlan::CreateFunction {
                 name,
                 args,

@@ -26,6 +26,9 @@ pub enum AlterTableOp {
         name: String,
         action: AlterColumnAction,
     },
+    AddConstraint {
+        constraint: TableConstraint,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

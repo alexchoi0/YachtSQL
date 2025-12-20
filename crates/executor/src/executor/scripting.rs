@@ -48,7 +48,14 @@ impl<'a> PlanExecutor<'a> {
         let evaluator = IrEvaluator::new(&empty_schema);
         let val = evaluator.evaluate(value, &empty_record)?;
 
-        self.variables.insert(name.to_uppercase(), val.clone());
+        let upper_name = name.to_uppercase();
+        if upper_name == "SEARCH_PATH" {
+            if let Some(schema_name) = val.as_str() {
+                self.catalog.set_search_path(vec![schema_name.to_string()]);
+            }
+        }
+
+        self.variables.insert(upper_name, val.clone());
         self.session.set_variable(name, val);
 
         Ok(Table::empty(Schema::new()))

@@ -165,6 +165,7 @@ pub enum ExecutorPlan {
     CreateView {
         name: String,
         query: Box<ExecutorPlan>,
+        query_sql: String,
         or_replace: bool,
         if_not_exists: bool,
     },
@@ -183,6 +184,11 @@ pub enum ExecutorPlan {
         name: String,
         if_exists: bool,
         cascade: bool,
+    },
+
+    AlterSchema {
+        name: String,
+        options: Vec<(String, String)>,
     },
 
     CreateFunction {
@@ -292,7 +298,7 @@ impl ExecutorPlan {
             } => ExecutorPlan::NestedLoopJoin {
                 left: Box::new(Self::from_physical(left)),
                 right: Box::new(Self::from_physical(right)),
-                join_type: join_type.clone(),
+                join_type: *join_type,
                 condition: condition.clone(),
                 schema: schema.clone(),
             },
@@ -493,11 +499,13 @@ impl ExecutorPlan {
             PhysicalPlan::CreateView {
                 name,
                 query,
+                query_sql,
                 or_replace,
                 if_not_exists,
             } => ExecutorPlan::CreateView {
                 name: name.clone(),
                 query: Box::new(Self::from_physical(query)),
+                query_sql: query_sql.clone(),
                 or_replace: *or_replace,
                 if_not_exists: *if_not_exists,
             },
@@ -523,6 +531,11 @@ impl ExecutorPlan {
                 name: name.clone(),
                 if_exists: *if_exists,
                 cascade: *cascade,
+            },
+
+            PhysicalPlan::AlterSchema { name, options } => ExecutorPlan::AlterSchema {
+                name: name.clone(),
+                options: options.clone(),
             },
 
             PhysicalPlan::CreateFunction {

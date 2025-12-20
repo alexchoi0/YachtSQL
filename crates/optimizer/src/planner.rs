@@ -284,6 +284,7 @@ impl PhysicalPlanner {
             LogicalPlan::CreateView {
                 name,
                 query,
+                query_sql,
                 or_replace,
                 if_not_exists,
             } => {
@@ -291,6 +292,7 @@ impl PhysicalPlanner {
                 Ok(PhysicalPlan::CreateView {
                     name: name.clone(),
                     query: Box::new(query),
+                    query_sql: query_sql.clone(),
                     or_replace: *or_replace,
                     if_not_exists: *if_not_exists,
                 })
@@ -317,6 +319,11 @@ impl PhysicalPlanner {
                 name: name.clone(),
                 if_exists: *if_exists,
                 cascade: *cascade,
+            }),
+
+            LogicalPlan::AlterSchema { name, options } => Ok(PhysicalPlan::AlterSchema {
+                name: name.clone(),
+                options: options.clone(),
             }),
 
             LogicalPlan::CreateFunction {
@@ -671,11 +678,13 @@ impl PhysicalPlan {
             PhysicalPlan::CreateView {
                 name,
                 query,
+                query_sql,
                 or_replace,
                 if_not_exists,
             } => LogicalPlan::CreateView {
                 name,
                 query: Box::new(query.into_logical()),
+                query_sql,
                 or_replace,
                 if_not_exists,
             },
@@ -696,6 +705,9 @@ impl PhysicalPlan {
                 if_exists,
                 cascade,
             },
+            PhysicalPlan::AlterSchema { name, options } => {
+                LogicalPlan::AlterSchema { name, options }
+            }
             PhysicalPlan::CreateFunction {
                 name,
                 args,

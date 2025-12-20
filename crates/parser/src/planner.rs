@@ -5,8 +5,9 @@ use sqlparser::ast::{self, SetExpr, Statement, TableFactor};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
-    AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, CteDefinition, Expr,
-    JoinType, Literal, LogicalPlan, PlanField, PlanSchema, SetOperationType, SortExpr,
+    AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
+    CteDefinition, Expr, JoinType, Literal, LogicalPlan, PlanField, PlanSchema, SetOperationType,
+    SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
 
@@ -54,6 +55,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 if_not_exists,
                 ..
             } => self.plan_create_schema(schema_name, *if_not_exists),
+            Statement::AlterSchema(alter_schema) => self.plan_alter_schema(alter_schema),
             Statement::CreateView {
                 name,
                 query,
@@ -76,6 +78,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     if_exists: *if_exists,
                 })
             }
+            Statement::Set(set_stmt) => self.plan_set(set_stmt),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -355,22 +358,45 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     });
                 }
 
-                let storage_schema = self
-                    .catalog
-                    .get_table_schema(&table_name)
-                    .ok_or_else(|| Error::table_not_found(&table_name))?;
+                if let Some(storage_schema) = self.catalog.get_table_schema(&table_name) {
+                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+                    let schema = self.storage_schema_to_plan_schema(
+                        &storage_schema,
+                        alias_name.or(Some(&table_name)),
+                    );
 
-                let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
-                let schema = self.storage_schema_to_plan_schema(
-                    &storage_schema,
-                    alias_name.or(Some(&table_name)),
-                );
+                    return Ok(LogicalPlan::Scan {
+                        table_name,
+                        schema,
+                        projection: None,
+                    });
+                }
 
-                Ok(LogicalPlan::Scan {
-                    table_name,
-                    schema,
-                    projection: None,
-                })
+                if let Some(view_query) = self.catalog.get_view_query(&table_name) {
+                    let view_plan = crate::parse_and_plan(&view_query, self.catalog)?;
+                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+                    if let Some(alias) = alias_name {
+                        let schema = self.rename_schema(view_plan.schema(), alias);
+                        return Ok(LogicalPlan::Project {
+                            input: Box::new(view_plan.clone()),
+                            expressions: view_plan
+                                .schema()
+                                .fields
+                                .iter()
+                                .enumerate()
+                                .map(|(i, f)| Expr::Column {
+                                    table: None,
+                                    name: f.name.clone(),
+                                    index: Some(i),
+                                })
+                                .collect(),
+                            schema,
+                        });
+                    }
+                    return Ok(view_plan);
+                }
+
+                Err(Error::table_not_found(&table_name))
             }
             TableFactor::Derived {
                 subquery, alias, ..
@@ -2041,10 +2067,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .ok_or_else(|| Error::table_not_found(&table_name))?;
         let schema = self.storage_schema_to_plan_schema(&storage_schema, Some(&table_name));
 
+        let subquery_planner = |query: &ast::Query| self.plan_query(query);
         let filter = delete
             .selection
             .as_ref()
-            .map(|s| ExprPlanner::plan_expr(s, &schema))
+            .map(|s| ExprPlanner::plan_expr_with_subquery(s, &schema, Some(&subquery_planner)))
             .transpose()?;
 
         Ok(LogicalPlan::Delete { table_name, filter })
@@ -2157,6 +2184,48 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         })
     }
 
+    fn plan_alter_schema(&self, alter_schema: &ast::AlterSchema) -> Result<LogicalPlan> {
+        let name = alter_schema.name.to_string();
+        let mut options = Vec::new();
+
+        for operation in &alter_schema.operations {
+            match operation {
+                ast::AlterSchemaOperation::SetOptionsParens { options: opts } => {
+                    for opt in opts {
+                        if let ast::SqlOption::KeyValue { key, value } = opt {
+                            let key_str = key.value.clone();
+                            let value_str = self.extract_sql_option_value(value);
+                            options.push((key_str, value_str));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(Error::unsupported(format!(
+                        "ALTER SCHEMA operation not supported: {:?}",
+                        operation
+                    )));
+                }
+            }
+        }
+
+        Ok(LogicalPlan::AlterSchema { name, options })
+    }
+
+    fn extract_sql_option_value(&self, expr: &ast::Expr) -> String {
+        match expr {
+            ast::Expr::Value(v) => match &v.value {
+                ast::Value::SingleQuotedString(s)
+                | ast::Value::DoubleQuotedString(s)
+                | ast::Value::DollarQuotedString(ast::DollarQuotedString { value: s, .. }) => {
+                    s.clone()
+                }
+                ast::Value::Number(n, _) => n.clone(),
+                _ => format!("{}", expr),
+            },
+            _ => format!("{}", expr),
+        }
+    }
+
     fn plan_alter_table(
         &self,
         name: &ast::ObjectName,
@@ -2243,6 +2312,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     action,
                 }
             }
+            ast::AlterTableOperation::AddConstraint { constraint, .. } => {
+                let table_constraint = self.plan_table_constraint(constraint)?;
+                AlterTableOp::AddConstraint {
+                    constraint: table_constraint,
+                }
+            }
             _ => {
                 return Err(Error::unsupported(format!(
                     "Unsupported ALTER TABLE operation: {:?}",
@@ -2265,14 +2340,57 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         if_not_exists: bool,
     ) -> Result<LogicalPlan> {
         let view_name = name.to_string();
+        let query_sql = query.to_string();
         let query_plan = self.plan_query(query)?;
 
         Ok(LogicalPlan::CreateView {
             name: view_name,
             query: Box::new(query_plan),
+            query_sql,
             or_replace,
             if_not_exists,
         })
+    }
+
+    fn plan_set(&self, set_stmt: &ast::Set) -> Result<LogicalPlan> {
+        match set_stmt {
+            ast::Set::SingleAssignment {
+                variable, values, ..
+            } => {
+                let var_name = variable.to_string();
+                let value = values
+                    .first()
+                    .map(|v| self.plan_set_value(v))
+                    .transpose()?
+                    .unwrap_or(Expr::Literal(Literal::Null));
+                Ok(LogicalPlan::SetVariable {
+                    name: var_name,
+                    value,
+                })
+            }
+            _ => Err(Error::unsupported(format!(
+                "Unsupported SET statement: {:?}",
+                set_stmt
+            ))),
+        }
+    }
+
+    fn plan_set_value(&self, expr: &ast::Expr) -> Result<Expr> {
+        match expr {
+            ast::Expr::Identifier(ident) => Ok(Expr::Literal(Literal::String(ident.value.clone()))),
+            ast::Expr::CompoundIdentifier(idents) => {
+                let name = idents
+                    .iter()
+                    .map(|i| i.value.as_str())
+                    .collect::<Vec<_>>()
+                    .join(".");
+                Ok(Expr::Literal(Literal::String(name)))
+            }
+            _ => {
+                let empty_schema = PlanSchema::new();
+                ExprPlanner::plan_expr(expr, &empty_schema)
+            }
+        }
     }
 
     fn storage_schema_to_plan_schema(&self, schema: &Schema, table: Option<&str>) -> PlanSchema {
@@ -2305,6 +2423,63 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
     fn sql_type_to_data_type(&self, sql_type: &ast::DataType) -> DataType {
         Self::convert_sql_type(sql_type)
+    }
+
+    fn plan_table_constraint(&self, constraint: &ast::TableConstraint) -> Result<TableConstraint> {
+        let (name, constraint_type) = match constraint {
+            ast::TableConstraint::Unique { name, columns, .. } => {
+                let col_names: Vec<String> =
+                    columns.iter().map(|c| c.column.expr.to_string()).collect();
+                (
+                    name.clone().map(|n| n.value),
+                    ConstraintType::Unique { columns: col_names },
+                )
+            }
+            ast::TableConstraint::PrimaryKey { name, columns, .. } => {
+                let col_names: Vec<String> =
+                    columns.iter().map(|c| c.column.expr.to_string()).collect();
+                (
+                    name.clone().map(|n| n.value),
+                    ConstraintType::PrimaryKey { columns: col_names },
+                )
+            }
+            ast::TableConstraint::ForeignKey {
+                name,
+                columns,
+                foreign_table,
+                referred_columns,
+                ..
+            } => {
+                let col_names: Vec<String> = columns.iter().map(|c| c.value.clone()).collect();
+                let ref_cols: Vec<String> =
+                    referred_columns.iter().map(|c| c.value.clone()).collect();
+                let ctype = ConstraintType::ForeignKey {
+                    columns: col_names,
+                    references_table: foreign_table.to_string(),
+                    references_columns: ref_cols,
+                };
+                (name.clone().map(|n| n.value), ctype)
+            }
+            ast::TableConstraint::Check { name, expr, .. } => {
+                let empty_schema = PlanSchema::new();
+                let check_expr = ExprPlanner::plan_expr(expr, &empty_schema)?;
+                (
+                    name.clone().map(|n| n.value),
+                    ConstraintType::Check { expr: check_expr },
+                )
+            }
+            _ => {
+                return Err(Error::unsupported(format!(
+                    "Unsupported table constraint: {:?}",
+                    constraint
+                )));
+            }
+        };
+
+        Ok(TableConstraint {
+            name,
+            constraint_type,
+        })
     }
 
     fn convert_sql_type(sql_type: &ast::DataType) -> DataType {

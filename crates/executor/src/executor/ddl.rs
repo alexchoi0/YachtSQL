@@ -168,6 +168,7 @@ impl<'a> PlanExecutor<'a> {
                 }
                 Ok(Table::empty(Schema::new()))
             }
+            AlterTableOp::AddConstraint { .. } => Ok(Table::empty(Schema::new())),
         }
     }
 
@@ -183,13 +184,17 @@ impl<'a> PlanExecutor<'a> {
     pub fn execute_create_view(
         &mut self,
         name: &str,
-        query: &ExecutorPlan,
+        query_sql: &str,
         or_replace: bool,
         if_not_exists: bool,
     ) -> Result<Table> {
-        let query_str = format!("{:?}", query);
-        self.catalog
-            .create_view(name, query_str, Vec::new(), or_replace, if_not_exists)?;
+        self.catalog.create_view(
+            name,
+            query_sql.to_string(),
+            Vec::new(),
+            or_replace,
+            if_not_exists,
+        )?;
         Ok(Table::empty(Schema::new()))
     }
 
@@ -210,6 +215,17 @@ impl<'a> PlanExecutor<'a> {
         cascade: bool,
     ) -> Result<Table> {
         self.catalog.drop_schema(name, if_exists, cascade)?;
+        Ok(Table::empty(Schema::new()))
+    }
+
+    pub fn execute_alter_schema(
+        &mut self,
+        name: &str,
+        options: &[(String, String)],
+    ) -> Result<Table> {
+        let option_map: std::collections::HashMap<String, String> =
+            options.iter().cloned().collect();
+        self.catalog.alter_schema_options(name, option_map)?;
         Ok(Table::empty(Schema::new()))
     }
 

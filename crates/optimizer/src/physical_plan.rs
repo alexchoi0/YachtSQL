@@ -165,6 +165,7 @@ pub enum PhysicalPlan {
     CreateView {
         name: String,
         query: Box<PhysicalPlan>,
+        query_sql: String,
         or_replace: bool,
         if_not_exists: bool,
     },
@@ -183,6 +184,11 @@ pub enum PhysicalPlan {
         name: String,
         if_exists: bool,
         cascade: bool,
+    },
+
+    AlterSchema {
+        name: String,
+        options: Vec<(String, String)>,
     },
 
     CreateFunction {
@@ -290,6 +296,7 @@ impl PhysicalPlan {
             PhysicalPlan::DropView { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::CreateSchema { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::DropSchema { .. } => &EMPTY_SCHEMA,
+            PhysicalPlan::AlterSchema { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::CreateFunction { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::DropFunction { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::Call { .. } => &EMPTY_SCHEMA,

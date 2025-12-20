@@ -12,6 +12,9 @@ use yachtsql_storage::Schema;
 
 pub trait CatalogProvider {
     fn get_table_schema(&self, name: &str) -> Option<Schema>;
+    fn get_view_query(&self, _name: &str) -> Option<String> {
+        None
+    }
 }
 
 pub fn parse_sql(sql: &str) -> Result<Vec<sqlparser::ast::Statement>> {
