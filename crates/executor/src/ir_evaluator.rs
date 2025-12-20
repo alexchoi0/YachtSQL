@@ -172,6 +172,9 @@ impl<'a> IrEvaluator<'a> {
             Expr::Exists { .. } => Err(Error::InvalidQuery(
                 "EXISTS should be evaluated by plan executor".into(),
             )),
+            Expr::ArraySubquery(_) => Err(Error::InvalidQuery(
+                "ArraySubquery should be evaluated by plan executor".into(),
+            )),
             Expr::Between {
                 expr,
                 low,

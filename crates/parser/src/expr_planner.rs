@@ -86,7 +86,9 @@ impl ExprPlanner {
                 })
             }
 
-            ast::Expr::Function(func) => Self::plan_function(func, schema, named_windows),
+            ast::Expr::Function(func) => {
+                Self::plan_function(func, schema, subquery_planner, named_windows)
+            }
 
             ast::Expr::IsNull(inner) => {
                 let expr = Self::plan_expr_full(inner, schema, subquery_planner, named_windows)?;
@@ -932,9 +934,20 @@ impl ExprPlanner {
     fn plan_function(
         func: &ast::Function,
         schema: &PlanSchema,
+        subquery_planner: Option<SubqueryPlannerFn>,
         named_windows: &[ast::NamedWindowDefinition],
     ) -> Result<Expr> {
         let name = func.name.to_string().to_uppercase();
+
+        if name == "ARRAY"
+            && let ast::FunctionArguments::Subquery(subquery) = &func.args
+        {
+            let planner = subquery_planner.ok_or_else(|| {
+                Error::unsupported("ARRAY subquery requires subquery planner context")
+            })?;
+            let plan = planner(subquery)?;
+            return Ok(Expr::ArraySubquery(Box::new(plan)));
+        }
 
         if let Some(over) = &func.over {
             if let Some(window_func) = Self::try_window_function(&name) {

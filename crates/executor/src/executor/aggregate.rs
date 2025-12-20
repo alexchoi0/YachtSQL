@@ -254,6 +254,7 @@ fn extract_agg_arg(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -315,6 +316,7 @@ fn extract_conditional_agg_args(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -372,6 +374,7 @@ fn extract_bivariate_args(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -428,6 +431,7 @@ fn extract_order_by_keys(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -473,6 +477,7 @@ fn has_order_by(agg_expr: &Expr) -> bool {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -518,6 +523,7 @@ fn get_agg_func(expr: &Expr) -> Option<&AggregateFunction> {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -563,6 +569,7 @@ fn is_distinct_aggregate(expr: &Expr) -> bool {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -608,6 +615,7 @@ fn has_ignore_nulls(expr: &Expr) -> bool {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -660,6 +668,7 @@ fn extract_int_arg(expr: &Expr, index: usize) -> Option<i64> {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -712,6 +721,7 @@ fn extract_string_agg_separator(expr: &Expr) -> String {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }

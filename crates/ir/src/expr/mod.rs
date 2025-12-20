@@ -198,6 +198,8 @@ pub enum Expr {
 
     ScalarSubquery(Box<crate::plan::LogicalPlan>),
 
+    ArraySubquery(Box<crate::plan::LogicalPlan>),
+
     Parameter {
         name: String,
     },
