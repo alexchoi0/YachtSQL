@@ -420,6 +420,20 @@ impl PhysicalPlanner {
                 })
             }
 
+            LogicalPlan::Repeat {
+                body,
+                until_condition,
+            } => {
+                let body = body
+                    .iter()
+                    .map(|p| self.plan(p))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(PhysicalPlan::Repeat {
+                    body,
+                    until_condition: until_condition.clone(),
+                })
+            }
+
             LogicalPlan::For {
                 variable,
                 query,
@@ -775,6 +789,13 @@ impl PhysicalPlan {
             PhysicalPlan::Loop { body, label } => LogicalPlan::Loop {
                 body: body.into_iter().map(|p| p.into_logical()).collect(),
                 label,
+            },
+            PhysicalPlan::Repeat {
+                body,
+                until_condition,
+            } => LogicalPlan::Repeat {
+                body: body.into_iter().map(|p| p.into_logical()).collect(),
+                until_condition,
             },
             PhysicalPlan::For {
                 variable,

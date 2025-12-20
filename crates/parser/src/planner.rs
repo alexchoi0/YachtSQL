@@ -84,6 +84,15 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 clauses,
                 ..
             } => self.plan_merge(table, source, on, clauses),
+            Statement::StartTransaction { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::Commit { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::Rollback { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt

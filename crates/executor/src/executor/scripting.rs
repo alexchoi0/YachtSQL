@@ -30,7 +30,7 @@ impl<'a> PlanExecutor<'a> {
             Some(expr) => {
                 let empty_schema = Schema::new();
                 let empty_record = Record::from_values(vec![]);
-                let evaluator = IrEvaluator::new(&empty_schema);
+                let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
                 evaluator.evaluate(expr, &empty_record)?
             }
             None => default_value_for_type(data_type),
@@ -45,7 +45,7 @@ impl<'a> PlanExecutor<'a> {
     pub fn execute_set_variable(&mut self, name: &str, value: &Expr) -> Result<Table> {
         let empty_schema = Schema::new();
         let empty_record = Record::from_values(vec![]);
-        let evaluator = IrEvaluator::new(&empty_schema);
+        let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
         let val = evaluator.evaluate(value, &empty_record)?;
 
         self.variables.insert(name.to_uppercase(), val.clone());
@@ -62,7 +62,7 @@ impl<'a> PlanExecutor<'a> {
     ) -> Result<Table> {
         let empty_schema = Schema::new();
         let empty_record = Record::from_values(vec![]);
-        let evaluator = IrEvaluator::new(&empty_schema);
+        let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
         let cond_val = evaluator.evaluate(condition, &empty_record)?;
 
         if cond_val.as_bool().unwrap_or(false) {
@@ -81,9 +81,9 @@ impl<'a> PlanExecutor<'a> {
     pub fn execute_while(&mut self, condition: &Expr, body: &[ExecutorPlan]) -> Result<Table> {
         let empty_schema = Schema::new();
         let empty_record = Record::from_values(vec![]);
-        let evaluator = IrEvaluator::new(&empty_schema);
 
         loop {
+            let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
             let cond_val = evaluator.evaluate(condition, &empty_record)?;
             if !cond_val.as_bool().unwrap_or(false) {
                 break;
@@ -123,6 +123,38 @@ impl<'a> PlanExecutor<'a> {
         }
     }
 
+    pub fn execute_repeat(
+        &mut self,
+        body: &[ExecutorPlan],
+        until_condition: &Expr,
+    ) -> Result<Table> {
+        let empty_schema = Schema::new();
+        let empty_record = Record::from_values(vec![]);
+
+        loop {
+            for plan in body {
+                match self.execute_plan(plan) {
+                    Ok(_) => {}
+                    Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
+                        return Ok(Table::empty(Schema::new()));
+                    }
+                    Err(Error::InvalidQuery(msg)) if msg.contains("CONTINUE") => {
+                        break;
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+
+            let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+            let cond_val = evaluator.evaluate(until_condition, &empty_record)?;
+            if cond_val.as_bool().unwrap_or(false) {
+                break;
+            }
+        }
+
+        Ok(Table::empty(Schema::new()))
+    }
+
     pub fn execute_for(
         &mut self,
         variable: &str,
@@ -159,7 +191,7 @@ impl<'a> PlanExecutor<'a> {
             Some(expr) => {
                 let empty_schema = Schema::new();
                 let empty_record = Record::from_values(vec![]);
-                let evaluator = IrEvaluator::new(&empty_schema);
+                let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
                 evaluator
                     .evaluate(expr, &empty_record)?
                     .as_str()

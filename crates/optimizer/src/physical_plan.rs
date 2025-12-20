@@ -237,6 +237,11 @@ pub enum PhysicalPlan {
         label: Option<String>,
     },
 
+    Repeat {
+        body: Vec<PhysicalPlan>,
+        until_condition: Expr,
+    },
+
     For {
         variable: String,
         query: Box<PhysicalPlan>,
@@ -312,6 +317,7 @@ impl PhysicalPlan {
             PhysicalPlan::If { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::While { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::Loop { .. } => &EMPTY_SCHEMA,
+            PhysicalPlan::Repeat { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::For { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::Return { .. } => &EMPTY_SCHEMA,
             PhysicalPlan::Raise { .. } => &EMPTY_SCHEMA,

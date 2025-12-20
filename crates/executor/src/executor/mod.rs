@@ -230,6 +230,10 @@ impl<'a> PlanExecutor<'a> {
             } => self.execute_if(condition, then_branch, else_branch.as_deref()),
             ExecutorPlan::While { condition, body } => self.execute_while(condition, body),
             ExecutorPlan::Loop { body, label } => self.execute_loop(body, label.as_deref()),
+            ExecutorPlan::Repeat {
+                body,
+                until_condition,
+            } => self.execute_repeat(body, until_condition),
             ExecutorPlan::For {
                 variable,
                 query,
