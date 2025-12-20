@@ -6,12 +6,24 @@ use yachtsql_ir::{
     SortExpr, UnnestColumn,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum SampleType {
+    Rows,
+    Percent,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PhysicalPlan {
     TableScan {
         table_name: String,
         schema: PlanSchema,
         projection: Option<Vec<usize>>,
+    },
+
+    Sample {
+        input: Box<PhysicalPlan>,
+        sample_type: SampleType,
+        sample_value: i64,
     },
 
     Filter {
@@ -306,6 +318,7 @@ impl PhysicalPlan {
         use yachtsql_ir::EMPTY_SCHEMA;
         match self {
             PhysicalPlan::TableScan { schema, .. } => schema,
+            PhysicalPlan::Sample { input, .. } => input.schema(),
             PhysicalPlan::Filter { input, .. } => input.schema(),
             PhysicalPlan::Project { schema, .. } => schema,
             PhysicalPlan::NestedLoopJoin { schema, .. } => schema,

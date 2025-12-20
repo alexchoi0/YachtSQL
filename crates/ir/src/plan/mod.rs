@@ -22,11 +22,23 @@ use crate::expr::{Expr, SortExpr};
 use crate::schema::{Assignment, ColumnDef, EMPTY_SCHEMA, PlanSchema};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SampleType {
+    Rows,
+    Percent,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LogicalPlan {
     Scan {
         table_name: String,
         schema: PlanSchema,
         projection: Option<Vec<usize>>,
+    },
+
+    Sample {
+        input: Box<LogicalPlan>,
+        sample_type: SampleType,
+        sample_value: i64,
     },
 
     Filter {
@@ -296,6 +308,7 @@ impl LogicalPlan {
     pub fn schema(&self) -> &PlanSchema {
         match self {
             LogicalPlan::Scan { schema, .. } => schema,
+            LogicalPlan::Sample { input, .. } => input.schema(),
             LogicalPlan::Filter { input, .. } => input.schema(),
             LogicalPlan::Project { schema, .. } => schema,
             LogicalPlan::Aggregate { schema, .. } => schema,
