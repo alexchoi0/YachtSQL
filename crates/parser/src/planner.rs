@@ -3229,7 +3229,6 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let view_name = name.to_string();
         let query_sql = query.to_string();
         let query_plan = self.plan_query(query)?;
-        let query_sql = query.to_string();
         let column_aliases: Vec<String> = columns.iter().map(|c| c.name.value.clone()).collect();
 
         Ok(LogicalPlan::CreateView {

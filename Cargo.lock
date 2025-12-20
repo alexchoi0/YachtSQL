@@ -5225,6 +5225,7 @@ name = "yachtsql-storage"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "criterion",
  "indexmap",
  "rust_decimal",
  "serde",
