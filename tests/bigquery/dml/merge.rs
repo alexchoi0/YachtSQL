@@ -19,7 +19,6 @@ fn setup_tables(executor: &mut yachtsql::QueryExecutor) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_update_when_matched() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -38,7 +37,6 @@ fn test_merge_update_when_matched() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_insert_when_not_matched() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -54,7 +52,6 @@ fn test_merge_insert_when_not_matched() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_delete_when_matched() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -70,7 +67,6 @@ fn test_merge_delete_when_matched() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_update_and_insert() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -89,7 +85,6 @@ fn test_merge_update_and_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_with_condition() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -105,7 +100,6 @@ fn test_merge_with_condition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_update_delete_insert() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -121,7 +115,6 @@ fn test_merge_update_delete_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_with_subquery_source() {
     let mut executor = create_executor();
     executor
@@ -148,7 +141,6 @@ fn test_merge_with_subquery_source() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_insert_row() {
     let mut executor = create_executor();
     executor
@@ -174,7 +166,6 @@ fn test_merge_insert_row() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_when_not_matched_by_source() {
     let mut executor = create_executor();
     executor
@@ -201,7 +192,6 @@ fn test_merge_when_not_matched_by_source() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_all_clauses() {
     let mut executor = create_executor();
     executor
@@ -228,7 +218,6 @@ fn test_merge_all_clauses() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_with_constants() {
     let mut executor = create_executor();
     executor

@@ -6,7 +6,7 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, CteDefinition, Expr,
-    JoinType, Literal, LogicalPlan, PlanField, PlanSchema, SetOperationType, SortExpr,
+    JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, SetOperationType, SortExpr,
 };
 use yachtsql_storage::Schema;
 
@@ -77,6 +77,13 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     if_exists: *if_exists,
                 })
             }
+            Statement::Merge {
+                table,
+                source,
+                on,
+                clauses,
+                ..
+            } => self.plan_merge(table, source, on, clauses),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -2114,6 +2121,185 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .transpose()?;
 
         Ok(LogicalPlan::Delete { table_name, filter })
+    }
+
+    fn plan_merge(
+        &self,
+        table: &TableFactor,
+        source: &TableFactor,
+        on: &ast::Expr,
+        clauses: &[ast::MergeClause],
+    ) -> Result<LogicalPlan> {
+        let target_name = match table {
+            TableFactor::Table { name, .. } => name.to_string(),
+            _ => return Err(Error::parse_error("MERGE target must be a table")),
+        };
+
+        let target_alias = match table {
+            TableFactor::Table { alias, .. } => alias.as_ref().map(|a| a.name.value.clone()),
+            _ => None,
+        };
+
+        let target_storage_schema = self
+            .catalog
+            .get_table_schema(&target_name)
+            .ok_or_else(|| Error::table_not_found(&target_name))?;
+        let target_schema = self.storage_schema_to_plan_schema(
+            &target_storage_schema,
+            target_alias.as_deref().or(Some(&target_name)),
+        );
+
+        let source_plan = self.plan_table_factor(source)?;
+        let source_schema = source_plan.schema().clone();
+
+        let source_alias = match source {
+            TableFactor::Table { alias, .. } => alias.as_ref().map(|a| a.name.value.clone()),
+            TableFactor::Derived { alias, .. } => alias.as_ref().map(|a| a.name.value.clone()),
+            _ => None,
+        };
+
+        let source_schema_with_alias = if let Some(ref alias) = source_alias {
+            PlanSchema::from_fields(
+                source_schema
+                    .fields
+                    .iter()
+                    .map(|f| {
+                        let mut field = f.clone();
+                        field.table = Some(alias.clone());
+                        let base_name = f.name.split('.').next_back().unwrap_or(&f.name);
+                        field.name = format!("{}.{}", alias, base_name);
+                        field
+                    })
+                    .collect(),
+            )
+        } else {
+            source_schema.clone()
+        };
+
+        let combined_schema = target_schema
+            .clone()
+            .merge(source_schema_with_alias.clone());
+
+        let on_expr = ExprPlanner::plan_expr(on, &combined_schema)?;
+
+        let mut merge_clauses = Vec::new();
+        for clause in clauses {
+            let planned_clause = self.plan_merge_clause(
+                clause,
+                &combined_schema,
+                &target_schema,
+                &source_schema_with_alias,
+            )?;
+            merge_clauses.push(planned_clause);
+        }
+
+        Ok(LogicalPlan::Merge {
+            target_table: target_name,
+            source: Box::new(source_plan),
+            on: on_expr,
+            clauses: merge_clauses,
+        })
+    }
+
+    fn plan_merge_clause(
+        &self,
+        clause: &ast::MergeClause,
+        combined_schema: &PlanSchema,
+        target_schema: &PlanSchema,
+        _source_schema: &PlanSchema,
+    ) -> Result<MergeClause> {
+        let condition = clause
+            .predicate
+            .as_ref()
+            .map(|p| ExprPlanner::plan_expr(p, combined_schema))
+            .transpose()?;
+
+        match &clause.clause_kind {
+            ast::MergeClauseKind::Matched => match &clause.action {
+                ast::MergeAction::Update { assignments } => {
+                    let mut plan_assignments = Vec::new();
+                    for assign in assignments {
+                        let column = match &assign.target {
+                            ast::AssignmentTarget::ColumnName(names) => names.to_string(),
+                            ast::AssignmentTarget::Tuple(parts) => parts
+                                .iter()
+                                .map(|p| p.to_string())
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        };
+                        let value = ExprPlanner::plan_expr(&assign.value, combined_schema)?;
+                        plan_assignments.push(Assignment { column, value });
+                    }
+                    Ok(MergeClause::MatchedUpdate {
+                        condition,
+                        assignments: plan_assignments,
+                    })
+                }
+                ast::MergeAction::Delete => Ok(MergeClause::MatchedDelete { condition }),
+                ast::MergeAction::Insert(_) => Err(Error::parse_error(
+                    "INSERT action not valid for WHEN MATCHED",
+                )),
+            },
+            ast::MergeClauseKind::NotMatched | ast::MergeClauseKind::NotMatchedByTarget => {
+                match &clause.action {
+                    ast::MergeAction::Insert(insert_expr) => {
+                        let columns: Vec<String> = insert_expr
+                            .columns
+                            .iter()
+                            .map(|c| c.value.clone())
+                            .collect();
+
+                        let values = match &insert_expr.kind {
+                            ast::MergeInsertKind::Row => Vec::new(),
+                            ast::MergeInsertKind::Values(vals) => {
+                                if let Some(first_row) = vals.rows.first() {
+                                    first_row
+                                        .iter()
+                                        .map(|e| ExprPlanner::plan_expr(e, combined_schema))
+                                        .collect::<Result<Vec<_>>>()?
+                                } else {
+                                    Vec::new()
+                                }
+                            }
+                        };
+
+                        Ok(MergeClause::NotMatched {
+                            condition,
+                            columns,
+                            values,
+                        })
+                    }
+                    ast::MergeAction::Update { .. } | ast::MergeAction::Delete => Err(
+                        Error::parse_error("UPDATE/DELETE actions not valid for WHEN NOT MATCHED"),
+                    ),
+                }
+            }
+            ast::MergeClauseKind::NotMatchedBySource => match &clause.action {
+                ast::MergeAction::Update { assignments } => {
+                    let mut plan_assignments = Vec::new();
+                    for assign in assignments {
+                        let column = match &assign.target {
+                            ast::AssignmentTarget::ColumnName(names) => names.to_string(),
+                            ast::AssignmentTarget::Tuple(parts) => parts
+                                .iter()
+                                .map(|p| p.to_string())
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        };
+                        let value = ExprPlanner::plan_expr(&assign.value, target_schema)?;
+                        plan_assignments.push(Assignment { column, value });
+                    }
+                    Ok(MergeClause::NotMatchedBySource {
+                        condition,
+                        assignments: plan_assignments,
+                    })
+                }
+                ast::MergeAction::Delete => Ok(MergeClause::NotMatchedBySourceDelete { condition }),
+                ast::MergeAction::Insert(_) => Err(Error::parse_error(
+                    "INSERT action not valid for WHEN NOT MATCHED BY SOURCE",
+                )),
+            },
+        }
     }
 
     fn plan_create_table(&self, create: &ast::CreateTable) -> Result<LogicalPlan> {
