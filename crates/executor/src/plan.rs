@@ -165,6 +165,8 @@ pub enum ExecutorPlan {
     CreateView {
         name: String,
         query: Box<ExecutorPlan>,
+        query_sql: String,
+        column_aliases: Vec<String>,
         or_replace: bool,
         if_not_exists: bool,
     },
@@ -493,11 +495,15 @@ impl ExecutorPlan {
             PhysicalPlan::CreateView {
                 name,
                 query,
+                query_sql,
+                column_aliases,
                 or_replace,
                 if_not_exists,
             } => ExecutorPlan::CreateView {
                 name: name.clone(),
                 query: Box::new(Self::from_physical(query)),
+                query_sql: query_sql.clone(),
+                column_aliases: column_aliases.clone(),
                 or_replace: *or_replace,
                 if_not_exists: *if_not_exists,
             },

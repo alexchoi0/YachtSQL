@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_declare_variable() {
     let mut executor = create_executor();
@@ -15,7 +14,6 @@ fn test_declare_variable() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_declare_with_default() {
     let mut executor = create_executor();
@@ -27,7 +25,6 @@ fn test_declare_with_default() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_declare_multiple() {
     let mut executor = create_executor();
@@ -42,7 +39,6 @@ fn test_declare_multiple() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_declare_string() {
     let mut executor = create_executor();
@@ -56,7 +52,6 @@ fn test_declare_string() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_set_variable() {
     let mut executor = create_executor();
@@ -72,7 +67,6 @@ fn test_set_variable() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_set_from_query() {
     let mut executor = create_executor();
@@ -93,7 +87,6 @@ fn test_set_from_query() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_if_then() {
     let mut executor = create_executor();
@@ -114,7 +107,6 @@ fn test_if_then() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_if_then_else() {
     let mut executor = create_executor();
@@ -137,7 +129,6 @@ fn test_if_then_else() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_if_elseif_else() {
     let mut executor = create_executor();
@@ -273,7 +264,6 @@ fn test_break_continue() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_begin_end_block() {
     let mut executor = create_executor();
@@ -293,7 +283,6 @@ fn test_begin_end_block() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_nested_blocks() {
     let mut executor = create_executor();
@@ -319,7 +308,6 @@ fn test_nested_blocks() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_exception_handling() {
     let mut executor = create_executor();
@@ -351,7 +339,6 @@ fn test_raise_exception() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_execute_immediate() {
     let mut executor = create_executor();
@@ -389,7 +376,6 @@ fn test_execute_immediate_with_params() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_execute_immediate_ddl() {
     let mut executor = create_executor();
@@ -409,7 +395,6 @@ fn test_execute_immediate_ddl() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_case_statement() {
     let mut executor = create_executor();
@@ -433,7 +418,6 @@ fn test_case_statement() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_return_statement() {
     let mut executor = create_executor();
@@ -479,7 +463,6 @@ fn test_labeled_block() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_variable_in_query() {
     let mut executor = create_executor();
@@ -501,7 +484,6 @@ fn test_variable_in_query() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_system_variable() {
     let mut executor = create_executor();
@@ -513,7 +495,6 @@ fn test_system_variable() {
 }
 
 #[test]
-
 #[ignore = "Implement me!"]
 fn test_set_system_variable() {
     let mut executor = create_executor();

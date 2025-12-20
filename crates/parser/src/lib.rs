@@ -10,8 +10,14 @@ use yachtsql_common::error::Result;
 use yachtsql_ir::LogicalPlan;
 use yachtsql_storage::Schema;
 
+pub struct ViewDefinition {
+    pub query: String,
+    pub column_aliases: Vec<String>,
+}
+
 pub trait CatalogProvider {
     fn get_table_schema(&self, name: &str) -> Option<Schema>;
+    fn get_view(&self, name: &str) -> Option<ViewDefinition>;
 }
 
 pub fn parse_sql(sql: &str) -> Result<Vec<sqlparser::ast::Statement>> {

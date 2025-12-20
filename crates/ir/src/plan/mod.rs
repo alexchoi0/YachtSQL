@@ -157,6 +157,8 @@ pub enum LogicalPlan {
     CreateView {
         name: String,
         query: Box<LogicalPlan>,
+        query_sql: String,
+        column_aliases: Vec<String>,
         or_replace: bool,
         if_not_exists: bool,
     },

@@ -180,10 +180,18 @@ impl<'a> PlanExecutor<'a> {
             ExecutorPlan::Truncate { table_name } => self.execute_truncate(table_name),
             ExecutorPlan::CreateView {
                 name,
-                query,
+                query: _,
+                query_sql,
+                column_aliases,
                 or_replace,
                 if_not_exists,
-            } => self.execute_create_view(name, query, *or_replace, *if_not_exists),
+            } => self.execute_create_view(
+                name,
+                query_sql,
+                column_aliases,
+                *or_replace,
+                *if_not_exists,
+            ),
             ExecutorPlan::DropView { name, if_exists } => self.execute_drop_view(name, *if_exists),
             ExecutorPlan::CreateSchema {
                 name,
