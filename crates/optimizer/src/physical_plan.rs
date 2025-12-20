@@ -165,6 +165,8 @@ pub enum PhysicalPlan {
     CreateView {
         name: String,
         query: Box<PhysicalPlan>,
+        query_sql: String,
+        column_aliases: Vec<String>,
         or_replace: bool,
         if_not_exists: bool,
     },

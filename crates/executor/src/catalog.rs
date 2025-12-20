@@ -405,4 +405,13 @@ impl CatalogProvider for Catalog {
     fn get_table_schema(&self, name: &str) -> Option<Schema> {
         self.get_table(name).map(|t| t.schema().clone())
     }
+
+    fn get_view(&self, name: &str) -> Option<yachtsql_parser::ViewDefinition> {
+        self.views
+            .get(&name.to_uppercase())
+            .map(|v| yachtsql_parser::ViewDefinition {
+                query: v.query.clone(),
+                column_aliases: v.column_aliases.clone(),
+            })
+    }
 }

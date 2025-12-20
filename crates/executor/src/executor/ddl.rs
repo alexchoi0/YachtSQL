@@ -183,13 +183,18 @@ impl<'a> PlanExecutor<'a> {
     pub fn execute_create_view(
         &mut self,
         name: &str,
-        query: &ExecutorPlan,
+        query_sql: &str,
+        column_aliases: &[String],
         or_replace: bool,
         if_not_exists: bool,
     ) -> Result<Table> {
-        let query_str = format!("{:?}", query);
-        self.catalog
-            .create_view(name, query_str, Vec::new(), or_replace, if_not_exists)?;
+        self.catalog.create_view(
+            name,
+            query_sql.to_string(),
+            column_aliases.to_vec(),
+            or_replace,
+            if_not_exists,
+        )?;
         Ok(Table::empty(Schema::new()))
     }
 

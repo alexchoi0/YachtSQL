@@ -56,11 +56,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             } => self.plan_create_schema(schema_name, *if_not_exists),
             Statement::CreateView {
                 name,
+                columns,
                 query,
                 or_replace,
                 if_not_exists,
                 ..
-            } => self.plan_create_view(name, query, *or_replace, *if_not_exists),
+            } => self.plan_create_view(name, columns, query, *or_replace, *if_not_exists),
             Statement::DropFunction {
                 func_desc,
                 if_exists,
@@ -355,22 +356,87 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     });
                 }
 
-                let storage_schema = self
-                    .catalog
-                    .get_table_schema(&table_name)
-                    .ok_or_else(|| Error::table_not_found(&table_name))?;
+                if let Some(storage_schema) = self.catalog.get_table_schema(&table_name) {
+                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+                    let schema = self.storage_schema_to_plan_schema(
+                        &storage_schema,
+                        alias_name.or(Some(&table_name)),
+                    );
 
-                let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
-                let schema = self.storage_schema_to_plan_schema(
-                    &storage_schema,
-                    alias_name.or(Some(&table_name)),
-                );
+                    return Ok(LogicalPlan::Scan {
+                        table_name,
+                        schema,
+                        projection: None,
+                    });
+                }
 
-                Ok(LogicalPlan::Scan {
-                    table_name,
-                    schema,
-                    projection: None,
-                })
+                if let Some(view_def) = self.catalog.get_view(&table_name) {
+                    let view_plan = crate::parse_and_plan(&view_def.query, self.catalog)?;
+                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+
+                    let plan = if !view_def.column_aliases.is_empty() {
+                        let view_schema = view_plan.schema();
+                        if view_def.column_aliases.len() != view_schema.fields.len() {
+                            return Err(Error::invalid_query(format!(
+                                "View column count mismatch: expected {}, got {}",
+                                view_schema.fields.len(),
+                                view_def.column_aliases.len()
+                            )));
+                        }
+                        let new_fields: Vec<PlanField> = view_schema
+                            .fields
+                            .iter()
+                            .zip(view_def.column_aliases.iter())
+                            .map(|(f, alias)| PlanField {
+                                name: alias.clone(),
+                                data_type: f.data_type.clone(),
+                                nullable: f.nullable,
+                                table: alias_name.map(String::from),
+                            })
+                            .collect();
+                        let new_schema = PlanSchema { fields: new_fields };
+                        let expressions: Vec<Expr> = view_plan
+                            .schema()
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .map(|(i, f)| Expr::Column {
+                                table: f.table.clone(),
+                                name: f.name.clone(),
+                                index: Some(i),
+                            })
+                            .collect();
+                        LogicalPlan::Project {
+                            input: Box::new(view_plan),
+                            expressions,
+                            schema: new_schema,
+                        }
+                    } else if let Some(alias) = alias_name {
+                        let renamed_schema = self.rename_schema(view_plan.schema(), alias);
+                        let expressions: Vec<Expr> = view_plan
+                            .schema()
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .map(|(i, f)| Expr::Column {
+                                table: f.table.clone(),
+                                name: f.name.clone(),
+                                index: Some(i),
+                            })
+                            .collect();
+                        LogicalPlan::Project {
+                            input: Box::new(view_plan),
+                            expressions,
+                            schema: renamed_schema,
+                        }
+                    } else {
+                        view_plan
+                    };
+
+                    return Ok(plan);
+                }
+
+                Err(Error::table_not_found(&table_name))
             }
             TableFactor::Derived {
                 subquery, alias, ..
@@ -2260,16 +2326,21 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     fn plan_create_view(
         &self,
         name: &ast::ObjectName,
+        columns: &[ast::ViewColumnDef],
         query: &ast::Query,
         or_replace: bool,
         if_not_exists: bool,
     ) -> Result<LogicalPlan> {
         let view_name = name.to_string();
         let query_plan = self.plan_query(query)?;
+        let query_sql = query.to_string();
+        let column_aliases: Vec<String> = columns.iter().map(|c| c.name.value.clone()).collect();
 
         Ok(LogicalPlan::CreateView {
             name: view_name,
             query: Box::new(query_plan),
+            query_sql,
+            column_aliases,
             or_replace,
             if_not_exists,
         })
