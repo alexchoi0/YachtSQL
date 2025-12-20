@@ -13,6 +13,7 @@ mod session;
 pub use catalog::{Catalog, ColumnDefault, UserFunction, UserProcedure, ViewDef};
 pub use error::{Error, Result};
 pub use executor::{PlanExecutor, plan_schema_to_schema};
+pub use ir_evaluator::{IrEvaluator, UserFunctionDef};
 pub use plan::ExecutorPlan;
 pub use session::Session;
 use yachtsql_optimizer::PhysicalPlan;

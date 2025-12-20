@@ -226,15 +226,21 @@ impl<'a> PlanExecutor<'a> {
         return_type: &DataType,
         body: &FunctionBody,
         or_replace: bool,
+        if_not_exists: bool,
+        is_temp: bool,
     ) -> Result<Table> {
+        if if_not_exists && self.catalog.function_exists(name) {
+            return Ok(Table::empty(Schema::new()));
+        }
         let func = UserFunction {
             name: name.to_string(),
             parameters: args.to_vec(),
             return_type: return_type.clone(),
             body: body.clone(),
-            is_temporary: false,
+            is_temporary: is_temp,
         };
         self.catalog.create_function(func, or_replace)?;
+        self.refresh_user_functions();
         Ok(Table::empty(Schema::new()))
     }
 
@@ -246,6 +252,7 @@ impl<'a> PlanExecutor<'a> {
             return Err(Error::InvalidQuery(format!("Function not found: {}", name)));
         }
         self.catalog.drop_function(name)?;
+        self.refresh_user_functions();
         Ok(Table::empty(Schema::new()))
     }
 
@@ -597,12 +604,16 @@ fn executor_plan_to_logical_plan(plan: &ExecutorPlan) -> yachtsql_ir::LogicalPla
             return_type,
             body,
             or_replace,
+            if_not_exists,
+            is_temp,
         } => LogicalPlan::CreateFunction {
             name: name.clone(),
             args: args.clone(),
             return_type: return_type.clone(),
             body: body.clone(),
             or_replace: *or_replace,
+            if_not_exists: *if_not_exists,
+            is_temp: *is_temp,
         },
         ExecutorPlan::DropFunction { name, if_exists } => LogicalPlan::DropFunction {
             name: name.clone(),

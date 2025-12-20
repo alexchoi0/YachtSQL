@@ -331,12 +331,16 @@ impl PhysicalPlanner {
                 return_type,
                 body,
                 or_replace,
+                if_not_exists,
+                is_temp,
             } => Ok(PhysicalPlan::CreateFunction {
                 name: name.clone(),
                 args: args.clone(),
                 return_type: return_type.clone(),
                 body: body.clone(),
                 or_replace: *or_replace,
+                if_not_exists: *if_not_exists,
+                is_temp: *is_temp,
             }),
 
             LogicalPlan::DropFunction { name, if_exists } => Ok(PhysicalPlan::DropFunction {
@@ -769,12 +773,16 @@ impl PhysicalPlan {
                 return_type,
                 body,
                 or_replace,
+                if_not_exists,
+                is_temp,
             } => LogicalPlan::CreateFunction {
                 name,
                 args,
                 return_type,
                 body,
                 or_replace,
+                if_not_exists,
+                is_temp,
             },
             PhysicalPlan::DropFunction { name, if_exists } => {
                 LogicalPlan::DropFunction { name, if_exists }

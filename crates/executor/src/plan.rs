@@ -195,6 +195,8 @@ pub enum ExecutorPlan {
         return_type: DataType,
         body: FunctionBody,
         or_replace: bool,
+        if_not_exists: bool,
+        is_temp: bool,
     },
 
     DropFunction {
@@ -569,12 +571,16 @@ impl ExecutorPlan {
                 return_type,
                 body,
                 or_replace,
+                if_not_exists,
+                is_temp,
             } => ExecutorPlan::CreateFunction {
                 name: name.clone(),
                 args: args.clone(),
                 return_type: return_type.clone(),
                 body: body.clone(),
                 or_replace: *or_replace,
+                if_not_exists: *if_not_exists,
+                is_temp: *is_temp,
             },
 
             PhysicalPlan::DropFunction { name, if_exists } => ExecutorPlan::DropFunction {

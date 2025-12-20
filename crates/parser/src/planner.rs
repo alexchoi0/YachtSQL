@@ -6,8 +6,8 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, CteDefinition, Expr,
-    JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
-    ProcedureArgMode, SetOperationType, SortExpr,
+    FunctionArg, FunctionBody, JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema,
+    ProcedureArg, ProcedureArgMode, SetOperationType, SortExpr,
 };
 use yachtsql_storage::Schema;
 
@@ -63,6 +63,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 if_not_exists,
                 ..
             } => self.plan_create_view(name, columns, query, *or_replace, *if_not_exists),
+            Statement::CreateFunction(create) => self.plan_create_function(create),
             Statement::DropFunction {
                 func_desc,
                 if_exists,
@@ -2514,6 +2515,117 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             name,
             if_not_exists,
         })
+    }
+
+    fn plan_create_function(&self, create: &ast::CreateFunction) -> Result<LogicalPlan> {
+        let name = create.name.to_string().to_uppercase();
+
+        let language = create
+            .language
+            .as_ref()
+            .map(|l| l.value.to_uppercase())
+            .unwrap_or_else(|| "SQL".to_string());
+
+        let body = match language.as_str() {
+            "JAVASCRIPT" | "JS" => {
+                let js_code = match &create.function_body {
+                    Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => {
+                        self.extract_string_from_expr(expr)?
+                    }
+                    Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => {
+                        self.extract_string_from_expr(expr)?
+                    }
+                    _ => {
+                        return Err(Error::InvalidQuery(
+                            "JavaScript UDF requires AS 'code' body".to_string(),
+                        ));
+                    }
+                };
+                FunctionBody::JavaScript(js_code)
+            }
+            "SQL" | "" => {
+                let expr = match &create.function_body {
+                    Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => {
+                        ExprPlanner::plan_expr(expr, &PlanSchema::new())?
+                    }
+                    Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => {
+                        ExprPlanner::plan_expr(expr, &PlanSchema::new())?
+                    }
+                    _ => {
+                        return Err(Error::UnsupportedFeature(
+                            "SQL UDF requires AS (expr) body".to_string(),
+                        ));
+                    }
+                };
+                FunctionBody::Sql(Box::new(expr))
+            }
+            _ => {
+                return Err(Error::UnsupportedFeature(format!(
+                    "Unsupported function language: {}. Supported: SQL, JAVASCRIPT",
+                    language
+                )));
+            }
+        };
+
+        let return_type = match &create.return_type {
+            Some(dt) => self.sql_type_to_data_type(dt),
+            None => {
+                return Err(Error::InvalidQuery(
+                    "RETURNS clause is required for CREATE FUNCTION".to_string(),
+                ));
+            }
+        };
+
+        let args: Vec<FunctionArg> = create
+            .args
+            .as_ref()
+            .map(|args| {
+                args.iter()
+                    .filter_map(|arg| {
+                        let param_name = arg.name.as_ref()?.value.clone();
+                        let data_type = Self::convert_sql_type(&arg.data_type);
+                        Some(FunctionArg {
+                            name: param_name,
+                            data_type,
+                            default: None,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(LogicalPlan::CreateFunction {
+            name,
+            args,
+            return_type,
+            body,
+            or_replace: create.or_replace,
+            if_not_exists: create.if_not_exists,
+            is_temp: create.temporary,
+        })
+    }
+
+    fn extract_string_from_expr(&self, expr: &ast::Expr) -> Result<String> {
+        match expr {
+            ast::Expr::Value(val_with_span) => match &val_with_span.value {
+                ast::Value::SingleQuotedString(s)
+                | ast::Value::DoubleQuotedString(s)
+                | ast::Value::TripleSingleQuotedString(s)
+                | ast::Value::TripleDoubleQuotedString(s)
+                | ast::Value::TripleSingleQuotedRawStringLiteral(s)
+                | ast::Value::TripleDoubleQuotedRawStringLiteral(s)
+                | ast::Value::SingleQuotedRawStringLiteral(s)
+                | ast::Value::DoubleQuotedRawStringLiteral(s) => Ok(s.clone()),
+                _ => Err(Error::InvalidQuery(format!(
+                    "Expected string literal for function body, got: {:?}",
+                    expr
+                ))),
+            },
+            _ => Err(Error::InvalidQuery(format!(
+                "Expected string literal for function body, got: {:?}",
+                expr
+            ))),
+        }
     }
 
     fn plan_alter_table(

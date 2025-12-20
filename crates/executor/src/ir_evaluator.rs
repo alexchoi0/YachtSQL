@@ -13,14 +13,20 @@ use wkt::TryFromWkt;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, IntervalValue, Value};
 use yachtsql_ir::{
-    AggregateFunction, BinaryOp, DateTimeField, Expr, Literal, ScalarFunction, TrimWhere, UnaryOp,
-    WhenClause,
+    AggregateFunction, BinaryOp, DateTimeField, Expr, FunctionArg, FunctionBody, Literal,
+    ScalarFunction, TrimWhere, UnaryOp, WhenClause,
 };
 use yachtsql_storage::{Record, Schema};
+
+pub struct UserFunctionDef {
+    pub parameters: Vec<FunctionArg>,
+    pub body: FunctionBody,
+}
 
 pub struct IrEvaluator<'a> {
     schema: &'a Schema,
     variables: Option<&'a HashMap<String, Value>>,
+    user_functions: Option<&'a HashMap<String, UserFunctionDef>>,
 }
 
 impl<'a> IrEvaluator<'a> {
@@ -28,11 +34,20 @@ impl<'a> IrEvaluator<'a> {
         Self {
             schema,
             variables: None,
+            user_functions: None,
         }
     }
 
     pub fn with_variables(mut self, variables: &'a HashMap<String, Value>) -> Self {
         self.variables = Some(variables);
+        self
+    }
+
+    pub fn with_user_functions(
+        mut self,
+        user_functions: &'a HashMap<String, UserFunctionDef>,
+    ) -> Self {
+        self.user_functions = Some(user_functions);
         self
     }
 
@@ -4425,6 +4440,9 @@ impl<'a> IrEvaluator<'a> {
     }
 
     fn eval_custom_function(&self, name: &str, args: &[Value]) -> Result<Value> {
+        if let Some(result) = self.try_eval_user_function(name, args)? {
+            return Ok(result);
+        }
         match name.to_uppercase().as_str() {
             "ST_GEOGFROMTEXT" | "ST_GEOGRAPHYFROMTEXT" => self.fn_st_geogfromtext(args),
             "ST_GEOGPOINT" | "ST_GEOGRAPHYPOINT" => self.fn_st_geogpoint(args),
@@ -7368,6 +7386,171 @@ impl<'a> IrEvaluator<'a> {
             _ => Err(Error::InvalidQuery(
                 "arrayEnumerate expects an array argument".into(),
             )),
+        }
+    }
+
+    fn try_eval_user_function(&self, name: &str, args: &[Value]) -> Result<Option<Value>> {
+        let user_functions = match self.user_functions {
+            Some(funcs) => funcs,
+            None => return Ok(None),
+        };
+
+        let upper_name = name.to_uppercase();
+        let udf = match user_functions.get(&upper_name) {
+            Some(f) => f,
+            None => return Ok(None),
+        };
+
+        if args.len() != udf.parameters.len() {
+            return Err(Error::InvalidQuery(format!(
+                "Function {} expects {} arguments, got {}",
+                name,
+                udf.parameters.len(),
+                args.len()
+            )));
+        }
+
+        match &udf.body {
+            FunctionBody::Sql(body_expr) => {
+                let substituted_body = self.substitute_udf_params(body_expr, &udf.parameters, args);
+                Ok(Some(self.evaluate(&substituted_body, &Record::new())?))
+            }
+            FunctionBody::JavaScript(js_code) => {
+                #[cfg(feature = "javascript")]
+                {
+                    let param_names: Vec<String> =
+                        udf.parameters.iter().map(|p| p.name.clone()).collect();
+                    let result = crate::js::evaluate_js_function(js_code, &param_names, args)
+                        .map_err(|e| Error::InvalidQuery(format!("JavaScript UDF error: {}", e)))?;
+                    Ok(Some(result))
+                }
+                #[cfg(not(feature = "javascript"))]
+                {
+                    Err(Error::UnsupportedFeature(
+                        "JavaScript UDFs require the 'javascript' feature to be enabled"
+                            .to_string(),
+                    ))
+                }
+            }
+            FunctionBody::Language { name: lang, .. } => Err(Error::UnsupportedFeature(format!(
+                "Language {} is not supported for UDFs",
+                lang
+            ))),
+        }
+    }
+
+    fn substitute_udf_params(&self, expr: &Expr, params: &[FunctionArg], args: &[Value]) -> Expr {
+        match expr {
+            Expr::Column { name, .. } => {
+                let col_upper = name.to_uppercase();
+                for (i, param) in params.iter().enumerate() {
+                    if param.name.to_uppercase() == col_upper {
+                        return self.value_to_literal_expr(&args[i]);
+                    }
+                }
+                expr.clone()
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(self.substitute_udf_params(left, params, args)),
+                op: op.clone(),
+                right: Box::new(self.substitute_udf_params(right, params, args)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op: *op,
+                expr: Box::new(self.substitute_udf_params(inner, params, args)),
+            },
+            Expr::ScalarFunction {
+                name,
+                args: fn_args,
+            } => Expr::ScalarFunction {
+                name: name.clone(),
+                args: fn_args
+                    .iter()
+                    .map(|a| self.substitute_udf_params(a, params, args))
+                    .collect(),
+            },
+            Expr::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => Expr::Case {
+                operand: operand
+                    .as_ref()
+                    .map(|o| Box::new(self.substitute_udf_params(o, params, args))),
+                when_clauses: when_clauses
+                    .iter()
+                    .map(|wc| WhenClause {
+                        condition: self.substitute_udf_params(&wc.condition, params, args),
+                        result: self.substitute_udf_params(&wc.result, params, args),
+                    })
+                    .collect(),
+                else_result: else_result
+                    .as_ref()
+                    .map(|e| Box::new(self.substitute_udf_params(e, params, args))),
+            },
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                safe,
+            } => Expr::Cast {
+                expr: Box::new(self.substitute_udf_params(inner, params, args)),
+                data_type: data_type.clone(),
+                safe: *safe,
+            },
+            Expr::InList {
+                expr,
+                list,
+                negated,
+            } => Expr::InList {
+                expr: Box::new(self.substitute_udf_params(expr, params, args)),
+                list: list
+                    .iter()
+                    .map(|l| self.substitute_udf_params(l, params, args))
+                    .collect(),
+                negated: *negated,
+            },
+            Expr::Between {
+                expr,
+                low,
+                high,
+                negated,
+            } => Expr::Between {
+                expr: Box::new(self.substitute_udf_params(expr, params, args)),
+                low: Box::new(self.substitute_udf_params(low, params, args)),
+                high: Box::new(self.substitute_udf_params(high, params, args)),
+                negated: *negated,
+            },
+            _ => expr.clone(),
+        }
+    }
+
+    fn value_to_literal_expr(&self, value: &Value) -> Expr {
+        match value {
+            Value::Null => Expr::Literal(Literal::Null),
+            Value::Bool(b) => Expr::Literal(Literal::Bool(*b)),
+            Value::Int64(n) => Expr::Literal(Literal::Int64(*n)),
+            Value::Float64(f) => Expr::Literal(Literal::Float64(OrderedFloat(f.0))),
+            Value::String(s) => Expr::Literal(Literal::String(s.clone())),
+            Value::Numeric(d) => Expr::Literal(Literal::Numeric(*d)),
+            Value::Date(d) => {
+                let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+                let days = d.signed_duration_since(epoch).num_days() as i32;
+                Expr::Literal(Literal::Date(days))
+            }
+            Value::Time(t) => {
+                let nanos =
+                    t.num_seconds_from_midnight() as i64 * 1_000_000_000 + t.nanosecond() as i64;
+                Expr::Literal(Literal::Time(nanos))
+            }
+            Value::Timestamp(ts) => {
+                let micros = ts.timestamp_micros();
+                Expr::Literal(Literal::Timestamp(micros))
+            }
+            Value::DateTime(dt) => {
+                let micros = dt.and_utc().timestamp_micros();
+                Expr::Literal(Literal::Datetime(micros))
+            }
+            _ => Expr::Literal(Literal::Null),
         }
     }
 }
