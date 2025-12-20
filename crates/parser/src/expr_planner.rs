@@ -1198,6 +1198,7 @@ impl ExprPlanner {
             "MINIF" | "MIN_IF" => Some(AggregateFunction::MinIf),
             "MAXIF" | "MAX_IF" => Some(AggregateFunction::MaxIf),
             "GROUPING" => Some(AggregateFunction::Grouping),
+            "GROUPING_ID" => Some(AggregateFunction::GroupingId),
             "LOGICAL_AND" | "BOOL_AND" => Some(AggregateFunction::LogicalAnd),
             "LOGICAL_OR" | "BOOL_OR" => Some(AggregateFunction::LogicalOr),
             "BIT_AND" => Some(AggregateFunction::BitAnd),

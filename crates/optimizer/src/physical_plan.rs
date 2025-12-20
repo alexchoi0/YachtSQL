@@ -44,6 +44,7 @@ pub enum PhysicalPlan {
         group_by: Vec<Expr>,
         aggregates: Vec<Expr>,
         schema: PlanSchema,
+        grouping_sets: Option<Vec<Vec<usize>>>,
     },
 
     Sort {

@@ -93,7 +93,10 @@ impl<'a> PlanExecutor<'a> {
                 group_by,
                 aggregates,
                 schema,
-            } => self.execute_aggregate(input, group_by, aggregates, schema),
+                grouping_sets,
+            } => {
+                self.execute_aggregate(input, group_by, aggregates, schema, grouping_sets.as_ref())
+            }
             ExecutorPlan::Sort { input, sort_exprs } => self.execute_sort(input, sort_exprs),
             ExecutorPlan::Limit {
                 input,

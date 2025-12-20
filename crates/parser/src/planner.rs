@@ -950,11 +950,80 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let mut agg_fields = Vec::new();
         let mut agg_canonical_names: Vec<String> = Vec::new();
         let subquery_planner = |query: &ast::Query| self.plan_query(query);
+        let mut grouping_sets: Option<Vec<Vec<usize>>> = None;
 
         match &select.group_by {
             ast::GroupByExpr::All(_) => {}
             ast::GroupByExpr::Expressions(exprs, _) => {
+                let mut all_exprs: Vec<ast::Expr> = Vec::new();
+                let mut expr_indices: std::collections::HashMap<String, usize> =
+                    std::collections::HashMap::new();
+                let mut sets: Vec<Vec<usize>> = Vec::new();
+                let mut has_grouping_modifier = false;
+                let mut regular_indices: Vec<usize> = Vec::new();
+
                 for expr in exprs {
+                    match expr {
+                        ast::Expr::Rollup(rollup_exprs) => {
+                            has_grouping_modifier = true;
+                            let flat_exprs: Vec<ast::Expr> =
+                                rollup_exprs.iter().flatten().cloned().collect();
+                            let indices = self.add_group_exprs_to_index_map(
+                                &mut all_exprs,
+                                &mut expr_indices,
+                                &flat_exprs,
+                            );
+                            let rollup_sets = self.expand_rollup_indices(&indices);
+                            sets.extend(rollup_sets);
+                        }
+                        ast::Expr::Cube(cube_exprs) => {
+                            has_grouping_modifier = true;
+                            let flat_exprs: Vec<ast::Expr> =
+                                cube_exprs.iter().flatten().cloned().collect();
+                            let indices = self.add_group_exprs_to_index_map(
+                                &mut all_exprs,
+                                &mut expr_indices,
+                                &flat_exprs,
+                            );
+                            let cube_sets = self.expand_cube_indices(&indices);
+                            sets.extend(cube_sets);
+                        }
+                        ast::Expr::GroupingSets(sets_exprs) => {
+                            has_grouping_modifier = true;
+                            for set_vec in sets_exprs {
+                                let indices = self.add_group_exprs_to_index_map(
+                                    &mut all_exprs,
+                                    &mut expr_indices,
+                                    set_vec,
+                                );
+                                sets.push(indices);
+                            }
+                        }
+                        _ => {
+                            let idx = self.add_group_expr_to_index_map(
+                                &mut all_exprs,
+                                &mut expr_indices,
+                                expr,
+                            );
+                            regular_indices.push(idx);
+                        }
+                    }
+                }
+
+                if has_grouping_modifier {
+                    if !regular_indices.is_empty() {
+                        let mut expanded_sets = Vec::new();
+                        for set in sets {
+                            let mut new_set = regular_indices.clone();
+                            new_set.extend(set);
+                            expanded_sets.push(new_set);
+                        }
+                        sets = expanded_sets;
+                    }
+                    grouping_sets = Some(sets);
+                }
+
+                for expr in &all_exprs {
                     let planned = ExprPlanner::plan_expr_with_subquery(
                         expr,
                         input.schema(),
@@ -1115,6 +1184,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             group_by: group_by_exprs,
             aggregates: aggregate_exprs,
             schema: agg_schema.clone(),
+            grouping_sets,
         };
 
         if let Some(ref having) = select.having {
@@ -1586,6 +1656,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             AggregateFunction::MinIf => "MINIF",
             AggregateFunction::MaxIf => "MAXIF",
             AggregateFunction::Grouping => "GROUPING",
+            AggregateFunction::GroupingId => "GROUPING_ID",
             AggregateFunction::LogicalAnd => "LOGICAL_AND",
             AggregateFunction::LogicalOr => "LOGICAL_OR",
             AggregateFunction::BitAnd => "BIT_AND",
@@ -1723,6 +1794,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 | "APPROX_TOP_COUNT"
                 | "APPROX_TOP_SUM"
                 | "GROUPING"
+                | "GROUPING_ID"
         )
     }
 
@@ -2716,6 +2788,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         | "MAXIF"
                         | "MAX_IF"
                         | "GROUPING"
+                        | "GROUPING_ID"
                         | "LOGICAL_AND"
                         | "BOOL_AND"
                         | "LOGICAL_OR"
@@ -2758,6 +2831,23 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             ast::Expr::UnaryOp { expr, .. } => Self::check_aggregate_expr(expr),
             ast::Expr::Nested(inner) => Self::check_aggregate_expr(inner),
             ast::Expr::Cast { expr, .. } => Self::check_aggregate_expr(expr),
+            ast::Expr::Case {
+                operand,
+                conditions,
+                else_result,
+                ..
+            } => {
+                operand
+                    .as_ref()
+                    .is_some_and(|e| Self::check_aggregate_expr(e))
+                    || conditions.iter().any(|cw| {
+                        Self::check_aggregate_expr(&cw.condition)
+                            || Self::check_aggregate_expr(&cw.result)
+                    })
+                    || else_result
+                        .as_ref()
+                        .is_some_and(|e| Self::check_aggregate_expr(e))
+            }
             _ => false,
         }
     }
@@ -2836,7 +2926,8 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 match func {
                     AggregateFunction::Count
                     | AggregateFunction::CountIf
-                    | AggregateFunction::Grouping => DataType::Int64,
+                    | AggregateFunction::Grouping
+                    | AggregateFunction::GroupingId => DataType::Int64,
                     AggregateFunction::Avg
                     | AggregateFunction::AvgIf
                     | AggregateFunction::Sum
@@ -3449,5 +3540,68 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             procedure_name,
             args,
         })
+    }
+
+    fn group_expr_key(&self, expr: &ast::Expr) -> String {
+        match expr {
+            ast::Expr::Identifier(ident) => ident.value.to_uppercase(),
+            ast::Expr::CompoundIdentifier(parts) => parts
+                .iter()
+                .map(|p| p.value.to_uppercase())
+                .collect::<Vec<_>>()
+                .join("."),
+            _ => format!("{:?}", expr),
+        }
+    }
+
+    fn add_group_expr_to_index_map(
+        &self,
+        all_exprs: &mut Vec<ast::Expr>,
+        expr_indices: &mut std::collections::HashMap<String, usize>,
+        expr: &ast::Expr,
+    ) -> usize {
+        let key = self.group_expr_key(expr);
+        if let Some(&idx) = expr_indices.get(&key) {
+            return idx;
+        }
+        let idx = all_exprs.len();
+        all_exprs.push(expr.clone());
+        expr_indices.insert(key, idx);
+        idx
+    }
+
+    fn add_group_exprs_to_index_map(
+        &self,
+        all_exprs: &mut Vec<ast::Expr>,
+        expr_indices: &mut std::collections::HashMap<String, usize>,
+        exprs: &[ast::Expr],
+    ) -> Vec<usize> {
+        exprs
+            .iter()
+            .map(|e| self.add_group_expr_to_index_map(all_exprs, expr_indices, e))
+            .collect()
+    }
+
+    fn expand_rollup_indices(&self, indices: &[usize]) -> Vec<Vec<usize>> {
+        let mut sets = Vec::new();
+        for i in (0..=indices.len()).rev() {
+            sets.push(indices[..i].to_vec());
+        }
+        sets
+    }
+
+    fn expand_cube_indices(&self, indices: &[usize]) -> Vec<Vec<usize>> {
+        let n = indices.len();
+        let mut sets = Vec::new();
+        for mask in (0..(1 << n)).rev() {
+            let mut set = Vec::new();
+            for (i, &idx) in indices.iter().enumerate() {
+                if mask & (1 << i) != 0 {
+                    set.push(idx);
+                }
+            }
+            sets.push(set);
+        }
+        sets
     }
 }

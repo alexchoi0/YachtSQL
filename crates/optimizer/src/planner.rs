@@ -49,6 +49,7 @@ impl PhysicalPlanner {
                 group_by,
                 aggregates,
                 schema,
+                grouping_sets,
             } => {
                 let input = self.plan(input)?;
                 Ok(PhysicalPlan::HashAggregate {
@@ -56,6 +57,7 @@ impl PhysicalPlanner {
                     group_by: group_by.clone(),
                     aggregates: aggregates.clone(),
                     schema: schema.clone(),
+                    grouping_sets: grouping_sets.clone(),
                 })
             }
 
@@ -568,11 +570,13 @@ impl PhysicalPlan {
                 group_by,
                 aggregates,
                 schema,
+                grouping_sets,
             } => LogicalPlan::Aggregate {
                 input: Box::new(input.into_logical()),
                 group_by,
                 aggregates,
                 schema,
+                grouping_sets,
             },
             PhysicalPlan::Sort { input, sort_exprs } => LogicalPlan::Sort {
                 input: Box::new(input.into_logical()),

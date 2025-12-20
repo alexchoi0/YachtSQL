@@ -17,6 +17,7 @@ impl<'a> PlanExecutor<'a> {
         group_by: &[Expr],
         aggregates: &[Expr],
         schema: &PlanSchema,
+        grouping_sets: Option<&Vec<Vec<usize>>>,
     ) -> Result<Table> {
         let input_table = self.execute_plan(input)?;
         let input_schema = input_table.schema().clone();
@@ -57,6 +58,86 @@ impl<'a> PlanExecutor<'a> {
 
             let row: Vec<Value> = accumulators.iter().map(|a| a.finalize()).collect();
             result.push_row(row)?;
+        } else if let Some(sets) = grouping_sets {
+            let rows = input_table.rows()?;
+
+            for grouping_set in sets {
+                let active_indices: Vec<usize> = grouping_set.clone();
+                let mut group_map: HashMap<String, (Vec<Value>, Vec<Accumulator>, Vec<usize>)> =
+                    HashMap::new();
+
+                for record in &rows {
+                    let mut group_key_values = Vec::new();
+                    for (i, group_expr) in group_by.iter().enumerate() {
+                        if active_indices.contains(&i) {
+                            let val = evaluator.evaluate(group_expr, record)?;
+                            group_key_values.push(val);
+                        } else {
+                            group_key_values.push(Value::Null);
+                        }
+                    }
+                    let key = format!("{:?}", group_key_values);
+
+                    let entry = group_map.entry(key).or_insert_with(|| {
+                        let mut accs: Vec<Accumulator> =
+                            aggregates.iter().map(Accumulator::from_expr).collect();
+                        for (acc, agg_expr) in accs.iter_mut().zip(aggregates.iter()) {
+                            match acc {
+                                Accumulator::Grouping { .. } => {
+                                    let col_idx = get_grouping_column_index(agg_expr, group_by);
+                                    let is_active = col_idx
+                                        .map(|idx| active_indices.contains(&idx))
+                                        .unwrap_or(true);
+                                    acc.set_grouping_value(if is_active { 0 } else { 1 });
+                                }
+                                Accumulator::GroupingId { .. } => {
+                                    let gid =
+                                        compute_grouping_id(agg_expr, group_by, &active_indices);
+                                    acc.set_grouping_value(gid);
+                                }
+                                _ => {}
+                            }
+                        }
+                        (group_key_values.clone(), accs, active_indices.clone())
+                    });
+
+                    for (acc, agg_expr) in entry.1.iter_mut().zip(aggregates.iter()) {
+                        if matches!(
+                            acc,
+                            Accumulator::Grouping { .. } | Accumulator::GroupingId { .. }
+                        ) {
+                            continue;
+                        }
+                        if matches!(
+                            acc,
+                            Accumulator::SumIf(_)
+                                | Accumulator::AvgIf { .. }
+                                | Accumulator::MinIf(_)
+                                | Accumulator::MaxIf(_)
+                        ) {
+                            let (value, condition) =
+                                extract_conditional_agg_args(&evaluator, agg_expr, record)?;
+                            acc.accumulate_conditional(&value, condition)?;
+                        } else if matches!(acc, Accumulator::ArrayAgg { .. }) {
+                            let arg_val = extract_agg_arg(&evaluator, agg_expr, record)?;
+                            let sort_keys = extract_order_by_keys(&evaluator, agg_expr, record)?;
+                            acc.accumulate_array_agg(&arg_val, sort_keys)?;
+                        } else if matches!(acc, Accumulator::Covariance { .. }) {
+                            let (x, y) = extract_bivariate_args(&evaluator, agg_expr, record)?;
+                            acc.accumulate_bivariate(&x, &y)?;
+                        } else {
+                            let arg_val = extract_agg_arg(&evaluator, agg_expr, record)?;
+                            acc.accumulate(&arg_val)?;
+                        }
+                    }
+                }
+
+                for (group_key, accumulators, _active) in group_map.into_values() {
+                    let mut row = group_key;
+                    row.extend(accumulators.iter().map(|a| a.finalize()));
+                    result.push_row(row)?;
+                }
+            }
         } else {
             let mut groups: HashMap<Vec<String>, Vec<Accumulator>> = HashMap::new();
             let mut group_keys: HashMap<Vec<String>, Vec<Value>> = HashMap::new();
@@ -628,6 +709,12 @@ enum Accumulator {
         is_sample: bool,
         stat_type: CovarianceStatType,
     },
+    Grouping {
+        value: i64,
+    },
+    GroupingId {
+        value: i64,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -705,8 +792,9 @@ impl Accumulator {
                     is_sample: false,
                     is_stddev: false,
                 },
-                AggregateFunction::Grouping
-                | AggregateFunction::ApproxQuantiles
+                AggregateFunction::Grouping => Accumulator::Grouping { value: 0 },
+                AggregateFunction::GroupingId => Accumulator::GroupingId { value: 0 },
+                AggregateFunction::ApproxQuantiles
                 | AggregateFunction::ApproxTopCount
                 | AggregateFunction::ApproxTopSum => Accumulator::Count(0),
                 AggregateFunction::Corr => Accumulator::Covariance {
@@ -892,7 +980,9 @@ impl Accumulator {
             | Accumulator::AvgIf { .. }
             | Accumulator::MinIf(_)
             | Accumulator::MaxIf(_)
-            | Accumulator::Covariance { .. } => {}
+            | Accumulator::Covariance { .. }
+            | Accumulator::Grouping { .. }
+            | Accumulator::GroupingId { .. } => {}
         }
         Ok(())
     }
@@ -931,6 +1021,7 @@ impl Accumulator {
             | Accumulator::Covariance { .. } => {
                 self.accumulate(value)?;
             }
+            Accumulator::Grouping { .. } | Accumulator::GroupingId { .. } => {}
         }
         Ok(())
     }
@@ -1012,7 +1103,9 @@ impl Accumulator {
             | Accumulator::LogicalAnd(_)
             | Accumulator::LogicalOr(_)
             | Accumulator::Variance { .. }
-            | Accumulator::Covariance { .. } => {}
+            | Accumulator::Covariance { .. }
+            | Accumulator::Grouping { .. }
+            | Accumulator::GroupingId { .. } => {}
         }
         Ok(())
     }
@@ -1182,6 +1275,86 @@ impl Accumulator {
                     }
                 }
             }
+            Accumulator::Grouping { value } => Value::Int64(*value),
+            Accumulator::GroupingId { value } => Value::Int64(*value),
         }
     }
+
+    fn set_grouping_value(&mut self, value: i64) {
+        match self {
+            Accumulator::Grouping { value: v } => *v = value,
+            Accumulator::GroupingId { value: v } => *v = value,
+            _ => {}
+        }
+    }
+}
+
+fn get_grouping_column_index(agg_expr: &Expr, group_by: &[Expr]) -> Option<usize> {
+    let arg = match agg_expr {
+        Expr::Aggregate { args, .. } => args.first(),
+        Expr::Alias { expr, .. } => {
+            return get_grouping_column_index(expr, group_by);
+        }
+        _ => None,
+    }?;
+
+    for (i, group_expr) in group_by.iter().enumerate() {
+        if exprs_match(arg, group_expr) {
+            return Some(i);
+        }
+    }
+    None
+}
+
+fn exprs_match(a: &Expr, b: &Expr) -> bool {
+    match (a, b) {
+        (
+            Expr::Column {
+                name: n1,
+                table: t1,
+                ..
+            },
+            Expr::Column {
+                name: n2,
+                table: t2,
+                ..
+            },
+        ) => {
+            n1.eq_ignore_ascii_case(n2)
+                && match (t1, t2) {
+                    (Some(t1), Some(t2)) => t1.eq_ignore_ascii_case(t2),
+                    (None, None) => true,
+                    _ => true,
+                }
+        }
+        (Expr::Alias { expr: e1, .. }, e2) => exprs_match(e1, e2),
+        (e1, Expr::Alias { expr: e2, .. }) => exprs_match(e1, e2),
+        _ => format!("{:?}", a) == format!("{:?}", b),
+    }
+}
+
+fn compute_grouping_id(agg_expr: &Expr, group_by: &[Expr], active_indices: &[usize]) -> i64 {
+    let args = match agg_expr {
+        Expr::Aggregate { args, .. } => args,
+        Expr::Alias { expr, .. } => {
+            return compute_grouping_id(expr, group_by, active_indices);
+        }
+        _ => return 0,
+    };
+
+    let mut result: i64 = 0;
+    let n = args.len();
+    for (arg_pos, arg) in args.iter().enumerate() {
+        let mut is_active = true;
+        for (i, group_expr) in group_by.iter().enumerate() {
+            if exprs_match(arg, group_expr) {
+                is_active = active_indices.contains(&i);
+                break;
+            }
+        }
+        if !is_active {
+            result |= 1 << (n - 1 - arg_pos);
+        }
+    }
+    result
 }

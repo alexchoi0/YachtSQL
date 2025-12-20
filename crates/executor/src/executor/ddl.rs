@@ -382,11 +382,13 @@ fn executor_plan_to_logical_plan(plan: &ExecutorPlan) -> yachtsql_ir::LogicalPla
             group_by,
             aggregates,
             schema,
+            grouping_sets,
         } => LogicalPlan::Aggregate {
             input: Box::new(executor_plan_to_logical_plan(input)),
             group_by: group_by.clone(),
             aggregates: aggregates.clone(),
             schema: schema.clone(),
+            grouping_sets: grouping_sets.clone(),
         },
         ExecutorPlan::Sort { input, sort_exprs } => LogicalPlan::Sort {
             input: Box::new(executor_plan_to_logical_plan(input)),

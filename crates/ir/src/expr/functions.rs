@@ -17,6 +17,7 @@ pub enum AggregateFunction {
     MinIf,
     MaxIf,
     Grouping,
+    GroupingId,
     LogicalAnd,
     LogicalOr,
     BitAnd,

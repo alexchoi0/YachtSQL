@@ -44,6 +44,7 @@ pub enum ExecutorPlan {
         group_by: Vec<Expr>,
         aggregates: Vec<Expr>,
         schema: PlanSchema,
+        grouping_sets: Option<Vec<Vec<usize>>>,
     },
 
     Sort {
@@ -343,11 +344,13 @@ impl ExecutorPlan {
                 group_by,
                 aggregates,
                 schema,
+                grouping_sets,
             } => ExecutorPlan::HashAggregate {
                 input: Box::new(Self::from_physical(input)),
                 group_by: group_by.clone(),
                 aggregates: aggregates.clone(),
                 schema: schema.clone(),
+                grouping_sets: grouping_sets.clone(),
             },
 
             PhysicalPlan::Sort { input, sort_exprs } => ExecutorPlan::Sort {
