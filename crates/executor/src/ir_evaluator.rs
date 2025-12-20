@@ -7416,21 +7416,11 @@ impl<'a> IrEvaluator<'a> {
                 Ok(Some(self.evaluate(&substituted_body, &Record::new())?))
             }
             FunctionBody::JavaScript(js_code) => {
-                #[cfg(feature = "javascript")]
-                {
-                    let param_names: Vec<String> =
-                        udf.parameters.iter().map(|p| p.name.clone()).collect();
-                    let result = crate::js::evaluate_js_function(js_code, &param_names, args)
-                        .map_err(|e| Error::InvalidQuery(format!("JavaScript UDF error: {}", e)))?;
-                    Ok(Some(result))
-                }
-                #[cfg(not(feature = "javascript"))]
-                {
-                    Err(Error::UnsupportedFeature(
-                        "JavaScript UDFs require the 'javascript' feature to be enabled"
-                            .to_string(),
-                    ))
-                }
+                let param_names: Vec<String> =
+                    udf.parameters.iter().map(|p| p.name.clone()).collect();
+                let result = crate::js_udf::evaluate_js_function(js_code, &param_names, args)
+                    .map_err(|e| Error::InvalidQuery(format!("JavaScript UDF error: {}", e)))?;
+                Ok(Some(result))
             }
             FunctionBody::Language { name: lang, .. } => Err(Error::UnsupportedFeature(format!(
                 "Language {} is not supported for UDFs",

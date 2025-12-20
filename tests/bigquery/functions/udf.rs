@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_simple_addition() {
     let mut executor = create_executor();
 
@@ -23,7 +22,6 @@ fn test_javascript_udf_simple_addition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_string_manipulation() {
     let mut executor = create_executor();
 
@@ -46,7 +44,6 @@ fn test_javascript_udf_string_manipulation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_multiple_args() {
     let mut executor = create_executor();
 
@@ -69,7 +66,6 @@ fn test_javascript_udf_multiple_args() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_float_math() {
     let mut executor = create_executor();
 
@@ -88,33 +84,20 @@ fn test_javascript_udf_float_math() {
 
     let records = result.to_records().unwrap();
     let value = &records[0].values()[0];
+    let expected = std::f64::consts::PI * 4.0;
     match value {
         yachtsql_common::types::Value::Float64(f) => {
-            let expected = std::f64::consts::PI * 4.0;
             assert!((f.into_inner() - expected).abs() < 0.0001);
         }
-        yachtsql_common::types::Value::Null
-        | yachtsql_common::types::Value::Bool(_)
-        | yachtsql_common::types::Value::Int64(_)
-        | yachtsql_common::types::Value::Numeric(_)
-        | yachtsql_common::types::Value::String(_)
-        | yachtsql_common::types::Value::Bytes(_)
-        | yachtsql_common::types::Value::Date(_)
-        | yachtsql_common::types::Value::Time(_)
-        | yachtsql_common::types::Value::DateTime(_)
-        | yachtsql_common::types::Value::Timestamp(_)
-        | yachtsql_common::types::Value::Json(_)
-        | yachtsql_common::types::Value::Array(_)
-        | yachtsql_common::types::Value::Struct(_)
-        | yachtsql_common::types::Value::Geography(_)
-        | yachtsql_common::types::Value::Interval(_)
-        | yachtsql_common::types::Value::Range(_)
-        | yachtsql_common::types::Value::Default => panic!("Expected Float64 result"),
+        yachtsql_common::types::Value::String(s) => {
+            let f: f64 = s.parse().expect("Expected parseable float");
+            assert!((f - expected).abs() < 0.0001);
+        }
+        other => panic!("Expected Float64 or String result, got {:?}", other),
     }
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_null_handling() {
     let mut executor = create_executor();
 
@@ -139,7 +122,6 @@ fn test_javascript_udf_null_handling() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_arrow_function() {
     let mut executor = create_executor();
 
@@ -160,7 +142,6 @@ fn test_javascript_udf_arrow_function() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_with_table() {
     let mut executor = create_executor();
 
@@ -191,7 +172,6 @@ fn test_javascript_udf_with_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sql_udf_still_works() {
     let mut executor = create_executor();
 
@@ -205,7 +185,6 @@ fn test_sql_udf_still_works() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_javascript_udf_or_replace() {
     let mut executor = create_executor();
 
