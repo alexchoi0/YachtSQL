@@ -48,4 +48,12 @@ impl Session {
     pub fn clear_variables(&mut self) {
         self.variables.clear();
     }
+
+    pub fn get_all_variables(&self) -> impl Iterator<Item = (&String, &Value)> {
+        self.variables.iter()
+    }
+
+    pub fn get_all_system_variables(&self) -> impl Iterator<Item = (&String, &Value)> {
+        self.system_variables.iter()
+    }
 }

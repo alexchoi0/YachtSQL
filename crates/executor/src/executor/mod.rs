@@ -60,6 +60,17 @@ impl<'a> PlanExecutor<'a> {
         }
     }
 
+    pub fn get_all_variables(&self) -> HashMap<String, Value> {
+        let mut vars = self.variables.clone();
+        for (name, value) in self.session.get_all_variables() {
+            vars.insert(name.clone(), value.clone());
+        }
+        for (name, value) in self.session.get_all_system_variables() {
+            vars.insert(name.clone(), value.clone());
+        }
+        vars
+    }
+
     pub fn execute(&mut self, plan: &PhysicalPlan) -> Result<Table> {
         let executor_plan = ExecutorPlan::from_physical(plan);
         self.execute_plan(&executor_plan)

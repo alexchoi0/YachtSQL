@@ -24,7 +24,8 @@ impl<'a> PlanExecutor<'a> {
         {
             self.execute_project_with_subqueries(&input_table, expressions, schema)
         } else {
-            let evaluator = IrEvaluator::new(&input_schema);
+            let vars = self.get_all_variables();
+            let evaluator = IrEvaluator::new(&input_schema).with_variables(&vars);
             let result_schema = plan_schema_to_schema(schema);
             let mut result = Table::empty(result_schema);
 

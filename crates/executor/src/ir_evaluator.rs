@@ -215,10 +215,31 @@ impl<'a> IrEvaluator<'a> {
             Expr::Parameter { name } => {
                 Err(Error::InvalidQuery(format!("Unbound parameter: {}", name)))
             }
-            Expr::Variable { name } => Err(Error::InvalidQuery(format!(
-                "Variable '{}' not in scope",
-                name
-            ))),
+            Expr::Variable { name } => {
+                if let Some(vars) = self.variables {
+                    let lookup_name = name.trim_start_matches('@').to_uppercase();
+                    if let Some(val) = vars.get(&lookup_name) {
+                        return Ok(val.clone());
+                    }
+                    if name.starts_with("@@") {
+                        let sys_name_upper = format!("@@{}", lookup_name);
+                        if let Some(val) = vars.get(&sys_name_upper) {
+                            return Ok(val.clone());
+                        }
+                        let sys_name_lower = format!("@@{}", name[2..].to_lowercase());
+                        if let Some(val) = vars.get(&sys_name_lower) {
+                            return Ok(val.clone());
+                        }
+                    }
+                    if let Some(val) = vars.get(name) {
+                        return Ok(val.clone());
+                    }
+                }
+                Err(Error::InvalidQuery(format!(
+                    "Variable '{}' not in scope",
+                    name
+                )))
+            }
             Expr::Placeholder { id } => {
                 Err(Error::InvalidQuery(format!("Unbound placeholder: {}", id)))
             }

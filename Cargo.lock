@@ -5036,6 +5036,7 @@ dependencies = [
  "sha1",
  "sha2",
  "siphasher",
+ "sqlparser",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",

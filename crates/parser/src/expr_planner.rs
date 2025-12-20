@@ -571,6 +571,12 @@ impl ExprPlanner {
     }
 
     fn resolve_column(name: &str, table: Option<&str>, schema: &PlanSchema) -> Result<Expr> {
+        if table.is_none() && name.starts_with('@') {
+            return Ok(Expr::Variable {
+                name: name.to_string(),
+            });
+        }
+
         let index = schema.field_index_qualified(name, table);
 
         if index.is_none() && table.is_none() && Self::is_date_part_keyword(name) {
