@@ -281,7 +281,8 @@ mod tests {
             | Value::Array(_)
             | Value::Geography(_)
             | Value::Interval(_)
-            | Value::Range(_) => panic!("Expected struct result"),
+            | Value::Range(_)
+            | Value::Default => panic!("Expected struct result"),
         }
     }
 
