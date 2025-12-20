@@ -1,6 +1,6 @@
 use yachtsql_common::error::Result;
 use yachtsql_common::types::Value;
-use yachtsql_ir::{BinaryOp, Expr, Literal, LogicalPlan};
+use yachtsql_ir::{BinaryOp, Expr, Literal, LogicalPlan, SortExpr, UnnestColumn};
 use yachtsql_optimizer::optimize;
 use yachtsql_storage::{Record, Schema, Table};
 
@@ -167,7 +167,7 @@ impl<'a> PlanExecutor<'a> {
         Ok(Value::Null)
     }
 
-    fn substitute_outer_refs_in_plan(
+    pub fn substitute_outer_refs_in_plan(
         &self,
         plan: &LogicalPlan,
         outer_schema: &Schema,
@@ -233,6 +233,71 @@ impl<'a> PlanExecutor<'a> {
                     schema: schema.clone(),
                 })
             }
+            LogicalPlan::Unnest {
+                input,
+                columns,
+                schema,
+            } => {
+                let new_input =
+                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
+                let new_columns = columns
+                    .iter()
+                    .map(|c| {
+                        let new_expr = self.substitute_outer_refs_in_expr(
+                            &c.expr,
+                            outer_schema,
+                            outer_record,
+                        )?;
+                        Ok(UnnestColumn {
+                            expr: new_expr,
+                            alias: c.alias.clone(),
+                            with_offset: c.with_offset,
+                            offset_alias: c.offset_alias.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(LogicalPlan::Unnest {
+                    input: Box::new(new_input),
+                    columns: new_columns,
+                    schema: schema.clone(),
+                })
+            }
+            LogicalPlan::Limit {
+                input,
+                limit,
+                offset,
+            } => {
+                let new_input =
+                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
+                Ok(LogicalPlan::Limit {
+                    input: Box::new(new_input),
+                    limit: *limit,
+                    offset: *offset,
+                })
+            }
+            LogicalPlan::Sort { input, sort_exprs } => {
+                let new_input =
+                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
+                let new_sort_exprs = sort_exprs
+                    .iter()
+                    .map(|se| {
+                        let new_expr = self.substitute_outer_refs_in_expr(
+                            &se.expr,
+                            outer_schema,
+                            outer_record,
+                        )?;
+                        Ok(SortExpr {
+                            expr: new_expr,
+                            asc: se.asc,
+                            nulls_first: se.nulls_first,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(LogicalPlan::Sort {
+                    input: Box::new(new_input),
+                    sort_exprs: new_sort_exprs,
+                })
+            }
             other => Ok(other.clone()),
         }
     }
@@ -245,20 +310,30 @@ impl<'a> PlanExecutor<'a> {
     ) -> Result<Expr> {
         match expr {
             Expr::Column { table, name, index } => {
-                if let Some(idx) = outer_schema.field_index(name) {
-                    let value = outer_record
-                        .values()
-                        .get(idx)
-                        .cloned()
-                        .unwrap_or(Value::Null);
-                    Ok(Expr::Literal(Self::value_to_literal(value)))
+                let should_substitute = if let Some(tbl) = table {
+                    outer_schema
+                        .fields()
+                        .iter()
+                        .any(|f| f.source_table.as_ref().map_or(false, |t| t == tbl))
                 } else {
-                    Ok(Expr::Column {
-                        table: table.clone(),
-                        name: name.clone(),
-                        index: *index,
-                    })
+                    outer_schema.field_index(name).is_some()
+                };
+
+                if should_substitute {
+                    if let Some(idx) = outer_schema.field_index(name) {
+                        let value = outer_record
+                            .values()
+                            .get(idx)
+                            .cloned()
+                            .unwrap_or(Value::Null);
+                        return Ok(Expr::Literal(Self::value_to_literal(value)));
+                    }
                 }
+                Ok(Expr::Column {
+                    table: table.clone(),
+                    name: name.clone(),
+                    index: *index,
+                })
             }
             Expr::BinaryOp { left, op, right } => {
                 let new_left =

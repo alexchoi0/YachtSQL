@@ -286,7 +286,6 @@ fn test_backtick_quoted_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_correlated_scalar_subquery_order_by_non_projected() {
     let mut executor = create_executor();
     setup_tables(&mut executor);
@@ -363,7 +362,6 @@ fn test_safe_offset_on_array() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exists_with_unnest() {
     let mut executor = create_executor();
     executor
@@ -381,7 +379,6 @@ fn test_exists_with_unnest() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exists_with_unnest_like_pattern() {
     let mut executor = create_executor();
     executor
@@ -399,7 +396,6 @@ fn test_exists_with_unnest_like_pattern() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exists_with_unnest_in_list() {
     let mut executor = create_executor();
     executor
