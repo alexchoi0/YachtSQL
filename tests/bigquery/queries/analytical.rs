@@ -783,7 +783,6 @@ fn test_time_series_decomposition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sessionization() {
     let mut executor = create_executor();
     executor
@@ -1389,7 +1388,6 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_multi_level_cte_with_correlated_subquery() {
     let mut executor = create_executor();
     executor
@@ -2043,7 +2041,6 @@ fn test_nested_aggregates_with_scalar_subqueries() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_recursive_like_hierarchy_with_arrays() {
     let mut executor = create_executor();
     executor
