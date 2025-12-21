@@ -206,7 +206,6 @@ fn test_category_performance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_lifetime_value() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);

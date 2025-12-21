@@ -33,12 +33,23 @@ impl<'a> PlanExecutor<'a> {
                     ordering
                 };
 
-                if sort_expr.nulls_first {
-                    match (a_val.is_null(), b_val.is_null()) {
-                        (true, false) => return Ordering::Less,
-                        (false, true) => return Ordering::Greater,
-                        _ => {}
+                match (a_val.is_null(), b_val.is_null()) {
+                    (true, true) => {}
+                    (true, false) => {
+                        return if sort_expr.nulls_first {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        };
                     }
+                    (false, true) => {
+                        return if sort_expr.nulls_first {
+                            Ordering::Greater
+                        } else {
+                            Ordering::Less
+                        };
+                    }
+                    (false, false) => {}
                 }
 
                 if ordering != Ordering::Equal {
