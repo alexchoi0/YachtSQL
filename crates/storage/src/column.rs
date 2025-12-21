@@ -1,10 +1,49 @@
+use aligned_vec::{AVec, ConstAlign};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, IntervalValue, RangeValue, Value};
 
 use crate::NullBitmap;
+
+pub type A64 = ConstAlign<64>;
+
+fn serialize_avec_i64<S>(
+    data: &AVec<i64, A64>,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    data.as_slice().serialize(serializer)
+}
+
+fn deserialize_avec_i64<'de, D>(deserializer: D) -> std::result::Result<AVec<i64, A64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let vec = Vec::<i64>::deserialize(deserializer)?;
+    Ok(AVec::from_iter(64, vec))
+}
+
+fn serialize_avec_f64<S>(
+    data: &AVec<f64, A64>,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    data.as_slice().serialize(serializer)
+}
+
+fn deserialize_avec_f64<'de, D>(deserializer: D) -> std::result::Result<AVec<f64, A64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let vec = Vec::<f64>::deserialize(deserializer)?;
+    Ok(AVec::from_iter(64, vec))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Column {
@@ -13,11 +52,19 @@ pub enum Column {
         nulls: NullBitmap,
     },
     Int64 {
-        data: Vec<i64>,
+        #[serde(
+            serialize_with = "serialize_avec_i64",
+            deserialize_with = "deserialize_avec_i64"
+        )]
+        data: AVec<i64, A64>,
         nulls: NullBitmap,
     },
     Float64 {
-        data: Vec<f64>,
+        #[serde(
+            serialize_with = "serialize_avec_f64",
+            deserialize_with = "deserialize_avec_f64"
+        )]
+        data: AVec<f64, A64>,
         nulls: NullBitmap,
     },
     Numeric {
@@ -85,11 +132,11 @@ impl Column {
                 nulls: NullBitmap::new(),
             },
             DataType::Int64 => Column::Int64 {
-                data: Vec::new(),
+                data: AVec::new(64),
                 nulls: NullBitmap::new(),
             },
             DataType::Float64 => Column::Float64 {
-                data: Vec::new(),
+                data: AVec::new(64),
                 nulls: NullBitmap::new(),
             },
             DataType::Numeric(_) | DataType::BigNumeric => Column::Numeric {

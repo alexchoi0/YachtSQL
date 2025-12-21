@@ -5,7 +5,10 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
-use geo::{BooleanOps, BoundingRect, Centroid, Contains, ConvexHull, GeodesicArea, GeodesicDistance, GeodesicLength, Intersects, SimplifyVw};
+use geo::{
+    BooleanOps, BoundingRect, Centroid, Contains, ConvexHull, GeodesicArea, GeodesicDistance,
+    GeodesicLength, Intersects, SimplifyVw,
+};
 use geo_types::{Coord, Geometry, LineString, MultiPolygon, Point, Polygon};
 use ordered_float::OrderedFloat;
 use rust_decimal::prelude::ToPrimitive;
@@ -4614,7 +4617,7 @@ impl<'a> IrEvaluator<'a> {
             _ => {
                 return Err(Error::InvalidQuery(
                     "MAPKEYS argument must be a MAP (array of key-value structs)".into(),
-                ))
+                ));
             }
         };
         let keys: Vec<Value> = map_array
@@ -4645,7 +4648,7 @@ impl<'a> IrEvaluator<'a> {
             _ => {
                 return Err(Error::InvalidQuery(
                     "MAPVALUES argument must be a MAP (array of key-value structs)".into(),
-                ))
+                ));
             }
         };
         let values: Vec<Value> = map_array
@@ -7502,7 +7505,6 @@ impl<'a> IrEvaluator<'a> {
             )),
         }
     }
-
 
     fn try_eval_user_function(&self, name: &str, args: &[Value]) -> Result<Option<Value>> {
         let user_functions = match self.user_functions {

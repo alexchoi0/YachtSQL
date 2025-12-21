@@ -5224,6 +5224,7 @@ dependencies = [
 name = "yachtsql-storage"
 version = "0.1.0"
 dependencies = [
+ "aligned-vec",
  "chrono",
  "criterion",
  "indexmap",

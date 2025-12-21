@@ -1,6 +1,9 @@
 #![allow(clippy::new_without_default, clippy::len_without_is_empty)]
 
+use aligned_vec::{AVec, ConstAlign};
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+
+type A64 = ConstAlign<64>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NullBitmapVecBool {
@@ -528,12 +531,95 @@ fn sum_f64_bitmap_chunks(data: &[f64], nulls: &NullBitmapBitPacked) -> Option<f6
     if has_value { Some(sum) } else { None }
 }
 
+fn sum_i64_avec_bitmap_chunks(data: &AVec<i64, A64>, nulls: &NullBitmapBitPacked) -> Option<f64> {
+    let mut sum: i64 = 0;
+    let mut has_value = false;
+    let chunks = data.chunks_exact(64);
+    let remainder = chunks.remainder();
+
+    for (&bitmap_word, chunk) in nulls.data.iter().zip(chunks) {
+        if bitmap_word == 0 {
+            sum += chunk.iter().sum::<i64>();
+            has_value = true;
+        } else if bitmap_word != u64::MAX {
+            let mut valid_mask = !bitmap_word;
+            while valid_mask != 0 {
+                let bit = valid_mask.trailing_zeros() as usize;
+                sum += chunk[bit];
+                has_value = true;
+                valid_mask &= valid_mask - 1;
+            }
+        }
+    }
+
+    if !remainder.is_empty() {
+        let last_word = nulls.data.last().copied().unwrap_or(0);
+        if last_word == 0 {
+            sum += remainder.iter().sum::<i64>();
+            has_value = true;
+        } else {
+            for (i, &val) in remainder.iter().enumerate() {
+                if (last_word >> i) & 1 == 0 {
+                    sum += val;
+                    has_value = true;
+                }
+            }
+        }
+    }
+
+    if has_value { Some(sum as f64) } else { None }
+}
+
+fn sum_f64_avec_bitmap_chunks(data: &AVec<f64, A64>, nulls: &NullBitmapBitPacked) -> Option<f64> {
+    let mut sum: f64 = 0.0;
+    let mut has_value = false;
+    let chunks = data.chunks_exact(64);
+    let remainder = chunks.remainder();
+
+    for (&bitmap_word, chunk) in nulls.data.iter().zip(chunks) {
+        if bitmap_word == 0 {
+            sum += chunk.iter().sum::<f64>();
+            has_value = true;
+        } else if bitmap_word != u64::MAX {
+            let mut valid_mask = !bitmap_word;
+            while valid_mask != 0 {
+                let bit = valid_mask.trailing_zeros() as usize;
+                sum += chunk[bit];
+                has_value = true;
+                valid_mask &= valid_mask - 1;
+            }
+        }
+    }
+
+    if !remainder.is_empty() {
+        let last_word = nulls.data.last().copied().unwrap_or(0);
+        if last_word == 0 {
+            sum += remainder.iter().sum::<f64>();
+            has_value = true;
+        } else {
+            for (i, &val) in remainder.iter().enumerate() {
+                if (last_word >> i) & 1 == 0 {
+                    sum += val;
+                    has_value = true;
+                }
+            }
+        }
+    }
+
+    if has_value { Some(sum) } else { None }
+}
+
 fn bench_sum(c: &mut Criterion) {
     let mut group = c.benchmark_group("sum_i64");
 
-    for (name, null_ratio) in [("no_nulls", 0.0), ("10pct_nulls", 0.1), ("50pct_nulls", 0.5)] {
+    for (name, null_ratio) in [
+        ("no_nulls", 0.0),
+        ("10pct_nulls", 0.1),
+        ("50pct_nulls", 0.5),
+    ] {
         let size = 100_000;
         let data: Vec<i64> = (0..size as i64).collect();
+        let data_avec: AVec<i64, A64> = AVec::from_iter(64, 0..size as i64);
         let mut nulls = NullBitmapBitPacked::new_valid(size);
 
         let null_count = (size as f64 * null_ratio) as usize;
@@ -544,41 +630,37 @@ fn bench_sum(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("original", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_original(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_original(data, nulls))),
         );
 
         group.bench_with_input(
             BenchmarkId::new("auto_vectorize", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_option2_auto_vectorize(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_option2_auto_vectorize(data, nulls))),
         );
 
         group.bench_with_input(
             BenchmarkId::new("bitmap_aware", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_option3_bitmap_aware(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_option3_bitmap_aware(data, nulls))),
         );
 
         group.bench_with_input(
             BenchmarkId::new("bitmap_chunks", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_option3b_bitmap_aware_chunks(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_option3b_bitmap_aware_chunks(data, nulls))),
         );
 
         group.bench_with_input(
             BenchmarkId::new("hybrid", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_option3c_hybrid(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_option3c_hybrid(data, nulls))),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("avec_bitmap_chunks", name),
+            &(&data_avec, &nulls),
+            |b, (data, nulls)| b.iter(|| black_box(sum_i64_avec_bitmap_chunks(data, nulls))),
         );
     }
 
@@ -588,9 +670,14 @@ fn bench_sum(c: &mut Criterion) {
 fn bench_sum_f64(c: &mut Criterion) {
     let mut group = c.benchmark_group("sum_f64");
 
-    for (name, null_ratio) in [("no_nulls", 0.0), ("10pct_nulls", 0.1), ("50pct_nulls", 0.5)] {
+    for (name, null_ratio) in [
+        ("no_nulls", 0.0),
+        ("10pct_nulls", 0.1),
+        ("50pct_nulls", 0.5),
+    ] {
         let size = 100_000;
         let data: Vec<f64> = (0..size).map(|i| i as f64 * 1.1).collect();
+        let data_avec: AVec<f64, A64> = AVec::from_iter(64, (0..size).map(|i| i as f64 * 1.1));
         let mut nulls = NullBitmapBitPacked::new_valid(size);
 
         let null_count = (size as f64 * null_ratio) as usize;
@@ -601,25 +688,25 @@ fn bench_sum_f64(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("original", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_f64_original(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_f64_original(data, nulls))),
         );
 
         group.bench_with_input(
             BenchmarkId::new("auto_vectorize", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_f64_auto_vectorize(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_f64_auto_vectorize(data, nulls))),
         );
 
         group.bench_with_input(
             BenchmarkId::new("bitmap_chunks", name),
             &(&data, &nulls),
-            |b, (data, nulls)| {
-                b.iter(|| black_box(sum_f64_bitmap_chunks(data, nulls)))
-            },
+            |b, (data, nulls)| b.iter(|| black_box(sum_f64_bitmap_chunks(data, nulls))),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("avec_bitmap_chunks", name),
+            &(&data_avec, &nulls),
+            |b, (data, nulls)| b.iter(|| black_box(sum_f64_avec_bitmap_chunks(data, nulls))),
         );
     }
 

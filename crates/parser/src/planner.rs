@@ -6,9 +6,9 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField};
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
-    CteDefinition, ExportFormat, ExportOptions, Expr, FunctionArg, FunctionBody, JoinType,
-    Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg, ProcedureArgMode,
-    SampleType, SetOperationType, SortExpr, TableConstraint,
+    CteDefinition, ExportFormat, ExportOptions, Expr, FunctionArg, FunctionBody, JoinType, Literal,
+    LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg, ProcedureArgMode, SampleType,
+    SetOperationType, SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
 
@@ -504,98 +504,98 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 let table_name = name.to_string();
                 let table_name_upper = table_name.to_uppercase();
 
-                let base_plan =
-                    if let Some(cte_schema) = self.cte_schemas.borrow().get(&table_name_upper) {
-                        let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
-                        let schema = if let Some(alias) = alias_name {
-                            self.rename_schema(cte_schema, alias)
-                        } else {
-                            cte_schema.clone()
-                        };
+                let base_plan = if let Some(cte_schema) =
+                    self.cte_schemas.borrow().get(&table_name_upper)
+                {
+                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+                    let schema = if let Some(alias) = alias_name {
+                        self.rename_schema(cte_schema, alias)
+                    } else {
+                        cte_schema.clone()
+                    };
 
-                        LogicalPlan::Scan {
-                            table_name: table_name_upper,
-                            schema,
-                            projection: None,
+                    LogicalPlan::Scan {
+                        table_name: table_name_upper,
+                        schema,
+                        projection: None,
+                    }
+                } else if let Some(storage_schema) = self.catalog.get_table_schema(&table_name) {
+                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+                    let schema = self.storage_schema_to_plan_schema(
+                        &storage_schema,
+                        alias_name.or(Some(&table_name)),
+                    );
+
+                    LogicalPlan::Scan {
+                        table_name,
+                        schema,
+                        projection: None,
+                    }
+                } else if let Some(view_def) = self.catalog.get_view(&table_name) {
+                    let view_plan = crate::parse_and_plan(&view_def.query, self.catalog)?;
+                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+
+                    if !view_def.column_aliases.is_empty() {
+                        let view_schema = view_plan.schema();
+                        if view_def.column_aliases.len() != view_schema.fields.len() {
+                            return Err(Error::invalid_query(format!(
+                                "View column count mismatch: expected {}, got {}",
+                                view_schema.fields.len(),
+                                view_def.column_aliases.len()
+                            )));
                         }
-                    } else if let Some(storage_schema) = self.catalog.get_table_schema(&table_name)
-                    {
-                        let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
-                        let schema = self.storage_schema_to_plan_schema(
-                            &storage_schema,
-                            alias_name.or(Some(&table_name)),
-                        );
-
-                        LogicalPlan::Scan {
-                            table_name,
-                            schema,
-                            projection: None,
+                        let new_fields: Vec<PlanField> = view_schema
+                            .fields
+                            .iter()
+                            .zip(view_def.column_aliases.iter())
+                            .map(|(f, alias)| PlanField {
+                                name: alias.clone(),
+                                data_type: f.data_type.clone(),
+                                nullable: f.nullable,
+                                table: alias_name.map(String::from),
+                            })
+                            .collect();
+                        let new_schema = PlanSchema { fields: new_fields };
+                        let expressions: Vec<Expr> = view_plan
+                            .schema()
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .map(|(i, f)| Expr::Column {
+                                table: f.table.clone(),
+                                name: f.name.clone(),
+                                index: Some(i),
+                            })
+                            .collect();
+                        LogicalPlan::Project {
+                            input: Box::new(view_plan),
+                            expressions,
+                            schema: new_schema,
                         }
-                    } else if let Some(view_def) = self.catalog.get_view(&table_name) {
-                        let view_plan = crate::parse_and_plan(&view_def.query, self.catalog)?;
-                        let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
-
-                        if !view_def.column_aliases.is_empty() {
-                            let view_schema = view_plan.schema();
-                            if view_def.column_aliases.len() != view_schema.fields.len() {
-                                return Err(Error::invalid_query(format!(
-                                    "View column count mismatch: expected {}, got {}",
-                                    view_schema.fields.len(),
-                                    view_def.column_aliases.len()
-                                )));
-                            }
-                            let new_fields: Vec<PlanField> = view_schema
-                                .fields
-                                .iter()
-                                .zip(view_def.column_aliases.iter())
-                                .map(|(f, alias)| PlanField {
-                                    name: alias.clone(),
-                                    data_type: f.data_type.clone(),
-                                    nullable: f.nullable,
-                                    table: alias_name.map(String::from),
-                                })
-                                .collect();
-                            let new_schema = PlanSchema { fields: new_fields };
-                            let expressions: Vec<Expr> = view_plan
-                                .schema()
-                                .fields
-                                .iter()
-                                .enumerate()
-                                .map(|(i, f)| Expr::Column {
-                                    table: f.table.clone(),
-                                    name: f.name.clone(),
-                                    index: Some(i),
-                                })
-                                .collect();
-                            LogicalPlan::Project {
-                                input: Box::new(view_plan),
-                                expressions,
-                                schema: new_schema,
-                            }
-                        } else if let Some(alias) = alias_name {
-                            let renamed_schema = self.rename_schema(view_plan.schema(), alias);
-                            let expressions: Vec<Expr> = view_plan
-                                .schema()
-                                .fields
-                                .iter()
-                                .enumerate()
-                                .map(|(i, f)| Expr::Column {
-                                    table: f.table.clone(),
-                                    name: f.name.clone(),
-                                    index: Some(i),
-                                })
-                                .collect();
-                            LogicalPlan::Project {
-                                input: Box::new(view_plan),
-                                expressions,
-                                schema: renamed_schema,
-                            }
-                        } else {
-                            view_plan
+                    } else if let Some(alias) = alias_name {
+                        let renamed_schema = self.rename_schema(view_plan.schema(), alias);
+                        let expressions: Vec<Expr> = view_plan
+                            .schema()
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .map(|(i, f)| Expr::Column {
+                                table: f.table.clone(),
+                                name: f.name.clone(),
+                                index: Some(i),
+                            })
+                            .collect();
+                        LogicalPlan::Project {
+                            input: Box::new(view_plan),
+                            expressions,
+                            schema: renamed_schema,
                         }
                     } else {
-                        return Err(Error::table_not_found(&table_name));
-                    };
+                        view_plan
+                    }
+                } else {
+                    return Err(Error::table_not_found(&table_name));
+                };
 
                 self.apply_sample(base_plan, sample)
             }
@@ -3110,7 +3110,6 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             default,
         })
     }
-
 
     fn plan_alter_table(
         &self,
