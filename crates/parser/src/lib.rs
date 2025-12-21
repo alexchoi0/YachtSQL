@@ -72,7 +72,6 @@ fn try_parse_load_data(sql: &str) -> Result<Option<LogicalPlan>> {
     if !upper.trim_start().starts_with("LOAD DATA") {
         return Ok(None);
     }
-
     let overwrite = upper.contains("OVERWRITE");
     let is_temp_table = upper.contains("TEMP TABLE");
 
@@ -98,19 +97,19 @@ fn try_parse_load_data(sql: &str) -> Result<Option<LogicalPlan>> {
             trimmed
         };
 
-        if let Some(paren_start) = trimmed.find('(') {
-            let name = trimmed[..paren_start].trim().to_string();
-            let paren_end = find_matching_paren(&trimmed[paren_start..])
-                .map(|p| p + paren_start)
-                .unwrap_or(trimmed.len());
-            let col_str = &trimmed[paren_start + 1..paren_end];
+        let name_end = trimmed
+            .find(|c: char| c.is_whitespace() || c == '(')
+            .unwrap_or(trimmed.len());
+        let table_name = trimmed[..name_end].to_string();
+        let after_name = trimmed[name_end..].trim_start();
+
+        if after_name.starts_with('(') && !after_name.to_uppercase().starts_with("(FORMAT") {
+            let paren_end = find_matching_paren(after_name).unwrap_or(after_name.len());
+            let col_str = &after_name[1..paren_end];
             let cols = parse_column_defs(col_str);
-            (name, cols)
+            (table_name, cols)
         } else {
-            let end = trimmed
-                .find(|c: char| c.is_whitespace())
-                .unwrap_or(trimmed.len());
-            (trimmed[..end].to_string(), Vec::new())
+            (table_name, Vec::new())
         }
     };
 
