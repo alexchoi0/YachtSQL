@@ -1,10 +1,11 @@
 use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 use yachtsql_common::error::Result;
 use yachtsql_common::types::Value;
 
 use crate::{Column, Record, Schema};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Table {
     schema: Schema,
     columns: IndexMap<String, Column>,

@@ -11,6 +11,10 @@ path = "src/main.rs"
 
 [dependencies]
 yachtsql = { path = "../.." }
+yachtsql-executor = { path = "../executor" }
 clap = { version = "4.5", features = ["derive"] }
 anyhow = "1.0"
 comfy-table = "7.1"
+bincode = "1.3"
+uuid = { version = "1.6", features = ["v4"] }
+directories = "5.0"

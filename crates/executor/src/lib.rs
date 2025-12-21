@@ -16,9 +16,11 @@ pub use executor::{PlanExecutor, plan_schema_to_schema};
 pub use ir_evaluator::{IrEvaluator, UserFunctionDef};
 pub use plan::ExecutorPlan;
 pub use session::Session;
+use serde::{Deserialize, Serialize};
 use yachtsql_optimizer::PhysicalPlan;
 pub use yachtsql_storage::{Record, Table};
 
+#[derive(Serialize, Deserialize)]
 pub struct QueryExecutor {
     catalog: Catalog,
     session: Session,
