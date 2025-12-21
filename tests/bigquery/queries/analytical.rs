@@ -2411,7 +2411,6 @@ fn test_time_series_with_gaps_and_array_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_complex_pivot_simulation_with_ctes() {
     let mut executor = create_executor();
     executor
