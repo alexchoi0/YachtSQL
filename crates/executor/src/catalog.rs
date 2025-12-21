@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
+use serde::{Deserialize, Serialize};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{Expr, FunctionArg, FunctionBody, LogicalPlan, ProcedureArg};
 use yachtsql_parser::CatalogProvider;
 use yachtsql_storage::{Schema, Table};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserFunction {
     pub name: String,
     pub parameters: Vec<FunctionArg>,
@@ -15,31 +16,31 @@ pub struct UserFunction {
     pub is_temporary: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserProcedure {
     pub name: String,
     pub parameters: Vec<ProcedureArg>,
     pub body: Vec<LogicalPlan>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewDef {
     pub query: String,
     pub column_aliases: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SchemaMetadata {
     pub options: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnDefault {
     pub column_name: String,
     pub default_expr: Expr,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Catalog {
     tables: HashMap<String, Table>,
     table_defaults: HashMap<String, Vec<ColumnDefault>>,
