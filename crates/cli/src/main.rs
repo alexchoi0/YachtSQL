@@ -69,7 +69,7 @@ fn main() -> Result<()> {
 }
 
 fn get_sessions_dir() -> Result<PathBuf> {
-    let proj_dirs = ProjectDirs::from("com", "yachtsql", "yachtsql")
+    let proj_dirs = ProjectDirs::from("com.github", "alexchoi0", "yachtsql")
         .context("Failed to determine project directories")?;
     let data_dir = proj_dirs.data_dir().join("sessions");
     fs::create_dir_all(&data_dir)?;
