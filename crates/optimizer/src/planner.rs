@@ -943,7 +943,9 @@ impl PhysicalPlan {
                 snapshot_name,
                 if_exists,
             },
-            PhysicalPlan::Assert { condition, message } => LogicalPlan::Assert { condition, message },
+            PhysicalPlan::Assert { condition, message } => {
+                LogicalPlan::Assert { condition, message }
+            }
         }
     }
 }

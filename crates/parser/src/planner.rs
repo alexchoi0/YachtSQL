@@ -125,7 +125,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             }
             Statement::Call(func) => self.plan_call(func),
             Statement::Declare { stmts } => self.plan_declare(stmts),
-            Statement::Assert { condition, message } => self.plan_assert(condition, message.as_ref()),
+            Statement::Assert { condition, message } => {
+                self.plan_assert(condition, message.as_ref())
+            }
+            Statement::If(if_stmt) => self.plan_if(if_stmt),
+            Statement::While(while_stmt) => self.plan_while(while_stmt),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -133,14 +137,102 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         }
     }
 
-    fn plan_assert(&self, condition: &ast::Expr, message: Option<&ast::Expr>) -> Result<LogicalPlan> {
+    fn plan_assert(
+        &self,
+        condition: &ast::Expr,
+        message: Option<&ast::Expr>,
+    ) -> Result<LogicalPlan> {
         let empty_schema = PlanSchema::new();
         let cond_expr = ExprPlanner::plan_expr(condition, &empty_schema)?;
-        let msg_expr = message.map(|m| ExprPlanner::plan_expr(m, &empty_schema)).transpose()?;
+        let msg_expr = message
+            .map(|m| ExprPlanner::plan_expr(m, &empty_schema))
+            .transpose()?;
         Ok(LogicalPlan::Assert {
             condition: cond_expr,
             message: msg_expr,
         })
+    }
+
+    fn plan_if(&self, if_stmt: &ast::IfStatement) -> Result<LogicalPlan> {
+        let empty_schema = PlanSchema::new();
+        let condition = if_stmt
+            .if_block
+            .condition
+            .as_ref()
+            .ok_or_else(|| Error::parse_error("IF statement missing condition"))?;
+        let cond_expr = ExprPlanner::plan_expr(condition, &empty_schema)?;
+
+        let then_branch = self.plan_statement_sequence(&if_stmt.if_block.conditional_statements)?;
+
+        let mut else_branch = None;
+        for elseif_block in &if_stmt.elseif_blocks {
+            if let Some(elseif_cond) = &elseif_block.condition {
+                let elseif_cond_expr = ExprPlanner::plan_expr(elseif_cond, &empty_schema)?;
+                let elseif_then =
+                    self.plan_statement_sequence(&elseif_block.conditional_statements)?;
+                let nested_if = LogicalPlan::If {
+                    condition: elseif_cond_expr,
+                    then_branch: elseif_then,
+                    else_branch,
+                };
+                else_branch = Some(vec![nested_if]);
+            }
+        }
+
+        if let Some(else_block) = &if_stmt.else_block {
+            let else_stmts = self.plan_statement_sequence(&else_block.conditional_statements)?;
+            if let Some(ref mut branch) = else_branch {
+                if let Some(LogicalPlan::If {
+                    else_branch: inner_else,
+                    ..
+                }) = branch.last_mut()
+                {
+                    *inner_else = Some(else_stmts);
+                }
+            } else {
+                else_branch = Some(else_stmts);
+            }
+        }
+
+        Ok(LogicalPlan::If {
+            condition: cond_expr,
+            then_branch,
+            else_branch,
+        })
+    }
+
+    fn plan_while(&self, while_stmt: &ast::WhileStatement) -> Result<LogicalPlan> {
+        let empty_schema = PlanSchema::new();
+        let condition = while_stmt
+            .while_block
+            .condition
+            .as_ref()
+            .ok_or_else(|| Error::parse_error("WHILE statement missing condition"))?;
+        let cond_expr = ExprPlanner::plan_expr(condition, &empty_schema)?;
+
+        let body = self.plan_statement_sequence(&while_stmt.while_block.conditional_statements)?;
+
+        Ok(LogicalPlan::While {
+            condition: cond_expr,
+            body,
+        })
+    }
+
+    fn plan_statement_sequence(
+        &self,
+        seq: &ast::ConditionalStatements,
+    ) -> Result<Vec<LogicalPlan>> {
+        match seq {
+            ast::ConditionalStatements::Sequence { statements } => statements
+                .iter()
+                .map(|stmt| self.plan_statement(stmt))
+                .collect(),
+            ast::ConditionalStatements::BeginEnd(begin_end) => begin_end
+                .statements
+                .iter()
+                .map(|stmt| self.plan_statement(stmt))
+                .collect(),
+        }
     }
 
     fn plan_query(&self, query: &ast::Query) -> Result<LogicalPlan> {
@@ -3089,16 +3181,14 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
         let return_type = match &create.return_type {
             Some(dt) => self.sql_type_to_data_type(dt),
-            None => {
-                match &body {
-                    FunctionBody::Sql(expr) => Self::infer_expr_type_static(expr, &arg_schema),
-                    FunctionBody::JavaScript(_) | FunctionBody::Language { .. } => {
-                        return Err(Error::InvalidQuery(
-                            "RETURNS clause is required for non-SQL functions".to_string(),
-                        ));
-                    }
+            None => match &body {
+                FunctionBody::Sql(expr) => Self::infer_expr_type_static(expr, &arg_schema),
+                FunctionBody::JavaScript(_) | FunctionBody::Language { .. } => {
+                    return Err(Error::InvalidQuery(
+                        "RETURNS clause is required for non-SQL functions".to_string(),
+                    ));
                 }
-            }
+            },
         };
 
         Ok(LogicalPlan::CreateFunction {

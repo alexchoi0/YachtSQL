@@ -21,26 +21,26 @@ pub use yachtsql_storage::{Record, Table};
 
 pub struct QueryExecutor {
     catalog: Catalog,
+    session: Session,
 }
 
 impl QueryExecutor {
     pub fn new() -> Self {
         Self {
             catalog: Catalog::new(),
+            session: Session::new(),
         }
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> yachtsql_common::error::Result<Table> {
         let logical = yachtsql_parser::parse_and_plan(sql, &self.catalog)?;
         let physical = yachtsql_optimizer::optimize(&logical)?;
-        let mut session = Session::new();
-        let mut executor = PlanExecutor::new(&mut self.catalog, &mut session);
+        let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
         executor.execute(&physical)
     }
 
     pub fn execute(&mut self, plan: &PhysicalPlan) -> yachtsql_common::error::Result<Table> {
-        let mut session = Session::new();
-        let mut executor = PlanExecutor::new(&mut self.catalog, &mut session);
+        let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
         executor.execute(plan)
     }
 

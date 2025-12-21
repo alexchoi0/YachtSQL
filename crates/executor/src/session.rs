@@ -48,4 +48,8 @@ impl Session {
     pub fn clear_variables(&mut self) {
         self.variables.clear();
     }
+
+    pub fn variables(&self) -> &HashMap<String, Value> {
+        &self.variables
+    }
 }

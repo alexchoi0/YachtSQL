@@ -37,6 +37,7 @@ pub use values::*;
 pub use window::*;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
+use yachtsql_ir::Expr;
 use yachtsql_optimizer::PhysicalPlan;
 use yachtsql_storage::{Field, FieldMode, Schema, Table};
 
@@ -44,7 +45,6 @@ use crate::catalog::Catalog;
 use crate::ir_evaluator::{IrEvaluator, UserFunctionDef};
 use crate::plan::ExecutorPlan;
 use crate::session::Session;
-use yachtsql_ir::Expr;
 
 pub struct PlanExecutor<'a> {
     catalog: &'a mut Catalog,
@@ -70,10 +70,12 @@ impl<'a> PlanExecutor<'a> {
             })
             .collect();
 
+        let variables = session.variables().clone();
+
         Self {
             catalog,
             session,
-            variables: HashMap::new(),
+            variables,
             cte_results: HashMap::new(),
             user_function_defs,
         }
