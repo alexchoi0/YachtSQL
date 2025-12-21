@@ -135,8 +135,6 @@ enum-variant-names = "warn"
 wildcard-enum-match-arm = "warn"
 
 [dev-dependencies]
-yachtsql = { version = "0.1.0", path = "../.." }
-yachtsql-test-utils = { version = "0.1.0", path = "../test-utils" }
 mockall = "0.13"
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.14"

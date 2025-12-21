@@ -100,7 +100,6 @@ yachtsql-sqlparser = { version = "0.59", features = ["visitor"] }
 arrow = { version = "54", default-features = false }
 parquet = { version = "54", default-features = false, features = ["arrow"] }
 tempfile = "3.14"
-yachtsql-test-utils = { version = "0.1.0", path = "crates/test-utils" }
 
 # Linting configuration
 # Run with: cargo clippy -- -D warnings

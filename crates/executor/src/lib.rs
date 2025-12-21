@@ -20,10 +20,141 @@ pub use session::Session;
 use yachtsql_optimizer::OptimizedLogicalPlan;
 pub use yachtsql_storage::{Record, Table};
 
+use lru::LruCache;
+use std::num::NonZeroUsize;
+
+const PLAN_CACHE_SIZE: usize = 10000;
+
+fn default_plan_cache() -> LruCache<String, OptimizedLogicalPlan> {
+    LruCache::new(NonZeroUsize::new(PLAN_CACHE_SIZE).unwrap())
+}
+
+fn is_cacheable_plan(plan: &OptimizedLogicalPlan) -> bool {
+    match plan {
+        OptimizedLogicalPlan::TableScan { .. }
+        | OptimizedLogicalPlan::Sample { .. }
+        | OptimizedLogicalPlan::Filter { .. }
+        | OptimizedLogicalPlan::Project { .. }
+        | OptimizedLogicalPlan::NestedLoopJoin { .. }
+        | OptimizedLogicalPlan::CrossJoin { .. }
+        | OptimizedLogicalPlan::HashAggregate { .. }
+        | OptimizedLogicalPlan::Sort { .. }
+        | OptimizedLogicalPlan::Limit { .. }
+        | OptimizedLogicalPlan::TopN { .. }
+        | OptimizedLogicalPlan::Distinct { .. }
+        | OptimizedLogicalPlan::Union { .. }
+        | OptimizedLogicalPlan::Intersect { .. }
+        | OptimizedLogicalPlan::Except { .. }
+        | OptimizedLogicalPlan::Window { .. }
+        | OptimizedLogicalPlan::Unnest { .. }
+        | OptimizedLogicalPlan::Qualify { .. }
+        | OptimizedLogicalPlan::WithCte { .. }
+        | OptimizedLogicalPlan::Values { .. }
+        | OptimizedLogicalPlan::Empty { .. } => true,
+
+        OptimizedLogicalPlan::Insert { .. }
+        | OptimizedLogicalPlan::Update { .. }
+        | OptimizedLogicalPlan::Delete { .. }
+        | OptimizedLogicalPlan::Merge { .. }
+        | OptimizedLogicalPlan::CreateTable { .. }
+        | OptimizedLogicalPlan::DropTable { .. }
+        | OptimizedLogicalPlan::AlterTable { .. }
+        | OptimizedLogicalPlan::Truncate { .. }
+        | OptimizedLogicalPlan::CreateView { .. }
+        | OptimizedLogicalPlan::DropView { .. }
+        | OptimizedLogicalPlan::CreateSchema { .. }
+        | OptimizedLogicalPlan::DropSchema { .. }
+        | OptimizedLogicalPlan::AlterSchema { .. }
+        | OptimizedLogicalPlan::CreateFunction { .. }
+        | OptimizedLogicalPlan::DropFunction { .. }
+        | OptimizedLogicalPlan::CreateProcedure { .. }
+        | OptimizedLogicalPlan::DropProcedure { .. }
+        | OptimizedLogicalPlan::Call { .. }
+        | OptimizedLogicalPlan::ExportData { .. }
+        | OptimizedLogicalPlan::LoadData { .. }
+        | OptimizedLogicalPlan::Declare { .. }
+        | OptimizedLogicalPlan::SetVariable { .. }
+        | OptimizedLogicalPlan::If { .. }
+        | OptimizedLogicalPlan::While { .. }
+        | OptimizedLogicalPlan::Loop { .. }
+        | OptimizedLogicalPlan::Repeat { .. }
+        | OptimizedLogicalPlan::For { .. }
+        | OptimizedLogicalPlan::Return { .. }
+        | OptimizedLogicalPlan::Raise { .. }
+        | OptimizedLogicalPlan::Break
+        | OptimizedLogicalPlan::Continue
+        | OptimizedLogicalPlan::CreateSnapshot { .. }
+        | OptimizedLogicalPlan::DropSnapshot { .. }
+        | OptimizedLogicalPlan::Assert { .. } => false,
+    }
+}
+
+fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
+    match plan {
+        OptimizedLogicalPlan::CreateTable { .. }
+        | OptimizedLogicalPlan::DropTable { .. }
+        | OptimizedLogicalPlan::AlterTable { .. }
+        | OptimizedLogicalPlan::Truncate { .. }
+        | OptimizedLogicalPlan::CreateView { .. }
+        | OptimizedLogicalPlan::DropView { .. }
+        | OptimizedLogicalPlan::CreateSchema { .. }
+        | OptimizedLogicalPlan::DropSchema { .. }
+        | OptimizedLogicalPlan::AlterSchema { .. }
+        | OptimizedLogicalPlan::CreateFunction { .. }
+        | OptimizedLogicalPlan::DropFunction { .. }
+        | OptimizedLogicalPlan::CreateProcedure { .. }
+        | OptimizedLogicalPlan::DropProcedure { .. }
+        | OptimizedLogicalPlan::CreateSnapshot { .. }
+        | OptimizedLogicalPlan::DropSnapshot { .. } => true,
+
+        OptimizedLogicalPlan::TableScan { .. }
+        | OptimizedLogicalPlan::Sample { .. }
+        | OptimizedLogicalPlan::Filter { .. }
+        | OptimizedLogicalPlan::Project { .. }
+        | OptimizedLogicalPlan::NestedLoopJoin { .. }
+        | OptimizedLogicalPlan::CrossJoin { .. }
+        | OptimizedLogicalPlan::HashAggregate { .. }
+        | OptimizedLogicalPlan::Sort { .. }
+        | OptimizedLogicalPlan::Limit { .. }
+        | OptimizedLogicalPlan::TopN { .. }
+        | OptimizedLogicalPlan::Distinct { .. }
+        | OptimizedLogicalPlan::Union { .. }
+        | OptimizedLogicalPlan::Intersect { .. }
+        | OptimizedLogicalPlan::Except { .. }
+        | OptimizedLogicalPlan::Window { .. }
+        | OptimizedLogicalPlan::Unnest { .. }
+        | OptimizedLogicalPlan::Qualify { .. }
+        | OptimizedLogicalPlan::WithCte { .. }
+        | OptimizedLogicalPlan::Values { .. }
+        | OptimizedLogicalPlan::Empty { .. }
+        | OptimizedLogicalPlan::Insert { .. }
+        | OptimizedLogicalPlan::Update { .. }
+        | OptimizedLogicalPlan::Delete { .. }
+        | OptimizedLogicalPlan::Merge { .. }
+        | OptimizedLogicalPlan::Call { .. }
+        | OptimizedLogicalPlan::ExportData { .. }
+        | OptimizedLogicalPlan::LoadData { .. }
+        | OptimizedLogicalPlan::Declare { .. }
+        | OptimizedLogicalPlan::SetVariable { .. }
+        | OptimizedLogicalPlan::If { .. }
+        | OptimizedLogicalPlan::While { .. }
+        | OptimizedLogicalPlan::Loop { .. }
+        | OptimizedLogicalPlan::Repeat { .. }
+        | OptimizedLogicalPlan::For { .. }
+        | OptimizedLogicalPlan::Return { .. }
+        | OptimizedLogicalPlan::Raise { .. }
+        | OptimizedLogicalPlan::Break
+        | OptimizedLogicalPlan::Continue
+        | OptimizedLogicalPlan::Assert { .. } => false,
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct QueryExecutor {
     catalog: Catalog,
     session: Session,
+    #[serde(skip, default = "default_plan_cache")]
+    plan_cache: LruCache<String, OptimizedLogicalPlan>,
 }
 
 impl QueryExecutor {
@@ -31,14 +162,32 @@ impl QueryExecutor {
         Self {
             catalog: Catalog::new(),
             session: Session::new(),
+            plan_cache: default_plan_cache(),
         }
     }
 
     pub fn execute_sql(&mut self, sql: &str) -> yachtsql_common::error::Result<Table> {
+        if let Some(cached_plan) = self.plan_cache.get(sql) {
+            let plan = cached_plan.clone();
+            let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
+            return executor.execute(&plan);
+        }
+
         let logical = yachtsql_parser::parse_and_plan(sql, &self.catalog)?;
         let physical = yachtsql_optimizer::optimize(&logical)?;
+
+        if is_cacheable_plan(&physical) {
+            self.plan_cache.put(sql.to_string(), physical.clone());
+        }
+
         let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
-        executor.execute(&physical)
+        let result = executor.execute(&physical)?;
+
+        if invalidates_cache(&physical) {
+            self.plan_cache.clear();
+        }
+
+        Ok(result)
     }
 
     pub fn execute(

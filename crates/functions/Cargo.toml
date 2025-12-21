@@ -92,7 +92,5 @@ debug_print = "1.0.0"
 hostname = "0.4"
 
 [dev-dependencies]
-yachtsql = { version = "0.1.0", path = "../.." }
 yachtsql-common = { version = "0.1.0", path = "../common" }
 yachtsql-storage = { version = "0.1.0", path = "../storage" }
-yachtsql-test-utils = { version = "0.1.0", path = "../test-utils" }

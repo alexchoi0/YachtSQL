@@ -42,6 +42,4 @@ anyhow = "1.0"
 debug_print = "1.0"
 
 [dev-dependencies]
-yachtsql = { version = "0.1.0", path = "../.." }
-yachtsql-test-utils = { version = "0.1.0", path = "../test-utils" }
 criterion = { version = "0.5", features = ["html_reports"] }

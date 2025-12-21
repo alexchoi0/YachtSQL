@@ -5387,7 +5387,6 @@ dependencies = [
  "yachtsql-parser",
  "yachtsql-sqlparser",
  "yachtsql-storage",
- "yachtsql-test-utils",
 ]
 
 [[package]]
@@ -5423,8 +5422,6 @@ dependencies = [
  "thiserror 2.0.17",
  "unicode-normalization",
  "uuid",
- "yachtsql",
- "yachtsql-test-utils",
 ]
 
 [[package]]
@@ -5493,14 +5490,12 @@ dependencies = [
  "v8",
  "wkt",
  "xxhash-rust",
- "yachtsql",
  "yachtsql-common",
  "yachtsql-functions",
  "yachtsql-ir",
  "yachtsql-optimizer",
  "yachtsql-parser",
  "yachtsql-storage",
- "yachtsql-test-utils",
 ]
 
 [[package]]
@@ -5538,12 +5533,10 @@ dependencies = [
  "urlencoding",
  "uuid",
  "xxhash-rust",
- "yachtsql",
  "yachtsql-common",
  "yachtsql-parser",
  "yachtsql-sqlparser",
  "yachtsql-storage",
- "yachtsql-test-utils",
 ]
 
 [[package]]
@@ -5556,11 +5549,9 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "yachtsql",
  "yachtsql-common",
  "yachtsql-sqlparser",
  "yachtsql-storage",
- "yachtsql-test-utils",
 ]
 
 [[package]]

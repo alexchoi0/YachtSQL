@@ -33,5 +33,3 @@ rust_decimal = { version = "1.36", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
-yachtsql = { version = "0.1.0", path = "../.." }
-yachtsql-test-utils = { version = "0.1.0", path = "../test-utils" }
