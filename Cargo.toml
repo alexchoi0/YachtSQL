@@ -110,6 +110,7 @@ wildcard-enum-match-arm = "warn"     # Discourage wildcards in match (prefer exh
 [workspace]
 members = [
     ".",
+    "crates/cli",
     "crates/common",
     "crates/executor",
     "crates/functions",
