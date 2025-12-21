@@ -1455,6 +1455,16 @@ impl<'a> IrEvaluator<'a> {
                     )))
                 }
             }
+            (Value::String(s1), Value::String(s2)) => {
+                if let (Ok(a), Ok(b)) = (s1.parse::<f64>(), s2.parse::<f64>()) {
+                    Ok(Value::Float64(OrderedFloat(a - b)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot subtract {:?} from {:?}",
+                        right, left
+                    )))
+                }
+            }
             _ => Err(Error::InvalidQuery(format!(
                 "Cannot subtract {:?} from {:?}",
                 right, left
@@ -1484,6 +1494,56 @@ impl<'a> IrEvaluator<'a> {
                 days: iv.days * (*n as i32),
                 nanos: iv.nanos * *n,
             })),
+            (Value::String(s1), Value::String(s2)) => {
+                if let (Ok(a), Ok(b)) = (s1.parse::<f64>(), s2.parse::<f64>()) {
+                    Ok(Value::Float64(OrderedFloat(a * b)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot multiply {:?} and {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::String(s), Value::Int64(b)) => {
+                if let Ok(a) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a * *b as f64)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot multiply {:?} and {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::Int64(a), Value::String(s)) => {
+                if let Ok(b) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(*a as f64 * b)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot multiply {:?} and {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::String(s), Value::Float64(b)) => {
+                if let Ok(a) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a * b.0)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot multiply {:?} and {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::Float64(a), Value::String(s)) => {
+                if let Ok(b) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a.0 * b)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot multiply {:?} and {:?}",
+                        left, right
+                    )))
+                }
+            }
             _ => Err(Error::InvalidQuery(format!(
                 "Cannot multiply {:?} and {:?}",
                 left, right
@@ -1562,6 +1622,20 @@ impl<'a> IrEvaluator<'a> {
                 }
                 if let Ok(a) = s.parse::<f64>() {
                     Ok(Value::Float64(OrderedFloat(a / b.0)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot divide {:?} by {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::String(s1), Value::String(s2)) => {
+                if let (Ok(a), Ok(b)) = (s1.parse::<f64>(), s2.parse::<f64>()) {
+                    if b == 0.0 {
+                        Err(Error::InvalidQuery("Division by zero".into()))
+                    } else {
+                        Ok(Value::Float64(OrderedFloat(a / b)))
+                    }
                 } else {
                     Err(Error::InvalidQuery(format!(
                         "Cannot divide {:?} by {:?}",

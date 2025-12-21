@@ -1696,7 +1696,6 @@ fn test_array_agg_with_order_and_limit_in_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_complex_window_with_array_agg_ordered() {
     let mut executor = create_executor();
     executor
