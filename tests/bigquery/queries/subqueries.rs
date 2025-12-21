@@ -528,7 +528,6 @@ fn test_array_select_as_struct() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_temp_function_basic() {
     let mut executor = create_executor();
     executor
@@ -543,7 +542,6 @@ fn test_temp_function_basic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_temp_function_string() {
     let mut executor = create_executor();
     executor
@@ -586,7 +584,6 @@ fn test_temp_function_complex() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_temp_function_in_expression() {
     let mut executor = create_executor();
     executor

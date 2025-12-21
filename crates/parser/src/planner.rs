@@ -3011,6 +3011,30 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .map(|l| l.value.to_uppercase())
             .unwrap_or_else(|| "SQL".to_string());
 
+        let args: Vec<FunctionArg> = create
+            .args
+            .as_ref()
+            .map(|args| {
+                args.iter()
+                    .filter_map(|arg| {
+                        let param_name = arg.name.as_ref()?.value.clone();
+                        let data_type = Self::convert_sql_type(&arg.data_type);
+                        Some(FunctionArg {
+                            name: param_name,
+                            data_type,
+                            default: None,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let arg_schema = PlanSchema::from_fields(
+            args.iter()
+                .map(|a| PlanField::new(a.name.clone(), a.data_type.clone()))
+                .collect(),
+        );
+
         let body = match language.as_str() {
             "JAVASCRIPT" | "JS" => {
                 let js_code = match &create.function_body {
@@ -3031,10 +3055,10 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             "SQL" | "" => {
                 let expr = match &create.function_body {
                     Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => {
-                        ExprPlanner::plan_expr(expr, &PlanSchema::new())?
+                        ExprPlanner::plan_expr(expr, &arg_schema)?
                     }
                     Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => {
-                        ExprPlanner::plan_expr(expr, &PlanSchema::new())?
+                        ExprPlanner::plan_expr(expr, &arg_schema)?
                     }
                     _ => {
                         return Err(Error::UnsupportedFeature(
@@ -3055,29 +3079,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let return_type = match &create.return_type {
             Some(dt) => self.sql_type_to_data_type(dt),
             None => {
-                return Err(Error::InvalidQuery(
-                    "RETURNS clause is required for CREATE FUNCTION".to_string(),
-                ));
+                match &body {
+                    FunctionBody::Sql(expr) => Self::infer_expr_type_static(expr, &arg_schema),
+                    FunctionBody::JavaScript(_) | FunctionBody::Language { .. } => {
+                        return Err(Error::InvalidQuery(
+                            "RETURNS clause is required for non-SQL functions".to_string(),
+                        ));
+                    }
+                }
             }
         };
-
-        let args: Vec<FunctionArg> = create
-            .args
-            .as_ref()
-            .map(|args| {
-                args.iter()
-                    .filter_map(|arg| {
-                        let param_name = arg.name.as_ref()?.value.clone();
-                        let data_type = Self::convert_sql_type(&arg.data_type);
-                        Some(FunctionArg {
-                            name: param_name,
-                            data_type,
-                            default: None,
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
 
         Ok(LogicalPlan::CreateFunction {
             name,
