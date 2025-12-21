@@ -38,7 +38,6 @@ fn test_approx_count_distinct_with_group() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_approx_quantiles() {
     let mut executor = create_executor();
     setup_data(&mut executor);
@@ -50,7 +49,6 @@ fn test_approx_quantiles() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_approx_quantiles_with_group() {
     let mut executor = create_executor();
     setup_data(&mut executor);
@@ -62,7 +60,6 @@ fn test_approx_quantiles_with_group() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_approx_top_count() {
     let mut executor = create_executor();
     executor
@@ -79,7 +76,6 @@ fn test_approx_top_count() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_approx_top_sum() {
     let mut executor = create_executor();
     executor
@@ -114,7 +110,6 @@ fn test_approx_count_distinct_null() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_approx_quantiles_ignore_nulls() {
     let mut executor = create_executor();
     executor
@@ -131,7 +126,6 @@ fn test_approx_quantiles_ignore_nulls() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_approx_quantiles_respect_nulls() {
     let mut executor = create_executor();
     executor

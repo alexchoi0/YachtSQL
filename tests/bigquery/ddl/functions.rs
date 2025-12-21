@@ -241,7 +241,6 @@ fn test_drop_procedure() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_drop_procedure_if_exists() {
     let mut executor = create_executor();
 
@@ -306,7 +305,6 @@ fn test_function_with_struct_return() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_function_with_array_return() {
     let mut executor = create_executor();
 

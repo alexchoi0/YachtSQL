@@ -264,7 +264,6 @@ fn test_break_continue() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_begin_end_block() {
     let mut executor = create_executor();
 

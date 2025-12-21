@@ -2,7 +2,6 @@ use crate::assert_table_eq;
 use crate::common::create_executor;
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_keys_new_keyset() {
     let mut executor = create_executor();
 
@@ -65,7 +64,6 @@ fn test_keys_rotate_keyset() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_aead_encrypt() {
     let mut executor = create_executor();
 
@@ -157,7 +155,6 @@ fn test_deterministic_decrypt_bytes() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_keyset_in_table() {
     let mut executor = create_executor();
 
@@ -181,7 +178,6 @@ fn test_keyset_in_table() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_encrypt_column_data() {
     let mut executor = create_executor();
 

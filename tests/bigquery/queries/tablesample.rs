@@ -44,7 +44,6 @@ fn test_tablesample_bernoulli() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_rows() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -112,7 +111,6 @@ fn test_tablesample_reproducible() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_zero_percent() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -135,7 +133,6 @@ fn test_tablesample_hundred_percent() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_in_subquery() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);
@@ -160,7 +157,6 @@ fn test_tablesample_with_group_by() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_tablesample_with_aggregation() {
     let mut executor = create_executor();
     setup_large_table(&mut executor);

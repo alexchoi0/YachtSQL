@@ -371,7 +371,6 @@ fn test_st_convexhull() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_geography_in_table() {
     let mut executor = create_executor();
     executor
