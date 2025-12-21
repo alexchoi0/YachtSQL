@@ -189,7 +189,6 @@ fn test_unnest_struct_in_cte() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_struct_positional_fields() {
     let mut executor = create_executor();
     executor
@@ -205,7 +204,6 @@ fn test_unnest_struct_positional_fields() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_struct_nested_array_in_cte() {
     let mut executor = create_executor();
     executor

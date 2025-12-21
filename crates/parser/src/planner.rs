@@ -4535,6 +4535,28 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     DataType::Unknown
                 }
             }
+            Expr::Column { name, index, .. } => {
+                let col_type = index
+                    .and_then(|i| schema.fields.get(i))
+                    .map(|f| f.data_type.clone())
+                    .unwrap_or_else(|| {
+                        schema
+                            .fields
+                            .iter()
+                            .find(|f| f.name.eq_ignore_ascii_case(name))
+                            .map(|f| f.data_type.clone())
+                            .unwrap_or(DataType::Unknown)
+                    });
+                if let DataType::Struct(struct_fields) = col_type {
+                    let field_lower = field.to_lowercase();
+                    for sf in struct_fields {
+                        if sf.name.to_lowercase() == field_lower {
+                            return sf.data_type.clone();
+                        }
+                    }
+                }
+                DataType::Unknown
+            }
             _ => DataType::Unknown,
         }
     }

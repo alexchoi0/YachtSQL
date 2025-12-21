@@ -50,6 +50,26 @@ fn coerce_value(value: Value, target_type: &DataType) -> Result<Value> {
             Ok(Value::Float64(ordered_float::OrderedFloat(*n as f64)))
         }
         (Value::Float64(f), DataType::Int64) => Ok(Value::Int64(f.0 as i64)),
+        (Value::Struct(fields), DataType::Struct(target_fields)) => {
+            let mut coerced_fields = Vec::with_capacity(fields.len());
+            for (i, (_, val)) in fields.iter().enumerate() {
+                let (new_name, new_type) = if i < target_fields.len() {
+                    (target_fields[i].name.clone(), &target_fields[i].data_type)
+                } else {
+                    (format!("_field{}", i), &DataType::Unknown)
+                };
+                let coerced_val = coerce_value(val.clone(), new_type)?;
+                coerced_fields.push((new_name, coerced_val));
+            }
+            Ok(Value::Struct(coerced_fields))
+        }
+        (Value::Array(elements), DataType::Array(element_type)) => {
+            let coerced_elements: Result<Vec<_>> = elements
+                .iter()
+                .map(|elem| coerce_value(elem.clone(), element_type))
+                .collect();
+            Ok(Value::Array(coerced_elements?))
+        }
         _ => Ok(value),
     }
 }
