@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use sqlparser::ast::{self, SetExpr, Statement, TableFactor};
+use sqlparser::ast::{
+    self, ObjectName, ObjectNamePart, SetExpr, Statement, TableFactor, TableObject,
+};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField};
 use yachtsql_ir::{
@@ -14,6 +16,24 @@ use yachtsql_storage::Schema;
 
 use crate::CatalogProvider;
 use crate::expr_planner::ExprPlanner;
+
+fn object_name_to_raw_string(name: &ObjectName) -> String {
+    name.0
+        .iter()
+        .filter_map(|part| match part {
+            ObjectNamePart::Identifier(ident) => Some(ident.value.as_str()),
+            ObjectNamePart::Function(_) => None,
+        })
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+fn table_object_to_raw_string(table: &TableObject) -> String {
+    match table {
+        TableObject::TableName(name) => object_name_to_raw_string(name),
+        TableObject::TableFunction(func) => object_name_to_raw_string(&func.name),
+    }
+}
 
 pub struct Planner<'a, C: CatalogProvider> {
     catalog: &'a C,
@@ -473,7 +493,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
     fn table_factor_references_table(&self, factor: &TableFactor, table_name: &str) -> bool {
         match factor {
-            TableFactor::Table { name, .. } => name.to_string().eq_ignore_ascii_case(table_name),
+            TableFactor::Table { name, .. } => {
+                object_name_to_raw_string(name).eq_ignore_ascii_case(table_name)
+            }
             TableFactor::Derived { subquery, .. } => {
                 self.query_references_table(subquery, table_name)
             }
@@ -654,7 +676,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 sample,
                 ..
             } => {
-                let table_name = name.to_string();
+                let table_name = object_name_to_raw_string(name);
                 let table_name_upper = table_name.to_uppercase();
 
                 let base_plan = if let Some(cte_schema) =
@@ -968,7 +990,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 ast::SelectItem::QualifiedWildcard(kind, _) => {
                     let table_name = match kind {
                         ast::SelectItemQualifiedWildcardKind::ObjectName(obj_name) => {
-                            obj_name.to_string().to_uppercase()
+                            object_name_to_raw_string(obj_name).to_uppercase()
                         }
                         ast::SelectItemQualifiedWildcardKind::Expr(_) => {
                             return Err(Error::unsupported("Expression qualified wildcard"));
@@ -2696,7 +2718,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn plan_insert(&self, insert: &ast::Insert) -> Result<LogicalPlan> {
-        let table_name = insert.table.to_string();
+        let table_name = table_object_to_raw_string(&insert.table);
 
         let columns: Vec<String> = insert.columns.iter().map(|c| c.value.clone()).collect();
 
@@ -2720,7 +2742,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         selection: Option<&ast::Expr>,
     ) -> Result<LogicalPlan> {
         let table_name = match &table.relation {
-            TableFactor::Table { name, .. } => name.to_string(),
+            TableFactor::Table { name, .. } => object_name_to_raw_string(name),
             _ => return Err(Error::parse_error("UPDATE requires a table name")),
         };
 
@@ -2760,13 +2782,13 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let table_name = match &delete.from {
             ast::FromTable::WithFromKeyword(tables) => {
                 tables.first().and_then(|t| match &t.relation {
-                    TableFactor::Table { name, .. } => Some(name.to_string()),
+                    TableFactor::Table { name, .. } => Some(object_name_to_raw_string(name)),
                     _ => None,
                 })
             }
             ast::FromTable::WithoutKeyword(tables) => {
                 tables.first().and_then(|t| match &t.relation {
-                    TableFactor::Table { name, .. } => Some(name.to_string()),
+                    TableFactor::Table { name, .. } => Some(object_name_to_raw_string(name)),
                     _ => None,
                 })
             }
@@ -2797,7 +2819,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         clauses: &[ast::MergeClause],
     ) -> Result<LogicalPlan> {
         let target_name = match table {
-            TableFactor::Table { name, .. } => name.to_string(),
+            TableFactor::Table { name, .. } => object_name_to_raw_string(name),
             _ => return Err(Error::parse_error("MERGE target must be a table")),
         };
 
@@ -2969,7 +2991,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn plan_create_table(&self, create: &ast::CreateTable) -> Result<LogicalPlan> {
-        let table_name = create.name.to_string();
+        let table_name = object_name_to_raw_string(&create.name);
         let empty_schema = PlanSchema::new();
 
         let columns: Vec<ColumnDef> = create
@@ -3016,7 +3038,8 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 if names.is_empty() {
                     return Err(Error::parse_error("DROP TABLE requires a table name"));
                 }
-                let table_names: Vec<String> = names.iter().map(|n| n.to_string()).collect();
+                let table_names: Vec<String> =
+                    names.iter().map(object_name_to_raw_string).collect();
 
                 Ok(LogicalPlan::DropTable {
                     table_names,
@@ -3026,7 +3049,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             ast::ObjectType::Schema => {
                 let name = names
                     .first()
-                    .map(|n| n.to_string())
+                    .map(object_name_to_raw_string)
                     .ok_or_else(|| Error::parse_error("DROP SCHEMA requires a schema name"))?;
 
                 Ok(LogicalPlan::DropSchema {
@@ -3038,7 +3061,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             ast::ObjectType::View => {
                 let name = names
                     .first()
-                    .map(|n| n.to_string())
+                    .map(object_name_to_raw_string)
                     .ok_or_else(|| Error::parse_error("DROP VIEW requires a view name"))?;
 
                 Ok(LogicalPlan::DropView { name, if_exists })
@@ -3053,7 +3076,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     fn plan_truncate(&self, table_names: &[ast::TruncateTableTarget]) -> Result<LogicalPlan> {
         let table_name = table_names
             .first()
-            .map(|t| t.name.to_string())
+            .map(|t| object_name_to_raw_string(&t.name))
             .ok_or_else(|| Error::parse_error("TRUNCATE requires a table name"))?;
 
         Ok(LogicalPlan::Truncate { table_name })
@@ -3065,9 +3088,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         if_not_exists: bool,
     ) -> Result<LogicalPlan> {
         let name = match schema_name {
-            ast::SchemaName::Simple(name) => name.to_string(),
+            ast::SchemaName::Simple(name) => object_name_to_raw_string(name),
             ast::SchemaName::UnnamedAuthorization(auth) => auth.value.clone(),
-            ast::SchemaName::NamedAuthorization(name, _) => name.to_string(),
+            ast::SchemaName::NamedAuthorization(name, _) => object_name_to_raw_string(name),
         };
         Ok(LogicalPlan::CreateSchema {
             name,
@@ -3076,7 +3099,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn plan_alter_schema(&self, alter_schema: &ast::AlterSchema) -> Result<LogicalPlan> {
-        let name = alter_schema.name.to_string();
+        let name = object_name_to_raw_string(&alter_schema.name);
         let mut options = Vec::new();
 
         for operation in &alter_schema.operations {
@@ -3118,7 +3141,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn plan_create_function(&self, create: &ast::CreateFunction) -> Result<LogicalPlan> {
-        let name = create.name.to_string().to_uppercase();
+        let name = object_name_to_raw_string(&create.name).to_uppercase();
 
         let language = create
             .language
@@ -3279,7 +3302,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         name: &ast::ObjectName,
         operations: &[ast::AlterTableOperation],
     ) -> Result<LogicalPlan> {
-        let table_name = name.to_string();
+        let table_name = object_name_to_raw_string(name);
 
         let operation = operations
             .first()
@@ -3327,7 +3350,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             } => {
                 let new_name_str = match new_name {
                     ast::RenameTableNameKind::To(name) | ast::RenameTableNameKind::As(name) => {
-                        name.to_string()
+                        object_name_to_raw_string(name)
                     }
                 };
                 AlterTableOp::RenameTable {
@@ -3388,7 +3411,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         or_replace: bool,
         if_not_exists: bool,
     ) -> Result<LogicalPlan> {
-        let view_name = name.to_string();
+        let view_name = object_name_to_raw_string(name);
         let query_sql = query.to_string();
         let query_plan = self.plan_query(query)?;
         let column_aliases: Vec<String> = columns.iter().map(|c| c.name.value.clone()).collect();
@@ -3567,7 +3590,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             }
             ast::DataType::Interval { .. } => DataType::Interval,
             ast::DataType::Custom(name, modifiers) => {
-                let type_name = name.to_string().to_uppercase();
+                let type_name = object_name_to_raw_string(name).to_uppercase();
                 match type_name.as_str() {
                     "GEOGRAPHY" => DataType::Geography,
                     "RANGE" => {
@@ -4628,7 +4651,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         body: &ast::ConditionalStatements,
         or_replace: bool,
     ) -> Result<LogicalPlan> {
-        let proc_name = name.to_string();
+        let proc_name = object_name_to_raw_string(name);
         let args = match params {
             Some(params) => params
                 .iter()
@@ -4671,7 +4694,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn plan_call(&self, func: &ast::Function) -> Result<LogicalPlan> {
-        let procedure_name = func.name.to_string();
+        let procedure_name = object_name_to_raw_string(&func.name);
         let args = match &func.args {
             ast::FunctionArguments::List(args) => args
                 .args

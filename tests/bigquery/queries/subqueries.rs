@@ -286,6 +286,53 @@ fn test_backtick_quoted_table() {
 }
 
 #[test]
+fn test_backtick_bigquery_qualified_table() {
+    let mut executor = create_executor();
+    executor.execute_sql("CREATE SCHEMA `my-dataset`").unwrap();
+    executor
+        .execute_sql("CREATE TABLE `my-dataset.my-table` (id INT64, value STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO `my-dataset.my-table` VALUES (1, 'hello'), (2, 'world')")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT * FROM `my-dataset.my-table` ORDER BY id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "hello"], [2, "world"]]);
+}
+
+#[test]
+fn test_backtick_mixed_operations() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE `source-table` (id INT64, data STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO `source-table` VALUES (1, 'a'), (2, 'b')")
+        .unwrap();
+
+    executor
+        .execute_sql("UPDATE `source-table` SET data = 'updated' WHERE id = 1")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT * FROM `source-table` ORDER BY id")
+        .unwrap();
+    assert_table_eq!(result, [[1, "updated"], [2, "b"]]);
+
+    executor
+        .execute_sql("DELETE FROM `source-table` WHERE id = 2")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT * FROM `source-table`")
+        .unwrap();
+    assert_table_eq!(result, [[1, "updated"]]);
+}
+
+#[test]
 fn test_correlated_scalar_subquery_order_by_non_projected() {
     let mut executor = create_executor();
     setup_tables(&mut executor);

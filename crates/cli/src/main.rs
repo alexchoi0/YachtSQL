@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use comfy_table::{presets::UTF8_FULL, Table};
+use comfy_table::Table;
+use comfy_table::presets::UTF8_FULL;
 use yachtsql::YachtSQLEngine;
 
 #[derive(Parser)]
@@ -35,9 +36,7 @@ fn main() -> Result<()> {
 fn execute_query(sql: &str) -> Result<()> {
     let mut engine = YachtSQLEngine::new();
 
-    let result = engine
-        .query(sql)
-        .context("Failed to execute SQL query")?;
+    let result = engine.query(sql).context("Failed to execute SQL query")?;
 
     if result.rows.is_empty() {
         println!("(0 rows)");
