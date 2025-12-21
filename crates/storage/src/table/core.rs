@@ -281,7 +281,7 @@ impl Table {
     pub fn to_query_result(&self) -> Result<yachtsql_common::QueryResult> {
         use yachtsql_common::{ColumnInfo, QueryResult};
 
-        let columns: Vec<ColumnInfo> = self
+        let schema: Vec<ColumnInfo> = self
             .schema
             .fields()
             .iter()
@@ -289,12 +289,12 @@ impl Table {
             .collect();
 
         let records = self.to_records()?;
-        let rows: Vec<Vec<serde_json::Value>> = records
-            .iter()
-            .map(|record| record.values().iter().map(|v| v.to_json()).collect())
+        let rows: Vec<Vec<Value>> = records
+            .into_iter()
+            .map(|record| record.into_values())
             .collect();
 
-        Ok(QueryResult::new(columns, rows))
+        Ok(QueryResult::new(schema, rows))
     }
 }
 

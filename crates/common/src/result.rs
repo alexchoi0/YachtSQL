@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
+use crate::types::Value;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnInfo {
     pub name: String,
@@ -19,22 +21,22 @@ impl ColumnInfo {
 
 #[derive(Debug, Clone, Default)]
 pub struct QueryResult {
-    pub columns: Vec<ColumnInfo>,
-    pub rows: Vec<Vec<JsonValue>>,
+    pub schema: Vec<ColumnInfo>,
+    pub rows: Vec<Vec<Value>>,
 }
 
 impl QueryResult {
-    pub fn new(columns: Vec<ColumnInfo>, rows: Vec<Vec<JsonValue>>) -> Self {
-        Self { columns, rows }
+    pub fn new(schema: Vec<ColumnInfo>, rows: Vec<Vec<Value>>) -> Self {
+        Self { schema, rows }
     }
 
     pub fn empty() -> Self {
         Self::default()
     }
 
-    pub fn with_columns(columns: Vec<ColumnInfo>) -> Self {
+    pub fn with_schema(schema: Vec<ColumnInfo>) -> Self {
         Self {
-            columns,
+            schema,
             rows: Vec::new(),
         }
     }
@@ -44,7 +46,7 @@ impl QueryResult {
     }
 
     pub fn column_count(&self) -> usize {
-        self.columns.len()
+        self.schema.len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -52,29 +54,36 @@ impl QueryResult {
     }
 
     pub fn column_names(&self) -> Vec<&str> {
-        self.columns.iter().map(|c| c.name.as_str()).collect()
+        self.schema.iter().map(|c| c.name.as_str()).collect()
     }
 
-    pub fn get(&self, row: usize, col: usize) -> Option<&JsonValue> {
+    pub fn get(&self, row: usize, col: usize) -> Option<&Value> {
         self.rows.get(row).and_then(|r| r.get(col))
     }
 
-    pub fn get_by_name(&self, row: usize, col_name: &str) -> Option<&JsonValue> {
-        let col_idx = self.columns.iter().position(|c| c.name == col_name)?;
+    pub fn get_by_name(&self, row: usize, col_name: &str) -> Option<&Value> {
+        let col_idx = self.schema.iter().position(|c| c.name == col_name)?;
         self.get(row, col_idx)
     }
 
-    pub fn first_row(&self) -> Option<&Vec<JsonValue>> {
+    pub fn first_row(&self) -> Option<&Vec<Value>> {
         self.rows.first()
     }
 
-    pub fn first_value(&self) -> Option<&JsonValue> {
+    pub fn first_value(&self) -> Option<&Value> {
         self.rows.first().and_then(|r| r.first())
+    }
+
+    pub fn to_json_rows(&self) -> Vec<Vec<JsonValue>> {
+        self.rows
+            .iter()
+            .map(|row| row.iter().map(|v| v.to_json()).collect())
+            .collect()
     }
 
     pub fn to_bq_response(&self) -> JsonValue {
         let schema_fields: Vec<JsonValue> = self
-            .columns
+            .schema
             .iter()
             .map(|col| serde_json::json!({ "name": col.name, "type": col.data_type }))
             .collect();
@@ -85,7 +94,7 @@ impl QueryResult {
             .map(|row| {
                 let fields: Vec<JsonValue> = row
                     .iter()
-                    .map(|v| serde_json::json!({ "v": v }))
+                    .map(|v| serde_json::json!({ "v": v.to_json() }))
                     .collect();
                 serde_json::json!({ "f": fields })
             })
