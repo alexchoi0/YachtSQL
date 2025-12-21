@@ -10,7 +10,7 @@ use yachtsql::YachtSQLEngine;
 fn main() -> yachtsql::Result<()> {
     let mut engine = YachtSQLEngine::new();
 
-    engine.execute("
+    engine.execute_sql("
         CREATE TABLE users (
             id INT64,
             name STRING NOT NULL,
@@ -18,13 +18,13 @@ fn main() -> yachtsql::Result<()> {
         )
     ")?;
 
-    engine.execute("
+    engine.execute_sql("
         INSERT INTO users (id, name, email) VALUES
             (1, 'Alice', 'alice@example.com'),
             (2, 'Bob', 'bob@example.com')
     ")?;
 
-    let results = engine.execute("SELECT * FROM users")?;
+    let results = engine.execute_sql("SELECT * FROM users")?;
     println!("{:?}", results);
     Ok(())
 }

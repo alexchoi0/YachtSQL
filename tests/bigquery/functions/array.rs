@@ -494,7 +494,6 @@ fn test_array_agg_struct_basic() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_agg_struct_in_correlated_subquery() {
     let mut executor = create_executor();
     executor

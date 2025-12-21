@@ -22,16 +22,18 @@
 //!
 //! // Create a table
 //! engine
-//!     .execute("CREATE TABLE users (id INT64, name STRING)")
+//!     .execute_sql("CREATE TABLE users (id INT64, name STRING)")
 //!     .unwrap();
 //!
 //! // Insert data
 //! engine
-//!     .execute("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')")
+//!     .execute_sql("INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')")
 //!     .unwrap();
 //!
 //! // Query data
-//! let result = engine.execute("SELECT * FROM users WHERE id = 1").unwrap();
+//! let result = engine
+//!     .execute_sql("SELECT * FROM users WHERE id = 1")
+//!     .unwrap();
 //! ```
 
 pub use yachtsql_common::error::{Error, Result};
@@ -54,7 +56,7 @@ impl YachtSQLEngine {
         }
     }
 
-    pub fn execute(&mut self, sql: &str) -> Result<Table> {
+    pub fn execute_sql(&mut self, sql: &str) -> Result<Table> {
         self.executor.execute_sql(sql)
     }
 

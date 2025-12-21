@@ -1,6 +1,12 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+#![allow(clippy::wildcard_enum_match_arm)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::only_used_in_recursion)]
+#![allow(clippy::if_same_then_else)]
+#![allow(clippy::manual_strip)]
 
 mod catalog;
 mod error;
@@ -10,18 +16,18 @@ mod js_udf;
 mod plan;
 mod session;
 
+use std::num::NonZeroUsize;
+
 pub use catalog::{Catalog, ColumnDefault, UserFunction, UserProcedure, ViewDef};
 pub use error::{Error, Result};
 pub use executor::{PlanExecutor, plan_schema_to_schema};
 pub use ir_evaluator::{IrEvaluator, UserFunctionDef};
+use lru::LruCache;
 pub use plan::PhysicalPlan;
 use serde::{Deserialize, Serialize};
 pub use session::Session;
 use yachtsql_optimizer::OptimizedLogicalPlan;
 pub use yachtsql_storage::{Record, Table};
-
-use lru::LruCache;
-use std::num::NonZeroUsize;
 
 const PLAN_CACHE_SIZE: usize = 10000;
 

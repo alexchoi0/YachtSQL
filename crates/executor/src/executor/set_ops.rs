@@ -63,11 +63,11 @@ impl<'a> PlanExecutor<'a> {
 
             for record in left_table.rows()? {
                 let key = row_to_key(record.values());
-                if let Some(count) = right_counts.get_mut(&key) {
-                    if *count > 0 {
-                        result.push_row(record.values().to_vec())?;
-                        *count -= 1;
-                    }
+                if let Some(count) = right_counts.get_mut(&key)
+                    && *count > 0
+                {
+                    result.push_row(record.values().to_vec())?;
+                    *count -= 1;
                 }
             }
         } else {
@@ -111,11 +111,11 @@ impl<'a> PlanExecutor<'a> {
 
             for record in left_table.rows()? {
                 let key = row_to_key(record.values());
-                if let Some(count) = right_counts.get_mut(&key) {
-                    if *count > 0 {
-                        *count -= 1;
-                        continue;
-                    }
+                if let Some(count) = right_counts.get_mut(&key)
+                    && *count > 0
+                {
+                    *count -= 1;
+                    continue;
                 }
                 result.push_row(record.values().to_vec())?;
             }

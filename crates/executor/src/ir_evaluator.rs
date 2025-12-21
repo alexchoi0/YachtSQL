@@ -2515,12 +2515,9 @@ impl<'a> IrEvaluator<'a> {
             return Ok(Value::DateTime(dt));
         }
         if args.len() == 2 {
-            match (&args[0], &args[1]) {
-                (Value::Date(d), Value::Time(t)) => {
-                    let dt = chrono::NaiveDateTime::new(*d, *t);
-                    return Ok(Value::DateTime(dt));
-                }
-                _ => {}
+            if let (Value::Date(d), Value::Time(t)) = (&args[0], &args[1]) {
+                let dt = chrono::NaiveDateTime::new(*d, *t);
+                return Ok(Value::DateTime(dt));
             }
         }
         match args.first() {
@@ -2775,12 +2772,12 @@ impl<'a> IrEvaluator<'a> {
         if step_nanos > 0 {
             while current <= end_ts {
                 result.push(Value::Timestamp(current));
-                current = current + chrono::Duration::nanoseconds(step_nanos);
+                current += chrono::Duration::nanoseconds(step_nanos);
             }
         } else {
             while current >= end_ts {
                 result.push(Value::Timestamp(current));
-                current = current + chrono::Duration::nanoseconds(step_nanos);
+                current += chrono::Duration::nanoseconds(step_nanos);
             }
         }
         Ok(Value::Array(result))
@@ -4590,7 +4587,7 @@ impl<'a> IrEvaluator<'a> {
     }
 
     fn fn_map(&self, args: &[Value]) -> Result<Value> {
-        if args.len() % 2 != 0 {
+        if !args.len().is_multiple_of(2) {
             return Err(Error::InvalidQuery(
                 "MAP requires an even number of arguments (alternating key, value pairs)".into(),
             ));
@@ -7259,7 +7256,7 @@ impl<'a> IrEvaluator<'a> {
                         while current < *end_date {
                             let mut next = current;
                             if interval.days != 0 {
-                                next = next + chrono::Duration::days(interval.days as i64);
+                                next += chrono::Duration::days(interval.days as i64);
                             }
                             if interval.months != 0 {
                                 let year = next.year();
@@ -7575,7 +7572,7 @@ impl<'a> IrEvaluator<'a> {
             }
             Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
                 left: Box::new(self.substitute_udf_params(left, params, args)),
-                op: op.clone(),
+                op: *op,
                 right: Box::new(self.substitute_udf_params(right, params, args)),
             },
             Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
@@ -8333,7 +8330,7 @@ fn add_interval_to_date(date: &NaiveDate, interval: &IntervalValue) -> Result<Na
         };
     }
     if interval.days != 0 {
-        result = result + chrono::Duration::days(interval.days as i64);
+        result += chrono::Duration::days(interval.days as i64);
     }
     Ok(result)
 }
@@ -8353,10 +8350,10 @@ fn add_interval_to_datetime(dt: &NaiveDateTime, interval: &IntervalValue) -> Res
         };
     }
     if interval.days != 0 {
-        result = result + chrono::Duration::days(interval.days as i64);
+        result += chrono::Duration::days(interval.days as i64);
     }
     if interval.nanos != 0 {
-        result = result + chrono::Duration::nanoseconds(interval.nanos);
+        result += chrono::Duration::nanoseconds(interval.nanos);
     }
     Ok(result)
 }

@@ -225,7 +225,7 @@ impl<'a> PlanExecutor<'a> {
                 partition_by.clone(),
                 order_by.clone(),
                 frame.clone(),
-                WindowFuncType::Window(func.clone()),
+                WindowFuncType::Window(*func),
             )),
             Expr::AggregateWindow {
                 func,
@@ -237,7 +237,7 @@ impl<'a> PlanExecutor<'a> {
                 partition_by.clone(),
                 order_by.clone(),
                 frame.clone(),
-                WindowFuncType::Aggregate(func.clone()),
+                WindowFuncType::Aggregate(*func),
             )),
             _ => panic!("Expected window expression in qualify"),
         }

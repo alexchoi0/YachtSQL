@@ -5387,6 +5387,7 @@ dependencies = [
  "yachtsql-parser",
  "yachtsql-sqlparser",
  "yachtsql-storage",
+ "yachtsql-test-utils",
 ]
 
 [[package]]

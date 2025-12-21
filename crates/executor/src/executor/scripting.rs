@@ -108,10 +108,10 @@ impl<'a> PlanExecutor<'a> {
         let val = evaluator.evaluate(value, &empty_record)?;
 
         let upper_name = name.to_uppercase();
-        if upper_name == "SEARCH_PATH" {
-            if let Some(schema_name) = val.as_str() {
-                self.catalog.set_search_path(vec![schema_name.to_string()]);
-            }
+        if upper_name == "SEARCH_PATH"
+            && let Some(schema_name) = val.as_str()
+        {
+            self.catalog.set_search_path(vec![schema_name.to_string()]);
         }
 
         self.variables.insert(upper_name, val.clone());

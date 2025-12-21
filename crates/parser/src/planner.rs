@@ -1540,6 +1540,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                 final_projection_exprs.push(remapped);
                                 final_projection_fields
                                     .push(PlanField::new(output_name, data_type));
+                            } else if Self::expr_contains_subquery(&planned) {
+                                let remapped = Self::remap_to_group_by_indices(
+                                    planned.clone(),
+                                    &agg_fields,
+                                    group_by_count,
+                                );
+                                let data_type = self.infer_expr_type(&planned, input.schema());
+                                final_projection_exprs.push(remapped);
+                                final_projection_fields
+                                    .push(PlanField::new(output_name, data_type));
                             }
                         }
                     }
@@ -3982,6 +3992,51 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Expr::ScalarFunction { args, .. } => args.iter().all(Self::is_constant_expr),
             Expr::Array { elements, .. } => elements.iter().all(Self::is_constant_expr),
             Expr::Struct { fields, .. } => fields.iter().all(|(_, e)| Self::is_constant_expr(e)),
+            _ => false,
+        }
+    }
+
+    fn expr_contains_subquery(expr: &Expr) -> bool {
+        match expr {
+            Expr::Subquery(_) | Expr::ScalarSubquery(_) | Expr::ArraySubquery(_) => true,
+            Expr::Alias { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::BinaryOp { left, right, .. } => {
+                Self::expr_contains_subquery(left) || Self::expr_contains_subquery(right)
+            }
+            Expr::UnaryOp { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::Cast { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
+                operand
+                    .as_ref()
+                    .is_some_and(|e| Self::expr_contains_subquery(e))
+                    || when_clauses.iter().any(|w| {
+                        Self::expr_contains_subquery(&w.condition)
+                            || Self::expr_contains_subquery(&w.result)
+                    })
+                    || else_result
+                        .as_ref()
+                        .is_some_and(|e| Self::expr_contains_subquery(e))
+            }
+            Expr::ScalarFunction { args, .. } => args.iter().any(Self::expr_contains_subquery),
+            Expr::Array { elements, .. } => elements.iter().any(Self::expr_contains_subquery),
+            Expr::Struct { fields, .. } => {
+                fields.iter().any(|(_, e)| Self::expr_contains_subquery(e))
+            }
+            Expr::IsNull { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                Self::expr_contains_subquery(expr)
+                    || Self::expr_contains_subquery(low)
+                    || Self::expr_contains_subquery(high)
+            }
+            Expr::InList { expr, list, .. } => {
+                Self::expr_contains_subquery(expr) || list.iter().any(Self::expr_contains_subquery)
+            }
             _ => false,
         }
     }

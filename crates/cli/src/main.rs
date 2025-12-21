@@ -95,10 +95,10 @@ fn list_sessions() -> Result<()> {
     for entry in fs::read_dir(&sessions_dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().is_some_and(|ext| ext == "bin") {
-            if let Some(stem) = path.file_stem() {
-                sessions.push(stem.to_string_lossy().to_string());
-            }
+        if path.extension().is_some_and(|ext| ext == "bin")
+            && let Some(stem) = path.file_stem()
+        {
+            sessions.push(stem.to_string_lossy().to_string());
         }
     }
 

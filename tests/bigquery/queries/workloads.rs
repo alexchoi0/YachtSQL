@@ -504,7 +504,6 @@ fn test_discount_impact_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_new_vs_returning_customers() {
     let mut executor = create_executor();
     setup_ecommerce_schema(&mut executor);

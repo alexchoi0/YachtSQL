@@ -760,10 +760,10 @@ fn has_ignore_nulls(expr: &Expr) -> bool {
 fn extract_int_arg(expr: &Expr, index: usize) -> Option<i64> {
     match expr {
         Expr::Aggregate { args, .. } => {
-            if args.len() > index {
-                if let Expr::Literal(yachtsql_ir::Literal::Int64(n)) = &args[index] {
-                    return Some(*n);
-                }
+            if args.len() > index
+                && let Expr::Literal(yachtsql_ir::Literal::Int64(n)) = &args[index]
+            {
+                return Some(*n);
             }
             None
         }
@@ -1398,8 +1398,8 @@ impl Accumulator {
             None
         };
 
-        if let (Some(x), Some(y)) = (x_val, y_val) {
-            if let Accumulator::Covariance {
+        if let (Some(x), Some(y)) = (x_val, y_val)
+            && let Accumulator::Covariance {
                 count,
                 mean_x,
                 mean_y,
@@ -1408,19 +1408,18 @@ impl Accumulator {
                 m2_y,
                 ..
             } = self
-            {
-                *count += 1;
-                let n = *count as f64;
-                let delta_x = x - *mean_x;
-                let delta_y = y - *mean_y;
-                *mean_x += delta_x / n;
-                *mean_y += delta_y / n;
-                let delta_x2 = x - *mean_x;
-                let delta_y2 = y - *mean_y;
-                *c_xy += delta_x * delta_y2;
-                *m2_x += delta_x * delta_x2;
-                *m2_y += delta_y * delta_y2;
-            }
+        {
+            *count += 1;
+            let n = *count as f64;
+            let delta_x = x - *mean_x;
+            let delta_y = y - *mean_y;
+            *mean_x += delta_x / n;
+            *mean_y += delta_y / n;
+            let delta_x2 = x - *mean_x;
+            let delta_y2 = y - *mean_y;
+            *c_xy += delta_x * delta_y2;
+            *m2_x += delta_x * delta_x2;
+            *m2_y += delta_y * delta_y2;
         }
         Ok(())
     }

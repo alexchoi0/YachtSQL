@@ -74,10 +74,10 @@ impl<'a> PlanExecutor<'a> {
         let mut default_values: Vec<Option<Value>> = vec![None; target_schema.field_count()];
         if let Some(defaults) = self.catalog.get_table_defaults(table_name) {
             for default in defaults {
-                if let Some(idx) = target_schema.field_index(&default.column_name) {
-                    if let Ok(val) = evaluator.evaluate(&default.default_expr, &empty_record) {
-                        default_values[idx] = Some(val);
-                    }
+                if let Some(idx) = target_schema.field_index(&default.column_name)
+                    && let Ok(val) = evaluator.evaluate(&default.default_expr, &empty_record)
+                {
+                    default_values[idx] = Some(val);
                 }
             }
         }
@@ -115,17 +115,18 @@ impl<'a> PlanExecutor<'a> {
                         .map(|opt| opt.clone().unwrap_or(Value::Null))
                         .collect();
                     for (i, col_name) in columns.iter().enumerate() {
-                        if let Some(col_idx) = target_schema.field_index(col_name) {
-                            if i < row_exprs.len() && col_idx < fields.len() {
-                                let expr = &row_exprs[i];
-                                let final_val = match expr {
-                                    Expr::Default => {
-                                        default_values[col_idx].clone().unwrap_or(Value::Null)
-                                    }
-                                    _ => values_evaluator.evaluate(expr, &empty_rec)?,
-                                };
-                                row[col_idx] = coerce_value(final_val, &fields[col_idx].data_type)?;
-                            }
+                        if let Some(col_idx) = target_schema.field_index(col_name)
+                            && i < row_exprs.len()
+                            && col_idx < fields.len()
+                        {
+                            let expr = &row_exprs[i];
+                            let final_val = match expr {
+                                Expr::Default => {
+                                    default_values[col_idx].clone().unwrap_or(Value::Null)
+                                }
+                                _ => values_evaluator.evaluate(expr, &empty_rec)?,
+                            };
+                            row[col_idx] = coerce_value(final_val, &fields[col_idx].data_type)?;
                         }
                     }
                     target.push_row(row)?;
@@ -163,17 +164,18 @@ impl<'a> PlanExecutor<'a> {
                     .map(|opt| opt.clone().unwrap_or(Value::Null))
                     .collect();
                 for (i, col_name) in columns.iter().enumerate() {
-                    if let Some(col_idx) = target_schema.field_index(col_name) {
-                        if i < record.values().len() && col_idx < fields.len() {
-                            let val = &record.values()[i];
-                            let final_val = match val {
-                                Value::Default => {
-                                    default_values[col_idx].clone().unwrap_or(Value::Null)
-                                }
-                                _ => val.clone(),
-                            };
-                            row[col_idx] = coerce_value(final_val, &fields[col_idx].data_type)?;
-                        }
+                    if let Some(col_idx) = target_schema.field_index(col_name)
+                        && i < record.values().len()
+                        && col_idx < fields.len()
+                    {
+                        let val = &record.values()[i];
+                        let final_val = match val {
+                            Value::Default => {
+                                default_values[col_idx].clone().unwrap_or(Value::Null)
+                            }
+                            _ => val.clone(),
+                        };
+                        row[col_idx] = coerce_value(final_val, &fields[col_idx].data_type)?;
                     }
                 }
                 target.push_row(row)?;
@@ -610,12 +612,12 @@ impl<'a> PlanExecutor<'a> {
                                     let mut new_row: Vec<Value> =
                                         vec![Value::Null; target_schema.field_count()];
                                     for (i, col_name) in columns.iter().enumerate() {
-                                        if let Some(col_idx) = target_schema.field_index(col_name) {
-                                            if i < values.len() {
-                                                let val = evaluator
-                                                    .evaluate(&values[i], &combined_record)?;
-                                                new_row[col_idx] = val;
-                                            }
+                                        if let Some(col_idx) = target_schema.field_index(col_name)
+                                            && i < values.len()
+                                        {
+                                            let val =
+                                                evaluator.evaluate(&values[i], &combined_record)?;
+                                            new_row[col_idx] = val;
                                         }
                                     }
                                     new_rows.push(new_row);
