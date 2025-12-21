@@ -1411,6 +1411,50 @@ impl<'a> IrEvaluator<'a> {
                 days: a.days - b.days,
                 nanos: a.nanos - b.nanos,
             })),
+            (Value::Float64(a), Value::String(s)) => {
+                if let Ok(b) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a.0 - b)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot subtract {:?} from {:?}",
+                        right, left
+                    )))
+                }
+            }
+            (Value::String(s), Value::Float64(b)) => {
+                if let Ok(a) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a - b.0)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot subtract {:?} from {:?}",
+                        right, left
+                    )))
+                }
+            }
+            (Value::Int64(a), Value::String(s)) => {
+                if let Ok(b) = s.parse::<i64>() {
+                    Ok(Value::Int64(a - b))
+                } else if let Ok(b) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(*a as f64 - b)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot subtract {:?} from {:?}",
+                        right, left
+                    )))
+                }
+            }
+            (Value::String(s), Value::Int64(b)) => {
+                if let Ok(a) = s.parse::<i64>() {
+                    Ok(Value::Int64(a - b))
+                } else if let Ok(a) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a - *b as f64)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot subtract {:?} from {:?}",
+                        right, left
+                    )))
+                }
+            }
             _ => Err(Error::InvalidQuery(format!(
                 "Cannot subtract {:?} from {:?}",
                 right, left
@@ -1469,6 +1513,60 @@ impl<'a> IrEvaluator<'a> {
                     Err(Error::InvalidQuery("Division by zero".into()))
                 } else {
                     Ok(Value::Numeric(*a / *b))
+                }
+            }
+            (Value::Int64(a), Value::String(s)) => {
+                if let Ok(b) = s.parse::<f64>() {
+                    if b == 0.0 {
+                        Err(Error::InvalidQuery("Division by zero".into()))
+                    } else {
+                        Ok(Value::Float64(OrderedFloat(*a as f64 / b)))
+                    }
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot divide {:?} by {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::String(s), Value::Int64(b)) => {
+                if *b == 0 {
+                    return Err(Error::InvalidQuery("Division by zero".into()));
+                }
+                if let Ok(a) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a / *b as f64)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot divide {:?} by {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::Float64(a), Value::String(s)) => {
+                if let Ok(b) = s.parse::<f64>() {
+                    if b == 0.0 {
+                        Err(Error::InvalidQuery("Division by zero".into()))
+                    } else {
+                        Ok(Value::Float64(OrderedFloat(a.0 / b)))
+                    }
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot divide {:?} by {:?}",
+                        left, right
+                    )))
+                }
+            }
+            (Value::String(s), Value::Float64(b)) => {
+                if b.0 == 0.0 {
+                    return Err(Error::InvalidQuery("Division by zero".into()));
+                }
+                if let Ok(a) = s.parse::<f64>() {
+                    Ok(Value::Float64(OrderedFloat(a / b.0)))
+                } else {
+                    Err(Error::InvalidQuery(format!(
+                        "Cannot divide {:?} by {:?}",
+                        left, right
+                    )))
                 }
             }
             _ => Err(Error::InvalidQuery(format!(
