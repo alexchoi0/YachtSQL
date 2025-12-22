@@ -39,8 +39,8 @@ pub use values::*;
 pub use window::*;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
-use yachtsql_ir::Expr;
-use yachtsql_optimizer::OptimizedLogicalPlan;
+use yachtsql_ir::{Expr, Literal};
+use yachtsql_optimizer::{OptimizedLogicalPlan, optimize};
 use yachtsql_storage::{Field, FieldMode, Schema, Table};
 
 use crate::catalog::Catalog;
@@ -337,16 +337,21 @@ impl<'a> PlanExecutor<'a> {
     fn execute_assert(&mut self, condition: &Expr, message: Option<&Expr>) -> Result<Table> {
         use yachtsql_storage::Record;
 
+        let resolved_condition = self.resolve_subqueries_in_assert_expr(condition)?;
+        let resolved_msg = message
+            .map(|e| self.resolve_subqueries_in_assert_expr(e))
+            .transpose()?;
+
         let empty_schema = Schema::new();
         let evaluator = IrEvaluator::new(&empty_schema)
             .with_variables(&self.variables)
             .with_user_functions(&self.user_function_defs);
         let empty_record = Record::new();
-        let result = evaluator.evaluate(condition, &empty_record)?;
+        let result = evaluator.evaluate(&resolved_condition, &empty_record)?;
         match result {
             Value::Bool(true) => Ok(Table::empty(Schema::new())),
             Value::Bool(false) => {
-                let msg = if let Some(msg_expr) = message {
+                let msg = if let Some(ref msg_expr) = resolved_msg {
                     let msg_val = evaluator.evaluate(msg_expr, &empty_record)?;
                     match msg_val {
                         Value::String(s) => s,
@@ -361,6 +366,62 @@ impl<'a> PlanExecutor<'a> {
                 "ASSERT condition must evaluate to a boolean".into(),
             )),
         }
+    }
+
+    fn resolve_subqueries_in_assert_expr(&mut self, expr: &Expr) -> Result<Expr> {
+        match expr {
+            Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => {
+                let physical = optimize(plan)?;
+                let executor_plan = PhysicalPlan::from_physical(&physical);
+                let result_table = self.execute_plan(&executor_plan)?;
+
+                if result_table.is_empty() {
+                    return Ok(Expr::Literal(Literal::Null));
+                }
+
+                let rows: Vec<_> = result_table.rows()?.into_iter().collect();
+                if rows.is_empty() {
+                    return Ok(Expr::Literal(Literal::Null));
+                }
+
+                let first_row = &rows[0];
+                let values = first_row.values();
+                if values.is_empty() {
+                    return Ok(Expr::Literal(Literal::Null));
+                }
+
+                Ok(value_to_literal_expr(&values[0]))
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_resolved = self.resolve_subqueries_in_assert_expr(left)?;
+                let right_resolved = self.resolve_subqueries_in_assert_expr(right)?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(left_resolved),
+                    op: *op,
+                    right: Box::new(right_resolved),
+                })
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                let inner_resolved = self.resolve_subqueries_in_assert_expr(inner)?;
+                Ok(Expr::UnaryOp {
+                    op: *op,
+                    expr: Box::new(inner_resolved),
+                })
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+}
+
+fn value_to_literal_expr(value: &Value) -> Expr {
+    use ordered_float::OrderedFloat;
+    match value {
+        Value::Null => Expr::Literal(Literal::Null),
+        Value::Bool(b) => Expr::Literal(Literal::Bool(*b)),
+        Value::Int64(n) => Expr::Literal(Literal::Int64(*n)),
+        Value::Float64(f) => Expr::Literal(Literal::Float64(OrderedFloat(f.0))),
+        Value::String(s) => Expr::Literal(Literal::String(s.clone())),
+        _ => Expr::Literal(Literal::Null),
     }
 }
 

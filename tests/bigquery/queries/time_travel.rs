@@ -223,7 +223,6 @@ fn test_assert_fails() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_assert_with_subquery() {
     let mut executor = create_executor();
     executor
