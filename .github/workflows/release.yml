@@ -142,12 +142,6 @@ jobs:
             sleep 30
           done
 
-      - name: Commit version bump
-        run: |
-          git add -A
-          git commit -m "chore: bump version to ${{ steps.version.outputs.new }} [skip ci]" || echo "No changes to commit"
-          git push
-
       - name: Create release tag
         run: |
           git tag "v${{ steps.version.outputs.new }}"
