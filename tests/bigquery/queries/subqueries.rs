@@ -645,7 +645,6 @@ fn test_temp_function_in_expression() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_complex_union_with_nested_subqueries() {
     let mut executor = create_executor();
 
@@ -721,7 +720,6 @@ fn test_complex_union_with_nested_subqueries() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_agg_struct_field_access() {
     let mut executor = create_executor();
 
@@ -788,6 +786,155 @@ fn test_array_agg_struct_field_access() {
             ["u1", "partner_a", "ext2", "mobile", "facebook", "campaign2"],
             ["u2", "partner_b", "ext3", "web", "bing", "campaign3"],
             ["u3", "partner_a", "ext4", "app", "direct", "campaign4"],
+        ]
+    );
+}
+
+#[test]
+fn test_array_agg_ignore_nulls_limit_debug() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            r#"CREATE TABLE attr_debug (
+                user_id STRING,
+                partner STRING,
+                visit_time DATETIME,
+                external_id STRING,
+                source STRING
+            )"#,
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            r#"INSERT INTO attr_debug VALUES
+                ('u1', 'partner_a', DATETIME '2024-01-05 10:00:00', 'ext2', 'facebook'),
+                ('u2', 'partner_b', DATETIME '2024-01-02 10:00:00', 'ext3', 'bing')
+            "#,
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            r#"
+            SELECT
+                user_id,
+                partner,
+                ARRAY_AGG(external_id IGNORE NULLS ORDER BY visit_time ASC LIMIT 1) AS arr
+            FROM attr_debug
+            WHERE source IN ('facebook', 'bing')
+            GROUP BY user_id, partner
+            ORDER BY user_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [["u1", "partner_a", ["ext2"]], ["u2", "partner_b", ["ext3"]],]
+    );
+}
+
+#[test]
+fn test_array_agg_ignore_nulls_limit_safe_offset() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            r#"CREATE TABLE attr_offset (
+                user_id STRING,
+                partner STRING,
+                visit_time DATETIME,
+                external_id STRING,
+                source STRING
+            )"#,
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            r#"INSERT INTO attr_offset VALUES
+                ('u1', 'partner_a', DATETIME '2024-01-05 10:00:00', 'ext2', 'facebook'),
+                ('u2', 'partner_b', DATETIME '2024-01-02 10:00:00', 'ext3', 'bing')
+            "#,
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            r#"
+            SELECT
+                user_id,
+                partner,
+                ARRAY_AGG(external_id IGNORE NULLS ORDER BY visit_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS external_id
+            FROM attr_offset
+            WHERE source IN ('facebook', 'bing')
+            GROUP BY user_id, partner
+            ORDER BY user_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [["u1", "partner_a", "ext2"], ["u2", "partner_b", "ext3"],]
+    );
+}
+
+#[test]
+fn test_array_agg_in_union_all() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            r#"CREATE TABLE attr_union (
+                user_id STRING,
+                partner STRING,
+                visit_time DATETIME,
+                external_id STRING,
+                source STRING
+            )"#,
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            r#"INSERT INTO attr_union VALUES
+                ('u1', 'partner_a', DATETIME '2024-01-01 10:00:00', 'ext1', 'google'),
+                ('u1', 'partner_a', DATETIME '2024-01-05 10:00:00', 'ext2', 'facebook'),
+                ('u2', 'partner_b', DATETIME '2024-01-02 10:00:00', 'ext3', 'bing'),
+                ('u3', 'partner_a', DATETIME '2024-01-03 10:00:00', 'ext4', 'direct')
+            "#,
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            r#"
+            SELECT user_id, partner, external_id
+            FROM attr_union
+            WHERE source IN ('google', 'direct')
+            UNION ALL
+            SELECT
+                user_id,
+                partner,
+                ARRAY_AGG(external_id IGNORE NULLS ORDER BY visit_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS external_id
+            FROM attr_union
+            WHERE source IN ('facebook', 'bing')
+            GROUP BY user_id, partner
+            ORDER BY user_id, external_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["u1", "partner_a", "ext1"],
+            ["u1", "partner_a", "ext2"],
+            ["u2", "partner_b", "ext3"],
+            ["u3", "partner_a", "ext4"],
         ]
     );
 }
