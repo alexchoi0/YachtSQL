@@ -2159,6 +2159,30 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     frame: frame.clone(),
                 }
             }
+            Expr::ArrayAccess { array, index } => {
+                let new_array = self.replace_aggregates_with_columns(
+                    array,
+                    agg_names,
+                    agg_exprs,
+                    agg_fields,
+                    input_schema,
+                    group_by_count,
+                    extracted,
+                );
+                let new_index = self.replace_aggregates_with_columns(
+                    index,
+                    agg_names,
+                    agg_exprs,
+                    agg_fields,
+                    input_schema,
+                    group_by_count,
+                    extracted,
+                );
+                Expr::ArrayAccess {
+                    array: Box::new(new_array),
+                    index: Box::new(new_index),
+                }
+            }
             _ => expr.clone(),
         }
     }
@@ -3849,6 +3873,15 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     || else_result
                         .as_ref()
                         .is_some_and(|e| Self::check_aggregate_expr(e))
+            }
+            ast::Expr::CompoundFieldAccess { root, access_chain } => {
+                Self::check_aggregate_expr(root)
+                    || access_chain.iter().any(|accessor| match accessor {
+                        ast::AccessExpr::Subscript(ast::Subscript::Index { index }) => {
+                            Self::check_aggregate_expr(index)
+                        }
+                        _ => false,
+                    })
             }
             _ => false,
         }
