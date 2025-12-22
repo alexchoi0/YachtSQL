@@ -98,6 +98,12 @@ jobs:
       - name: Verify build
         run: cargo build --release
 
+      - name: Commit version bump
+        run: |
+          git add -A
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new }}" || echo "No changes to commit"
+          git push
+
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
