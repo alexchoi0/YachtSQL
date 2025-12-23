@@ -2,7 +2,8 @@ use chrono::{DateTime, NaiveDate, NaiveTime, Timelike, Utc};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, Value};
 use yachtsql_ir::{Assignment, Expr, Literal, LogicalPlan, MergeClause};
-use yachtsql_storage::{Schema, Table};
+use yachtsql_optimizer::optimize;
+use yachtsql_storage::{Record, Schema, Table};
 
 use super::PlanExecutor;
 use crate::ir_evaluator::IrEvaluator;
@@ -75,6 +76,31 @@ fn coerce_value(value: Value, target_type: &DataType) -> Result<Value> {
 }
 
 impl<'a> PlanExecutor<'a> {
+    fn evaluate_insert_expr(
+        &mut self,
+        expr: &Expr,
+        evaluator: &IrEvaluator,
+        record: &Record,
+    ) -> Result<Value> {
+        match expr {
+            Expr::Subquery(logical_plan) | Expr::ScalarSubquery(logical_plan) => {
+                let physical_plan = optimize(logical_plan)?;
+                let subquery_result = self.execute(&physical_plan)?;
+                let rows = subquery_result.to_records()?;
+                if rows.len() == 1 && rows[0].values().len() == 1 {
+                    Ok(rows[0].values()[0].clone())
+                } else if rows.is_empty() {
+                    Ok(Value::null())
+                } else {
+                    Err(Error::InvalidQuery(
+                        "Scalar subquery returned more than one row".to_string(),
+                    ))
+                }
+            }
+            _ => evaluator.evaluate(expr, record),
+        }
+    }
+
     pub fn execute_insert(
         &mut self,
         table_name: &str,
@@ -105,14 +131,11 @@ impl<'a> PlanExecutor<'a> {
         let fields = target_schema.fields().to_vec();
 
         if let PhysicalPlan::Values { values, .. } = source {
-            let target = self
-                .catalog
-                .get_table_mut(table_name)
-                .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
-
             let empty_schema = yachtsql_storage::Schema::new();
             let values_evaluator = IrEvaluator::new(&empty_schema);
             let empty_rec = yachtsql_storage::Record::from_values(vec![]);
+
+            let mut all_rows: Vec<Vec<Value>> = Vec::new();
 
             for row_exprs in values {
                 if columns.is_empty() {
@@ -121,14 +144,20 @@ impl<'a> PlanExecutor<'a> {
                         if i < fields.len() {
                             let final_val = match expr {
                                 Expr::Default => default_values[i].clone().unwrap_or(Value::Null),
-                                _ => values_evaluator.evaluate(expr, &empty_rec)?,
+                                _ => {
+                                    self.evaluate_insert_expr(expr, &values_evaluator, &empty_rec)?
+                                }
                             };
                             coerced_row.push(coerce_value(final_val, &fields[i].data_type)?);
                         } else {
-                            coerced_row.push(values_evaluator.evaluate(expr, &empty_rec)?);
+                            coerced_row.push(self.evaluate_insert_expr(
+                                expr,
+                                &values_evaluator,
+                                &empty_rec,
+                            )?);
                         }
                     }
-                    target.push_row(coerced_row)?;
+                    all_rows.push(coerced_row);
                 } else {
                     let mut row: Vec<Value> = default_values
                         .iter()
@@ -144,13 +173,25 @@ impl<'a> PlanExecutor<'a> {
                                 Expr::Default => {
                                     default_values[col_idx].clone().unwrap_or(Value::Null)
                                 }
-                                _ => values_evaluator.evaluate(expr, &empty_rec)?,
+                                _ => self.evaluate_insert_expr(
+                                    expr,
+                                    &values_evaluator,
+                                    &empty_rec,
+                                )?,
                             };
                             row[col_idx] = coerce_value(final_val, &fields[col_idx].data_type)?;
                         }
                     }
-                    target.push_row(row)?;
+                    all_rows.push(row);
                 }
+            }
+
+            let target = self
+                .catalog
+                .get_table_mut(table_name)
+                .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
+            for row in all_rows {
+                target.push_row(row)?;
             }
 
             return Ok(Table::empty(Schema::new()));

@@ -20,6 +20,32 @@ fn test_generate_uuid_uniqueness() {
 }
 
 #[test]
+fn test_generate_uuid_lowercase() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT uuid = LOWER(uuid) FROM (SELECT GENERATE_UUID() AS uuid)")
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_generate_uuid_hyphen_positions() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql(
+            "SELECT
+                LENGTH(uuid) = 36
+                AND SUBSTR(uuid, 9, 1) = '-'
+                AND SUBSTR(uuid, 14, 1) = '-'
+                AND SUBSTR(uuid, 19, 1) = '-'
+                AND SUBSTR(uuid, 24, 1) = '-'
+            FROM (SELECT GENERATE_UUID() AS uuid)",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
 fn test_session_user() {
     let mut session = create_session();
     let result = session

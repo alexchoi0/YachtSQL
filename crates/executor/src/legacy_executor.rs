@@ -10032,6 +10032,19 @@ impl QueryExecutor {
                 let right_val = self.evaluate_literal_expr(right)?;
                 self.evaluate_binary_op_values(&left_val, op, &right_val)
             }
+            Expr::Subquery(query) => {
+                let result = self.execute_query(query)?;
+                let rows = result.to_records()?;
+                if rows.len() == 1 && rows[0].values().len() == 1 {
+                    Ok(rows[0].values()[0].clone())
+                } else if rows.is_empty() {
+                    Ok(Value::null())
+                } else {
+                    Err(Error::InvalidQuery(
+                        "Scalar subquery returned more than one row".to_string(),
+                    ))
+                }
+            }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression not supported in this context: {:?}",
                 expr

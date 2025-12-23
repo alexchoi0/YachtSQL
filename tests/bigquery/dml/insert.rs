@@ -278,6 +278,25 @@ fn test_insert_with_array_type() {
 }
 
 #[test]
+fn test_insert_select_with_unnest_simple() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE numbers (n INT64)")
+        .unwrap();
+
+    session
+        .execute_sql("INSERT INTO numbers SELECT * FROM UNNEST([1, 2, 3]) AS n")
+        .unwrap();
+
+    let result = session
+        .execute_sql("SELECT * FROM numbers ORDER BY n")
+        .unwrap();
+
+    assert_table_eq!(result, [[1], [2], [3]]);
+}
+
+#[test]
 #[ignore]
 fn test_insert_select_with_unnest() {
     let mut session = create_session();
@@ -311,6 +330,28 @@ fn test_insert_select_with_unnest() {
 }
 
 #[test]
+fn test_insert_select_with_cte_simple() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE results (id INT64, value INT64)")
+        .unwrap();
+
+    session
+        .execute_sql(
+            "WITH src AS (SELECT 1 AS id, 100 AS value UNION ALL SELECT 2, 200)
+             INSERT INTO results SELECT * FROM src",
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql("SELECT * FROM results ORDER BY id")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, 100], [2, 200]]);
+}
+
+#[test]
 #[ignore]
 fn test_insert_select_with_cte() {
     let mut session = create_session();
@@ -336,6 +377,36 @@ fn test_insert_select_with_cte() {
         .unwrap();
 
     assert_table_eq!(result, [["warehouse #1", "WA"], ["warehouse #2", "CA"],]);
+}
+
+#[test]
+#[ignore]
+fn test_insert_with_nested_struct_simple() {
+    let mut session = create_session();
+
+    session
+        .execute_sql(
+            "CREATE TABLE orders (
+                id INT64,
+                customer STRUCT<name STRING, address STRUCT<city STRING, zip STRING>>
+            )",
+        )
+        .unwrap();
+
+    session
+        .execute_sql(
+            "INSERT INTO orders VALUES (
+                1,
+                STRUCT('John Doe', STRUCT('New York', '10001'))
+            )",
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql("SELECT id, customer FROM orders")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, {"John Doe", {"New York", "10001"}}]]);
 }
 
 #[test]
@@ -396,6 +467,32 @@ fn test_insert_with_array_of_struct() {
         .unwrap();
 
     assert_table_eq!(result, [["washer", 2]]);
+}
+
+#[test]
+fn test_insert_values_with_subquery_simple() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE config (key STRING, value INT64)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO config VALUES ('max', 100)")
+        .unwrap();
+
+    session
+        .execute_sql("CREATE TABLE computed (id INT64, max_value INT64)")
+        .unwrap();
+
+    session
+        .execute_sql(
+            "INSERT INTO computed VALUES (1, (SELECT value FROM config WHERE key = 'max'))",
+        )
+        .unwrap();
+
+    let result = session.execute_sql("SELECT * FROM computed").unwrap();
+
+    assert_table_eq!(result, [[1, 100]]);
 }
 
 #[test]
@@ -475,6 +572,17 @@ fn test_insert_copy_table() {
         .unwrap();
 
     assert_table_eq!(result, [[3]]);
+}
+
+#[test]
+fn test_insert_with_range_function() {
+    let mut session = create_session();
+
+    let result = session
+        .execute_sql("SELECT RANGE_START(RANGE(DATE '2024-01-01', DATE '2024-12-31'))")
+        .unwrap();
+
+    assert_table_eq!(result, [["2024-01-01"]]);
 }
 
 #[test]
