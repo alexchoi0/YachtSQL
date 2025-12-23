@@ -112,6 +112,16 @@ pub enum PhysicalPlan {
         schema: PlanSchema,
     },
 
+    GapFill {
+        input: Box<PhysicalPlan>,
+        ts_column: String,
+        bucket_width: Expr,
+        partition_columns: Vec<String>,
+        origin: Option<Expr>,
+        value_columns: Vec<String>,
+        schema: PlanSchema,
+    },
+
     Qualify {
         input: Box<PhysicalPlan>,
         predicate: Expr,
@@ -333,6 +343,7 @@ impl PhysicalPlan {
             PhysicalPlan::Except { schema, .. } => schema,
             PhysicalPlan::Window { schema, .. } => schema,
             PhysicalPlan::Unnest { schema, .. } => schema,
+            PhysicalPlan::GapFill { schema, .. } => schema,
             PhysicalPlan::Qualify { input, .. } => input.schema(),
             PhysicalPlan::WithCte { body, .. } => body.schema(),
             PhysicalPlan::Values { schema, .. } => schema,

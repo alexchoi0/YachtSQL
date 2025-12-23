@@ -1526,5 +1526,22 @@ fn executor_plan_to_logical_plan(plan: &ExecutorPlan) -> yachtsql_ir::LogicalPla
             },
             sample_value: *sample_value,
         },
+        ExecutorPlan::GapFill {
+            input,
+            ts_column,
+            bucket_width,
+            partition_columns,
+            origin,
+            value_columns,
+            schema,
+        } => LogicalPlan::GapFill {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            ts_column: ts_column.clone(),
+            bucket_width: bucket_width.clone(),
+            partition_columns: partition_columns.clone(),
+            origin: origin.clone(),
+            value_columns: value_columns.clone(),
+            schema: schema.clone(),
+        },
     }
 }

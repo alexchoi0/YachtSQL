@@ -217,6 +217,27 @@ impl PhysicalPlanner {
                 })
             }
 
+            LogicalPlan::GapFill {
+                input,
+                ts_column,
+                bucket_width,
+                partition_columns,
+                origin,
+                value_columns,
+                schema,
+            } => {
+                let input = self.plan(input)?;
+                Ok(PhysicalPlan::GapFill {
+                    input: Box::new(input),
+                    ts_column: ts_column.clone(),
+                    bucket_width: bucket_width.clone(),
+                    partition_columns: partition_columns.clone(),
+                    origin: origin.clone(),
+                    value_columns: value_columns.clone(),
+                    schema: schema.clone(),
+                })
+            }
+
             LogicalPlan::Qualify { input, predicate } => {
                 let input = self.plan(input)?;
                 Ok(PhysicalPlan::Qualify {
@@ -714,6 +735,23 @@ impl PhysicalPlan {
             } => LogicalPlan::Unnest {
                 input: Box::new(input.into_logical()),
                 columns,
+                schema,
+            },
+            PhysicalPlan::GapFill {
+                input,
+                ts_column,
+                bucket_width,
+                partition_columns,
+                origin,
+                value_columns,
+                schema,
+            } => LogicalPlan::GapFill {
+                input: Box::new(input.into_logical()),
+                ts_column,
+                bucket_width,
+                partition_columns,
+                origin,
+                value_columns,
                 schema,
             },
             PhysicalPlan::Qualify { input, predicate } => LogicalPlan::Qualify {

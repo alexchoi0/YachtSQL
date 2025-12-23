@@ -106,6 +106,16 @@ pub enum ExecutorPlan {
         schema: PlanSchema,
     },
 
+    GapFill {
+        input: Box<ExecutorPlan>,
+        ts_column: String,
+        bucket_width: Expr,
+        partition_columns: Vec<String>,
+        origin: Option<Expr>,
+        value_columns: Vec<String>,
+        schema: PlanSchema,
+    },
+
     Qualify {
         input: Box<ExecutorPlan>,
         predicate: Expr,
@@ -463,6 +473,24 @@ impl ExecutorPlan {
             } => ExecutorPlan::Unnest {
                 input: Box::new(Self::from_physical(input)),
                 columns: columns.clone(),
+                schema: schema.clone(),
+            },
+
+            PhysicalPlan::GapFill {
+                input,
+                ts_column,
+                bucket_width,
+                partition_columns,
+                origin,
+                value_columns,
+                schema,
+            } => ExecutorPlan::GapFill {
+                input: Box::new(Self::from_physical(input)),
+                ts_column: ts_column.clone(),
+                bucket_width: bucket_width.clone(),
+                partition_columns: partition_columns.clone(),
+                origin: origin.clone(),
+                value_columns: value_columns.clone(),
                 schema: schema.clone(),
             },
 

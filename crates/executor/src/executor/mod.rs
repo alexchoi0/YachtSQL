@@ -4,6 +4,7 @@ mod ddl;
 mod distinct;
 mod dml;
 mod filter;
+mod gap_fill;
 mod join;
 mod limit;
 mod project;
@@ -177,6 +178,23 @@ impl<'a> PlanExecutor<'a> {
                 columns,
                 schema,
             } => self.execute_unnest(input, columns, schema),
+            ExecutorPlan::GapFill {
+                input,
+                ts_column,
+                bucket_width,
+                partition_columns,
+                origin,
+                value_columns,
+                schema,
+            } => self.execute_gap_fill(
+                input,
+                ts_column,
+                bucket_width,
+                partition_columns,
+                origin.as_ref(),
+                value_columns,
+                schema,
+            ),
             ExecutorPlan::Qualify { input, predicate } => self.execute_qualify(input, predicate),
             ExecutorPlan::Values { values, schema } => self.execute_values(values, schema),
             ExecutorPlan::Empty { schema } => {

@@ -149,6 +149,7 @@ fn collect_union_terms(
         | LogicalPlan::Window { .. }
         | LogicalPlan::WithCte { .. }
         | LogicalPlan::Unnest { .. }
+        | LogicalPlan::GapFill { .. }
         | LogicalPlan::Qualify { .. }
         | LogicalPlan::Insert { .. }
         | LogicalPlan::Update { .. }
@@ -213,6 +214,7 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
         LogicalPlan::Window { input, .. } => references_table(input, table_name),
         LogicalPlan::WithCte { body, .. } => references_table(body, table_name),
         LogicalPlan::Unnest { input, .. } => references_table(input, table_name),
+        LogicalPlan::GapFill { input, .. } => references_table(input, table_name),
         LogicalPlan::Qualify { input, .. } => references_table(input, table_name),
         LogicalPlan::Values { .. } => false,
         LogicalPlan::Empty { .. } => false,

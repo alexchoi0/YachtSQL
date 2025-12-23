@@ -3473,6 +3473,12 @@ impl QueryExecutor {
                     }
                 }
 
+                if table_name_upper == "GAP_FILL" {
+                    if let Some(table_args) = args {
+                        return self.execute_gap_fill(&table_args.args, cte_tables);
+                    }
+                }
+
                 if let Some(cte_table) = cte_tables.get(&table_name_upper) {
                     let table_data = cte_table.clone();
                     let schema = if let Some(alias) = alias {
@@ -3607,6 +3613,21 @@ impl QueryExecutor {
                     result.schema().clone()
                 };
                 Ok((schema, rows))
+            }
+            TableFactor::Function {
+                name,
+                args,
+                alias,
+                ..
+            } => {
+                let func_name = name.to_string().to_uppercase();
+                if func_name == "GAP_FILL" {
+                    return self.execute_gap_fill(args, cte_tables);
+                }
+                Err(Error::UnsupportedFeature(format!(
+                    "Table function not supported: {}",
+                    func_name
+                )))
             }
             TableFactor::UNNEST {
                 alias,
@@ -4113,6 +4134,317 @@ impl QueryExecutor {
         let output_schema = Schema::from_fields(output_fields);
 
         Ok((output_schema, result_rows))
+    }
+
+    fn execute_gap_fill(
+        &self,
+        args: &[ast::FunctionArg],
+        cte_tables: &HashMap<String, Table>,
+    ) -> Result<(Schema, Vec<Record>)> {
+        use chrono::{Duration, NaiveDate, Timelike};
+        use yachtsql_common::types::IntervalValue;
+
+        let mut source_data: Option<Table> = None;
+        let mut ts_column: Option<String> = None;
+        let mut bucket_width: Option<IntervalValue> = None;
+        let mut partition_columns: Vec<String> = Vec::new();
+        let mut origin: Option<Value> = None;
+        let mut value_columns: Vec<String> = Vec::new();
+
+        let empty_schema = Schema::new();
+        let empty_record = Record::from_values(vec![]);
+        let evaluator = Evaluator::new(&empty_schema);
+
+        for arg in args {
+            match arg {
+                ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(expr)) => {
+                    match expr {
+                        Expr::Function(func) if func.name.to_string().to_uppercase() == "TABLE" => {
+                            if let ast::FunctionArguments::List(list) = &func.args {
+                                if let Some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                                    Expr::Identifier(ident),
+                                ))) = list.args.first()
+                                {
+                                    let table_name = ident.value.clone();
+                                    if let Some(cte_table) = cte_tables.get(&table_name.to_uppercase()) {
+                                        source_data = Some(cte_table.clone());
+                                    } else {
+                                        source_data = self.catalog.get_table(&table_name).cloned();
+                                    }
+                                }
+                            }
+                        }
+                        Expr::Subquery(query) => {
+                            let result = self.execute_query(query)?;
+                            source_data = Some(result);
+                        }
+                        _ => {}
+                    }
+                }
+                ast::FunctionArg::Named { name, arg, .. }
+                | ast::FunctionArg::ExprNamed { name, arg, .. } => {
+                    let param_name = name.value.to_uppercase();
+                    match param_name.as_str() {
+                        "TS_COLUMN" => {
+                            if let ast::FunctionArgExpr::Expr(Expr::Identifier(ident)) = arg {
+                                ts_column = Some(ident.value.clone());
+                            }
+                        }
+                        "BUCKET_WIDTH" => {
+                            if let ast::FunctionArgExpr::Expr(Expr::Interval(interval)) = arg {
+                                let val = evaluator.evaluate(&interval.value, &empty_record)?;
+                                if let Value::Int64(amount) = val {
+                                    let unit = interval
+                                        .leading_field
+                                        .as_ref()
+                                        .map(|u| u.to_string().to_uppercase())
+                                        .unwrap_or_else(|| "DAY".to_string());
+                                    bucket_width = Some(match unit.as_str() {
+                                        "YEAR" => IntervalValue::from_months(amount as i32 * 12),
+                                        "MONTH" => IntervalValue::from_months(amount as i32),
+                                        "DAY" => IntervalValue::from_days(amount as i32),
+                                        "HOUR" => IntervalValue::from_hours(amount),
+                                        "MINUTE" => IntervalValue::new(
+                                            0,
+                                            0,
+                                            amount * IntervalValue::MICROS_PER_MINUTE * IntervalValue::NANOS_PER_MICRO,
+                                        ),
+                                        "SECOND" => IntervalValue::new(
+                                            0,
+                                            0,
+                                            amount * IntervalValue::MICROS_PER_SECOND * IntervalValue::NANOS_PER_MICRO,
+                                        ),
+                                        _ => IntervalValue::from_days(amount as i32),
+                                    });
+                                }
+                            }
+                        }
+                        "PARTITIONING" => {
+                            if let ast::FunctionArgExpr::Expr(Expr::Tuple(exprs)) = arg {
+                                for expr in exprs {
+                                    if let Expr::Identifier(ident) = expr {
+                                        partition_columns.push(ident.value.clone());
+                                    }
+                                }
+                            } else if let ast::FunctionArgExpr::Expr(Expr::Identifier(ident)) = arg {
+                                partition_columns.push(ident.value.clone());
+                            }
+                        }
+                        "ORIGIN" => {
+                            if let ast::FunctionArgExpr::Expr(expr) = arg {
+                                origin = Some(evaluator.evaluate(expr, &empty_record)?);
+                            }
+                        }
+                        "VALUE_COLUMNS" => {
+                            if let ast::FunctionArgExpr::Expr(Expr::Tuple(exprs)) = arg {
+                                for expr in exprs {
+                                    if let Expr::Identifier(ident) = expr {
+                                        value_columns.push(ident.value.clone());
+                                    }
+                                }
+                            } else if let ast::FunctionArgExpr::Expr(Expr::Identifier(ident)) = arg {
+                                value_columns.push(ident.value.clone());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let source = source_data.ok_or_else(|| {
+            Error::InvalidQuery("GAP_FILL requires a source table or subquery".to_string())
+        })?;
+        let ts_col = ts_column.ok_or_else(|| {
+            Error::InvalidQuery("GAP_FILL requires ts_column parameter".to_string())
+        })?;
+        let interval = bucket_width.ok_or_else(|| {
+            Error::InvalidQuery("GAP_FILL requires bucket_width parameter".to_string())
+        })?;
+
+        let schema = source.schema().clone();
+        let rows = source.to_records()?;
+
+        let ts_col_idx = schema
+            .fields()
+            .iter()
+            .position(|f| f.name.to_uppercase() == ts_col.to_uppercase())
+            .ok_or_else(|| {
+                Error::InvalidQuery(format!("Column '{}' not found in source", ts_col))
+            })?;
+
+        let partition_indices: Vec<usize> = partition_columns
+            .iter()
+            .map(|col| {
+                schema
+                    .fields()
+                    .iter()
+                    .position(|f| f.name.to_uppercase() == col.to_uppercase())
+                    .ok_or_else(|| Error::InvalidQuery(format!("Partition column '{}' not found", col)))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let value_indices: Vec<usize> = if value_columns.is_empty() {
+            (0..schema.fields().len())
+                .filter(|i| *i != ts_col_idx && !partition_indices.contains(i))
+                .collect()
+        } else {
+            value_columns
+                .iter()
+                .map(|col| {
+                    schema
+                        .fields()
+                        .iter()
+                        .position(|f| f.name.to_uppercase() == col.to_uppercase())
+                        .ok_or_else(|| {
+                            Error::InvalidQuery(format!("Value column '{}' not found", col))
+                        })
+                })
+                .collect::<Result<Vec<_>>>()?
+        };
+
+        let mut partitions: HashMap<Vec<Value>, Vec<&Record>> = HashMap::new();
+        for row in &rows {
+            let partition_key: Vec<Value> = partition_indices
+                .iter()
+                .map(|&i| row.values()[i].clone())
+                .collect();
+            partitions.entry(partition_key).or_default().push(row);
+        }
+
+        let mut result_rows: Vec<Record> = Vec::new();
+
+        for (partition_key, partition_rows) in partitions {
+            let mut timestamps: Vec<i64> = Vec::new();
+            let mut ts_type = DataType::Timestamp;
+
+            for row in &partition_rows {
+                let ts_val = &row.values()[ts_col_idx];
+                match ts_val {
+                    Value::Timestamp(ts) => {
+                        timestamps.push(ts.timestamp_micros());
+                        ts_type = DataType::Timestamp;
+                    }
+                    Value::Date(d) => {
+                        let ts = d.and_hms_opt(0, 0, 0).unwrap();
+                        timestamps.push(
+                            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                                ts,
+                                chrono::Utc,
+                            )
+                            .timestamp_micros(),
+                        );
+                        ts_type = DataType::Date;
+                    }
+                    Value::DateTime(dt) => {
+                        timestamps.push(
+                            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                                *dt,
+                                chrono::Utc,
+                            )
+                            .timestamp_micros(),
+                        );
+                        ts_type = DataType::DateTime;
+                    }
+                    _ => {}
+                }
+            }
+
+            if timestamps.is_empty() {
+                continue;
+            }
+
+            let min_ts = *timestamps.iter().min().unwrap();
+            let max_ts = *timestamps.iter().max().unwrap();
+
+            let origin_micros = match &origin {
+                Some(Value::Timestamp(ts)) => ts.timestamp_micros(),
+                Some(Value::Date(d)) => {
+                    let ts = d.and_hms_opt(0, 0, 0).unwrap();
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ts, chrono::Utc)
+                        .timestamp_micros()
+                }
+                Some(Value::DateTime(dt)) => {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(*dt, chrono::Utc)
+                        .timestamp_micros()
+                }
+                _ => min_ts,
+            };
+
+            let bucket_micros = if interval.months > 0 {
+                (interval.months as i64) * 30 * 24 * 60 * 60 * 1_000_000
+            } else if interval.days > 0 {
+                (interval.days as i64) * 24 * 60 * 60 * 1_000_000
+            } else {
+                interval.nanos / IntervalValue::NANOS_PER_MICRO
+            };
+
+            if bucket_micros <= 0 {
+                return Err(Error::InvalidQuery(
+                    "bucket_width must be positive".to_string(),
+                ));
+            }
+
+            let start_bucket = origin_micros
+                + ((min_ts - origin_micros) / bucket_micros) * bucket_micros;
+
+            let mut row_map: HashMap<i64, &Record> = HashMap::new();
+            for row in &partition_rows {
+                let ts_val = &row.values()[ts_col_idx];
+                let ts_micros = match ts_val {
+                    Value::Timestamp(ts) => ts.timestamp_micros(),
+                    Value::Date(d) => {
+                        let ts = d.and_hms_opt(0, 0, 0).unwrap();
+                        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(ts, chrono::Utc)
+                            .timestamp_micros()
+                    }
+                    Value::DateTime(dt) => {
+                        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(*dt, chrono::Utc)
+                            .timestamp_micros()
+                    }
+                    _ => continue,
+                };
+                let bucket = origin_micros + ((ts_micros - origin_micros) / bucket_micros) * bucket_micros;
+                row_map.insert(bucket, row);
+            }
+
+            let mut current_bucket = start_bucket;
+            while current_bucket <= max_ts {
+                let mut row_values: Vec<Value> = vec![Value::Null; schema.fields().len()];
+
+                for (i, pk_val) in partition_key.iter().enumerate() {
+                    row_values[partition_indices[i]] = pk_val.clone();
+                }
+
+                if let Some(existing_row) = row_map.get(&current_bucket) {
+                    for (i, val) in existing_row.values().iter().enumerate() {
+                        row_values[i] = val.clone();
+                    }
+                } else {
+                    let ts_val = match ts_type {
+                        DataType::Timestamp => {
+                            Value::timestamp(chrono::DateTime::from_timestamp_micros(current_bucket).unwrap())
+                        }
+                        DataType::Date => {
+                            let dt = chrono::DateTime::from_timestamp_micros(current_bucket).unwrap();
+                            Value::date(dt.date_naive())
+                        }
+                        DataType::DateTime => {
+                            let dt = chrono::DateTime::from_timestamp_micros(current_bucket).unwrap();
+                            Value::datetime(dt.naive_utc())
+                        }
+                        _ => Value::Null,
+                    };
+                    row_values[ts_col_idx] = ts_val;
+                }
+
+                result_rows.push(Record::from_values(row_values));
+                current_bucket += bucket_micros;
+            }
+        }
+
+        Ok((schema, result_rows))
     }
 
     fn has_aggregate_functions(&self, projection: &[SelectItem]) -> bool {

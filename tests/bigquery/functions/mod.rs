@@ -16,4 +16,5 @@ mod safe;
 mod security;
 mod statistical;
 mod string;
+mod timeseries;
 mod udf;

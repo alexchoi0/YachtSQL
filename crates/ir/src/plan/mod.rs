@@ -117,6 +117,16 @@ pub enum LogicalPlan {
         schema: PlanSchema,
     },
 
+    GapFill {
+        input: Box<LogicalPlan>,
+        ts_column: String,
+        bucket_width: Expr,
+        partition_columns: Vec<String>,
+        origin: Option<Expr>,
+        value_columns: Vec<String>,
+        schema: PlanSchema,
+    },
+
     Qualify {
         input: Box<LogicalPlan>,
         predicate: Expr,
@@ -322,6 +332,7 @@ impl LogicalPlan {
             LogicalPlan::Window { schema, .. } => schema,
             LogicalPlan::WithCte { body, .. } => body.schema(),
             LogicalPlan::Unnest { schema, .. } => schema,
+            LogicalPlan::GapFill { schema, .. } => schema,
             LogicalPlan::Qualify { input, .. } => input.schema(),
             LogicalPlan::Insert { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Update { .. } => &EMPTY_SCHEMA,
