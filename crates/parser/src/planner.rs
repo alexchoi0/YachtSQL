@@ -4308,6 +4308,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
                     ScalarFunction::Abs
                     | ScalarFunction::Sqrt
+                    | ScalarFunction::Cbrt
                     | ScalarFunction::Power
                     | ScalarFunction::Pow
                     | ScalarFunction::Exp
