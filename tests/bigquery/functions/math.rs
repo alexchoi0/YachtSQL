@@ -332,7 +332,6 @@ fn test_tanh() {
 }
 
 #[test]
-#[ignore]
 fn test_asinh() {
     let mut session = create_session();
 
@@ -342,7 +341,6 @@ fn test_asinh() {
 }
 
 #[test]
-#[ignore]
 fn test_acosh() {
     let mut session = create_session();
 
@@ -352,7 +350,6 @@ fn test_acosh() {
 }
 
 #[test]
-#[ignore]
 fn test_atanh() {
     let mut session = create_session();
 
