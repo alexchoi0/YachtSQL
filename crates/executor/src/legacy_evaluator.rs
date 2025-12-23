@@ -4158,6 +4158,21 @@ impl<'a> Evaluator<'a> {
                     None => Ok(Value::null()),
                 }
             }
+            "CBRT" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery("CBRT requires 1 argument".to_string()));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let n = args[0]
+                    .as_f64()
+                    .or_else(|| args[0].as_i64().map(|i| i as f64));
+                match n {
+                    Some(v) => Ok(Value::float64(v.cbrt())),
+                    None => Ok(Value::null()),
+                }
+            }
             "LOG" | "LN" => {
                 if args.len() != 1 {
                     return Err(Error::InvalidQuery("LOG requires 1 argument".to_string()));
@@ -4362,6 +4377,64 @@ impl<'a> Evaluator<'a> {
                     }
                     _ => Err(Error::InvalidQuery(format!(
                         "DATETIME requires 1, 2, or 6 arguments, got {}",
+                        args.len()
+                    ))),
+                }
+            }
+            "TIME" => {
+                if args.is_empty() {
+                    return Err(Error::InvalidQuery("TIME requires arguments".to_string()));
+                }
+                if args.iter().any(|a| a.is_null()) {
+                    return Ok(Value::null());
+                }
+                match args.len() {
+                    1 => {
+                        if let Some(t) = args[0].as_time() {
+                            return Ok(Value::time(t));
+                        }
+                        if let Some(ts) = args[0].as_timestamp() {
+                            return Ok(Value::time(ts.time()));
+                        }
+                        if let Some(dt) = args[0].as_datetime() {
+                            return Ok(Value::time(dt.time()));
+                        }
+                        if let Some(s) = args[0].as_str() {
+                            if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M:%S") {
+                                return Ok(Value::time(time));
+                            }
+                            if let Ok(time) = chrono::NaiveTime::parse_from_str(s, "%H:%M:%S%.f") {
+                                return Ok(Value::time(time));
+                            }
+                        }
+                        Ok(Value::null())
+                    }
+                    3 => {
+                        let hour = args[0].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[0].data_type().to_string(),
+                        })? as u32;
+                        let minute = args[1].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[1].data_type().to_string(),
+                        })? as u32;
+                        let second = args[2].as_i64().ok_or_else(|| Error::TypeMismatch {
+                            expected: "INT64".to_string(),
+                            actual: args[2].data_type().to_string(),
+                        })? as u32;
+                        let time =
+                            chrono::NaiveTime::from_hms_opt(hour, minute, second).ok_or_else(
+                                || {
+                                    Error::InvalidQuery(format!(
+                                        "Invalid time: {}:{}:{}",
+                                        hour, minute, second
+                                    ))
+                                },
+                            )?;
+                        Ok(Value::time(time))
+                    }
+                    _ => Err(Error::InvalidQuery(format!(
+                        "TIME requires 1 or 3 arguments, got {}",
                         args.len()
                     ))),
                 }

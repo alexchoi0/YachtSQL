@@ -307,6 +307,20 @@ pub enum LogicalPlan {
         condition: Expr,
         message: Option<Expr>,
     },
+
+    Grant {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
+    },
+
+    Revoke {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
+    },
 }
 
 impl LogicalPlan {
@@ -362,6 +376,8 @@ impl LogicalPlan {
             LogicalPlan::CreateSnapshot { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropSnapshot { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Assert { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Grant { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Revoke { .. } => &EMPTY_SCHEMA,
         }
     }
 

@@ -184,7 +184,9 @@ fn collect_union_terms(
         | LogicalPlan::CreateSnapshot { .. }
         | LogicalPlan::DropSnapshot { .. }
         | LogicalPlan::Sample { .. }
-        | LogicalPlan::Assert { .. } => {
+        | LogicalPlan::Assert { .. }
+        | LogicalPlan::Grant { .. }
+        | LogicalPlan::Revoke { .. } => {
             if references_table(plan, cte_name) {
                 recursives.push(plan.clone());
             } else {
@@ -264,5 +266,7 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
         LogicalPlan::DropSnapshot { .. } => false,
         LogicalPlan::Sample { input, .. } => references_table(input, table_name),
         LogicalPlan::Assert { .. } => false,
+        LogicalPlan::Grant { .. } => false,
+        LogicalPlan::Revoke { .. } => false,
     }
 }

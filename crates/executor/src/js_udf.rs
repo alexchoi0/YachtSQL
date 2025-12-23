@@ -93,6 +93,10 @@ fn value_to_js<'s>(
             let f: f64 = d.to_string().parse().unwrap_or(0.0);
             Ok(v8::Number::new(scope, f).into())
         }
+        Value::BigNumeric(d) => {
+            let f: f64 = d.to_string().parse().unwrap_or(0.0);
+            Ok(v8::Number::new(scope, f).into())
+        }
         Value::String(s) => {
             let str = v8::String::new(scope, s).ok_or("Failed to create string")?;
             Ok(str.into())
@@ -356,6 +360,7 @@ mod tests {
             | Value::Int64(_)
             | Value::Float64(_)
             | Value::Numeric(_)
+            | Value::BigNumeric(_)
             | Value::String(_)
             | Value::Bytes(_)
             | Value::Date(_)

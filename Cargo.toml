@@ -91,6 +91,10 @@ wkt = { version = "0.11", features = ["geo-types"] }
 geojson = { version = "0.24", features = ["geo-types"] }
 geohash = "0.13"
 
+[features]
+default = []
+concurrent = ["yachtsql-executor/concurrent"]
+
 [dev-dependencies]
 proptest = "1.5"
 criterion = { version = "0.5", features = ["html_reports"] }

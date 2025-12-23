@@ -1,25 +1,25 @@
-use yachtsql::QueryExecutor;
+use yachtsql::YachtSQLSession;
 
 use crate::assert_table_eq;
-use crate::common::{create_executor, d};
+use crate::common::{create_session, d};
 
-fn setup_tables(executor: &mut QueryExecutor) {
-    executor
+fn setup_tables(session: &mut YachtSQLSession) {
+    session
         .execute_sql(
             "CREATE TABLE employees (id INT64, name STRING, manager_id INT64, salary INT64)",
         )
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO employees VALUES (1, 'CEO', NULL, 200000), (2, 'VP', 1, 150000), (3, 'Manager', 2, 100000), (4, 'Developer', 3, 80000)")
         .unwrap();
 }
 
 #[test]
 fn test_simple_cte() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH high_earners AS (SELECT name, salary FROM employees WHERE salary > 100000) SELECT name FROM high_earners ORDER BY salary DESC",
         )
@@ -30,10 +30,10 @@ fn test_simple_cte() {
 
 #[test]
 fn test_cte_with_column_aliases() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH emp_data (emp_name, emp_salary) AS (SELECT name, salary FROM employees) SELECT emp_name FROM emp_data WHERE emp_salary > 100000 ORDER BY emp_salary DESC",
         )
@@ -44,10 +44,10 @@ fn test_cte_with_column_aliases() {
 
 #[test]
 fn test_multiple_ctes() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH managers AS (SELECT id, name FROM employees WHERE manager_id IS NOT NULL), top_managers AS (SELECT id, name FROM managers WHERE id IN (SELECT manager_id FROM employees)) SELECT name FROM top_managers ORDER BY id",
         )
@@ -58,10 +58,10 @@ fn test_multiple_ctes() {
 
 #[test]
 fn test_cte_used_multiple_times() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH emp AS (SELECT * FROM employees), stats AS (SELECT COUNT(*) AS cnt, AVG(salary) AS avg_sal FROM emp) SELECT cnt AS total, CAST(avg_sal AS FLOAT64) AS avg_salary FROM stats",
         )
@@ -72,10 +72,10 @@ fn test_cte_used_multiple_times() {
 
 #[test]
 fn test_cte_with_join() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH mgrs AS (SELECT id, name AS mgr_name FROM employees WHERE id IN (SELECT manager_id FROM employees WHERE manager_id IS NOT NULL)) SELECT e.name, m.mgr_name FROM employees e JOIN mgrs m ON e.manager_id = m.id ORDER BY e.id",
         )
@@ -90,10 +90,10 @@ fn test_cte_with_join() {
 #[test]
 
 fn test_recursive_cte() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE emp_hierarchy AS (SELECT id, name, manager_id, 1 AS level FROM employees WHERE manager_id IS NULL UNION ALL SELECT e.id, e.name, e.manager_id, h.level + 1 FROM employees e JOIN emp_hierarchy h ON e.manager_id = h.id) SELECT name, level FROM emp_hierarchy ORDER BY level, id",
         )
@@ -108,16 +108,16 @@ fn test_recursive_cte() {
 #[test]
 
 fn test_recursive_cte_with_limit() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE numbers (n INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO numbers VALUES (1)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE cnt AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM cnt WHERE n < 5) SELECT n FROM cnt ORDER BY n",
         )
@@ -128,10 +128,10 @@ fn test_recursive_cte_with_limit() {
 
 #[test]
 fn test_cte_with_aggregation() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH salary_stats AS (SELECT AVG(salary) AS avg_sal, MAX(salary) AS max_sal FROM employees) SELECT name FROM employees, salary_stats WHERE salary > avg_sal ORDER BY salary DESC",
         )
@@ -142,10 +142,10 @@ fn test_cte_with_aggregation() {
 
 #[test]
 fn test_cte_in_subquery() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT name FROM employees WHERE salary > (WITH avg_sal AS (SELECT AVG(salary) AS val FROM employees) SELECT val FROM avg_sal) ORDER BY salary DESC",
         )
@@ -157,20 +157,20 @@ fn test_cte_in_subquery() {
 #[test]
 
 fn test_cte_with_insert() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    executor
+    session
         .execute_sql("CREATE TABLE high_earners (name STRING, salary INT64)")
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "WITH he AS (SELECT name, salary FROM employees WHERE salary > 100000) INSERT INTO high_earners SELECT * FROM he",
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM high_earners ORDER BY salary DESC")
         .unwrap();
 
@@ -180,16 +180,16 @@ fn test_cte_with_insert() {
 #[test]
 
 fn test_cte_with_update() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    executor
+    session
         .execute_sql(
             "WITH low_earners AS (SELECT id FROM employees WHERE salary < 100000) UPDATE employees SET salary = CAST(salary * 1.1 AS INT64) WHERE id IN (SELECT id FROM low_earners)",
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT salary FROM employees WHERE name = 'Developer'")
         .unwrap();
 
@@ -199,16 +199,16 @@ fn test_cte_with_update() {
 #[test]
 
 fn test_cte_with_delete() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    executor
+    session
         .execute_sql(
             "WITH low_earners AS (SELECT id FROM employees WHERE salary < 90000) DELETE FROM employees WHERE id IN (SELECT id FROM low_earners)",
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT COUNT(*) FROM employees")
         .unwrap();
 
@@ -218,9 +218,9 @@ fn test_cte_with_delete() {
 #[test]
 
 fn test_recursive_cte_fibonacci() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE fib AS (
                 SELECT 1 AS n, 1 AS fib_n, 1 AS fib_n_minus_1
@@ -253,12 +253,12 @@ fn test_recursive_cte_fibonacci() {
 #[test]
 
 fn test_recursive_cte_path_finding() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE edges (from_node STRING, to_node STRING, weight INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO edges VALUES
             ('A', 'B', 1), ('B', 'C', 2), ('C', 'D', 1),
@@ -266,7 +266,7 @@ fn test_recursive_cte_path_finding() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE paths AS (
                 SELECT from_node AS start_node, to_node AS end_node,
@@ -292,12 +292,12 @@ fn test_recursive_cte_path_finding() {
 #[test]
 
 fn test_recursive_cte_tree_aggregation() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE org (id INT64, name STRING, parent_id INT64, salary INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO org VALUES
             (1, 'CEO', NULL, 500000),
@@ -310,7 +310,7 @@ fn test_recursive_cte_tree_aggregation() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE subtree AS (
                 SELECT id, name, parent_id, salary, 0 AS depth
@@ -341,9 +341,9 @@ fn test_recursive_cte_tree_aggregation() {
 #[test]
 
 fn test_recursive_cte_generate_series() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE series AS (
                 SELECT DATE '2024-01-01' AS dt
@@ -373,9 +373,9 @@ fn test_recursive_cte_generate_series() {
 #[test]
 
 fn test_recursive_cte_max_depth() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE deep AS (
                 SELECT 1 AS level, 'start' AS data
@@ -394,12 +394,12 @@ fn test_recursive_cte_max_depth() {
 #[test]
 
 fn test_recursive_cte_with_aggregation() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE categories (id INT64, name STRING, parent_id INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO categories VALUES
             (1, 'Electronics', NULL),
@@ -410,7 +410,7 @@ fn test_recursive_cte_with_aggregation() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE cat_tree AS (
                 SELECT id, name, parent_id, 1 AS level, CAST(name AS STRING) AS path
@@ -440,9 +440,9 @@ fn test_recursive_cte_with_aggregation() {
 #[test]
 
 fn test_recursive_cte_multiple_anchors() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE multi AS (
                 SELECT 1 AS n, 'A' AS source
@@ -473,9 +473,9 @@ fn test_recursive_cte_multiple_anchors() {
 #[test]
 
 fn test_recursive_cte_string_accumulation() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH RECURSIVE words AS (
                 SELECT 1 AS pos, 'Hello' AS word, 'Hello' AS sentence
@@ -503,10 +503,10 @@ fn test_recursive_cte_string_accumulation() {
 
 #[test]
 fn test_cte_referencing_another_cte() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH
                 base AS (SELECT * FROM employees),
@@ -521,10 +521,10 @@ fn test_cte_referencing_another_cte() {
 
 #[test]
 fn test_cte_with_window_functions() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH windowed AS (
                 SELECT

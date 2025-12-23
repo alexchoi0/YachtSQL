@@ -711,6 +711,14 @@ fn is_distinct_aggregate(expr: &Expr) -> bool {
     }
 }
 
+fn extract_agg_limit(expr: &Expr) -> Option<usize> {
+    match expr {
+        Expr::Aggregate { limit, .. } => *limit,
+        Expr::Alias { expr, .. } => extract_agg_limit(expr),
+        _ => None,
+    }
+}
+
 fn has_ignore_nulls(expr: &Expr) -> bool {
     match expr {
         Expr::Aggregate { ignore_nulls, .. } => *ignore_nulls,
@@ -877,6 +885,7 @@ enum Accumulator {
     ArrayAgg {
         items: Vec<(Value, Vec<(Value, bool)>)>,
         ignore_nulls: bool,
+        limit: Option<usize>,
     },
     StringAgg {
         values: Vec<String>,
@@ -964,6 +973,7 @@ impl Accumulator {
                 AggregateFunction::ArrayAgg => Accumulator::ArrayAgg {
                     items: Vec::new(),
                     ignore_nulls: has_ignore_nulls(expr),
+                    limit: extract_agg_limit(expr),
                 },
                 AggregateFunction::StringAgg => Accumulator::StringAgg {
                     values: Vec::new(),
@@ -1252,6 +1262,7 @@ impl Accumulator {
             Accumulator::ArrayAgg {
                 items,
                 ignore_nulls,
+                ..
             } => {
                 if *ignore_nulls && value.is_null() {
                     return Ok(());
@@ -1461,7 +1472,7 @@ impl Accumulator {
             }
             Accumulator::Min(min) => min.clone().unwrap_or(Value::Null),
             Accumulator::Max(max) => max.clone().unwrap_or(Value::Null),
-            Accumulator::ArrayAgg { items, .. } => {
+            Accumulator::ArrayAgg { items, limit, .. } => {
                 let mut sorted_items = items.clone();
                 if !sorted_items.is_empty() && !sorted_items[0].1.is_empty() {
                     sorted_items.sort_by(|a, b| {
@@ -1477,7 +1488,16 @@ impl Accumulator {
                         std::cmp::Ordering::Equal
                     });
                 }
-                Value::Array(sorted_items.into_iter().map(|(v, _)| v).collect())
+                let result_items: Vec<Value> = if let Some(lim) = limit {
+                    sorted_items
+                        .into_iter()
+                        .take(*lim)
+                        .map(|(v, _)| v)
+                        .collect()
+                } else {
+                    sorted_items.into_iter().map(|(v, _)| v).collect()
+                };
+                Value::Array(result_items)
             }
             Accumulator::StringAgg { values, separator } => {
                 if values.is_empty() {

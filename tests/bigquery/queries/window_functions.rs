@@ -1,23 +1,23 @@
-use yachtsql::QueryExecutor;
+use yachtsql::YachtSQLSession;
 
 use crate::assert_table_eq;
-use crate::common::create_executor;
+use crate::common::create_session;
 
-fn setup_tables(executor: &mut QueryExecutor) {
-    executor
+fn setup_tables(session: &mut YachtSQLSession) {
+    session
         .execute_sql("CREATE TABLE sales (id INT64, employee STRING, department STRING, amount INT64, sale_date DATE)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO sales VALUES (1, 'Alice', 'Electronics', 1000, '2024-01-01'), (2, 'Bob', 'Electronics', 1500, '2024-01-02'), (3, 'Alice', 'Electronics', 2000, '2024-01-03'), (4, 'Charlie', 'Clothing', 800, '2024-01-01'), (5, 'Diana', 'Clothing', 1200, '2024-01-02')")
         .unwrap();
 }
 
 #[test]
 fn test_row_number() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, ROW_NUMBER() OVER (ORDER BY amount DESC) AS rn FROM sales ORDER BY rn",
         )
@@ -37,10 +37,10 @@ fn test_row_number() {
 
 #[test]
 fn test_row_number_with_partition() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, department, amount, ROW_NUMBER() OVER (PARTITION BY department ORDER BY amount DESC) AS rn FROM sales ORDER BY department, rn",
         )
@@ -60,16 +60,16 @@ fn test_row_number_with_partition() {
 
 #[test]
 fn test_rank() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO scores VALUES ('A', 100), ('B', 100), ('C', 90), ('D', 80)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT name, score, RANK() OVER (ORDER BY score DESC) AS rank FROM scores ORDER BY rank, name",
         )
@@ -83,16 +83,16 @@ fn test_rank() {
 
 #[test]
 fn test_dense_rank() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE scores (name STRING, score INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO scores VALUES ('A', 100), ('B', 100), ('C', 90), ('D', 80)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT name, score, DENSE_RANK() OVER (ORDER BY score DESC) AS drank FROM scores ORDER BY drank, name",
         )
@@ -106,10 +106,10 @@ fn test_dense_rank() {
 
 #[test]
 fn test_ntile() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, NTILE(2) OVER (ORDER BY amount DESC) AS bucket FROM sales ORDER BY bucket, amount DESC",
         )
@@ -129,10 +129,10 @@ fn test_ntile() {
 
 #[test]
 fn test_lag() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, LAG(amount) OVER (ORDER BY id) AS prev_amount FROM sales ORDER BY id",
         )
@@ -152,10 +152,10 @@ fn test_lag() {
 
 #[test]
 fn test_lag_with_offset() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, LAG(amount, 2) OVER (ORDER BY id) AS prev2_amount FROM sales ORDER BY id",
         )
@@ -175,10 +175,10 @@ fn test_lag_with_offset() {
 
 #[test]
 fn test_lag_with_default() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, LAG(amount, 1, 0) OVER (ORDER BY id) AS prev_amount FROM sales ORDER BY id",
         )
@@ -198,10 +198,10 @@ fn test_lag_with_default() {
 
 #[test]
 fn test_lead() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, LEAD(amount) OVER (ORDER BY id) AS next_amount FROM sales ORDER BY id",
         )
@@ -221,10 +221,10 @@ fn test_lead() {
 
 #[test]
 fn test_first_value() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, department, amount, FIRST_VALUE(employee) OVER (PARTITION BY department ORDER BY amount DESC) AS top_seller FROM sales ORDER BY department, id",
         )
@@ -244,10 +244,10 @@ fn test_first_value() {
 
 #[test]
 fn test_last_value() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, department, amount, LAST_VALUE(employee) OVER (PARTITION BY department ORDER BY amount DESC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS lowest_seller FROM sales ORDER BY department, id",
         )
@@ -267,10 +267,10 @@ fn test_last_value() {
 
 #[test]
 fn test_sum_over() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, SUM(amount) OVER (ORDER BY id) AS running_total FROM sales ORDER BY id",
         )
@@ -290,10 +290,10 @@ fn test_sum_over() {
 
 #[test]
 fn test_avg_over_partition() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, department, amount, AVG(amount) OVER (PARTITION BY department) AS dept_avg FROM sales ORDER BY department, id",
         )
@@ -313,10 +313,10 @@ fn test_avg_over_partition() {
 
 #[test]
 fn test_count_over() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, COUNT(*) OVER (PARTITION BY employee) AS sale_count FROM sales ORDER BY employee, id",
         )
@@ -336,10 +336,10 @@ fn test_count_over() {
 
 #[test]
 fn test_min_max_over() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, MIN(amount) OVER () AS min_sale, MAX(amount) OVER () AS max_sale FROM sales ORDER BY id",
         )
@@ -359,10 +359,10 @@ fn test_min_max_over() {
 
 #[test]
 fn test_window_frame_rows() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, SUM(amount) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS window_sum FROM sales ORDER BY id",
         )
@@ -382,10 +382,10 @@ fn test_window_frame_rows() {
 
 #[test]
 fn test_window_frame_range() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, SUM(amount) OVER (ORDER BY amount RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumsum FROM sales ORDER BY amount",
         )
@@ -405,10 +405,10 @@ fn test_window_frame_range() {
 
 #[test]
 fn test_multiple_window_functions() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, ROW_NUMBER() OVER (ORDER BY amount DESC) AS rn, RANK() OVER (ORDER BY amount DESC) AS rnk, SUM(amount) OVER () AS total FROM sales ORDER BY rn",
         )
@@ -428,10 +428,10 @@ fn test_multiple_window_functions() {
 
 #[test]
 fn test_percent_rank() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, PERCENT_RANK() OVER (ORDER BY amount) AS prank FROM sales ORDER BY amount",
         )
@@ -451,10 +451,10 @@ fn test_percent_rank() {
 
 #[test]
 fn test_cume_dist() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, CUME_DIST() OVER (ORDER BY amount) AS cdist FROM sales ORDER BY amount",
         )
@@ -474,10 +474,10 @@ fn test_cume_dist() {
 
 #[test]
 fn test_named_window() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, SUM(amount) OVER w AS running_sum
              FROM sales
@@ -500,10 +500,10 @@ fn test_named_window() {
 
 #[test]
 fn test_named_window_with_partition() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, department, amount, ROW_NUMBER() OVER w AS rn
              FROM sales
@@ -526,10 +526,10 @@ fn test_named_window_with_partition() {
 
 #[test]
 fn test_named_window_with_rows_between() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT employee, amount, SUM(amount) OVER w AS rolling_sum
              FROM sales

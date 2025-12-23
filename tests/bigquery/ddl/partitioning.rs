@@ -1,11 +1,11 @@
 use crate::assert_table_eq;
-use crate::common::create_executor;
+use crate::common::create_session;
 
 #[test]
 fn test_partition_by_date() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE events (
                 event_id INT64,
@@ -16,19 +16,19 @@ fn test_partition_by_date() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO events VALUES (1, DATE '2024-01-15', 'Event A')")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT event_id FROM events").unwrap();
+    let result = session.execute_sql("SELECT event_id FROM events").unwrap();
     assert_table_eq!(result, [[1]]);
 }
 
 #[test]
 fn test_partition_by_date_trunc() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE monthly_data (
                 id INT64,
@@ -39,19 +39,19 @@ fn test_partition_by_date_trunc() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO monthly_data VALUES (1, DATE '2024-01-15', 100)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT id FROM monthly_data").unwrap();
+    let result = session.execute_sql("SELECT id FROM monthly_data").unwrap();
     assert_table_eq!(result, [[1]]);
 }
 
 #[test]
 fn test_partition_by_timestamp() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE logs (
                 log_id INT64,
@@ -62,19 +62,19 @@ fn test_partition_by_timestamp() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO logs VALUES (1, TIMESTAMP '2024-01-15 10:30:00', 'Test log')")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT log_id FROM logs").unwrap();
+    let result = session.execute_sql("SELECT log_id FROM logs").unwrap();
     assert_table_eq!(result, [[1]]);
 }
 
 #[test]
 fn test_partition_by_datetime() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE appointments (
                 id INT64,
@@ -84,19 +84,19 @@ fn test_partition_by_datetime() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO appointments VALUES (1, DATETIME '2024-01-15 10:30:00')")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT id FROM appointments").unwrap();
+    let result = session.execute_sql("SELECT id FROM appointments").unwrap();
     assert_table_eq!(result, [[1]]);
 }
 
 #[test]
 fn test_partition_by_integer_range() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE customers (
                 customer_id INT64,
@@ -106,19 +106,19 @@ fn test_partition_by_integer_range() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO customers VALUES (12345, 'Alice')")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT name FROM customers").unwrap();
+    let result = session.execute_sql("SELECT name FROM customers").unwrap();
     assert_table_eq!(result, [["Alice"]]);
 }
 
 #[test]
 fn test_partition_expiration() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE temp_data (
                 id INT64,
@@ -131,19 +131,19 @@ fn test_partition_expiration() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO temp_data VALUES (1, DATE '2024-01-15')")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT id FROM temp_data").unwrap();
+    let result = session.execute_sql("SELECT id FROM temp_data").unwrap();
     assert_table_eq!(result, [[1]]);
 }
 
 #[test]
 fn test_require_partition_filter() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE filtered_data (
                 id INT64,
@@ -156,11 +156,11 @@ fn test_require_partition_filter() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO filtered_data VALUES (1, DATE '2024-01-15')")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM filtered_data WHERE partition_date = DATE '2024-01-15'")
         .unwrap();
     assert_table_eq!(result, [[1]]);
@@ -168,9 +168,9 @@ fn test_require_partition_filter() {
 
 #[test]
 fn test_cluster_by_single_column() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE clustered_data (
                 id INT64,
@@ -181,11 +181,11 @@ fn test_cluster_by_single_column() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO clustered_data VALUES (1, 'A', 100), (2, 'B', 200)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM clustered_data ORDER BY id")
         .unwrap();
     assert_table_eq!(result, [[1], [2]]);
@@ -193,9 +193,9 @@ fn test_cluster_by_single_column() {
 
 #[test]
 fn test_cluster_by_multiple_columns() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE multi_clustered (
                 id INT64,
@@ -207,11 +207,11 @@ fn test_cluster_by_multiple_columns() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO multi_clustered VALUES (1, 'A', 'X', 100)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM multi_clustered")
         .unwrap();
     assert_table_eq!(result, [[1]]);
@@ -219,9 +219,9 @@ fn test_cluster_by_multiple_columns() {
 
 #[test]
 fn test_partition_and_cluster() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE partitioned_clustered (
                 id INT64,
@@ -234,11 +234,11 @@ fn test_partition_and_cluster() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO partitioned_clustered VALUES (1, DATE '2024-01-15', 'A', 100)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM partitioned_clustered")
         .unwrap();
     assert_table_eq!(result, [[1]]);
@@ -246,9 +246,9 @@ fn test_partition_and_cluster() {
 
 #[test]
 fn test_partition_by_ingestion_time() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE ingestion_partitioned (
                 id INT64,
@@ -258,11 +258,11 @@ fn test_partition_by_ingestion_time() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO ingestion_partitioned VALUES (1, 'test')")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM ingestion_partitioned")
         .unwrap();
     assert_table_eq!(result, [[1]]);
@@ -270,9 +270,9 @@ fn test_partition_by_ingestion_time() {
 
 #[test]
 fn test_external_table() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor.execute_sql(
+    let result = session.execute_sql(
         "CREATE EXTERNAL TABLE external_data (
             id INT64,
             name STRING
@@ -287,9 +287,9 @@ fn test_external_table() {
 
 #[test]
 fn test_external_table_with_schema() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor.execute_sql(
+    let result = session.execute_sql(
         "CREATE EXTERNAL TABLE json_data (
             id INT64,
             payload JSON
@@ -304,9 +304,9 @@ fn test_external_table_with_schema() {
 
 #[test]
 fn test_table_with_description() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE documented_table (
                 id INT64 OPTIONS (description = 'Primary identifier'),
@@ -318,11 +318,11 @@ fn test_table_with_description() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO documented_table VALUES (1, 'Alice')")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM documented_table")
         .unwrap();
     assert_table_eq!(result, [[1]]);
@@ -330,9 +330,9 @@ fn test_table_with_description() {
 
 #[test]
 fn test_table_with_labels() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE labeled_table (
                 id INT64
@@ -343,21 +343,19 @@ fn test_table_with_labels() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO labeled_table VALUES (1)")
         .unwrap();
 
-    let result = executor
-        .execute_sql("SELECT id FROM labeled_table")
-        .unwrap();
+    let result = session.execute_sql("SELECT id FROM labeled_table").unwrap();
     assert_table_eq!(result, [[1]]);
 }
 
 #[test]
 fn test_table_with_expiration() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE expiring_table (
                 id INT64
@@ -368,11 +366,11 @@ fn test_table_with_expiration() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO expiring_table VALUES (1)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM expiring_table")
         .unwrap();
     assert_table_eq!(result, [[1]]);
@@ -380,9 +378,9 @@ fn test_table_with_expiration() {
 
 #[test]
 fn test_cluster_by_up_to_four_columns() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE four_cluster (
                 a STRING,
@@ -395,11 +393,11 @@ fn test_cluster_by_up_to_four_columns() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO four_cluster VALUES ('1', '2', '3', '4', 100)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT value FROM four_cluster")
         .unwrap();
     assert_table_eq!(result, [[100]]);
@@ -407,9 +405,9 @@ fn test_cluster_by_up_to_four_columns() {
 
 #[test]
 fn test_partition_filter_query() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE sales_data (
                 sale_id INT64,
@@ -420,7 +418,7 @@ fn test_partition_filter_query() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO sales_data VALUES
             (1, DATE '2024-01-15', 100),
@@ -429,7 +427,7 @@ fn test_partition_filter_query() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT SUM(amount) FROM sales_data WHERE sale_date BETWEEN DATE '2024-01-01' AND DATE '2024-01-31'",
         )

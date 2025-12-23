@@ -1,4 +1,6 @@
 mod aggregate;
+#[cfg(feature = "concurrent")]
+pub mod concurrent;
 mod cte;
 mod ddl;
 mod distinct;
@@ -329,6 +331,18 @@ impl<'a> PlanExecutor<'a> {
             PhysicalPlan::Assert { condition, message } => {
                 self.execute_assert(condition, message.as_ref())
             }
+            PhysicalPlan::Grant {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => self.execute_grant(roles, resource_type, resource_name, grantees),
+            PhysicalPlan::Revoke {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => self.execute_revoke(roles, resource_type, resource_name, grantees),
         }
     }
 
@@ -359,6 +373,26 @@ impl<'a> PlanExecutor<'a> {
                 "ASSERT condition must evaluate to a boolean".into(),
             )),
         }
+    }
+
+    fn execute_grant(
+        &mut self,
+        _roles: &[String],
+        _resource_type: &yachtsql_ir::DclResourceType,
+        _resource_name: &str,
+        _grantees: &[String],
+    ) -> Result<Table> {
+        Ok(Table::empty(Schema::new()))
+    }
+
+    fn execute_revoke(
+        &mut self,
+        _roles: &[String],
+        _resource_type: &yachtsql_ir::DclResourceType,
+        _resource_name: &str,
+        _grantees: &[String],
+    ) -> Result<Table> {
+        Ok(Table::empty(Schema::new()))
     }
 }
 

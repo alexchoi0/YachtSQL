@@ -9785,7 +9785,7 @@ impl QueryExecutor {
                 let func_name = func.name.to_string().to_uppercase();
                 match func_name.as_str() {
                     "ROUND" | "TRUNC" | "TRUNCATE" | "FLOOR" | "CEIL" | "CEILING" | "ABS"
-                    | "SQRT" | "POWER" | "POW" | "EXP" | "LN" | "LOG" | "LOG10" | "SIN" | "COS"
+                    | "SQRT" | "CBRT" | "POWER" | "POW" | "EXP" | "LN" | "LOG" | "LOG10" | "SIN" | "COS"
                     | "TAN" | "ASIN" | "ACOS" | "ATAN" | "ATAN2" | "SIGN" | "MOD" | "DIV"
                     | "SAFE_DIVIDE" | "IEEE_DIVIDE" => Some(DataType::Float64),
                     "AVG" | "STDDEV" | "STDDEV_POP" | "STDDEV_SAMP" | "VAR_POP" | "VAR_SAMP"
@@ -10031,6 +10031,19 @@ impl QueryExecutor {
                 let left_val = self.evaluate_literal_expr(left)?;
                 let right_val = self.evaluate_literal_expr(right)?;
                 self.evaluate_binary_op_values(&left_val, op, &right_val)
+            }
+            Expr::Subquery(query) => {
+                let result = self.execute_query(query)?;
+                let rows = result.to_records()?;
+                if rows.len() == 1 && rows[0].values().len() == 1 {
+                    Ok(rows[0].values()[0].clone())
+                } else if rows.is_empty() {
+                    Ok(Value::null())
+                } else {
+                    Err(Error::InvalidQuery(
+                        "Scalar subquery returned more than one row".to_string(),
+                    ))
+                }
             }
             _ => Err(Error::UnsupportedFeature(format!(
                 "Expression not supported in this context: {:?}",

@@ -1,23 +1,23 @@
-use yachtsql::QueryExecutor;
+use yachtsql::YachtSQLSession;
 
 use crate::assert_table_eq;
-use crate::common::create_executor;
+use crate::common::create_session;
 
-fn setup_table(executor: &mut QueryExecutor) {
-    executor
+fn setup_table(session: &mut YachtSQLSession) {
+    session
         .execute_sql("CREATE TABLE items (id INT64, name STRING, price INT64, category STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO items VALUES (1, 'Apple', 100, 'Fruit'), (2, 'Banana', 50, 'Fruit'), (3, 'Carrot', 75, 'Vegetable'), (4, 'Date', 200, 'Fruit'), (5, 'Eggplant', 125, 'Vegetable')")
         .unwrap();
 }
 
 #[test]
 fn test_order_by_single_column_asc() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM items ORDER BY name ASC")
         .unwrap();
 
@@ -29,10 +29,10 @@ fn test_order_by_single_column_asc() {
 
 #[test]
 fn test_order_by_single_column_desc() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM items ORDER BY price DESC")
         .unwrap();
 
@@ -44,10 +44,10 @@ fn test_order_by_single_column_desc() {
 
 #[test]
 fn test_order_by_multiple_columns() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name, category FROM items ORDER BY category ASC, price DESC")
         .unwrap();
 
@@ -65,10 +65,10 @@ fn test_order_by_multiple_columns() {
 
 #[test]
 fn test_limit() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM items ORDER BY id LIMIT 3")
         .unwrap();
 
@@ -77,10 +77,10 @@ fn test_limit() {
 
 #[test]
 fn test_limit_offset() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM items ORDER BY id LIMIT 2 OFFSET 2")
         .unwrap();
 
@@ -89,10 +89,10 @@ fn test_limit_offset() {
 
 #[test]
 fn test_limit_larger_than_result() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM items ORDER BY id LIMIT 100")
         .unwrap();
 
@@ -104,10 +104,10 @@ fn test_limit_larger_than_result() {
 
 #[test]
 fn test_offset_larger_than_result() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM items ORDER BY id LIMIT 10 OFFSET 100")
         .unwrap();
 
@@ -116,16 +116,16 @@ fn test_offset_larger_than_result() {
 
 #[test]
 fn test_order_by_with_null_values() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE nullable (id INT64, value INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO nullable VALUES (1, 30), (2, NULL), (3, 10), (4, NULL), (5, 20)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id FROM nullable ORDER BY value ASC NULLS LAST")
         .unwrap();
 
@@ -134,10 +134,10 @@ fn test_order_by_with_null_values() {
 
 #[test]
 fn test_order_by_expression() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT name, price * 2 AS double_price FROM items ORDER BY price * 2 DESC LIMIT 3",
         )
@@ -148,10 +148,10 @@ fn test_order_by_expression() {
 
 #[test]
 fn test_order_by_alias() {
-    let mut executor = create_executor();
-    setup_table(&mut executor);
+    let mut session = create_session();
+    setup_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name, price AS p FROM items ORDER BY p ASC LIMIT 3")
         .unwrap();
 

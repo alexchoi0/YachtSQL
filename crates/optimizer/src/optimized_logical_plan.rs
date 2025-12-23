@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
-    AlterTableOp, Assignment, ColumnDef, CteDefinition, ExportOptions, Expr, FunctionArg,
-    FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg, RaiseLevel,
-    SortExpr, UnnestColumn,
+    AlterTableOp, Assignment, ColumnDef, CteDefinition, DclResourceType, ExportOptions, Expr,
+    FunctionArg, FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg,
+    RaiseLevel, SortExpr, UnnestColumn,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -316,6 +316,20 @@ pub enum OptimizedLogicalPlan {
         condition: Expr,
         message: Option<Expr>,
     },
+
+    Grant {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
+    },
+
+    Revoke {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
+    },
 }
 
 impl OptimizedLogicalPlan {
@@ -376,6 +390,8 @@ impl OptimizedLogicalPlan {
             OptimizedLogicalPlan::CreateSnapshot { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::DropSnapshot { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Assert { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::Grant { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::Revoke { .. } => &EMPTY_SCHEMA,
         }
     }
 }

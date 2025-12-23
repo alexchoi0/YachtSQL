@@ -17,6 +17,9 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Bump Version & Publish
@@ -98,6 +101,12 @@ jobs:
       - name: Verify build
         run: cargo build --release
 
+      - name: Commit version bump
+        run: |
+          git add -A
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new }}" || echo "No changes to commit"
+          git push
+
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -141,12 +150,6 @@ jobs:
             echo "Waiting for $name to be available..."
             sleep 30
           done
-
-      - name: Commit version bump
-        run: |
-          git add -A
-          git commit -m "chore: bump version to ${{ steps.version.outputs.new }} [skip ci]" || echo "No changes to commit"
-          git push
 
       - name: Create release tag
         run: |

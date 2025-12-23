@@ -6,10 +6,11 @@
 #![warn(rustdoc::broken_intra_doc_links)]
 #![allow(missing_docs)]
 
-use yachtsql::{QueryExecutor, Record, Result, Schema, Table, Value};
+use yachtsql::{Record, Result, Schema, Table, Value, YachtSQLEngine, YachtSQLSession};
 
-pub fn setup_executor() -> QueryExecutor {
-    QueryExecutor::new()
+pub fn setup_executor() -> YachtSQLSession {
+    let engine = YachtSQLEngine::new();
+    engine.create_session()
 }
 
 pub fn assert_batch_empty(batch: &yachtsql::Table) {
@@ -62,7 +63,7 @@ pub fn assert_error_contains<T>(result: Result<T>, keywords: &[&str]) {
 }
 
 pub fn create_table_with_schema(
-    executor: &mut QueryExecutor,
+    session: &mut YachtSQLSession,
     table_name: &str,
     columns: &[(&str, &str)],
 ) -> Result<()> {
@@ -72,34 +73,34 @@ pub fn create_table_with_schema(
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!("CREATE TABLE {} ({})", table_name, columns_def);
-    executor.execute_sql(&sql)?;
+    session.execute_sql(&sql)?;
     Ok(())
 }
 
 pub fn insert_rows(
-    executor: &mut QueryExecutor,
+    session: &mut YachtSQLSession,
     table_name: &str,
     rows: Vec<Vec<&str>>,
 ) -> Result<()> {
     for row in rows {
         let values = row.join(", ");
         let sql = format!("INSERT INTO {} VALUES ({})", table_name, values);
-        executor.execute_sql(&sql)?;
+        session.execute_sql(&sql)?;
     }
     Ok(())
 }
 
 pub fn setup_table_with_id_values(
-    executor: &mut QueryExecutor,
+    session: &mut YachtSQLSession,
     table_name: &str,
     data: &[(i64, f64)],
 ) -> Result<()> {
-    executor.execute_sql(&format!(
+    session.execute_sql(&format!(
         "CREATE TABLE {} (id INT64, value FLOAT64)",
         table_name
     ))?;
     for (id, value) in data {
-        executor.execute_sql(&format!(
+        session.execute_sql(&format!(
             "INSERT INTO {} VALUES ({}, {})",
             table_name, id, value
         ))?;
@@ -107,8 +108,13 @@ pub fn setup_table_with_id_values(
     Ok(())
 }
 
-pub fn assert_query_float_eq(executor: &mut QueryExecutor, sql: &str, expected: f64, epsilon: f64) {
-    let batch = executor
+pub fn assert_query_float_eq(
+    session: &mut YachtSQLSession,
+    sql: &str,
+    expected: f64,
+    epsilon: f64,
+) {
+    let batch = session
         .execute_sql(sql)
         .expect("Query execution should succeed");
     assert_eq!(batch.num_rows(), 1);
@@ -143,27 +149,27 @@ pub fn build_nested_expression(wrapper: &str, inner: &str, depth: usize) -> Stri
     result
 }
 
-pub fn setup_bool_table() -> QueryExecutor {
-    let mut executor = QueryExecutor::new();
-    executor
+pub fn setup_bool_table() -> YachtSQLSession {
+    let mut session = setup_executor();
+    session
         .execute_sql("CREATE TABLE bools (id INT64, val BOOL)")
         .expect("CREATE TABLE should succeed");
-    executor
+    session
 }
 
-pub fn insert_bool(executor: &mut QueryExecutor, id: i64, val: Option<bool>) {
+pub fn insert_bool(session: &mut YachtSQLSession, id: i64, val: Option<bool>) {
     let val_str = match val {
         Some(true) => "TRUE",
         Some(false) => "FALSE",
         None => "NULL",
     };
-    executor
+    session
         .execute_sql(&format!("INSERT INTO bools VALUES ({}, {})", id, val_str))
         .expect("INSERT should succeed");
 }
 
-pub fn assert_query_bool(executor: &mut QueryExecutor, sql: &str, expected: Option<bool>) {
-    let batch = executor
+pub fn assert_query_bool(session: &mut YachtSQLSession, sql: &str, expected: Option<bool>) {
+    let batch = session
         .execute_sql(sql)
         .expect("Query execution should succeed");
     assert_eq!(batch.num_rows(), 1);
@@ -186,19 +192,19 @@ pub fn assert_query_bool(executor: &mut QueryExecutor, sql: &str, expected: Opti
 }
 
 pub fn setup_table_with_float_values(
-    executor: &mut QueryExecutor,
+    session: &mut YachtSQLSession,
     table_name: &str,
     values: &[f64],
 ) -> Result<()> {
-    executor.execute_sql(&format!("CREATE TABLE {} (value FLOAT64)", table_name))?;
+    session.execute_sql(&format!("CREATE TABLE {} (value FLOAT64)", table_name))?;
     for value in values {
-        executor.execute_sql(&format!("INSERT INTO {} VALUES ({})", table_name, value))?;
+        session.execute_sql(&format!("INSERT INTO {} VALUES ({})", table_name, value))?;
     }
     Ok(())
 }
 
-pub fn assert_query_null(executor: &mut QueryExecutor, sql: &str) {
-    let batch = executor
+pub fn assert_query_null(session: &mut YachtSQLSession, sql: &str) {
+    let batch = session
         .execute_sql(sql)
         .expect("Query execution should succeed");
     assert_eq!(batch.num_rows(), 1);
@@ -207,12 +213,12 @@ pub fn assert_query_null(executor: &mut QueryExecutor, sql: &str) {
     assert!(value.is_null(), "Expected NULL, got {:?}", value);
 }
 
-pub fn assert_query_null_simple(executor: &mut QueryExecutor, sql: &str) {
-    assert_query_null(executor, sql);
+pub fn assert_query_null_simple(session: &mut YachtSQLSession, sql: &str) {
+    assert_query_null(session, sql);
 }
 
-pub fn assert_query_error(executor: &mut QueryExecutor, sql: &str, keywords: &[&str]) {
-    assert_error_contains(executor.execute_sql(sql), keywords);
+pub fn assert_query_error(session: &mut YachtSQLSession, sql: &str, keywords: &[&str]) {
+    assert_error_contains(session.execute_sql(sql), keywords);
 }
 
 pub fn assert_row_count(batch: &yachtsql::Table, expected_count: usize) {
@@ -225,13 +231,13 @@ pub fn assert_row_count(batch: &yachtsql::Table, expected_count: usize) {
     );
 }
 
-pub fn new_executor() -> QueryExecutor {
+pub fn new_executor() -> YachtSQLSession {
     setup_executor()
 }
 
-pub fn table_exists(executor: &mut QueryExecutor, table_name: &str) -> bool {
+pub fn table_exists(session: &mut YachtSQLSession, table_name: &str) -> bool {
     let query = format!("SELECT COUNT(*) FROM {}", table_name);
-    executor.execute_sql(&query).is_ok()
+    session.execute_sql(&query).is_ok()
 }
 
 pub fn assert_error_contains_with_context<T>(result: Result<T>, keywords: &[&str], context: &str) {
@@ -472,27 +478,27 @@ pub fn scalar_value(batch: &yachtsql::Table, index: usize) -> Value {
     }
 }
 
-pub fn exec_ok(executor: &mut QueryExecutor, sql: &str) {
-    executor
+pub fn exec_ok(session: &mut YachtSQLSession, sql: &str) {
+    session
         .execute_sql(sql)
         .unwrap_or_else(|e| panic!("SQL execution failed for '{}': {}", sql, e));
 }
 
-pub fn query(executor: &mut QueryExecutor, sql: &str) -> yachtsql::Table {
-    executor
+pub fn query(session: &mut YachtSQLSession, sql: &str) -> yachtsql::Table {
+    session
         .execute_sql(sql)
         .unwrap_or_else(|e| panic!("Query execution failed for '{}': {}", sql, e))
 }
 
-pub fn get_rowcount(executor: &mut QueryExecutor) -> i64 {
-    let batch = executor
+pub fn get_rowcount(session: &mut YachtSQLSession) -> i64 {
+    let batch = session
         .execute_sql("GET DIAGNOSTICS :rowcount = ROW_COUNT")
         .expect("GET DIAGNOSTICS should succeed");
     get_i64_by_name(&batch, 0, "rowcount")
 }
 
-pub fn get_rowcount_opt(executor: &mut QueryExecutor) -> Option<i64> {
-    let batch = executor
+pub fn get_rowcount_opt(session: &mut YachtSQLSession) -> Option<i64> {
+    let batch = session
         .execute_sql("GET DIAGNOSTICS :rowcount = ROW_COUNT")
         .expect("GET DIAGNOSTICS should succeed");
     if is_null_by_name(&batch, 0, "rowcount") {
@@ -502,14 +508,14 @@ pub fn get_rowcount_opt(executor: &mut QueryExecutor) -> Option<i64> {
     }
 }
 
-pub fn get_exception_diag(executor: &mut QueryExecutor, projection: &str) -> yachtsql::Table {
-    executor
+pub fn get_exception_diag(session: &mut YachtSQLSession, projection: &str) -> yachtsql::Table {
+    session
         .execute_sql(&format!("GET DIAGNOSTICS EXCEPTION 1 {}", projection))
         .expect("GET DIAGNOSTICS EXCEPTION should succeed")
 }
 
-pub fn assert_no_exception(executor: &mut QueryExecutor) {
-    let err = executor.execute_sql("GET DIAGNOSTICS EXCEPTION 1 :sqlstate = RETURNED_SQLSTATE");
+pub fn assert_no_exception(session: &mut YachtSQLSession) {
+    let err = session.execute_sql("GET DIAGNOSTICS EXCEPTION 1 :sqlstate = RETURNED_SQLSTATE");
     assert_error_contains(err, &["no exception", "diagnostic"]);
 }
 
@@ -750,8 +756,8 @@ pub fn assert_value_at(batch: &yachtsql::Table, row: usize, col: usize, expected
     assert_values_equal(&actual, &expected, row, col);
 }
 
-pub fn assert_query_rows(executor: &mut QueryExecutor, sql: &str, expected_rows: Vec<Vec<Value>>) {
-    let result = executor
+pub fn assert_query_rows(session: &mut YachtSQLSession, sql: &str, expected_rows: Vec<Vec<Value>>) {
+    let result = session
         .execute_sql(sql)
         .unwrap_or_else(|e| panic!("Query execution failed for '{}': {}", sql, e));
     let expected = build_batch(result.schema().clone(), expected_rows);

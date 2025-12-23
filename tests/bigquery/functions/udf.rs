@@ -1,11 +1,11 @@
 use crate::assert_table_eq;
-use crate::common::create_executor;
+use crate::common::create_session;
 
 #[test]
 fn test_javascript_udf_simple_addition() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION add_one(x INT64)
@@ -16,16 +16,16 @@ fn test_javascript_udf_simple_addition() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT add_one(5)").unwrap();
+    let result = session.execute_sql("SELECT add_one(5)").unwrap();
 
     assert_table_eq!(result, [[6]]);
 }
 
 #[test]
 fn test_javascript_udf_string_manipulation() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION reverse_string(s STRING)
@@ -36,7 +36,7 @@ fn test_javascript_udf_string_manipulation() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT reverse_string('hello')")
         .unwrap();
 
@@ -45,9 +45,9 @@ fn test_javascript_udf_string_manipulation() {
 
 #[test]
 fn test_javascript_udf_multiple_args() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION multiply_add(a INT64, b INT64, c INT64)
@@ -58,18 +58,16 @@ fn test_javascript_udf_multiple_args() {
         )
         .unwrap();
 
-    let result = executor
-        .execute_sql("SELECT multiply_add(2, 3, 4)")
-        .unwrap();
+    let result = session.execute_sql("SELECT multiply_add(2, 3, 4)").unwrap();
 
     assert_table_eq!(result, [[10]]);
 }
 
 #[test]
 fn test_javascript_udf_float_math() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION circle_area(radius FLOAT64)
@@ -80,7 +78,7 @@ fn test_javascript_udf_float_math() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT circle_area(2.0)").unwrap();
+    let result = session.execute_sql("SELECT circle_area(2.0)").unwrap();
 
     let records = result.to_records().unwrap();
     let value = &records[0].values()[0];
@@ -99,9 +97,9 @@ fn test_javascript_udf_float_math() {
 
 #[test]
 fn test_javascript_udf_null_handling() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION is_null_check(x INT64)
@@ -112,20 +110,20 @@ fn test_javascript_udf_null_handling() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT is_null_check(NULL)").unwrap();
+    let result = session.execute_sql("SELECT is_null_check(NULL)").unwrap();
 
     assert_table_eq!(result, [["was null"]]);
 
-    let result = executor.execute_sql("SELECT is_null_check(42)").unwrap();
+    let result = session.execute_sql("SELECT is_null_check(42)").unwrap();
 
     assert_table_eq!(result, [["not null"]]);
 }
 
 #[test]
 fn test_javascript_udf_arrow_function() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION double_value(x INT64)
@@ -136,24 +134,24 @@ fn test_javascript_udf_arrow_function() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT double_value(21)").unwrap();
+    let result = session.execute_sql("SELECT double_value(21)").unwrap();
 
     assert_table_eq!(result, [[42]]);
 }
 
 #[test]
 fn test_javascript_udf_with_table() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE numbers (id INT64, value INT64)")
         .unwrap();
 
-    executor
+    session
         .execute_sql("INSERT INTO numbers VALUES (1, 10), (2, 20), (3, 30)")
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION square(x INT64)
@@ -164,7 +162,7 @@ fn test_javascript_udf_with_table() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id, square(value) FROM numbers ORDER BY id")
         .unwrap();
 
@@ -173,22 +171,22 @@ fn test_javascript_udf_with_table() {
 
 #[test]
 fn test_sql_udf_still_works() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE FUNCTION add_ten(x INT64) RETURNS INT64 AS (x + 10)")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT add_ten(5)").unwrap();
+    let result = session.execute_sql("SELECT add_ten(5)").unwrap();
 
     assert_table_eq!(result, [[15]]);
 }
 
 #[test]
 fn test_javascript_udf_or_replace() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION my_func(x INT64)
@@ -199,10 +197,10 @@ fn test_javascript_udf_or_replace() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT my_func(5)").unwrap();
+    let result = session.execute_sql("SELECT my_func(5)").unwrap();
     assert_table_eq!(result, [[6]]);
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE OR REPLACE FUNCTION my_func(x INT64)
@@ -213,15 +211,15 @@ fn test_javascript_udf_or_replace() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT my_func(5)").unwrap();
+    let result = session.execute_sql("SELECT my_func(5)").unwrap();
     assert_table_eq!(result, [[105]]);
 }
 
 #[test]
 fn test_javascript_udf_json_parse() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION extract_name(json_str STRING)
@@ -232,7 +230,7 @@ fn test_javascript_udf_json_parse() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(r#"SELECT extract_name('{"name": "Alice", "age": 30}')"#)
         .unwrap();
 
@@ -241,9 +239,9 @@ fn test_javascript_udf_json_parse() {
 
 #[test]
 fn test_javascript_udf_json_stringify() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION make_person(name STRING, age INT64)
@@ -254,7 +252,7 @@ fn test_javascript_udf_json_stringify() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT make_person('Bob', 25)")
         .unwrap();
 
@@ -263,9 +261,9 @@ fn test_javascript_udf_json_stringify() {
 
 #[test]
 fn test_javascript_udf_regex() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION extract_digits(s STRING)
@@ -276,7 +274,7 @@ fn test_javascript_udf_regex() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT extract_digits('abc123def456')")
         .unwrap();
 
@@ -285,9 +283,9 @@ fn test_javascript_udf_regex() {
 
 #[test]
 fn test_javascript_udf_multi_statement() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION fibonacci(n INT64)
@@ -307,15 +305,15 @@ fn test_javascript_udf_multi_statement() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT fibonacci(10)").unwrap();
+    let result = session.execute_sql("SELECT fibonacci(10)").unwrap();
     assert_table_eq!(result, [[55]]);
 }
 
 #[test]
 fn test_javascript_udf_array_operations() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION sum_csv(csv STRING)
@@ -328,7 +326,7 @@ fn test_javascript_udf_array_operations() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT sum_csv('1, 2, 3, 4, 5')")
         .unwrap();
     assert_table_eq!(result, [[15]]);
@@ -336,9 +334,9 @@ fn test_javascript_udf_array_operations() {
 
 #[test]
 fn test_javascript_udf_helper_function() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION is_palindrome(s STRING)
@@ -354,12 +352,12 @@ fn test_javascript_udf_helper_function() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT is_palindrome('A man a plan a canal Panama')")
         .unwrap();
     assert_table_eq!(result, [[true]]);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT is_palindrome('hello')")
         .unwrap();
     assert_table_eq!(result, [[false]]);
@@ -367,9 +365,9 @@ fn test_javascript_udf_helper_function() {
 
 #[test]
 fn test_javascript_udf_conditional_logic() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION grade(score INT64)
@@ -386,7 +384,7 @@ fn test_javascript_udf_conditional_logic() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT grade(95), grade(82), grade(55)")
         .unwrap();
     assert_table_eq!(result, [["A", "B", "F"]]);
@@ -394,9 +392,9 @@ fn test_javascript_udf_conditional_logic() {
 
 #[test]
 fn test_javascript_udf_string_formatting() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION format_phone(digits STRING)
@@ -411,7 +409,7 @@ fn test_javascript_udf_string_formatting() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT format_phone('5551234567')")
         .unwrap();
     assert_table_eq!(result, [["(555) 123-4567"]]);
@@ -419,9 +417,9 @@ fn test_javascript_udf_string_formatting() {
 
 #[test]
 fn test_javascript_udf_math_functions() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"
             CREATE FUNCTION hypotenuse(a FLOAT64, b FLOAT64)
@@ -432,7 +430,7 @@ fn test_javascript_udf_math_functions() {
         )
         .unwrap();
 
-    let result = executor.execute_sql("SELECT hypotenuse(3.0, 4.0)").unwrap();
+    let result = session.execute_sql("SELECT hypotenuse(3.0, 4.0)").unwrap();
     let records = result.to_records().unwrap();
     let value = &records[0].values()[0];
     match value {

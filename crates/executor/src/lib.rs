@@ -16,9 +16,23 @@ mod js_udf;
 mod plan;
 mod session;
 
-use std::num::NonZeroUsize;
+#[cfg(feature = "concurrent")]
+mod async_executor;
+#[cfg(feature = "concurrent")]
+mod concurrent_catalog;
+#[cfg(feature = "concurrent")]
+mod concurrent_session;
 
+use std::num::NonZeroUsize;
+use std::sync::{Arc, RwLock};
+
+#[cfg(feature = "concurrent")]
+pub use async_executor::AsyncQueryExecutor;
 pub use catalog::{Catalog, ColumnDefault, UserFunction, UserProcedure, ViewDef};
+#[cfg(feature = "concurrent")]
+pub use concurrent_catalog::{ConcurrentCatalog, TableLockSet};
+#[cfg(feature = "concurrent")]
+pub use concurrent_session::ConcurrentSession;
 pub use error::{Error, Result};
 pub use executor::{PlanExecutor, plan_schema_to_schema};
 pub use ir_evaluator::{IrEvaluator, UserFunctionDef};
@@ -91,7 +105,9 @@ fn is_cacheable_plan(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::Continue
         | OptimizedLogicalPlan::CreateSnapshot { .. }
         | OptimizedLogicalPlan::DropSnapshot { .. }
-        | OptimizedLogicalPlan::Assert { .. } => false,
+        | OptimizedLogicalPlan::Assert { .. }
+        | OptimizedLogicalPlan::Grant { .. }
+        | OptimizedLogicalPlan::Revoke { .. } => false,
     }
 }
 
@@ -151,7 +167,113 @@ fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::Raise { .. }
         | OptimizedLogicalPlan::Break
         | OptimizedLogicalPlan::Continue
-        | OptimizedLogicalPlan::Assert { .. } => false,
+        | OptimizedLogicalPlan::Assert { .. }
+        | OptimizedLogicalPlan::Grant { .. }
+        | OptimizedLogicalPlan::Revoke { .. } => false,
+    }
+}
+
+pub struct SharedState {
+    plan_cache: RwLock<LruCache<String, OptimizedLogicalPlan>>,
+}
+
+impl SharedState {
+    pub fn new() -> Self {
+        Self {
+            plan_cache: RwLock::new(default_plan_cache()),
+        }
+    }
+
+    pub fn get_cached_plan(&self, sql: &str) -> Option<OptimizedLogicalPlan> {
+        let mut cache = self.plan_cache.write().unwrap();
+        cache.get(sql).cloned()
+    }
+
+    pub fn cache_plan(&self, sql: String, plan: OptimizedLogicalPlan) {
+        let mut cache = self.plan_cache.write().unwrap();
+        cache.put(sql, plan);
+    }
+
+    pub fn invalidate_cache(&self) {
+        let mut cache = self.plan_cache.write().unwrap();
+        cache.clear();
+    }
+}
+
+impl Default for SharedState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct SessionExecutor {
+    shared: Arc<SharedState>,
+    catalog: Catalog,
+    session: Session,
+}
+
+impl SessionExecutor {
+    pub fn new(shared: Arc<SharedState>) -> Self {
+        Self {
+            shared,
+            catalog: Catalog::new(),
+            session: Session::new(),
+        }
+    }
+
+    pub fn with_catalog(shared: Arc<SharedState>, catalog: Catalog) -> Self {
+        Self {
+            shared,
+            catalog,
+            session: Session::new(),
+        }
+    }
+
+    pub fn execute_sql(&mut self, sql: &str) -> yachtsql_common::error::Result<Table> {
+        if let Some(cached_plan) = self.shared.get_cached_plan(sql) {
+            let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
+            return executor.execute(&cached_plan);
+        }
+
+        let logical = yachtsql_parser::parse_and_plan(sql, &self.catalog)?;
+        let physical = yachtsql_optimizer::optimize(&logical)?;
+
+        if is_cacheable_plan(&physical) {
+            self.shared.cache_plan(sql.to_string(), physical.clone());
+        }
+
+        let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
+        let result = executor.execute(&physical)?;
+
+        if invalidates_cache(&physical) {
+            self.shared.invalidate_cache();
+        }
+
+        Ok(result)
+    }
+
+    pub fn execute(
+        &mut self,
+        plan: &OptimizedLogicalPlan,
+    ) -> yachtsql_common::error::Result<Table> {
+        let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
+        executor.execute(plan)
+    }
+
+    pub fn catalog(&self) -> &Catalog {
+        &self.catalog
+    }
+
+    pub fn catalog_mut(&mut self) -> &mut Catalog {
+        &mut self.catalog
+    }
+
+    pub fn session(&self) -> &Session {
+        &self.session
+    }
+
+    pub fn session_mut(&mut self) -> &mut Session {
+        &mut self.session
     }
 }
 

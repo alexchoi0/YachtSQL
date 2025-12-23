@@ -165,8 +165,9 @@ fn execute_query(sql: &str, session_id: Option<&str>) -> Result<()> {
             print_table(&table)?;
         }
         None => {
-            let mut engine = YachtSQLEngine::new();
-            let result = engine.query(sql).context("Failed to execute SQL query")?;
+            let engine = YachtSQLEngine::new();
+            let mut session = engine.create_session();
+            let result = session.query(sql).context("Failed to execute SQL query")?;
             print_query_result(&result)?;
         }
     }

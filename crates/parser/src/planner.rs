@@ -8,9 +8,9 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField};
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
-    CteDefinition, ExportFormat, ExportOptions, Expr, FunctionArg, FunctionBody, JoinType, Literal,
-    LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg, ProcedureArgMode, SampleType,
-    SetOperationType, SortExpr, TableConstraint,
+    CteDefinition, DateTimeField, DclResourceType, ExportFormat, ExportOptions, Expr, FunctionArg,
+    FunctionBody, JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
+    ProcedureArgMode, SampleType, SetOperationType, SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
 
@@ -154,6 +154,18 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::Case(case_stmt) => self.plan_case(case_stmt),
             Statement::Leave { .. } | Statement::Break { .. } => Ok(LogicalPlan::Break),
             Statement::Iterate { .. } | Statement::Continue { .. } => Ok(LogicalPlan::Continue),
+            Statement::Grant {
+                privileges,
+                objects,
+                grantees,
+                ..
+            } => self.plan_grant(privileges, objects.as_ref(), grantees),
+            Statement::Revoke {
+                privileges,
+                objects,
+                grantees,
+                ..
+            } => self.plan_revoke(privileges, objects.as_ref(), grantees),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -176,9 +188,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         message: Option<&ast::Expr>,
     ) -> Result<LogicalPlan> {
         let empty_schema = PlanSchema::new();
-        let cond_expr = ExprPlanner::plan_expr(condition, &empty_schema)?;
+        let subquery_planner = |query: &ast::Query| self.plan_query(query);
+        let cond_expr = ExprPlanner::plan_expr_with_subquery(
+            condition,
+            &empty_schema,
+            Some(&subquery_planner),
+        )?;
         let msg_expr = message
-            .map(|m| ExprPlanner::plan_expr(m, &empty_schema))
+            .map(|m| {
+                ExprPlanner::plan_expr_with_subquery(m, &empty_schema, Some(&subquery_planner))
+            })
             .transpose()?;
         Ok(LogicalPlan::Assert {
             condition: cond_expr,
@@ -1540,6 +1559,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                 final_projection_exprs.push(remapped);
                                 final_projection_fields
                                     .push(PlanField::new(output_name, data_type));
+                            } else if Self::expr_contains_subquery(&planned) {
+                                let remapped = Self::remap_to_group_by_indices(
+                                    planned.clone(),
+                                    &agg_fields,
+                                    group_by_count,
+                                );
+                                let data_type = self.infer_expr_type(&planned, input.schema());
+                                final_projection_exprs.push(remapped);
+                                final_projection_fields
+                                    .push(PlanField::new(output_name, data_type));
                             }
                         }
                     }
@@ -2142,6 +2171,30 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     frame: frame.clone(),
                 }
             }
+            Expr::ArrayAccess { array, index } => {
+                let new_array = self.replace_aggregates_with_columns(
+                    array,
+                    agg_names,
+                    agg_exprs,
+                    agg_fields,
+                    input_schema,
+                    group_by_count,
+                    extracted,
+                );
+                let new_index = self.replace_aggregates_with_columns(
+                    index,
+                    agg_names,
+                    agg_exprs,
+                    agg_fields,
+                    input_schema,
+                    group_by_count,
+                    extracted,
+                );
+                Expr::ArrayAccess {
+                    array: Box::new(new_array),
+                    index: Box::new(new_index),
+                }
+            }
             _ => expr.clone(),
         }
     }
@@ -2718,11 +2771,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     fn plan_values(&self, values: &ast::Values) -> Result<LogicalPlan> {
         let mut rows = Vec::new();
         let empty_schema = PlanSchema::new();
+        let subquery_planner = |query: &ast::Query| self.plan_query(query);
 
         for row in &values.rows {
             let mut exprs = Vec::new();
             for expr in row {
-                exprs.push(ExprPlanner::plan_expr(expr, &empty_schema)?);
+                exprs.push(ExprPlanner::plan_expr_with_subquery(
+                    expr,
+                    &empty_schema,
+                    Some(&subquery_planner),
+                )?);
             }
             rows.push(exprs);
         }
@@ -3833,6 +3891,15 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         .as_ref()
                         .is_some_and(|e| Self::check_aggregate_expr(e))
             }
+            ast::Expr::CompoundFieldAccess { root, access_chain } => {
+                Self::check_aggregate_expr(root)
+                    || access_chain.iter().any(|accessor| match accessor {
+                        ast::AccessExpr::Subscript(ast::Subscript::Index { index }) => {
+                            Self::check_aggregate_expr(index)
+                        }
+                        _ => false,
+                    })
+            }
             _ => false,
         }
     }
@@ -3982,6 +4049,51 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Expr::ScalarFunction { args, .. } => args.iter().all(Self::is_constant_expr),
             Expr::Array { elements, .. } => elements.iter().all(Self::is_constant_expr),
             Expr::Struct { fields, .. } => fields.iter().all(|(_, e)| Self::is_constant_expr(e)),
+            _ => false,
+        }
+    }
+
+    fn expr_contains_subquery(expr: &Expr) -> bool {
+        match expr {
+            Expr::Subquery(_) | Expr::ScalarSubquery(_) | Expr::ArraySubquery(_) => true,
+            Expr::Alias { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::BinaryOp { left, right, .. } => {
+                Self::expr_contains_subquery(left) || Self::expr_contains_subquery(right)
+            }
+            Expr::UnaryOp { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::Cast { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
+                operand
+                    .as_ref()
+                    .is_some_and(|e| Self::expr_contains_subquery(e))
+                    || when_clauses.iter().any(|w| {
+                        Self::expr_contains_subquery(&w.condition)
+                            || Self::expr_contains_subquery(&w.result)
+                    })
+                    || else_result
+                        .as_ref()
+                        .is_some_and(|e| Self::expr_contains_subquery(e))
+            }
+            Expr::ScalarFunction { args, .. } => args.iter().any(Self::expr_contains_subquery),
+            Expr::Array { elements, .. } => elements.iter().any(Self::expr_contains_subquery),
+            Expr::Struct { fields, .. } => {
+                fields.iter().any(|(_, e)| Self::expr_contains_subquery(e))
+            }
+            Expr::IsNull { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                Self::expr_contains_subquery(expr)
+                    || Self::expr_contains_subquery(low)
+                    || Self::expr_contains_subquery(high)
+            }
+            Expr::InList { expr, list, .. } => {
+                Self::expr_contains_subquery(expr) || list.iter().any(Self::expr_contains_subquery)
+            }
             _ => false,
         }
     }
@@ -4201,6 +4313,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
                     ScalarFunction::Abs
                     | ScalarFunction::Sqrt
+                    | ScalarFunction::Cbrt
                     | ScalarFunction::Power
                     | ScalarFunction::Pow
                     | ScalarFunction::Exp
@@ -4420,7 +4533,29 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     DataType::Unknown
                 }
             }
-            Expr::Extract { .. } => DataType::Int64,
+            Expr::Extract { field, .. } => match field {
+                DateTimeField::Date => DataType::Date,
+                DateTimeField::Time => DataType::Time,
+                DateTimeField::Year
+                | DateTimeField::IsoYear
+                | DateTimeField::Quarter
+                | DateTimeField::Month
+                | DateTimeField::Week(_)
+                | DateTimeField::IsoWeek
+                | DateTimeField::Day
+                | DateTimeField::DayOfWeek
+                | DateTimeField::DayOfYear
+                | DateTimeField::Hour
+                | DateTimeField::Minute
+                | DateTimeField::Second
+                | DateTimeField::Millisecond
+                | DateTimeField::Microsecond
+                | DateTimeField::Nanosecond
+                | DateTimeField::Datetime
+                | DateTimeField::Timezone
+                | DateTimeField::TimezoneHour
+                | DateTimeField::TimezoneMinute => DataType::Int64,
+            },
             Expr::TypedString { data_type, .. } => data_type.clone(),
             Expr::Array {
                 elements,
@@ -4479,6 +4614,28 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 } else {
                     DataType::Unknown
                 }
+            }
+            Expr::Column { name, index, .. } => {
+                let col_type = index
+                    .and_then(|i| schema.fields.get(i))
+                    .map(|f| f.data_type.clone())
+                    .unwrap_or_else(|| {
+                        schema
+                            .fields
+                            .iter()
+                            .find(|f| f.name.eq_ignore_ascii_case(name))
+                            .map(|f| f.data_type.clone())
+                            .unwrap_or(DataType::Unknown)
+                    });
+                if let DataType::Struct(struct_fields) = col_type {
+                    let field_lower = field.to_lowercase();
+                    for sf in struct_fields {
+                        if sf.name.to_lowercase() == field_lower {
+                            return sf.data_type.clone();
+                        }
+                    }
+                }
+                DataType::Unknown
             }
             _ => DataType::Unknown,
         }
@@ -4582,6 +4739,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 Literal::Timestamp(_) => DataType::Timestamp,
                 Literal::Datetime(_) => DataType::DateTime,
                 Literal::Numeric(_) => DataType::Numeric(None),
+                Literal::BigNumeric(_) => DataType::BigNumeric,
                 Literal::Interval { .. } => DataType::Interval,
                 Literal::Array(_) => DataType::Array(Box::new(DataType::String)),
                 Literal::Struct(_) => DataType::Struct(vec![]),
@@ -4884,5 +5042,93 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             },
             _ => Err(Error::InvalidQuery("Sample value must be a number".into())),
         }
+    }
+
+    fn plan_grant(
+        &self,
+        privileges: &ast::Privileges,
+        objects: Option<&ast::GrantObjects>,
+        grantees: &[ast::Grantee],
+    ) -> Result<LogicalPlan> {
+        let roles = self.extract_roles(privileges)?;
+        let (resource_type, resource_name) = self.extract_grant_resource(objects)?;
+        let grantee_list = self.extract_grantees(grantees)?;
+
+        Ok(LogicalPlan::Grant {
+            roles,
+            resource_type,
+            resource_name,
+            grantees: grantee_list,
+        })
+    }
+
+    fn plan_revoke(
+        &self,
+        privileges: &ast::Privileges,
+        objects: Option<&ast::GrantObjects>,
+        grantees: &[ast::Grantee],
+    ) -> Result<LogicalPlan> {
+        let roles = self.extract_roles(privileges)?;
+        let (resource_type, resource_name) = self.extract_grant_resource(objects)?;
+        let grantee_list = self.extract_grantees(grantees)?;
+
+        Ok(LogicalPlan::Revoke {
+            roles,
+            resource_type,
+            resource_name,
+            grantees: grantee_list,
+        })
+    }
+
+    fn extract_roles(&self, privileges: &ast::Privileges) -> Result<Vec<String>> {
+        match privileges {
+            ast::Privileges::All { .. } => Ok(vec!["ALL".to_string()]),
+            ast::Privileges::Actions(actions) => {
+                Ok(actions.iter().map(|a| format!("{}", a)).collect())
+            }
+        }
+    }
+
+    fn extract_grant_resource(
+        &self,
+        objects: Option<&ast::GrantObjects>,
+    ) -> Result<(DclResourceType, String)> {
+        match objects {
+            Some(ast::GrantObjects::Schemas(schemas)) => {
+                let name = schemas
+                    .first()
+                    .map(object_name_to_raw_string)
+                    .unwrap_or_default();
+                Ok((DclResourceType::Schema, name))
+            }
+            Some(ast::GrantObjects::Tables(tables)) => {
+                let name = tables
+                    .first()
+                    .map(object_name_to_raw_string)
+                    .unwrap_or_default();
+                Ok((DclResourceType::Table, name))
+            }
+            Some(ast::GrantObjects::AllTablesInSchema { schemas }) => {
+                let name = schemas
+                    .first()
+                    .map(object_name_to_raw_string)
+                    .unwrap_or_default();
+                Ok((DclResourceType::Schema, name))
+            }
+            None => Err(Error::parse_error(
+                "GRANT/REVOKE requires an ON clause specifying the resource",
+            )),
+            _ => Err(Error::unsupported(format!(
+                "Unsupported GRANT/REVOKE object type: {:?}",
+                objects
+            ))),
+        }
+    }
+
+    fn extract_grantees(&self, grantees: &[ast::Grantee]) -> Result<Vec<String>> {
+        Ok(grantees
+            .iter()
+            .filter_map(|g| g.name.as_ref().map(|n| format!("{}", n)))
+            .collect())
     }
 }

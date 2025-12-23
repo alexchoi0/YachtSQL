@@ -4,8 +4,8 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AggregateFunction, BinaryOp, DateTimeField, Expr, JsonPathElement, Literal, LogicalPlan,
-    PlanSchema, ScalarFunction, SortExpr, TrimWhere, UnaryOp, WhenClause, WindowFrame,
-    WindowFrameBound, WindowFrameUnit, WindowFunction,
+    PlanSchema, ScalarFunction, SortExpr, TrimWhere, UnaryOp, WeekStartDay, WhenClause,
+    WindowFrame, WindowFrameBound, WindowFrameUnit, WindowFunction,
 };
 
 pub type SubqueryPlannerFn<'a> = &'a dyn Fn(&ast::Query) -> Result<LogicalPlan>;
@@ -819,7 +819,27 @@ impl ExprPlanner {
         match field {
             ast::DateTimeField::Year => Ok(DateTimeField::Year),
             ast::DateTimeField::Month => Ok(DateTimeField::Month),
-            ast::DateTimeField::Week(_) => Ok(DateTimeField::Week),
+            ast::DateTimeField::Week(opt_ident) => {
+                let start_day = match opt_ident {
+                    Some(ident) => match ident.value.to_uppercase().as_str() {
+                        "SUNDAY" => WeekStartDay::Sunday,
+                        "MONDAY" => WeekStartDay::Monday,
+                        "TUESDAY" => WeekStartDay::Tuesday,
+                        "WEDNESDAY" => WeekStartDay::Wednesday,
+                        "THURSDAY" => WeekStartDay::Thursday,
+                        "FRIDAY" => WeekStartDay::Friday,
+                        "SATURDAY" => WeekStartDay::Saturday,
+                        _ => {
+                            return Err(Error::unsupported(format!(
+                                "Unsupported WEEK start day: {}",
+                                ident.value
+                            )));
+                        }
+                    },
+                    None => WeekStartDay::Sunday,
+                };
+                Ok(DateTimeField::Week(start_day))
+            }
             ast::DateTimeField::Day => Ok(DateTimeField::Day),
             ast::DateTimeField::DayOfWeek => Ok(DateTimeField::DayOfWeek),
             ast::DateTimeField::DayOfYear => Ok(DateTimeField::DayOfYear),
@@ -1322,6 +1342,7 @@ impl ExprPlanner {
             "FLOOR" => Ok(ScalarFunction::Floor),
             "CEIL" | "CEILING" => Ok(ScalarFunction::Ceil),
             "SQRT" => Ok(ScalarFunction::Sqrt),
+            "CBRT" => Ok(ScalarFunction::Cbrt),
             "POWER" | "POW" => Ok(ScalarFunction::Power),
             "MOD" => Ok(ScalarFunction::Mod),
             "SIGN" => Ok(ScalarFunction::Sign),
@@ -1343,6 +1364,12 @@ impl ExprPlanner {
             "SINH" => Ok(ScalarFunction::Sinh),
             "COSH" => Ok(ScalarFunction::Cosh),
             "TANH" => Ok(ScalarFunction::Tanh),
+            "ASINH" => Ok(ScalarFunction::Asinh),
+            "ACOSH" => Ok(ScalarFunction::Acosh),
+            "ATANH" => Ok(ScalarFunction::Atanh),
+            "COT" => Ok(ScalarFunction::Cot),
+            "CSC" => Ok(ScalarFunction::Csc),
+            "SEC" => Ok(ScalarFunction::Sec),
             "SAFE_DIVIDE" => Ok(ScalarFunction::SafeDivide),
             "SAFE_MULTIPLY" => Ok(ScalarFunction::SafeMultiply),
             "SAFE_ADD" => Ok(ScalarFunction::SafeAdd),
@@ -1352,6 +1379,7 @@ impl ExprPlanner {
             "IS_NAN" => Ok(ScalarFunction::IsNan),
             "IS_INF" => Ok(ScalarFunction::IsInf),
             "RAND" => Ok(ScalarFunction::Rand),
+            "PI" => Ok(ScalarFunction::Pi),
             "COALESCE" => Ok(ScalarFunction::Coalesce),
             "IFNULL" => Ok(ScalarFunction::IfNull),
             "NULLIF" => Ok(ScalarFunction::NullIf),
@@ -1392,6 +1420,9 @@ impl ExprPlanner {
             "UNIX_SECONDS" => Ok(ScalarFunction::UnixSeconds),
             "DATE_FROM_UNIX_DATE" => Ok(ScalarFunction::DateFromUnixDate),
             "LAST_DAY" => Ok(ScalarFunction::LastDay),
+            "DATE_BUCKET" => Ok(ScalarFunction::DateBucket),
+            "DATETIME_BUCKET" => Ok(ScalarFunction::DatetimeBucket),
+            "TIMESTAMP_BUCKET" => Ok(ScalarFunction::TimestampBucket),
             "MAKE_INTERVAL" => Ok(ScalarFunction::MakeInterval),
             "JUSTIFY_DAYS" => Ok(ScalarFunction::JustifyDays),
             "JUSTIFY_HOURS" => Ok(ScalarFunction::JustifyHours),
@@ -1596,6 +1627,12 @@ impl ExprPlanner {
                 0,
                 value * IntervalValue::MICROS_PER_SECOND * IntervalValue::NANOS_PER_MICRO,
             ),
+            Some(ast::DateTimeField::Millisecond) | Some(ast::DateTimeField::Milliseconds) => {
+                (0, 0, value * 1_000_000)
+            }
+            Some(ast::DateTimeField::Microsecond) | Some(ast::DateTimeField::Microseconds) => {
+                (0, 0, value * 1_000)
+            }
             None => (0, value as i32, 0i64),
             _ => {
                 return Err(Error::unsupported(format!(

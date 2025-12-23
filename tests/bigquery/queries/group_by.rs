@@ -1,23 +1,23 @@
-use yachtsql::QueryExecutor;
+use yachtsql::YachtSQLSession;
 
 use crate::assert_table_eq;
-use crate::common::{create_executor, null};
+use crate::common::{create_session, null};
 
-fn setup_sales_table(executor: &mut QueryExecutor) {
-    executor
+fn setup_sales_table(session: &mut YachtSQLSession) {
+    session
         .execute_sql("CREATE TABLE sales (id INT64, product STRING, category STRING, amount INT64, quantity INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO sales VALUES (1, 'Widget', 'Electronics', 100, 2), (2, 'Gadget', 'Electronics', 200, 1), (3, 'Chair', 'Furniture', 150, 3), (4, 'Table', 'Furniture', 300, 1), (5, 'Widget', 'Electronics', 100, 5)")
         .unwrap();
 }
 
 #[test]
 fn test_group_by_single_column() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, SUM(amount) FROM sales GROUP BY category ORDER BY category")
         .unwrap();
 
@@ -26,10 +26,10 @@ fn test_group_by_single_column() {
 
 #[test]
 fn test_group_by_with_count() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, COUNT(*) FROM sales GROUP BY category ORDER BY category")
         .unwrap();
 
@@ -38,10 +38,10 @@ fn test_group_by_with_count() {
 
 #[test]
 fn test_group_by_with_avg() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, AVG(amount) FROM sales GROUP BY category ORDER BY category")
         .unwrap();
 
@@ -53,10 +53,10 @@ fn test_group_by_with_avg() {
 
 #[test]
 fn test_group_by_with_min_max() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, MIN(amount), MAX(amount) FROM sales GROUP BY category ORDER BY category")
         .unwrap();
 
@@ -68,10 +68,10 @@ fn test_group_by_with_min_max() {
 
 #[test]
 fn test_group_by_multiple_columns() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, product, SUM(quantity) FROM sales GROUP BY category, product ORDER BY category, product")
         .unwrap();
 
@@ -88,10 +88,10 @@ fn test_group_by_multiple_columns() {
 
 #[test]
 fn test_group_by_with_having() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, SUM(amount) FROM sales GROUP BY category HAVING SUM(amount) > 400 ORDER BY category")
         .unwrap();
 
@@ -100,10 +100,10 @@ fn test_group_by_with_having() {
 
 #[test]
 fn test_group_by_with_having_count() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, COUNT(*) FROM sales GROUP BY category HAVING COUNT(*) > 2 ORDER BY category")
         .unwrap();
 
@@ -112,10 +112,10 @@ fn test_group_by_with_having_count() {
 
 #[test]
 fn test_group_by_with_where_and_having() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, SUM(amount) FROM sales WHERE quantity > 1 GROUP BY category HAVING SUM(amount) > 100 ORDER BY category")
         .unwrap();
 
@@ -124,16 +124,16 @@ fn test_group_by_with_where_and_having() {
 
 #[test]
 fn test_group_by_all_rows_same_group() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE items (value INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO items VALUES (10), (20), (30)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT SUM(value), COUNT(*), AVG(value) FROM items")
         .unwrap();
 
@@ -142,16 +142,16 @@ fn test_group_by_all_rows_same_group() {
 
 #[test]
 fn test_group_by_with_null_values() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE data (category STRING, value INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO data VALUES ('A', 10), ('A', 20), (NULL, 30), (NULL, 40)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, SUM(value) FROM data GROUP BY category ORDER BY category")
         .unwrap();
 
@@ -160,10 +160,10 @@ fn test_group_by_with_null_values() {
 
 #[test]
 fn test_count_distinct() {
-    let mut executor = create_executor();
-    setup_sales_table(&mut executor);
+    let mut session = create_session();
+    setup_sales_table(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT category, COUNT(DISTINCT product) FROM sales GROUP BY category ORDER BY category")
         .unwrap();
 

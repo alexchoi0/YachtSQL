@@ -1,29 +1,29 @@
-use yachtsql::QueryExecutor;
+use yachtsql::YachtSQLSession;
 
 use crate::assert_table_eq;
-use crate::common::create_executor;
+use crate::common::create_session;
 
-fn setup_tables(executor: &mut QueryExecutor) {
-    executor
+fn setup_tables(session: &mut YachtSQLSession) {
+    session
         .execute_sql("CREATE TABLE employees (id INT64, name STRING, dept_id INT64, salary INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("CREATE TABLE departments (id INT64, name STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO employees VALUES (1, 'Alice', 1, 50000), (2, 'Bob', 1, 60000), (3, 'Charlie', 2, 55000), (4, 'Diana', 2, 70000)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO departments VALUES (1, 'Engineering'), (2, 'Sales')")
         .unwrap();
 }
 
 #[test]
 fn test_subquery_in_where_in() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE name = 'Engineering') ORDER BY name")
         .unwrap();
 
@@ -32,10 +32,10 @@ fn test_subquery_in_where_in() {
 
 #[test]
 fn test_subquery_in_where_not_in() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM employees WHERE dept_id NOT IN (SELECT id FROM departments WHERE name = 'Sales') ORDER BY name")
         .unwrap();
 
@@ -44,10 +44,10 @@ fn test_subquery_in_where_not_in() {
 
 #[test]
 fn test_subquery_in_from_clause() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT sub.name, sub.salary FROM (SELECT name, salary FROM employees WHERE salary > 55000) AS sub ORDER BY sub.name")
         .unwrap();
 
@@ -56,9 +56,9 @@ fn test_subquery_in_from_clause() {
 
 #[test]
 fn test_subquery_literal_values() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(r#"SELECT * FROM (SELECT "apple" AS fruit, "carrot" AS vegetable)"#)
         .unwrap();
 
@@ -67,9 +67,9 @@ fn test_subquery_literal_values() {
 
 #[test]
 fn test_cte_with_qualified_star() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             r#"WITH groceries AS
               (SELECT "milk" AS dairy,
@@ -85,9 +85,9 @@ fn test_cte_with_qualified_star() {
 
 #[test]
 fn test_cte_with_star() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             r#"WITH groceries AS
               (SELECT "milk" AS dairy,
@@ -104,9 +104,9 @@ fn test_cte_with_star() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_array_struct_offset_star() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             r#"WITH locations AS
               (SELECT ARRAY<STRUCT<city STRING, state STRING>>[("Seattle", "Washington"),
@@ -121,9 +121,9 @@ fn test_array_struct_offset_star() {
 
 #[test]
 fn test_select_star_except() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             r#"WITH orders AS
               (SELECT 5 as order_id,
@@ -139,9 +139,9 @@ fn test_select_star_except() {
 
 #[test]
 fn test_select_star_replace() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql(
             r#"WITH orders AS
               (SELECT 5 as order_id,
@@ -157,10 +157,10 @@ fn test_select_star_replace() {
 
 #[test]
 fn test_subquery_with_aggregation() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM employees WHERE salary > (SELECT AVG(salary) FROM employees) ORDER BY name")
         .unwrap();
 
@@ -169,10 +169,10 @@ fn test_subquery_with_aggregation() {
 
 #[test]
 fn test_exists_subquery() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM departments d WHERE EXISTS (SELECT 1 FROM employees e WHERE e.dept_id = d.id AND e.salary > 55000) ORDER BY name")
         .unwrap();
 
@@ -181,22 +181,22 @@ fn test_exists_subquery() {
 
 #[test]
 fn test_not_exists_subquery() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql("CREATE TABLE products (id INT64, name STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("CREATE TABLE orders (id INT64, product_id INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO products VALUES (1, 'Widget'), (2, 'Gadget'), (3, 'Gizmo')")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO orders VALUES (1, 1), (2, 1)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM products p WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.product_id = p.id) ORDER BY name")
         .unwrap();
 
@@ -205,10 +205,10 @@ fn test_not_exists_subquery() {
 
 #[test]
 fn test_nested_subquery() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT name FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE id IN (SELECT dept_id FROM employees WHERE salary > 65000)) ORDER BY name")
         .unwrap();
 
@@ -217,15 +217,15 @@ fn test_nested_subquery() {
 
 #[test]
 fn test_dedup_pattern_with_row_number() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE test_table (db_id INT64, db_basis_t INT64, name STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO test_table VALUES (1, 100, 'a'), (1, 200, 'b'), (2, 100, 'c')")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH latest AS (
                 SELECT db_id, MAX(db_basis_t) as latest_db_basis_t
@@ -251,17 +251,17 @@ fn test_dedup_pattern_with_row_number() {
 
 #[test]
 fn test_array_agg_ignore_nulls() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE test_data (id INT64, val STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO test_data VALUES (1, 'a'), (1, NULL), (1, 'b'), (2, NULL), (2, 'c')",
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT id, ARRAY_AGG(val IGNORE NULLS) as vals FROM test_data GROUP BY id ORDER BY id",
         )
@@ -272,31 +272,31 @@ fn test_array_agg_ignore_nulls() {
 
 #[test]
 fn test_backtick_quoted_table() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE `my-table` (id INT64, name STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO `my-table` VALUES (1, 'test')")
         .unwrap();
 
-    let result = executor.execute_sql("SELECT * FROM `my-table`").unwrap();
+    let result = session.execute_sql("SELECT * FROM `my-table`").unwrap();
 
     assert_table_eq!(result, [[1, "test"]]);
 }
 
 #[test]
 fn test_backtick_bigquery_qualified_table() {
-    let mut executor = create_executor();
-    executor.execute_sql("CREATE SCHEMA `my-dataset`").unwrap();
-    executor
+    let mut session = create_session();
+    session.execute_sql("CREATE SCHEMA `my-dataset`").unwrap();
+    session
         .execute_sql("CREATE TABLE `my-dataset.my-table` (id INT64, value STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO `my-dataset.my-table` VALUES (1, 'hello'), (2, 'world')")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT * FROM `my-dataset.my-table` ORDER BY id")
         .unwrap();
 
@@ -305,39 +305,37 @@ fn test_backtick_bigquery_qualified_table() {
 
 #[test]
 fn test_backtick_mixed_operations() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE `source-table` (id INT64, data STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO `source-table` VALUES (1, 'a'), (2, 'b')")
         .unwrap();
 
-    executor
+    session
         .execute_sql("UPDATE `source-table` SET data = 'updated' WHERE id = 1")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT * FROM `source-table` ORDER BY id")
         .unwrap();
     assert_table_eq!(result, [[1, "updated"], [2, "b"]]);
 
-    executor
+    session
         .execute_sql("DELETE FROM `source-table` WHERE id = 2")
         .unwrap();
 
-    let result = executor
-        .execute_sql("SELECT * FROM `source-table`")
-        .unwrap();
+    let result = session.execute_sql("SELECT * FROM `source-table`").unwrap();
     assert_table_eq!(result, [[1, "updated"]]);
 }
 
 #[test]
 fn test_correlated_scalar_subquery_order_by_non_projected() {
-    let mut executor = create_executor();
-    setup_tables(&mut executor);
+    let mut session = create_session();
+    setup_tables(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 d.id,
@@ -357,17 +355,17 @@ fn test_correlated_scalar_subquery_order_by_non_projected() {
 
 #[test]
 fn test_array_agg_with_order_by() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE events (order_id INT64, code STRING, ts INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO events VALUES (1, 'A', 100), (1, 'B', 300), (1, 'C', 200), (2, 'X', 50)",
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT order_id, ARRAY_AGG(code ORDER BY ts DESC) as codes FROM events GROUP BY order_id ORDER BY order_id")
         .unwrap();
 
@@ -376,15 +374,15 @@ fn test_array_agg_with_order_by() {
 
 #[test]
 fn test_array_agg_ignore_nulls_with_order_by() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE events (order_id INT64, code STRING, ts INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO events VALUES (1, 'A', 100), (1, NULL, 300), (1, 'B', 200), (2, NULL, 50), (2, 'X', 100)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT order_id, ARRAY_AGG(code IGNORE NULLS ORDER BY ts DESC) as codes FROM events GROUP BY order_id ORDER BY order_id")
         .unwrap();
 
@@ -393,15 +391,15 @@ fn test_array_agg_ignore_nulls_with_order_by() {
 
 #[test]
 fn test_safe_offset_on_array() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE data (id INT64, vals ARRAY<STRING>)")
         .unwrap();
-    executor
+    session
         .execute_sql(r#"INSERT INTO data VALUES (1, ['a', 'b', 'c']), (2, ['x']), (3, [])"#)
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id, vals[SAFE_OFFSET(0)] as first_val FROM data ORDER BY id")
         .unwrap();
 
@@ -410,15 +408,15 @@ fn test_safe_offset_on_array() {
 
 #[test]
 fn test_exists_with_unnest() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE orders (id INT64, status_codes ARRAY<STRING>)")
         .unwrap();
-    executor
+    session
         .execute_sql(r#"INSERT INTO orders VALUES (1, ['100', '129', '200']), (2, ['100', '200']), (3, ['219A', '300'])"#)
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id, EXISTS (SELECT c FROM UNNEST(status_codes) c WHERE c = '129' LIMIT 1) AS has_129 FROM orders ORDER BY id")
         .unwrap();
 
@@ -427,15 +425,15 @@ fn test_exists_with_unnest() {
 
 #[test]
 fn test_exists_with_unnest_like_pattern() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE orders (id INT64, status_codes ARRAY<STRING>)")
         .unwrap();
-    executor
+    session
         .execute_sql(r#"INSERT INTO orders VALUES (1, ['100', '129', '200']), (2, ['100', '200']), (3, ['219A', '300'])"#)
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id, EXISTS (SELECT c FROM UNNEST(status_codes) c WHERE c LIKE '219%' LIMIT 1) AS has_219x FROM orders ORDER BY id")
         .unwrap();
 
@@ -444,15 +442,15 @@ fn test_exists_with_unnest_like_pattern() {
 
 #[test]
 fn test_exists_with_unnest_in_list() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE orders (id INT64, status_codes ARRAY<STRING>)")
         .unwrap();
-    executor
+    session
         .execute_sql(r#"INSERT INTO orders VALUES (1, ['610', '200']), (2, ['100', '200']), (3, ['611', '612'])"#)
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT id, EXISTS (SELECT c FROM UNNEST(status_codes) c WHERE c IN ('610', '611', '612') LIMIT 1) AS has_complete FROM orders ORDER BY id")
         .unwrap();
 
@@ -461,9 +459,9 @@ fn test_exists_with_unnest_in_list() {
 
 #[test]
 fn test_farm_fingerprint() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT FARM_FINGERPRINT('hello') AS hash")
         .unwrap();
 
@@ -471,7 +469,7 @@ fn test_farm_fingerprint() {
     let hash = records[0].values()[0].as_i64().unwrap();
     assert_ne!(hash, 0);
 
-    let result2 = executor
+    let result2 = session
         .execute_sql("SELECT FARM_FINGERPRINT('hello') = FARM_FINGERPRINT('hello') AS same, FARM_FINGERPRINT('hello') = FARM_FINGERPRINT('world') AS different")
         .unwrap();
 
@@ -480,9 +478,9 @@ fn test_farm_fingerprint() {
 
 #[test]
 fn test_generate_timestamp_array() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT ARRAY_LENGTH(GENERATE_TIMESTAMP_ARRAY(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-03 00:00:00', INTERVAL 1 DAY)) AS len")
         .unwrap();
 
@@ -491,9 +489,9 @@ fn test_generate_timestamp_array() {
 
 #[test]
 fn test_generate_date_array() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT GENERATE_DATE_ARRAY(DATE '2024-01-01', DATE '2024-01-05', INTERVAL 1 DAY) AS dates")
         .unwrap();
 
@@ -504,17 +502,17 @@ fn test_generate_date_array() {
 
 #[test]
 fn test_logical_or() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE flags (grp INT64, flag BOOL)")
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO flags VALUES (1, true), (1, false), (2, false), (2, false), (3, NULL)",
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT grp, LOGICAL_OR(flag) AS any_true FROM flags GROUP BY grp ORDER BY grp",
         )
@@ -525,17 +523,17 @@ fn test_logical_or() {
 
 #[test]
 fn test_logical_and() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE flags (grp INT64, flag BOOL)")
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO flags VALUES (1, true), (1, true), (2, true), (2, false), (3, NULL)",
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT grp, LOGICAL_AND(flag) AS all_true FROM flags GROUP BY grp ORDER BY grp",
         )
@@ -547,15 +545,15 @@ fn test_logical_and() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_array_select_as_struct() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE items (id INT64, name STRING)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO items VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT ARRAY(SELECT AS STRUCT id, name FROM items WHERE id <= 2 ORDER BY id) AS arr",
         )
@@ -576,12 +574,12 @@ fn test_array_select_as_struct() {
 
 #[test]
 fn test_temp_function_basic() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TEMP FUNCTION double_it(x INT64) AS (x * 2)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT double_it(5) AS doubled")
         .unwrap();
 
@@ -590,12 +588,12 @@ fn test_temp_function_basic() {
 
 #[test]
 fn test_temp_function_string() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TEMP FUNCTION greet(name STRING) AS (CONCAT('Hello, ', name, '!'))")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT greet('World') AS greeting")
         .unwrap();
 
@@ -603,10 +601,10 @@ fn test_temp_function_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore]
 fn test_temp_function_complex() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             r#"CREATE TEMP FUNCTION to_uuid(s STRING)
             AS (
@@ -623,7 +621,7 @@ fn test_temp_function_complex() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT to_uuid('hello') = to_uuid('hello') AS same, to_uuid('hello') = to_uuid('world') AS diff")
         .unwrap();
 
@@ -632,12 +630,12 @@ fn test_temp_function_complex() {
 
 #[test]
 fn test_temp_function_in_expression() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TEMP FUNCTION add_one(x INT64) AS (x + 1)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql("SELECT add_one(add_one(5)) AS nested, add_one(10) + add_one(20) AS sum")
         .unwrap();
 
@@ -645,11 +643,10 @@ fn test_temp_function_in_expression() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_complex_union_with_nested_subqueries() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"CREATE TABLE partner_data (
                 user_id STRING,
@@ -663,7 +660,7 @@ fn test_complex_union_with_nested_subqueries() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             r#"INSERT INTO partner_data VALUES
                 ('u1', 'a1', 'ladder', 'lincoln', 1000.0, DATETIME '2024-01-01 10:00:00', DATETIME '2024-01-15 10:00:00'),
@@ -673,7 +670,7 @@ fn test_complex_union_with_nested_subqueries() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             r#"
             SELECT
@@ -721,11 +718,10 @@ fn test_complex_union_with_nested_subqueries() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_agg_struct_field_access() {
-    let mut executor = create_executor();
+    let mut session = create_session();
 
-    executor
+    session
         .execute_sql(
             r#"CREATE TABLE attribution_data (
                 user_id STRING,
@@ -739,7 +735,7 @@ fn test_array_agg_struct_field_access() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             r#"INSERT INTO attribution_data VALUES
                 ('u1', 'partner_a', DATETIME '2024-01-01 10:00:00', 'ext1', 'web', 'google', 'campaign1'),
@@ -750,7 +746,7 @@ fn test_array_agg_struct_field_access() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             r#"
             SELECT DISTINCT *
@@ -790,4 +786,854 @@ fn test_array_agg_struct_field_access() {
             ["u3", "partner_a", "ext4", "app", "direct", "campaign4"],
         ]
     );
+}
+
+#[test]
+fn test_array_agg_ignore_nulls_limit_debug() {
+    let mut session = create_session();
+
+    session
+        .execute_sql(
+            r#"CREATE TABLE attr_debug (
+                user_id STRING,
+                partner STRING,
+                visit_time DATETIME,
+                external_id STRING,
+                source STRING
+            )"#,
+        )
+        .unwrap();
+
+    session
+        .execute_sql(
+            r#"INSERT INTO attr_debug VALUES
+                ('u1', 'partner_a', DATETIME '2024-01-05 10:00:00', 'ext2', 'facebook'),
+                ('u2', 'partner_b', DATETIME '2024-01-02 10:00:00', 'ext3', 'bing')
+            "#,
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            r#"
+            SELECT
+                user_id,
+                partner,
+                ARRAY_AGG(external_id IGNORE NULLS ORDER BY visit_time ASC LIMIT 1) AS arr
+            FROM attr_debug
+            WHERE source IN ('facebook', 'bing')
+            GROUP BY user_id, partner
+            ORDER BY user_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [["u1", "partner_a", ["ext2"]], ["u2", "partner_b", ["ext3"]],]
+    );
+}
+
+#[test]
+fn test_array_agg_ignore_nulls_limit_safe_offset() {
+    let mut session = create_session();
+
+    session
+        .execute_sql(
+            r#"CREATE TABLE attr_offset (
+                user_id STRING,
+                partner STRING,
+                visit_time DATETIME,
+                external_id STRING,
+                source STRING
+            )"#,
+        )
+        .unwrap();
+
+    session
+        .execute_sql(
+            r#"INSERT INTO attr_offset VALUES
+                ('u1', 'partner_a', DATETIME '2024-01-05 10:00:00', 'ext2', 'facebook'),
+                ('u2', 'partner_b', DATETIME '2024-01-02 10:00:00', 'ext3', 'bing')
+            "#,
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            r#"
+            SELECT
+                user_id,
+                partner,
+                ARRAY_AGG(external_id IGNORE NULLS ORDER BY visit_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS external_id
+            FROM attr_offset
+            WHERE source IN ('facebook', 'bing')
+            GROUP BY user_id, partner
+            ORDER BY user_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [["u1", "partner_a", "ext2"], ["u2", "partner_b", "ext3"],]
+    );
+}
+
+#[test]
+fn test_array_agg_in_union_all() {
+    let mut session = create_session();
+
+    session
+        .execute_sql(
+            r#"CREATE TABLE attr_union (
+                user_id STRING,
+                partner STRING,
+                visit_time DATETIME,
+                external_id STRING,
+                source STRING
+            )"#,
+        )
+        .unwrap();
+
+    session
+        .execute_sql(
+            r#"INSERT INTO attr_union VALUES
+                ('u1', 'partner_a', DATETIME '2024-01-01 10:00:00', 'ext1', 'google'),
+                ('u1', 'partner_a', DATETIME '2024-01-05 10:00:00', 'ext2', 'facebook'),
+                ('u2', 'partner_b', DATETIME '2024-01-02 10:00:00', 'ext3', 'bing'),
+                ('u3', 'partner_a', DATETIME '2024-01-03 10:00:00', 'ext4', 'direct')
+            "#,
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            r#"
+            SELECT user_id, partner, external_id
+            FROM attr_union
+            WHERE source IN ('google', 'direct')
+            UNION ALL
+            SELECT
+                user_id,
+                partner,
+                ARRAY_AGG(external_id IGNORE NULLS ORDER BY visit_time ASC LIMIT 1)[SAFE_OFFSET(0)] AS external_id
+            FROM attr_union
+            WHERE source IN ('facebook', 'bing')
+            GROUP BY user_id, partner
+            ORDER BY user_id, external_id
+            "#,
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["u1", "partner_a", "ext1"],
+            ["u1", "partner_a", "ext2"],
+            ["u2", "partner_b", "ext3"],
+            ["u3", "partner_a", "ext4"],
+        ]
+    );
+}
+
+fn setup_players_mascots(session: &mut YachtSQLSession) {
+    session
+        .execute_sql("CREATE TABLE Players (username STRING, team STRING, level INT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE Mascots (team STRING, mascot STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Players VALUES ('gorbie', 'red', 29), ('junelyn', 'blue', 2), ('corba', 'green', 43)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Mascots VALUES ('red', 'cardinal'), ('blue', 'finch'), ('green', 'parrot')")
+        .unwrap();
+}
+
+#[test]
+fn test_scalar_subquery_in_select() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+                username,
+                (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "parrot"],
+            ["gorbie", "cardinal"],
+            ["junelyn", "finch"],
+        ]
+    );
+}
+
+#[test]
+fn test_scalar_subquery_with_aggregate() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+                username,
+                level,
+                CAST((SELECT AVG(level) FROM Players) AS FLOAT64) AS avg_level
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert_eq!(records.len(), 3);
+    let avg = records[0].values()[2].as_f64().unwrap();
+    assert!((avg - 24.666666).abs() < 0.01);
+}
+
+fn setup_npcs(session: &mut YachtSQLSession) {
+    session
+        .execute_sql("CREATE TABLE NPCs (username STRING, team STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO NPCs VALUES ('niles', 'red'), ('jujul', 'red'), ('kira', 'blue')")
+        .unwrap();
+}
+
+#[test]
+fn test_array_subquery_basic() {
+    let mut session = create_session();
+    setup_npcs(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT ARRAY(SELECT username FROM NPCs WHERE team = 'red' ORDER BY username) AS red",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[["jujul", "niles"]]]);
+}
+
+#[test]
+fn test_array_subquery_empty_result() {
+    let mut session = create_session();
+    setup_npcs(&mut session);
+
+    let result = session
+        .execute_sql("SELECT ARRAY(SELECT username FROM NPCs WHERE team = 'yellow') AS yellow")
+        .unwrap();
+
+    assert_table_eq!(result, [[[]]]);
+}
+
+#[test]
+fn test_array_subquery_with_filter() {
+    let mut session = create_session();
+    session
+        .execute_sql(
+            "CREATE TABLE Products (id INT64, name STRING, category STRING, price FLOAT64)",
+        )
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Products VALUES (1, 'Laptop', 'Electronics', 999.99), (2, 'Phone', 'Electronics', 599.99), (3, 'Desk', 'Furniture', 299.99)")
+        .unwrap();
+
+    let result = session
+        .execute_sql("SELECT ARRAY(SELECT name FROM Products WHERE category = 'Electronics' ORDER BY price DESC) AS electronics")
+        .unwrap();
+
+    assert_table_eq!(result, [[["Laptop", "Phone"]]]);
+}
+
+#[test]
+fn test_scalar_subquery_returns_null_when_no_match() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    session
+        .execute_sql("INSERT INTO Players VALUES ('nobody', 'yellow', 10)")
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT
+                username,
+                (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM Players
+            WHERE username = 'nobody'",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["nobody", null]]);
+}
+
+#[test]
+fn test_scalar_subquery_in_where_clause() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT username, level
+            FROM Players
+            WHERE level > (SELECT AVG(level) FROM Players)
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba", 43], ["gorbie", 29],]);
+}
+
+#[test]
+#[ignore = "Scalar subquery in CASE not yet supported"]
+fn test_scalar_subquery_in_case() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+                username,
+                CASE
+                    WHEN level > (SELECT AVG(level) FROM Players) THEN 'above average'
+                    ELSE 'below average'
+                END AS status
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "above average"],
+            ["gorbie", "above average"],
+            ["junelyn", "below average"],
+        ]
+    );
+}
+
+#[test]
+fn test_array_subquery_with_limit() {
+    let mut session = create_session();
+    setup_npcs(&mut session);
+
+    let result = session
+        .execute_sql("SELECT ARRAY(SELECT username FROM NPCs ORDER BY username LIMIT 2) AS top2")
+        .unwrap();
+
+    assert_table_eq!(result, [[["jujul", "kira"]]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_in_subquery_exists() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql("SELECT 'corba' IN (SELECT username FROM Players) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_in_subquery_not_exists() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql("SELECT 'unknown' IN (SELECT username FROM Players) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+#[ignore = "NOT IN subquery in SELECT expression not yet supported"]
+fn test_not_in_subquery() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql("SELECT 'unknown' NOT IN (SELECT username FROM Players) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_in_subquery_empty_result() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT 'corba' IN (SELECT username FROM Players WHERE team = 'yellow') AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+fn test_exists_subquery_true() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql("SELECT EXISTS(SELECT username FROM Players WHERE team = 'red') AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_exists_subquery_false() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql("SELECT EXISTS(SELECT username FROM Players WHERE team = 'yellow') AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+fn test_exists_subquery_multiple_columns() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT EXISTS(SELECT username, team, level FROM Players WHERE level > 20) AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_table_subquery_basic() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql("SELECT results.username FROM (SELECT * FROM Players) AS results ORDER BY results.username")
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
+}
+
+#[test]
+fn test_table_subquery_with_filter() {
+    let mut session = create_session();
+    setup_npcs(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT username
+            FROM (SELECT * FROM NPCs WHERE team = 'red') AS red_team
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["jujul"], ["niles"]]);
+}
+
+#[test]
+fn test_table_subquery_with_cte() {
+    let mut session = create_session();
+    setup_npcs(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT username
+            FROM (
+                WITH red_team AS (SELECT * FROM NPCs WHERE team = 'red')
+                SELECT * FROM red_team
+            )
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["jujul"], ["niles"]]);
+}
+
+#[test]
+fn test_in_subquery_with_column() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT username, team
+            FROM Players
+            WHERE team IN (SELECT team FROM Mascots WHERE mascot = 'cardinal')
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["gorbie", "red"]]);
+}
+
+#[test]
+fn test_not_exists_subquery_in_select() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT NOT EXISTS(SELECT username FROM Players WHERE team = 'yellow') AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+#[ignore = "IN UNNEST(ARRAY(...)) in SELECT expression not yet supported"]
+fn test_in_unnest_array_subquery() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql("SELECT 'corba' IN UNNEST(ARRAY(SELECT username FROM Players)) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_doc_example_expression_subquery_mascot() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              username,
+              (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM
+              Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "parrot"],
+            ["gorbie", "cardinal"],
+            ["junelyn", "finch"],
+        ]
+    );
+}
+
+#[test]
+fn test_doc_example_expression_subquery_avg() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              username,
+              level,
+              CAST((SELECT AVG(level) FROM Players) AS FLOAT64) AS avg_level
+            FROM
+              Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert_eq!(records.len(), 3);
+    assert_eq!(records[0].values()[0].as_str().unwrap(), "corba");
+    assert_eq!(records[0].values()[1].as_i64().unwrap(), 43);
+    let avg = records[0].values()[2].as_f64().unwrap();
+    assert!((avg - 24.666666).abs() < 0.01);
+}
+
+#[test]
+fn test_doc_example_array_subquery_red_team() {
+    let mut session = create_session();
+    setup_npcs(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              ARRAY(SELECT username FROM NPCs WHERE team = 'red' ORDER BY username) AS red",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[["jujul", "niles"]]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_doc_example_in_subquery() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              'corba' IN (SELECT username FROM Players) AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_doc_example_exists_subquery() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              EXISTS(SELECT username FROM Players WHERE team = 'yellow') AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+fn test_doc_example_table_subquery() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT results.username
+            FROM (SELECT * FROM Players) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
+}
+
+#[test]
+fn test_doc_example_table_subquery_with_cte() {
+    let mut session = create_session();
+    setup_npcs(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              username
+            FROM (
+              WITH red_team AS (SELECT * FROM NPCs WHERE team = 'red')
+              SELECT * FROM red_team
+            )
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["jujul"], ["niles"]]);
+}
+
+#[test]
+fn test_volatile_subquery_rand() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              results.username
+            FROM
+              (SELECT * FROM Players WHERE RAND() < 0.5) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert!(records.len() <= 3);
+}
+
+#[test]
+fn test_volatile_subquery_rand_always_true() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              results.username
+            FROM
+              (SELECT * FROM Players WHERE RAND() < 1.0) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
+}
+
+#[test]
+fn test_volatile_subquery_rand_always_false() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              results.username
+            FROM
+              (SELECT * FROM Players WHERE RAND() < 0.0) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert!(records.is_empty());
+}
+
+fn setup_players_mascots_with_sparrow(session: &mut YachtSQLSession) {
+    session
+        .execute_sql("CREATE TABLE Players2 (username STRING, team STRING, level INT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE Mascots2 (team STRING, mascot STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Players2 VALUES ('gorbie', 'red', 29), ('junelyn', 'blue', 2), ('corba', 'green', 43)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Mascots2 VALUES ('red', 'cardinal'), ('blue', 'finch'), ('green', 'parrot'), ('yellow', 'sparrow')")
+        .unwrap();
+}
+
+#[test]
+fn test_correlated_subquery_not_exists_unassigned_mascot() {
+    let mut session = create_session();
+    setup_players_mascots_with_sparrow(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT mascot
+            FROM Mascots2
+            WHERE
+              NOT EXISTS(SELECT username FROM Players2 WHERE Mascots2.team = Players2.team)
+            ORDER BY mascot",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["sparrow"]]);
+}
+
+#[test]
+fn test_correlated_scalar_subquery_player_mascot() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              username,
+              (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "parrot"],
+            ["gorbie", "cardinal"],
+            ["junelyn", "finch"],
+        ]
+    );
+}
+
+#[test]
+fn test_correlated_subquery_exists_with_condition() {
+    let mut session = create_session();
+    setup_players_mascots(&mut session);
+
+    let result = session
+        .execute_sql(
+            "SELECT username
+            FROM Players
+            WHERE EXISTS(SELECT 1 FROM Mascots WHERE Players.team = Mascots.team AND mascot LIKE '%a%')
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"]]);
+}
+
+#[test]
+fn test_correlated_subquery_count() {
+    let mut session = create_session();
+    session
+        .execute_sql("CREATE TABLE Orders (order_id INT64, customer_id INT64, amount FLOAT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE Customers (customer_id INT64, name STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Customers VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Orders VALUES (1, 1, 100.0), (2, 1, 200.0), (3, 2, 150.0)")
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              name,
+              (SELECT COUNT(*) FROM Orders WHERE Orders.customer_id = Customers.customer_id) AS order_count
+            FROM Customers
+            ORDER BY name",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["Alice", 2], ["Bob", 1], ["Charlie", 0],]);
+}
+
+#[test]
+fn test_correlated_subquery_max() {
+    let mut session = create_session();
+    session
+        .execute_sql("CREATE TABLE Sales (id INT64, product STRING, region STRING, amount INT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE Regions (region STRING, manager STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Regions VALUES ('East', 'Alice'), ('West', 'Bob')")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO Sales VALUES (1, 'Widget', 'East', 100), (2, 'Gadget', 'East', 200), (3, 'Widget', 'West', 150)")
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT
+              manager,
+              (SELECT MAX(amount) FROM Sales WHERE Sales.region = Regions.region) AS max_sale
+            FROM Regions
+            ORDER BY manager",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["Alice", 200], ["Bob", 150],]);
 }
