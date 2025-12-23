@@ -2785,11 +2785,43 @@ impl<'a> IrEvaluator<'a> {
     }
 
     fn fn_timestamp(&self, args: &[Value]) -> Result<Value> {
+        if args.len() == 2 {
+            match (&args[0], &args[1]) {
+                (Value::Null, _) | (_, Value::Null) => return Ok(Value::Null),
+                (Value::String(s), Value::String(tz_name)) => {
+                    let ndt = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                        .or_else(|_| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S"))
+                        .map_err(|e| Error::InvalidQuery(format!("Invalid timestamp: {}", e)))?;
+                    let tz: chrono_tz::Tz = tz_name
+                        .parse()
+                        .map_err(|_| Error::InvalidQuery(format!("Invalid timezone: {}", tz_name)))?;
+                    let local_dt = ndt
+                        .and_local_timezone(tz)
+                        .single()
+                        .ok_or_else(|| Error::InvalidQuery("Ambiguous or invalid local time".into()))?;
+                    return Ok(Value::Timestamp(local_dt.with_timezone(&Utc)));
+                }
+                _ => {
+                    return Err(Error::InvalidQuery(
+                        "TIMESTAMP with timezone requires (string, string) arguments".into(),
+                    ));
+                }
+            }
+        }
         match args.first() {
             Some(Value::Null) => Ok(Value::Null),
             Some(Value::String(s)) => {
-                let dt = DateTime::parse_from_rfc3339(s)
+                let normalized = if s.ends_with("+00") || s.ends_with("-00") {
+                    format!("{}:00", s)
+                } else {
+                    s.to_string()
+                };
+                let dt = DateTime::parse_from_rfc3339(&normalized)
                     .map(|d| d.with_timezone(&Utc))
+                    .or_else(|_| {
+                        DateTime::parse_from_str(&normalized, "%Y-%m-%d %H:%M:%S%:z")
+                            .map(|d| d.with_timezone(&Utc))
+                    })
                     .or_else(|_| {
                         chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
                             .or_else(|_| {
@@ -2801,8 +2833,14 @@ impl<'a> IrEvaluator<'a> {
                 Ok(Value::Timestamp(dt))
             }
             Some(Value::DateTime(dt)) => Ok(Value::Timestamp(dt.and_utc())),
+            Some(Value::Date(d)) => {
+                let ndt = d.and_hms_opt(0, 0, 0).ok_or_else(|| {
+                    Error::InvalidQuery("Failed to create timestamp from date".into())
+                })?;
+                Ok(Value::Timestamp(ndt.and_utc()))
+            }
             _ => Err(Error::InvalidQuery(
-                "TIMESTAMP requires timestamp/string argument".into(),
+                "TIMESTAMP requires timestamp/string/date argument".into(),
             )),
         }
     }
