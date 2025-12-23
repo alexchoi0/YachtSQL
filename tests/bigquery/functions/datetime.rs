@@ -520,3 +520,22 @@ fn test_datetime_constructor_from_string() {
         .unwrap();
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
 }
+
+#[test]
+fn test_string_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT STRING(TIMESTAMP '2024-06-15 14:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [["2024-06-15 14:30:00.000000 UTC"]]);
+}
+
+#[test]
+fn test_string_from_timestamp_null() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT STRING(CAST(NULL AS TIMESTAMP))")
+        .unwrap();
+    assert!(result.num_rows() == 1);
+    assert!(result.get_row(0).unwrap().values()[0].is_null());
+}
