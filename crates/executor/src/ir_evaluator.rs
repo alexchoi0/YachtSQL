@@ -581,6 +581,9 @@ impl<'a> IrEvaluator<'a> {
             ScalarFunction::Sinh => self.fn_sinh(&arg_values),
             ScalarFunction::Cosh => self.fn_cosh(&arg_values),
             ScalarFunction::Tanh => self.fn_tanh(&arg_values),
+            ScalarFunction::Cot => self.fn_cot(&arg_values),
+            ScalarFunction::Csc => self.fn_csc(&arg_values),
+            ScalarFunction::Sec => self.fn_sec(&arg_values),
             ScalarFunction::Pi => Ok(Value::Float64(OrderedFloat(std::f64::consts::PI))),
             ScalarFunction::Rand | ScalarFunction::RandCanonical => self.fn_rand(&arg_values),
             ScalarFunction::Split => self.fn_split(&arg_values),
@@ -3804,6 +3807,42 @@ impl<'a> IrEvaluator<'a> {
             Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).tanh()))),
             Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.tanh()))),
             _ => Err(Error::InvalidQuery("TANH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_cot(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => {
+                let x = *n as f64;
+                Ok(Value::Float64(OrderedFloat(x.cos() / x.sin())))
+            }
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.cos() / f.0.sin()))),
+            _ => Err(Error::InvalidQuery("COT requires numeric argument".into())),
+        }
+    }
+
+    fn fn_csc(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => {
+                let x = *n as f64;
+                Ok(Value::Float64(OrderedFloat(1.0 / x.sin())))
+            }
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(1.0 / f.0.sin()))),
+            _ => Err(Error::InvalidQuery("CSC requires numeric argument".into())),
+        }
+    }
+
+    fn fn_sec(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => {
+                let x = *n as f64;
+                Ok(Value::Float64(OrderedFloat(1.0 / x.cos())))
+            }
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(1.0 / f.0.cos()))),
+            _ => Err(Error::InvalidQuery("SEC requires numeric argument".into())),
         }
     }
 
