@@ -9785,7 +9785,7 @@ impl QueryExecutor {
                 let func_name = func.name.to_string().to_uppercase();
                 match func_name.as_str() {
                     "ROUND" | "TRUNC" | "TRUNCATE" | "FLOOR" | "CEIL" | "CEILING" | "ABS"
-                    | "SQRT" | "POWER" | "POW" | "EXP" | "LN" | "LOG" | "LOG10" | "SIN" | "COS"
+                    | "SQRT" | "CBRT" | "POWER" | "POW" | "EXP" | "LN" | "LOG" | "LOG10" | "SIN" | "COS"
                     | "TAN" | "ASIN" | "ACOS" | "ATAN" | "ATAN2" | "SIGN" | "MOD" | "DIV"
                     | "SAFE_DIVIDE" | "IEEE_DIVIDE" => Some(DataType::Float64),
                     "AVG" | "STDDEV" | "STDDEV_POP" | "STDDEV_SAMP" | "VAR_POP" | "VAR_SAMP"

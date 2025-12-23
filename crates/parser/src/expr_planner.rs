@@ -1322,6 +1322,7 @@ impl ExprPlanner {
             "FLOOR" => Ok(ScalarFunction::Floor),
             "CEIL" | "CEILING" => Ok(ScalarFunction::Ceil),
             "SQRT" => Ok(ScalarFunction::Sqrt),
+            "CBRT" => Ok(ScalarFunction::Cbrt),
             "POWER" | "POW" => Ok(ScalarFunction::Power),
             "MOD" => Ok(ScalarFunction::Mod),
             "SIGN" => Ok(ScalarFunction::Sign),

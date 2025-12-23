@@ -488,6 +488,7 @@ impl<'a> IrEvaluator<'a> {
             ScalarFunction::Ceil => self.fn_ceil(&arg_values),
             ScalarFunction::Round => self.fn_round(&arg_values),
             ScalarFunction::Sqrt => self.fn_sqrt(&arg_values),
+            ScalarFunction::Cbrt => self.fn_cbrt(&arg_values),
             ScalarFunction::Power | ScalarFunction::Pow => self.fn_power(&arg_values),
             ScalarFunction::Mod => self.fn_mod(&arg_values),
             ScalarFunction::Sign => self.fn_sign(&arg_values),
@@ -2005,6 +2006,15 @@ impl<'a> IrEvaluator<'a> {
             Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).sqrt()))),
             Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.sqrt()))),
             _ => Err(Error::InvalidQuery("SQRT requires numeric argument".into())),
+        }
+    }
+
+    fn fn_cbrt(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).cbrt()))),
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.cbrt()))),
+            _ => Err(Error::InvalidQuery("CBRT requires numeric argument".into())),
         }
     }
 
