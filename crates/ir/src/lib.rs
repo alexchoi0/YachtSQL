@@ -4,8 +4,8 @@ pub mod schema;
 
 pub use expr::{
     AggregateFunction, BinaryOp, DateTimeField, Expr, JsonPathElement, Literal, ScalarFunction,
-    SortExpr, TrimWhere, UnaryOp, WhenClause, WindowFrame, WindowFrameBound, WindowFrameUnit,
-    WindowFunction,
+    SortExpr, TrimWhere, UnaryOp, WeekStartDay, WhenClause, WindowFrame, WindowFrameBound,
+    WindowFrameUnit, WindowFunction,
 };
 pub use plan::{
     AlterColumnAction, AlterTableOp, ConstraintType, CteDefinition, DclResourceType, ExportFormat,

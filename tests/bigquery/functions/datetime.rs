@@ -448,7 +448,43 @@ fn test_extract_week() {
     let result = session
         .execute_sql("SELECT EXTRACT(WEEK FROM DATE '2024-06-15')")
         .unwrap();
+    assert_table_eq!(result, [[23]]);
+}
+
+#[test]
+fn test_extract_week_sunday() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT EXTRACT(WEEK(SUNDAY) FROM DATE '2024-06-15')")
+        .unwrap();
+    assert_table_eq!(result, [[23]]);
+}
+
+#[test]
+fn test_extract_week_monday() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT EXTRACT(WEEK(MONDAY) FROM DATE '2024-06-15')")
+        .unwrap();
     assert_table_eq!(result, [[24]]);
+}
+
+#[test]
+fn test_extract_isoweek() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT EXTRACT(ISOWEEK FROM DATE '2024-06-15')")
+        .unwrap();
+    assert_table_eq!(result, [[24]]);
+}
+
+#[test]
+fn test_extract_week_zero() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT EXTRACT(WEEK FROM DATE '2024-01-01')")
+        .unwrap();
+    assert_table_eq!(result, [[0]]);
 }
 
 #[test]
@@ -861,7 +897,7 @@ fn test_extract_week_monday_from_timestamp() {
     let result = session
         .execute_sql("SELECT EXTRACT(WEEK(MONDAY) FROM TIMESTAMP '2017-11-06 00:00:00+00')")
         .unwrap();
-    assert_table_eq!(result, [[44]]);
+    assert_table_eq!(result, [[45]]);
 }
 
 #[test]
@@ -1007,7 +1043,6 @@ fn test_timestamp_add_day() {
 }
 
 #[test]
-#[ignore]
 fn test_timestamp_add_millisecond() {
     let mut session = create_session();
     let result = session
@@ -1074,12 +1109,23 @@ fn test_timestamp_diff_day() {
 
 #[test]
 #[ignore]
-fn test_timestamp_diff_negative() {
+fn test_timestamp_diff_negative_date_only() {
     let mut session = create_session();
     let result = session
         .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2018-08-14', TIMESTAMP '2018-10-14', DAY)")
         .unwrap();
     assert_table_eq!(result, [[-61]]);
+}
+
+#[test]
+fn test_timestamp_diff_negative() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql(
+            "SELECT TIMESTAMP_DIFF(TIMESTAMP '2024-01-15 10:00:00', TIMESTAMP '2024-01-15 12:00:00', HOUR)",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[-2]]);
 }
 
 #[test]
@@ -1119,7 +1165,6 @@ fn test_timestamp_trunc_minute() {
 }
 
 #[test]
-#[ignore]
 fn test_timestamp_trunc_second() {
     let mut session = create_session();
     let result = session
@@ -1156,7 +1201,6 @@ fn test_timestamp_trunc_quarter() {
 }
 
 #[test]
-#[ignore]
 fn test_timestamp_trunc_week() {
     let mut session = create_session();
     let result = session
@@ -1319,4 +1363,40 @@ fn test_string_from_timestamp_null() {
         .execute_sql("SELECT STRING(CAST(NULL AS TIMESTAMP))")
         .unwrap();
     assert_table_eq!(result, [[null()]]);
+}
+
+#[test]
+fn test_datetime_bucket_12_hour() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT DATETIME_BUCKET(DATETIME '2024-06-15 14:30:00', INTERVAL 12 HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[dt(2024, 6, 15, 12, 0, 0)]]);
+}
+
+#[test]
+fn test_datetime_bucket_with_origin() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT DATETIME_BUCKET(DATETIME '2024-06-15 14:30:00', INTERVAL 12 HOUR, DATETIME '2024-06-15 06:00:00')")
+        .unwrap();
+    assert_table_eq!(result, [[dt(2024, 6, 15, 6, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_bucket_12_hour() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT TIMESTAMP_BUCKET(TIMESTAMP '2024-06-15 14:30:00', INTERVAL 12 HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 15, 12, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_bucket_with_origin() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT TIMESTAMP_BUCKET(TIMESTAMP '2024-06-15 14:30:00', INTERVAL 12 HOUR, TIMESTAMP '2024-06-15 06:00:00')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 15, 6, 0, 0)]]);
 }

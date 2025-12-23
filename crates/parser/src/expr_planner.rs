@@ -4,8 +4,8 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AggregateFunction, BinaryOp, DateTimeField, Expr, JsonPathElement, Literal, LogicalPlan,
-    PlanSchema, ScalarFunction, SortExpr, TrimWhere, UnaryOp, WhenClause, WindowFrame,
-    WindowFrameBound, WindowFrameUnit, WindowFunction,
+    PlanSchema, ScalarFunction, SortExpr, TrimWhere, UnaryOp, WeekStartDay, WhenClause,
+    WindowFrame, WindowFrameBound, WindowFrameUnit, WindowFunction,
 };
 
 pub type SubqueryPlannerFn<'a> = &'a dyn Fn(&ast::Query) -> Result<LogicalPlan>;
@@ -819,7 +819,27 @@ impl ExprPlanner {
         match field {
             ast::DateTimeField::Year => Ok(DateTimeField::Year),
             ast::DateTimeField::Month => Ok(DateTimeField::Month),
-            ast::DateTimeField::Week(_) => Ok(DateTimeField::Week),
+            ast::DateTimeField::Week(opt_ident) => {
+                let start_day = match opt_ident {
+                    Some(ident) => match ident.value.to_uppercase().as_str() {
+                        "SUNDAY" => WeekStartDay::Sunday,
+                        "MONDAY" => WeekStartDay::Monday,
+                        "TUESDAY" => WeekStartDay::Tuesday,
+                        "WEDNESDAY" => WeekStartDay::Wednesday,
+                        "THURSDAY" => WeekStartDay::Thursday,
+                        "FRIDAY" => WeekStartDay::Friday,
+                        "SATURDAY" => WeekStartDay::Saturday,
+                        _ => {
+                            return Err(Error::unsupported(format!(
+                                "Unsupported WEEK start day: {}",
+                                ident.value
+                            )));
+                        }
+                    },
+                    None => WeekStartDay::Sunday,
+                };
+                Ok(DateTimeField::Week(start_day))
+            }
             ast::DateTimeField::Day => Ok(DateTimeField::Day),
             ast::DateTimeField::DayOfWeek => Ok(DateTimeField::DayOfWeek),
             ast::DateTimeField::DayOfYear => Ok(DateTimeField::DayOfYear),
@@ -1344,6 +1364,9 @@ impl ExprPlanner {
             "SINH" => Ok(ScalarFunction::Sinh),
             "COSH" => Ok(ScalarFunction::Cosh),
             "TANH" => Ok(ScalarFunction::Tanh),
+            "ASINH" => Ok(ScalarFunction::Asinh),
+            "ACOSH" => Ok(ScalarFunction::Acosh),
+            "ATANH" => Ok(ScalarFunction::Atanh),
             "COT" => Ok(ScalarFunction::Cot),
             "CSC" => Ok(ScalarFunction::Csc),
             "SEC" => Ok(ScalarFunction::Sec),
@@ -1604,6 +1627,12 @@ impl ExprPlanner {
                 0,
                 value * IntervalValue::MICROS_PER_SECOND * IntervalValue::NANOS_PER_MICRO,
             ),
+            Some(ast::DateTimeField::Millisecond) | Some(ast::DateTimeField::Milliseconds) => {
+                (0, 0, value * 1_000_000)
+            }
+            Some(ast::DateTimeField::Microsecond) | Some(ast::DateTimeField::Microseconds) => {
+                (0, 0, value * 1_000)
+            }
             None => (0, value as i32, 0i64),
             _ => {
                 return Err(Error::unsupported(format!(

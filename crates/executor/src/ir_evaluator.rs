@@ -17,7 +17,7 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, IntervalValue, Value};
 use yachtsql_ir::{
     AggregateFunction, BinaryOp, DateTimeField, Expr, FunctionArg, FunctionBody, Literal,
-    ScalarFunction, TrimWhere, UnaryOp, WhenClause,
+    ScalarFunction, TrimWhere, UnaryOp, WeekStartDay, WhenClause,
 };
 use yachtsql_storage::{Record, Schema};
 
@@ -582,6 +582,9 @@ impl<'a> IrEvaluator<'a> {
             ScalarFunction::Sinh => self.fn_sinh(&arg_values),
             ScalarFunction::Cosh => self.fn_cosh(&arg_values),
             ScalarFunction::Tanh => self.fn_tanh(&arg_values),
+            ScalarFunction::Asinh => self.fn_asinh(&arg_values),
+            ScalarFunction::Acosh => self.fn_acosh(&arg_values),
+            ScalarFunction::Atanh => self.fn_atanh(&arg_values),
             ScalarFunction::Cot => self.fn_cot(&arg_values),
             ScalarFunction::Csc => self.fn_csc(&arg_values),
             ScalarFunction::Sec => self.fn_sec(&arg_values),
@@ -3718,7 +3721,7 @@ impl<'a> IrEvaluator<'a> {
             "DAYOFWEEK" => DateTimeField::DayOfWeek,
             "DAYOFYEAR" => DateTimeField::DayOfYear,
             "QUARTER" => DateTimeField::Quarter,
-            "WEEK" => DateTimeField::Week,
+            "WEEK" => DateTimeField::Week(WeekStartDay::Sunday),
             _ => {
                 return Err(Error::InvalidQuery(format!(
                     "Unknown EXTRACT field: {}",
@@ -3834,6 +3837,59 @@ impl<'a> IrEvaluator<'a> {
             Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).tanh()))),
             Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.tanh()))),
             _ => Err(Error::InvalidQuery("TANH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_asinh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).asinh()))),
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.asinh()))),
+            _ => Err(Error::InvalidQuery("ASINH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_acosh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => {
+                let val = *n as f64;
+                if val < 1.0 {
+                    Err(Error::InvalidQuery("ACOSH argument must be >= 1".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(val.acosh())))
+                }
+            }
+            Some(Value::Float64(f)) => {
+                if f.0 < 1.0 {
+                    Err(Error::InvalidQuery("ACOSH argument must be >= 1".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(f.0.acosh())))
+                }
+            }
+            _ => Err(Error::InvalidQuery("ACOSH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_atanh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => {
+                let val = *n as f64;
+                if val <= -1.0 || val >= 1.0 {
+                    Err(Error::InvalidQuery("ATANH argument must be in (-1, 1)".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(val.atanh())))
+                }
+            }
+            Some(Value::Float64(f)) => {
+                if f.0 <= -1.0 || f.0 >= 1.0 {
+                    Err(Error::InvalidQuery("ATANH argument must be in (-1, 1)".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(f.0.atanh())))
+                }
+            }
+            _ => Err(Error::InvalidQuery("ATANH requires numeric argument".into())),
         }
     }
 
@@ -8487,19 +8543,28 @@ fn extract_datetime_field(val: &Value, field: DateTimeField) -> Result<Value> {
     }
 }
 
-fn week_number_sunday_start(date: NaiveDate) -> u32 {
-    let jan1 = NaiveDate::from_ymd_opt(date.year(), 1, 1).unwrap();
-    let jan1_weekday = jan1.weekday().num_days_from_sunday();
-    let day_of_year = date.ordinal();
-    (day_of_year + jan1_weekday - 1) / 7
-}
-
-fn week_number_with_weekday(date: NaiveDate, week_start: chrono::Weekday) -> u32 {
-    let jan1 = NaiveDate::from_ymd_opt(date.year(), 1, 1).unwrap();
-    let jan1_days_from_start =
-        (jan1.weekday().num_days_from_sunday() + 7 - week_start.num_days_from_sunday()) % 7;
-    let day_of_year = date.ordinal();
-    (day_of_year + jan1_days_from_start - 1) / 7
+fn week_number_from_date(date: &NaiveDate, start_day: WeekStartDay) -> i64 {
+    let year_start = NaiveDate::from_ymd_opt(date.year(), 1, 1).unwrap();
+    let start_weekday = match start_day {
+        WeekStartDay::Sunday => chrono::Weekday::Sun,
+        WeekStartDay::Monday => chrono::Weekday::Mon,
+        WeekStartDay::Tuesday => chrono::Weekday::Tue,
+        WeekStartDay::Wednesday => chrono::Weekday::Wed,
+        WeekStartDay::Thursday => chrono::Weekday::Thu,
+        WeekStartDay::Friday => chrono::Weekday::Fri,
+        WeekStartDay::Saturday => chrono::Weekday::Sat,
+    };
+    let days_until_first_start_day = (start_weekday.num_days_from_sunday() as i32
+        - year_start.weekday().num_days_from_sunday() as i32
+        + 7)
+        % 7;
+    let first_week_start = year_start + chrono::Duration::days(days_until_first_start_day as i64);
+    if *date < first_week_start {
+        0
+    } else {
+        let days_since_first_week = (*date - first_week_start).num_days();
+        days_since_first_week / 7 + 1
+    }
 }
 
 fn extract_from_date(date: &NaiveDate, field: DateTimeField) -> Result<Value> {
@@ -8507,10 +8572,7 @@ fn extract_from_date(date: &NaiveDate, field: DateTimeField) -> Result<Value> {
         DateTimeField::Year => Ok(Value::Int64(date.year() as i64)),
         DateTimeField::Month => Ok(Value::Int64(date.month() as i64)),
         DateTimeField::Day => Ok(Value::Int64(date.day() as i64)),
-        DateTimeField::Week => {
-            let week = week_number_sunday_start(*date);
-            Ok(Value::Int64(week as i64))
-        }
+        DateTimeField::Week(start_day) => Ok(Value::Int64(week_number_from_date(date, start_day))),
         DateTimeField::IsoWeek => Ok(Value::Int64(date.iso_week().week() as i64)),
         DateTimeField::IsoYear => Ok(Value::Int64(date.iso_week().year() as i64)),
         DateTimeField::DayOfWeek => Ok(Value::Int64(
@@ -8536,9 +8598,8 @@ fn extract_from_datetime(dt: &chrono::NaiveDateTime, field: DateTimeField) -> Re
         DateTimeField::Millisecond => Ok(Value::Int64((dt.nanosecond() / 1_000_000) as i64)),
         DateTimeField::Microsecond => Ok(Value::Int64((dt.nanosecond() / 1000) as i64)),
         DateTimeField::Nanosecond => Ok(Value::Int64(dt.nanosecond() as i64)),
-        DateTimeField::Week => {
-            let week = week_number_sunday_start(dt.date());
-            Ok(Value::Int64(week as i64))
+        DateTimeField::Week(start_day) => {
+            Ok(Value::Int64(week_number_from_date(&dt.date(), start_day)))
         }
         DateTimeField::IsoWeek => Ok(Value::Int64(dt.iso_week().week() as i64)),
         DateTimeField::IsoYear => Ok(Value::Int64(dt.iso_week().year() as i64)),
@@ -8815,8 +8876,8 @@ fn trunc_datetime(dt: &NaiveDateTime, part: &str) -> Result<NaiveDateTime> {
             .and_then(|d| d.and_hms_opt(0, 0, 0))
             .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into())),
         "WEEK" => {
-            let days_from_monday = dt.weekday().num_days_from_monday();
-            let date = dt.date() - chrono::Duration::days(days_from_monday as i64);
+            let days_from_sunday = dt.weekday().num_days_from_sunday();
+            let date = dt.date() - chrono::Duration::days(days_from_sunday as i64);
             date.and_hms_opt(0, 0, 0)
                 .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into()))
         }
@@ -8829,6 +8890,9 @@ fn trunc_datetime(dt: &NaiveDateTime, part: &str) -> Result<NaiveDateTime> {
             .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into())),
         "MINUTE" => NaiveDate::from_ymd_opt(dt.year(), dt.month(), dt.day())
             .and_then(|d| d.and_hms_opt(dt.hour(), dt.minute(), 0))
+            .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into())),
+        "SECOND" => NaiveDate::from_ymd_opt(dt.year(), dt.month(), dt.day())
+            .and_then(|d| d.and_hms_opt(dt.hour(), dt.minute(), dt.second()))
             .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into())),
         _ => Ok(*dt),
     }
