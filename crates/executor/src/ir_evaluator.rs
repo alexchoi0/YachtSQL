@@ -2792,13 +2792,12 @@ impl<'a> IrEvaluator<'a> {
                     let ndt = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
                         .or_else(|_| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S"))
                         .map_err(|e| Error::InvalidQuery(format!("Invalid timestamp: {}", e)))?;
-                    let tz: chrono_tz::Tz = tz_name
-                        .parse()
-                        .map_err(|_| Error::InvalidQuery(format!("Invalid timezone: {}", tz_name)))?;
-                    let local_dt = ndt
-                        .and_local_timezone(tz)
-                        .single()
-                        .ok_or_else(|| Error::InvalidQuery("Ambiguous or invalid local time".into()))?;
+                    let tz: chrono_tz::Tz = tz_name.parse().map_err(|_| {
+                        Error::InvalidQuery(format!("Invalid timezone: {}", tz_name))
+                    })?;
+                    let local_dt = ndt.and_local_timezone(tz).single().ok_or_else(|| {
+                        Error::InvalidQuery("Ambiguous or invalid local time".into())
+                    })?;
                     return Ok(Value::Timestamp(local_dt.with_timezone(&Utc)));
                 }
                 _ => {
@@ -3883,7 +3882,9 @@ impl<'a> IrEvaluator<'a> {
             Some(Value::Null) => Ok(Value::Null),
             Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).asinh()))),
             Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.asinh()))),
-            _ => Err(Error::InvalidQuery("ASINH requires numeric argument".into())),
+            _ => Err(Error::InvalidQuery(
+                "ASINH requires numeric argument".into(),
+            )),
         }
     }
 
@@ -3905,7 +3906,9 @@ impl<'a> IrEvaluator<'a> {
                     Ok(Value::Float64(OrderedFloat(f.0.acosh())))
                 }
             }
-            _ => Err(Error::InvalidQuery("ACOSH requires numeric argument".into())),
+            _ => Err(Error::InvalidQuery(
+                "ACOSH requires numeric argument".into(),
+            )),
         }
     }
 
@@ -3915,19 +3918,25 @@ impl<'a> IrEvaluator<'a> {
             Some(Value::Int64(n)) => {
                 let val = *n as f64;
                 if val <= -1.0 || val >= 1.0 {
-                    Err(Error::InvalidQuery("ATANH argument must be in (-1, 1)".into()))
+                    Err(Error::InvalidQuery(
+                        "ATANH argument must be in (-1, 1)".into(),
+                    ))
                 } else {
                     Ok(Value::Float64(OrderedFloat(val.atanh())))
                 }
             }
             Some(Value::Float64(f)) => {
                 if f.0 <= -1.0 || f.0 >= 1.0 {
-                    Err(Error::InvalidQuery("ATANH argument must be in (-1, 1)".into()))
+                    Err(Error::InvalidQuery(
+                        "ATANH argument must be in (-1, 1)".into(),
+                    ))
                 } else {
                     Ok(Value::Float64(OrderedFloat(f.0.atanh())))
                 }
             }
-            _ => Err(Error::InvalidQuery("ATANH requires numeric argument".into())),
+            _ => Err(Error::InvalidQuery(
+                "ATANH requires numeric argument".into(),
+            )),
         }
     }
 

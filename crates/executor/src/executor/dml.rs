@@ -173,11 +173,9 @@ impl<'a> PlanExecutor<'a> {
                                 Expr::Default => {
                                     default_values[col_idx].clone().unwrap_or(Value::Null)
                                 }
-                                _ => self.evaluate_insert_expr(
-                                    expr,
-                                    &values_evaluator,
-                                    &empty_rec,
-                                )?,
+                                _ => {
+                                    self.evaluate_insert_expr(expr, &values_evaluator, &empty_rec)?
+                                }
                             };
                             row[col_idx] = coerce_value(final_val, &fields[col_idx].data_type)?;
                         }
