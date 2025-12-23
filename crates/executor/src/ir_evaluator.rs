@@ -5,7 +5,10 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
-use geo::{BooleanOps, BoundingRect, Centroid, Contains, ConvexHull, GeodesicArea, GeodesicDistance, GeodesicLength, Intersects, SimplifyVw};
+use geo::{
+    BooleanOps, BoundingRect, Centroid, Contains, ConvexHull, GeodesicArea, GeodesicDistance,
+    GeodesicLength, Intersects, SimplifyVw,
+};
 use geo_types::{Coord, Geometry, LineString, MultiPolygon, Point, Polygon};
 use ordered_float::OrderedFloat;
 use rust_decimal::prelude::ToPrimitive;
@@ -7995,22 +7998,58 @@ fn parse_date_with_pattern(s: &str, pattern: &str) -> Result<NaiveDate> {
 
 fn parse_datetime_with_pattern(s: &str, pattern: &str) -> Result<NaiveDateTime> {
     let chrono_pattern = bq_format_to_chrono(pattern);
-    NaiveDateTime::parse_from_str(s, &chrono_pattern).map_err(|e| {
-        Error::InvalidQuery(format!(
-            "Failed to parse datetime '{}' with pattern '{}': {}",
-            s, pattern, e
-        ))
-    })
+    match NaiveDateTime::parse_from_str(s, &chrono_pattern) {
+        Ok(dt) => Ok(dt),
+        Err(_) => {
+            if let Ok(date) = NaiveDate::parse_from_str(s, &chrono_pattern) {
+                Ok(date.and_hms_opt(0, 0, 0).unwrap())
+            } else {
+                Err(Error::InvalidQuery(format!(
+                    "Failed to parse datetime '{}' with pattern '{}'",
+                    s, pattern
+                )))
+            }
+        }
+    }
 }
 
 fn parse_time_with_pattern(s: &str, pattern: &str) -> Result<NaiveTime> {
     let chrono_pattern = bq_format_to_chrono(pattern);
-    NaiveTime::parse_from_str(s, &chrono_pattern).map_err(|e| {
-        Error::InvalidQuery(format!(
-            "Failed to parse time '{}' with pattern '{}': {}",
-            s, pattern, e
-        ))
-    })
+    match NaiveTime::parse_from_str(s, &chrono_pattern) {
+        Ok(t) => Ok(t),
+        Err(_) => {
+            let has_hour = chrono_pattern.contains("%H") || chrono_pattern.contains("%I");
+            let has_minute = chrono_pattern.contains("%M");
+            let has_second = chrono_pattern.contains("%S");
+
+            match (has_hour, has_minute, has_second) {
+                (true, false, false) => {
+                    let hour: u32 = s.trim().parse().map_err(|_| {
+                        Error::InvalidQuery(format!(
+                            "Failed to parse hour '{}' with pattern '{}'",
+                            s, pattern
+                        ))
+                    })?;
+                    NaiveTime::from_hms_opt(hour, 0, 0)
+                        .ok_or_else(|| Error::InvalidQuery(format!("Invalid hour value: {}", hour)))
+                }
+                (true, true, false) => {
+                    let extended = format!("{}:00", s);
+                    let extended_pattern = format!("{}:%S", chrono_pattern);
+                    NaiveTime::parse_from_str(&extended, &extended_pattern).map_err(|_| {
+                        Error::InvalidQuery(format!(
+                            "Failed to parse time '{}' with pattern '{}'",
+                            s, pattern
+                        ))
+                    })
+                }
+                _ => Err(Error::InvalidQuery(format!(
+                    "Failed to parse time '{}' with pattern '{}'",
+                    s, pattern
+                ))),
+            }
+        }
+    }
 }
 
 fn value_to_json(value: &Value) -> Result<serde_json::Value> {
