@@ -542,6 +542,9 @@ impl<'a> IrEvaluator<'a> {
             ScalarFunction::Acos => self.fn_acos(&arg_values),
             ScalarFunction::Atan => self.fn_atan(&arg_values),
             ScalarFunction::Atan2 => self.fn_atan2(&arg_values),
+            ScalarFunction::Sinh => self.fn_sinh(&arg_values),
+            ScalarFunction::Cosh => self.fn_cosh(&arg_values),
+            ScalarFunction::Tanh => self.fn_tanh(&arg_values),
             ScalarFunction::Pi => Ok(Value::Float64(OrderedFloat(std::f64::consts::PI))),
             ScalarFunction::Rand | ScalarFunction::RandCanonical => self.fn_rand(&arg_values),
             ScalarFunction::Split => self.fn_split(&arg_values),
@@ -3462,6 +3465,33 @@ impl<'a> IrEvaluator<'a> {
             }
         };
         Ok(Value::Float64(OrderedFloat(y.atan2(x))))
+    }
+
+    fn fn_sinh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).sinh()))),
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.sinh()))),
+            _ => Err(Error::InvalidQuery("SINH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_cosh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).cosh()))),
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.cosh()))),
+            _ => Err(Error::InvalidQuery("COSH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_tanh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).tanh()))),
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.tanh()))),
+            _ => Err(Error::InvalidQuery("TANH requires numeric argument".into())),
+        }
     }
 
     fn fn_rand(&self, _args: &[Value]) -> Result<Value> {

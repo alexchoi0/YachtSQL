@@ -173,3 +173,30 @@ fn test_least() {
 
     assert_table_eq!(result, [[1]]);
 }
+
+#[test]
+fn test_sinh() {
+    let mut executor = create_executor();
+
+    let result = executor.execute_sql("SELECT SINH(0)").unwrap();
+
+    assert_table_eq!(result, [[0.0]]);
+}
+
+#[test]
+fn test_cosh() {
+    let mut executor = create_executor();
+
+    let result = executor.execute_sql("SELECT COSH(0)").unwrap();
+
+    assert_table_eq!(result, [[1.0]]);
+}
+
+#[test]
+fn test_tanh() {
+    let mut executor = create_executor();
+
+    let result = executor.execute_sql("SELECT TANH(0)").unwrap();
+
+    assert_table_eq!(result, [[0.0]]);
+}
