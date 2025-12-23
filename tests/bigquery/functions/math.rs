@@ -344,7 +344,6 @@ fn test_atanh() {
 }
 
 #[test]
-#[ignore]
 fn test_cot() {
     let mut session = create_session();
 
@@ -364,7 +363,6 @@ fn test_coth() {
 }
 
 #[test]
-#[ignore]
 fn test_csc() {
     let mut session = create_session();
 
@@ -384,7 +382,6 @@ fn test_csch() {
 }
 
 #[test]
-#[ignore]
 fn test_sec() {
     let mut session = create_session();
 
