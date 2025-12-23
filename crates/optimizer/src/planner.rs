@@ -553,6 +553,30 @@ impl PhysicalPlanner {
                 condition: condition.clone(),
                 message: message.clone(),
             }),
+
+            LogicalPlan::Grant {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => Ok(OptimizedLogicalPlan::Grant {
+                roles: roles.clone(),
+                resource_type: resource_type.clone(),
+                resource_name: resource_name.clone(),
+                grantees: grantees.clone(),
+            }),
+
+            LogicalPlan::Revoke {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => Ok(OptimizedLogicalPlan::Revoke {
+                roles: roles.clone(),
+                resource_type: resource_type.clone(),
+                resource_name: resource_name.clone(),
+                grantees: grantees.clone(),
+            }),
         }
     }
 }
@@ -956,6 +980,28 @@ impl OptimizedLogicalPlan {
             OptimizedLogicalPlan::Assert { condition, message } => {
                 LogicalPlan::Assert { condition, message }
             }
+            OptimizedLogicalPlan::Grant {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => LogicalPlan::Grant {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            },
+            OptimizedLogicalPlan::Revoke {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => LogicalPlan::Revoke {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            },
         }
     }
 }

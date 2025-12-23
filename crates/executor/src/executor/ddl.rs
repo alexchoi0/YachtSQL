@@ -406,6 +406,7 @@ impl<'a> PlanExecutor<'a> {
             Value::Timestamp(ts) => serde_json::Value::String(ts.to_rfc3339()),
             Value::Time(t) => serde_json::Value::String(t.to_string()),
             Value::Numeric(n) => serde_json::Value::String(n.to_string()),
+            Value::BigNumeric(n) => serde_json::Value::String(n.to_string()),
             Value::Array(arr) => {
                 serde_json::Value::Array(arr.iter().map(Self::value_to_json).collect())
             }
@@ -443,6 +444,7 @@ impl<'a> PlanExecutor<'a> {
             Value::Timestamp(ts) => ts.to_rfc3339(),
             Value::Time(t) => t.to_string(),
             Value::Numeric(n) => n.to_string(),
+            Value::BigNumeric(n) => n.to_string(),
             Value::Bytes(_)
             | Value::Json(_)
             | Value::Array(_)
@@ -513,6 +515,7 @@ impl<'a> PlanExecutor<'a> {
                             Value::Null
                             | Value::Bool(_)
                             | Value::Numeric(_)
+                            | Value::BigNumeric(_)
                             | Value::String(_)
                             | Value::Bytes(_)
                             | Value::Date(_)
@@ -540,6 +543,7 @@ impl<'a> PlanExecutor<'a> {
                             Value::Null
                             | Value::Bool(_)
                             | Value::Numeric(_)
+                            | Value::BigNumeric(_)
                             | Value::String(_)
                             | Value::Bytes(_)
                             | Value::Date(_)
@@ -590,6 +594,7 @@ impl<'a> PlanExecutor<'a> {
                             | Value::Date(_)
                             | Value::Time(_)
                             | Value::Numeric(_)
+                            | Value::BigNumeric(_)
                             | Value::Bytes(_)
                             | Value::Json(_)
                             | Value::Array(_)
@@ -628,6 +633,7 @@ impl<'a> PlanExecutor<'a> {
                             Value::Timestamp(ts) => builder.append_value(ts.to_rfc3339()),
                             Value::Time(t) => builder.append_value(t.to_string()),
                             Value::Numeric(n) => builder.append_value(n.to_string()),
+                            Value::BigNumeric(n) => builder.append_value(n.to_string()),
                             Value::Bytes(b) => builder.append_value(hex::encode(b)),
                             Value::Json(j) => builder.append_value(j.to_string()),
                             Value::Array(a) => builder.append_value(format!("{:?}", a)),
@@ -1524,6 +1530,28 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
         PhysicalPlan::Assert { condition, message } => LogicalPlan::Assert {
             condition: condition.clone(),
             message: message.clone(),
+        },
+        PhysicalPlan::Grant {
+            roles,
+            resource_type,
+            resource_name,
+            grantees,
+        } => LogicalPlan::Grant {
+            roles: roles.clone(),
+            resource_type: resource_type.clone(),
+            resource_name: resource_name.clone(),
+            grantees: grantees.clone(),
+        },
+        PhysicalPlan::Revoke {
+            roles,
+            resource_type,
+            resource_name,
+            grantees,
+        } => LogicalPlan::Revoke {
+            roles: roles.clone(),
+            resource_type: resource_type.clone(),
+            resource_name: resource_name.clone(),
+            grantees: grantees.clone(),
         },
     }
 }

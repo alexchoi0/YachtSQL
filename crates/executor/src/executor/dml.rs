@@ -358,6 +358,7 @@ impl<'a> PlanExecutor<'a> {
             Value::String(s) => Literal::String(s.clone()),
             Value::Bytes(b) => Literal::Bytes(b.clone()),
             Value::Numeric(n) => Literal::Numeric(*n),
+            Value::BigNumeric(n) => Literal::BigNumeric(*n),
             Value::Json(j) => Literal::Json(j.clone()),
             Value::Date(d) => {
                 let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();

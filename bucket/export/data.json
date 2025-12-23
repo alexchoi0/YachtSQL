@@ -1,1 +1,3 @@
-{"data":"test","id":1}
+{"name":"Alice","product":"Laptop"}
+{"name":"Alice","product":"Phone"}
+{"name":"Bob","product":"Tablet"}

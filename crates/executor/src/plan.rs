@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
-    AlterTableOp, Assignment, ColumnDef, CteDefinition, ExportOptions, Expr, FunctionArg,
-    FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg, RaiseLevel,
-    SortExpr, UnnestColumn,
+    AlterTableOp, Assignment, ColumnDef, CteDefinition, DclResourceType, ExportOptions, Expr,
+    FunctionArg, FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg,
+    RaiseLevel, SortExpr, UnnestColumn,
 };
 use yachtsql_optimizer::{OptimizedLogicalPlan, SampleType};
 
@@ -342,6 +342,20 @@ pub enum PhysicalPlan {
     Assert {
         condition: Expr,
         message: Option<Expr>,
+    },
+
+    Grant {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
+    },
+
+    Revoke {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
     },
 }
 
@@ -793,6 +807,30 @@ impl PhysicalPlan {
                 condition: condition.clone(),
                 message: message.clone(),
             },
+
+            OptimizedLogicalPlan::Grant {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => PhysicalPlan::Grant {
+                roles: roles.clone(),
+                resource_type: resource_type.clone(),
+                resource_name: resource_name.clone(),
+                grantees: grantees.clone(),
+            },
+
+            OptimizedLogicalPlan::Revoke {
+                roles,
+                resource_type,
+                resource_name,
+                grantees,
+            } => PhysicalPlan::Revoke {
+                roles: roles.clone(),
+                resource_type: resource_type.clone(),
+                resource_name: resource_name.clone(),
+                grantees: grantees.clone(),
+            },
         }
     }
 
@@ -948,6 +986,8 @@ impl PhysicalPlan {
             | PhysicalPlan::Continue
             | PhysicalPlan::DropSnapshot { .. }
             | PhysicalPlan::Assert { .. }
+            | PhysicalPlan::Grant { .. }
+            | PhysicalPlan::Revoke { .. }
             | PhysicalPlan::Values { .. }
             | PhysicalPlan::Empty { .. } => {}
         }

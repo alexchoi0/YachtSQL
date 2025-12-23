@@ -41,6 +41,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                     name.clone(),
                     UserFunctionDef {
                         parameters: func.parameters.clone(),
+                        return_type: func.return_type.clone(),
                         body: func.body.clone(),
                     },
                 )
@@ -73,6 +74,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                     name.clone(),
                     UserFunctionDef {
                         parameters: func.parameters.clone(),
+                        return_type: func.return_type.clone(),
                         body: func.body.clone(),
                     },
                 )

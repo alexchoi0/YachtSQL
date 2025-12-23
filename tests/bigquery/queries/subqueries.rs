@@ -603,7 +603,7 @@ fn test_temp_function_string() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
+#[ignore]
 fn test_temp_function_complex() {
     let mut executor = create_executor();
     executor
@@ -937,4 +937,705 @@ fn test_array_agg_in_union_all() {
             ["u3", "partner_a", "ext4"],
         ]
     );
+}
+
+fn setup_players_mascots(executor: &mut QueryExecutor) {
+    executor
+        .execute_sql("CREATE TABLE Players (username STRING, team STRING, level INT64)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE Mascots (team STRING, mascot STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Players VALUES ('gorbie', 'red', 29), ('junelyn', 'blue', 2), ('corba', 'green', 43)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Mascots VALUES ('red', 'cardinal'), ('blue', 'finch'), ('green', 'parrot')")
+        .unwrap();
+}
+
+#[test]
+fn test_scalar_subquery_in_select() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+                username,
+                (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "parrot"],
+            ["gorbie", "cardinal"],
+            ["junelyn", "finch"],
+        ]
+    );
+}
+
+#[test]
+fn test_scalar_subquery_with_aggregate() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+                username,
+                level,
+                CAST((SELECT AVG(level) FROM Players) AS FLOAT64) AS avg_level
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert_eq!(records.len(), 3);
+    let avg = records[0].values()[2].as_f64().unwrap();
+    assert!((avg - 24.666666).abs() < 0.01);
+}
+
+fn setup_npcs(executor: &mut QueryExecutor) {
+    executor
+        .execute_sql("CREATE TABLE NPCs (username STRING, team STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO NPCs VALUES ('niles', 'red'), ('jujul', 'red'), ('kira', 'blue')")
+        .unwrap();
+}
+
+#[test]
+fn test_array_subquery_basic() {
+    let mut executor = create_executor();
+    setup_npcs(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT ARRAY(SELECT username FROM NPCs WHERE team = 'red' ORDER BY username) AS red",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[["jujul", "niles"]]]);
+}
+
+#[test]
+fn test_array_subquery_empty_result() {
+    let mut executor = create_executor();
+    setup_npcs(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT ARRAY(SELECT username FROM NPCs WHERE team = 'yellow') AS yellow")
+        .unwrap();
+
+    assert_table_eq!(result, [[[]]]);
+}
+
+#[test]
+fn test_array_subquery_with_filter() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE Products (id INT64, name STRING, category STRING, price FLOAT64)",
+        )
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Products VALUES (1, 'Laptop', 'Electronics', 999.99), (2, 'Phone', 'Electronics', 599.99), (3, 'Desk', 'Furniture', 299.99)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT ARRAY(SELECT name FROM Products WHERE category = 'Electronics' ORDER BY price DESC) AS electronics")
+        .unwrap();
+
+    assert_table_eq!(result, [[["Laptop", "Phone"]]]);
+}
+
+#[test]
+fn test_scalar_subquery_returns_null_when_no_match() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    executor
+        .execute_sql("INSERT INTO Players VALUES ('nobody', 'yellow', 10)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+                username,
+                (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM Players
+            WHERE username = 'nobody'",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["nobody", null]]);
+}
+
+#[test]
+fn test_scalar_subquery_in_where_clause() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT username, level
+            FROM Players
+            WHERE level > (SELECT AVG(level) FROM Players)
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba", 43], ["gorbie", 29],]);
+}
+
+#[test]
+#[ignore = "Scalar subquery in CASE not yet supported"]
+fn test_scalar_subquery_in_case() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+                username,
+                CASE
+                    WHEN level > (SELECT AVG(level) FROM Players) THEN 'above average'
+                    ELSE 'below average'
+                END AS status
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "above average"],
+            ["gorbie", "above average"],
+            ["junelyn", "below average"],
+        ]
+    );
+}
+
+#[test]
+fn test_array_subquery_with_limit() {
+    let mut executor = create_executor();
+    setup_npcs(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT ARRAY(SELECT username FROM NPCs ORDER BY username LIMIT 2) AS top2")
+        .unwrap();
+
+    assert_table_eq!(result, [[["jujul", "kira"]]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_in_subquery_exists() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT 'corba' IN (SELECT username FROM Players) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_in_subquery_not_exists() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT 'unknown' IN (SELECT username FROM Players) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+#[ignore = "NOT IN subquery in SELECT expression not yet supported"]
+fn test_not_in_subquery() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT 'unknown' NOT IN (SELECT username FROM Players) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_in_subquery_empty_result() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT 'corba' IN (SELECT username FROM Players WHERE team = 'yellow') AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+fn test_exists_subquery_true() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT EXISTS(SELECT username FROM Players WHERE team = 'red') AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_exists_subquery_false() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT EXISTS(SELECT username FROM Players WHERE team = 'yellow') AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+fn test_exists_subquery_multiple_columns() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT EXISTS(SELECT username, team, level FROM Players WHERE level > 20) AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_table_subquery_basic() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT results.username FROM (SELECT * FROM Players) AS results ORDER BY results.username")
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
+}
+
+#[test]
+fn test_table_subquery_with_filter() {
+    let mut executor = create_executor();
+    setup_npcs(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT username
+            FROM (SELECT * FROM NPCs WHERE team = 'red') AS red_team
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["jujul"], ["niles"]]);
+}
+
+#[test]
+fn test_table_subquery_with_cte() {
+    let mut executor = create_executor();
+    setup_npcs(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT username
+            FROM (
+                WITH red_team AS (SELECT * FROM NPCs WHERE team = 'red')
+                SELECT * FROM red_team
+            )
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["jujul"], ["niles"]]);
+}
+
+#[test]
+fn test_in_subquery_with_column() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT username, team
+            FROM Players
+            WHERE team IN (SELECT team FROM Mascots WHERE mascot = 'cardinal')
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["gorbie", "red"]]);
+}
+
+#[test]
+fn test_not_exists_subquery_in_select() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT NOT EXISTS(SELECT username FROM Players WHERE team = 'yellow') AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+#[ignore = "IN UNNEST(ARRAY(...)) in SELECT expression not yet supported"]
+fn test_in_unnest_array_subquery() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql("SELECT 'corba' IN UNNEST(ARRAY(SELECT username FROM Players)) AS result")
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_doc_example_expression_subquery_mascot() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              username,
+              (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM
+              Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "parrot"],
+            ["gorbie", "cardinal"],
+            ["junelyn", "finch"],
+        ]
+    );
+}
+
+#[test]
+fn test_doc_example_expression_subquery_avg() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              username,
+              level,
+              CAST((SELECT AVG(level) FROM Players) AS FLOAT64) AS avg_level
+            FROM
+              Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert_eq!(records.len(), 3);
+    assert_eq!(records[0].values()[0].as_str().unwrap(), "corba");
+    assert_eq!(records[0].values()[1].as_i64().unwrap(), 43);
+    let avg = records[0].values()[2].as_f64().unwrap();
+    assert!((avg - 24.666666).abs() < 0.01);
+}
+
+#[test]
+fn test_doc_example_array_subquery_red_team() {
+    let mut executor = create_executor();
+    setup_npcs(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              ARRAY(SELECT username FROM NPCs WHERE team = 'red' ORDER BY username) AS red",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[["jujul", "niles"]]]);
+}
+
+#[test]
+#[ignore = "IN subquery in SELECT expression not yet supported"]
+fn test_doc_example_in_subquery() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              'corba' IN (SELECT username FROM Players) AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_doc_example_exists_subquery() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              EXISTS(SELECT username FROM Players WHERE team = 'yellow') AS result",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[false]]);
+}
+
+#[test]
+fn test_doc_example_table_subquery() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT results.username
+            FROM (SELECT * FROM Players) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
+}
+
+#[test]
+fn test_doc_example_table_subquery_with_cte() {
+    let mut executor = create_executor();
+    setup_npcs(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              username
+            FROM (
+              WITH red_team AS (SELECT * FROM NPCs WHERE team = 'red')
+              SELECT * FROM red_team
+            )
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["jujul"], ["niles"]]);
+}
+
+#[test]
+fn test_volatile_subquery_rand() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              results.username
+            FROM
+              (SELECT * FROM Players WHERE RAND() < 0.5) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert!(records.len() <= 3);
+}
+
+#[test]
+fn test_volatile_subquery_rand_always_true() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              results.username
+            FROM
+              (SELECT * FROM Players WHERE RAND() < 1.0) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
+}
+
+#[test]
+fn test_volatile_subquery_rand_always_false() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              results.username
+            FROM
+              (SELECT * FROM Players WHERE RAND() < 0.0) AS results
+            ORDER BY results.username",
+        )
+        .unwrap();
+
+    let records = result.to_records().unwrap();
+    assert!(records.is_empty());
+}
+
+fn setup_players_mascots_with_sparrow(executor: &mut QueryExecutor) {
+    executor
+        .execute_sql("CREATE TABLE Players2 (username STRING, team STRING, level INT64)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE Mascots2 (team STRING, mascot STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Players2 VALUES ('gorbie', 'red', 29), ('junelyn', 'blue', 2), ('corba', 'green', 43)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Mascots2 VALUES ('red', 'cardinal'), ('blue', 'finch'), ('green', 'parrot'), ('yellow', 'sparrow')")
+        .unwrap();
+}
+
+#[test]
+fn test_correlated_subquery_not_exists_unassigned_mascot() {
+    let mut executor = create_executor();
+    setup_players_mascots_with_sparrow(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT mascot
+            FROM Mascots2
+            WHERE
+              NOT EXISTS(SELECT username FROM Players2 WHERE Mascots2.team = Players2.team)
+            ORDER BY mascot",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["sparrow"]]);
+}
+
+#[test]
+fn test_correlated_scalar_subquery_player_mascot() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              username,
+              (SELECT mascot FROM Mascots WHERE Players.team = Mascots.team) AS player_mascot
+            FROM Players
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["corba", "parrot"],
+            ["gorbie", "cardinal"],
+            ["junelyn", "finch"],
+        ]
+    );
+}
+
+#[test]
+fn test_correlated_subquery_exists_with_condition() {
+    let mut executor = create_executor();
+    setup_players_mascots(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT username
+            FROM Players
+            WHERE EXISTS(SELECT 1 FROM Mascots WHERE Players.team = Mascots.team AND mascot LIKE '%a%')
+            ORDER BY username",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["corba"], ["gorbie"]]);
+}
+
+#[test]
+fn test_correlated_subquery_count() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE Orders (order_id INT64, customer_id INT64, amount FLOAT64)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE Customers (customer_id INT64, name STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Customers VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Orders VALUES (1, 1, 100.0), (2, 1, 200.0), (3, 2, 150.0)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              name,
+              (SELECT COUNT(*) FROM Orders WHERE Orders.customer_id = Customers.customer_id) AS order_count
+            FROM Customers
+            ORDER BY name",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["Alice", 2], ["Bob", 1], ["Charlie", 0],]);
+}
+
+#[test]
+fn test_correlated_subquery_max() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE Sales (id INT64, product STRING, region STRING, amount INT64)")
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE Regions (region STRING, manager STRING)")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Regions VALUES ('East', 'Alice'), ('West', 'Bob')")
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO Sales VALUES (1, 'Widget', 'East', 100), (2, 'Gadget', 'East', 200), (3, 'Widget', 'West', 150)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT
+              manager,
+              (SELECT MAX(amount) FROM Sales WHERE Sales.region = Regions.region) AS max_sale
+            FROM Regions
+            ORDER BY manager",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["Alice", 200], ["Bob", 150],]);
 }

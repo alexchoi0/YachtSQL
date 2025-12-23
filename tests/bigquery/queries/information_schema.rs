@@ -778,3 +778,762 @@ fn test_information_schema_schema_discovery() {
         ]
     );
 }
+
+#[test]
+fn test_information_schema_schemata_options() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE SCHEMA options_schema
+            OPTIONS (description = 'Test schema with options', location = 'US')",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT schema_name, option_name, option_value
+            FROM INFORMATION_SCHEMA.SCHEMATA_OPTIONS
+            WHERE schema_name = 'options_schema'
+            ORDER BY option_name",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [
+            ["options_schema", "description", "Test schema with options"],
+            ["options_schema", "location", "US"],
+        ]
+    );
+}
+
+#[test]
+fn test_information_schema_routine_options() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE FUNCTION documented_func(x INT64) RETURNS INT64
+            OPTIONS (description = 'A documented function')
+            AS (x * 2)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT routine_name, option_name, option_value
+            FROM INFORMATION_SCHEMA.ROUTINE_OPTIONS
+            WHERE routine_name = 'documented_func'",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [["documented_func", "description", "A documented function"]]
+    );
+}
+
+#[test]
+fn test_information_schema_materialized_views() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE source_data (id INT64, value INT64)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "CREATE MATERIALIZED VIEW mv_sum AS
+            SELECT id, SUM(value) AS total
+            FROM source_data
+            GROUP BY id",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT table_name, view_definition
+            FROM INFORMATION_SCHEMA.MATERIALIZED_VIEWS
+            WHERE table_name = 'mv_sum'",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [[
+            "mv_sum",
+            "SELECT id, SUM(value) AS total FROM source_data GROUP BY id"
+        ]]
+    );
+}
+
+#[test]
+fn test_information_schema_dataset_qualifier() {
+    let mut executor = create_executor();
+    executor.execute_sql("CREATE SCHEMA my_dataset").unwrap();
+    executor
+        .execute_sql("CREATE TABLE my_dataset.my_table (id INT64)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT table_name
+            FROM my_dataset.INFORMATION_SCHEMA.TABLES
+            WHERE table_name = 'my_table'",
+        )
+        .unwrap();
+    assert_table_eq!(result, [["my_table"]]);
+}
+
+#[test]
+fn test_information_schema_dataset_qualifier_columns() {
+    let mut executor = create_executor();
+    executor.execute_sql("CREATE SCHEMA test_ds").unwrap();
+    executor
+        .execute_sql(
+            "CREATE TABLE test_ds.products (
+                product_id INT64,
+                name STRING,
+                price FLOAT64
+            )",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT column_name, data_type
+            FROM test_ds.INFORMATION_SCHEMA.COLUMNS
+            WHERE table_name = 'products'
+            ORDER BY ordinal_position",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [
+            ["product_id", "INT64"],
+            ["name", "STRING"],
+            ["price", "FLOAT64"],
+        ]
+    );
+}
+
+#[test]
+fn test_information_schema_search_indexes() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE searchable (
+                id INT64,
+                content STRING
+            )",
+        )
+        .unwrap();
+    executor
+        .execute_sql("CREATE SEARCH INDEX idx_content ON searchable(content)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT index_name, table_name
+            FROM INFORMATION_SCHEMA.SEARCH_INDEXES
+            WHERE table_name = 'searchable'",
+        )
+        .unwrap();
+    assert_table_eq!(result, [["idx_content", "searchable"]]);
+}
+
+#[test]
+fn test_information_schema_search_index_columns() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE docs (
+                id INT64,
+                title STRING,
+                body STRING
+            )",
+        )
+        .unwrap();
+    executor
+        .execute_sql("CREATE SEARCH INDEX idx_docs ON docs(title, body)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT index_name, column_name
+            FROM INFORMATION_SCHEMA.SEARCH_INDEX_COLUMNS
+            WHERE table_name = 'docs'
+            ORDER BY column_name",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [["idx_docs", "body"], ["idx_docs", "title"]]
+    );
+}
+
+#[test]
+fn test_information_schema_search_index_options() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE indexed_data (id INT64, text STRING)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "CREATE SEARCH INDEX idx_text ON indexed_data(text)
+            OPTIONS (analyzer = 'PATTERN_ANALYZER')",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT index_name, option_name, option_value
+            FROM INFORMATION_SCHEMA.SEARCH_INDEX_OPTIONS
+            WHERE index_name = 'idx_text'",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [["idx_text", "analyzer", "PATTERN_ANALYZER"]]
+    );
+}
+
+#[test]
+fn test_information_schema_vector_indexes() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE embeddings (
+                id INT64,
+                embedding ARRAY<FLOAT64>
+            )",
+        )
+        .unwrap();
+    executor
+        .execute_sql(
+            "CREATE VECTOR INDEX vec_idx ON embeddings(embedding)
+            OPTIONS (distance_type = 'COSINE', index_type = 'IVF')",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT index_name, table_name, index_status
+            FROM INFORMATION_SCHEMA.VECTOR_INDEXES
+            WHERE table_name = 'embeddings'",
+        )
+        .unwrap();
+    assert_table_eq!(result, [["vec_idx", "embeddings", "ACTIVE"]]);
+}
+
+#[test]
+fn test_information_schema_vector_index_columns() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE TABLE vectors (
+                id INT64,
+                vec ARRAY<FLOAT64>
+            )",
+        )
+        .unwrap();
+    executor
+        .execute_sql("CREATE VECTOR INDEX v_idx ON vectors(vec)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT index_name, column_name
+            FROM INFORMATION_SCHEMA.VECTOR_INDEX_COLUMNS
+            WHERE table_name = 'vectors'",
+        )
+        .unwrap();
+    assert_table_eq!(result, [["v_idx", "vec"]]);
+}
+
+#[test]
+fn test_information_schema_vector_index_options() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE vec_data (id INT64, emb ARRAY<FLOAT64>)")
+        .unwrap();
+    executor
+        .execute_sql(
+            "CREATE VECTOR INDEX vi ON vec_data(emb)
+            OPTIONS (distance_type = 'EUCLIDEAN', num_lists = 100)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT index_name, option_name, option_value
+            FROM INFORMATION_SCHEMA.VECTOR_INDEX_OPTIONS
+            WHERE index_name = 'vi'
+            ORDER BY option_name",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [
+            ["vi", "distance_type", "EUCLIDEAN"],
+            ["vi", "num_lists", "100"],
+        ]
+    );
+}
+
+#[test]
+fn test_information_schema_table_storage() {
+    let mut executor = create_executor();
+    setup_test_schema(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT table_schema, table_name, total_rows >= 0 AS has_rows
+            FROM INFORMATION_SCHEMA.TABLE_STORAGE
+            WHERE table_schema = 'test_schema'
+            ORDER BY table_name",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [
+            ["test_schema", "orders", true],
+            ["test_schema", "users", true],
+        ]
+    );
+}
+
+#[test]
+fn test_information_schema_table_storage_by_project() {
+    let mut executor = create_executor();
+    setup_test_schema(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT table_name, total_logical_bytes >= 0 AS valid_bytes
+            FROM INFORMATION_SCHEMA.TABLE_STORAGE_BY_PROJECT
+            WHERE table_schema = 'test_schema'
+            ORDER BY table_name",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [["orders", true], ["users", true]]
+    );
+}
+
+#[test]
+fn test_information_schema_reservations() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.RESERVATIONS_BY_PROJECT",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_capacity_commitments() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.CAPACITY_COMMITMENTS_BY_PROJECT",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_assignments() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.ASSIGNMENTS_BY_PROJECT",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_jobs_by_project() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.JOBS_BY_PROJECT
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_jobs_timeline() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.JOBS_TIMELINE_BY_PROJECT
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_sessions_by_project() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.SESSIONS_BY_PROJECT",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_bi_capacities() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.BI_CAPACITIES",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_schemata_links() {
+    let mut executor = create_executor();
+    executor.execute_sql("CREATE SCHEMA linked_schema").unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.SCHEMATA_LINKS",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_schemata_replicas() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.SCHEMATA_REPLICAS",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_table_snapshots() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql("CREATE TABLE snapshot_source (id INT64, data STRING)")
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.TABLE_SNAPSHOTS",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_insights() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.INSIGHTS",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_recommendations() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.RECOMMENDATIONS",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_write_api_timeline() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.WRITE_API_TIMELINE_BY_PROJECT
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_project_options() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.PROJECT_OPTIONS",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_effective_project_options() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.EFFECTIVE_PROJECT_OPTIONS",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_shared_dataset_usage() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.SHARED_DATASET_USAGE",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_project_qualified() {
+    let mut executor = create_executor();
+    setup_test_schema(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT table_name
+            FROM `default`.test_schema.INFORMATION_SCHEMA.TABLES
+            WHERE table_type = 'BASE TABLE'
+            ORDER BY table_name",
+        )
+        .unwrap();
+    assert_table_eq!(result, [["orders"], ["users"]]);
+}
+
+#[test]
+fn test_information_schema_region_qualified() {
+    let mut executor = create_executor();
+    setup_test_schema(&mut executor);
+
+    let result = executor
+        .execute_sql(
+            "SELECT schema_name
+            FROM `region-us`.INFORMATION_SCHEMA.SCHEMATA
+            WHERE schema_name = 'test_schema'",
+        )
+        .unwrap();
+    assert_table_eq!(result, [["test_schema"]]);
+}
+
+#[test]
+fn test_information_schema_routines_detailed() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE FUNCTION my_schema.calculate(a INT64, b INT64)
+            RETURNS INT64
+            AS (a * b + 10)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT routine_schema, routine_name, routine_type, data_type
+            FROM INFORMATION_SCHEMA.ROUTINES
+            WHERE routine_name = 'calculate'",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [["my_schema", "calculate", "FUNCTION", "INT64"]]
+    );
+}
+
+#[test]
+fn test_information_schema_parameters_detailed() {
+    let mut executor = create_executor();
+    executor
+        .execute_sql(
+            "CREATE FUNCTION param_test(input_val STRING, multiplier INT64)
+            RETURNS STRING
+            AS (CONCAT(input_val, CAST(multiplier AS STRING)))",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql(
+            "SELECT parameter_name, ordinal_position, data_type
+            FROM INFORMATION_SCHEMA.PARAMETERS
+            WHERE specific_name = 'param_test'
+            ORDER BY ordinal_position",
+        )
+        .unwrap();
+    assert_table_eq!(
+        result,
+        [
+            ["input_val", 1, "STRING"],
+            ["multiplier", 2, "INT64"],
+        ]
+    );
+}
+
+#[test]
+fn test_information_schema_streaming_timeline_by_folder() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.STREAMING_TIMELINE_BY_FOLDER
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_streaming_timeline_by_organization() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.STREAMING_TIMELINE_BY_ORGANIZATION
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_table_storage_by_folder() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.TABLE_STORAGE_BY_FOLDER",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_table_storage_by_organization() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.TABLE_STORAGE_BY_ORGANIZATION",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_jobs_by_folder() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.JOBS_BY_FOLDER
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_jobs_by_organization() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.JOBS_BY_ORGANIZATION
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_jobs_timeline_by_user() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.JOBS_TIMELINE_BY_USER
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_jobs_timeline_by_folder() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.JOBS_TIMELINE_BY_FOLDER
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_information_schema_jobs_timeline_by_organization() {
+    let mut executor = create_executor();
+
+    let result = executor
+        .execute_sql(
+            "SELECT COUNT(*) >= 0
+            FROM INFORMATION_SCHEMA.JOBS_TIMELINE_BY_ORGANIZATION
+            LIMIT 10",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}

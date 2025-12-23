@@ -104,7 +104,9 @@ fn is_cacheable_plan(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::Continue
         | OptimizedLogicalPlan::CreateSnapshot { .. }
         | OptimizedLogicalPlan::DropSnapshot { .. }
-        | OptimizedLogicalPlan::Assert { .. } => false,
+        | OptimizedLogicalPlan::Assert { .. }
+        | OptimizedLogicalPlan::Grant { .. }
+        | OptimizedLogicalPlan::Revoke { .. } => false,
     }
 }
 
@@ -164,7 +166,9 @@ fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::Raise { .. }
         | OptimizedLogicalPlan::Break
         | OptimizedLogicalPlan::Continue
-        | OptimizedLogicalPlan::Assert { .. } => false,
+        | OptimizedLogicalPlan::Assert { .. }
+        | OptimizedLogicalPlan::Grant { .. }
+        | OptimizedLogicalPlan::Revoke { .. } => false,
     }
 }
 

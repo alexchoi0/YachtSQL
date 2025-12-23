@@ -8,9 +8,9 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField};
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
-    CteDefinition, ExportFormat, ExportOptions, Expr, FunctionArg, FunctionBody, JoinType, Literal,
-    LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg, ProcedureArgMode, SampleType,
-    SetOperationType, SortExpr, TableConstraint,
+    CteDefinition, DclResourceType, ExportFormat, ExportOptions, Expr, FunctionArg, FunctionBody,
+    JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
+    ProcedureArgMode, SampleType, SetOperationType, SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
 
@@ -154,6 +154,18 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::Case(case_stmt) => self.plan_case(case_stmt),
             Statement::Leave { .. } | Statement::Break { .. } => Ok(LogicalPlan::Break),
             Statement::Iterate { .. } | Statement::Continue { .. } => Ok(LogicalPlan::Continue),
+            Statement::Grant {
+                privileges,
+                objects,
+                grantees,
+                ..
+            } => self.plan_grant(privileges, objects.as_ref(), grantees),
+            Statement::Revoke {
+                privileges,
+                objects,
+                grantees,
+                ..
+            } => self.plan_revoke(privileges, objects.as_ref(), grantees),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -4699,6 +4711,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 Literal::Timestamp(_) => DataType::Timestamp,
                 Literal::Datetime(_) => DataType::DateTime,
                 Literal::Numeric(_) => DataType::Numeric(None),
+                Literal::BigNumeric(_) => DataType::BigNumeric,
                 Literal::Interval { .. } => DataType::Interval,
                 Literal::Array(_) => DataType::Array(Box::new(DataType::String)),
                 Literal::Struct(_) => DataType::Struct(vec![]),
@@ -5001,5 +5014,93 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             },
             _ => Err(Error::InvalidQuery("Sample value must be a number".into())),
         }
+    }
+
+    fn plan_grant(
+        &self,
+        privileges: &ast::Privileges,
+        objects: Option<&ast::GrantObjects>,
+        grantees: &[ast::Grantee],
+    ) -> Result<LogicalPlan> {
+        let roles = self.extract_roles(privileges)?;
+        let (resource_type, resource_name) = self.extract_grant_resource(objects)?;
+        let grantee_list = self.extract_grantees(grantees)?;
+
+        Ok(LogicalPlan::Grant {
+            roles,
+            resource_type,
+            resource_name,
+            grantees: grantee_list,
+        })
+    }
+
+    fn plan_revoke(
+        &self,
+        privileges: &ast::Privileges,
+        objects: Option<&ast::GrantObjects>,
+        grantees: &[ast::Grantee],
+    ) -> Result<LogicalPlan> {
+        let roles = self.extract_roles(privileges)?;
+        let (resource_type, resource_name) = self.extract_grant_resource(objects)?;
+        let grantee_list = self.extract_grantees(grantees)?;
+
+        Ok(LogicalPlan::Revoke {
+            roles,
+            resource_type,
+            resource_name,
+            grantees: grantee_list,
+        })
+    }
+
+    fn extract_roles(&self, privileges: &ast::Privileges) -> Result<Vec<String>> {
+        match privileges {
+            ast::Privileges::All { .. } => Ok(vec!["ALL".to_string()]),
+            ast::Privileges::Actions(actions) => {
+                Ok(actions.iter().map(|a| format!("{}", a)).collect())
+            }
+        }
+    }
+
+    fn extract_grant_resource(
+        &self,
+        objects: Option<&ast::GrantObjects>,
+    ) -> Result<(DclResourceType, String)> {
+        match objects {
+            Some(ast::GrantObjects::Schemas(schemas)) => {
+                let name = schemas
+                    .first()
+                    .map(object_name_to_raw_string)
+                    .unwrap_or_default();
+                Ok((DclResourceType::Schema, name))
+            }
+            Some(ast::GrantObjects::Tables(tables)) => {
+                let name = tables
+                    .first()
+                    .map(object_name_to_raw_string)
+                    .unwrap_or_default();
+                Ok((DclResourceType::Table, name))
+            }
+            Some(ast::GrantObjects::AllTablesInSchema { schemas }) => {
+                let name = schemas
+                    .first()
+                    .map(object_name_to_raw_string)
+                    .unwrap_or_default();
+                Ok((DclResourceType::Schema, name))
+            }
+            None => Err(Error::parse_error(
+                "GRANT/REVOKE requires an ON clause specifying the resource",
+            )),
+            _ => Err(Error::unsupported(format!(
+                "Unsupported GRANT/REVOKE object type: {:?}",
+                objects
+            ))),
+        }
+    }
+
+    fn extract_grantees(&self, grantees: &[ast::Grantee]) -> Result<Vec<String>> {
+        Ok(grantees
+            .iter()
+            .filter_map(|g| g.name.as_ref().map(|n| format!("{}", n)))
+            .collect())
     }
 }

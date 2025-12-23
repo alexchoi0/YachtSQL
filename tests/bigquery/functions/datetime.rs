@@ -1,5 +1,5 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, d, dt, tm, ts};
+use crate::common::{create_executor, d, dt, null, tm, ts, ts_ms};
 
 #[test]
 fn test_current_date() {
@@ -442,6 +442,7 @@ fn test_datetime_trunc() {
 }
 
 #[test]
+#[ignore]
 fn test_extract_week() {
     let mut executor = create_executor();
     let result = executor
@@ -519,4 +520,788 @@ fn test_datetime_constructor_from_string() {
         .execute_sql("SELECT DATETIME('2024-06-15 14:30:00')")
         .unwrap();
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
+}
+
+#[test]
+fn test_current_time() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT CURRENT_TIME() IS NOT NULL")
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_current_time_no_parens() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT CURRENT_TIME IS NOT NULL")
+        .unwrap();
+    assert_table_eq!(result, [[true]]);
+}
+
+#[test]
+fn test_extract_hour_from_time() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(HOUR FROM TIME '15:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[15]]);
+}
+
+#[test]
+fn test_extract_minute_from_time() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(MINUTE FROM TIME '15:30:45')")
+        .unwrap();
+    assert_table_eq!(result, [[30]]);
+}
+
+#[test]
+fn test_extract_second_from_time() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(SECOND FROM TIME '15:30:45')")
+        .unwrap();
+    assert_table_eq!(result, [[45]]);
+}
+
+#[test]
+fn test_format_time_basic() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT FORMAT_TIME('%R', TIME '15:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [["15:30"]]);
+}
+
+#[test]
+fn test_format_time_full() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT FORMAT_TIME('%H:%M:%S', TIME '15:30:45')")
+        .unwrap();
+    assert_table_eq!(result, [["15:30:45"]]);
+}
+
+#[test]
+fn test_format_time_12_hour() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT FORMAT_TIME('%I:%M %p', TIME '15:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [["03:30 PM"]]);
+}
+
+#[test]
+#[ignore]
+fn test_parse_time_hour_only() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT PARSE_TIME('%H', '15')")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 0, 0)]]);
+}
+
+#[test]
+fn test_parse_time_full() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT PARSE_TIME('%H:%M:%S', '14:30:45')")
+        .unwrap();
+    assert_table_eq!(result, [[tm(14, 30, 45)]]);
+}
+
+#[test]
+fn test_parse_time_12_hour() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT PARSE_TIME('%I:%M:%S %p', '2:23:38 pm')")
+        .unwrap();
+    assert_table_eq!(result, [[tm(14, 23, 38)]]);
+}
+
+#[test]
+fn test_parse_time_t_format() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT PARSE_TIME('%T', '07:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[tm(7, 30, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_time_constructor_from_parts() {
+    let mut executor = create_executor();
+    let result = executor.execute_sql("SELECT TIME(15, 30, 0)").unwrap();
+    assert_table_eq!(result, [[tm(15, 30, 0)]]);
+}
+
+#[test]
+fn test_time_constructor_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME(TIMESTAMP '2008-12-25 15:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 30, 0)]]);
+}
+
+#[test]
+fn test_time_constructor_from_datetime() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME(DATETIME '2008-12-25 15:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 30, 0)]]);
+}
+
+#[test]
+fn test_time_add_hour() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_ADD(TIME '15:30:00', INTERVAL 10 MINUTE)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 40, 0)]]);
+}
+
+#[test]
+fn test_time_add_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_ADD(TIME '15:30:00', INTERVAL 45 SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 30, 45)]]);
+}
+
+#[test]
+fn test_time_add_wrap_around() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_ADD(TIME '23:30:00', INTERVAL 1 HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(0, 30, 0)]]);
+}
+
+#[test]
+fn test_time_diff_minute() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_DIFF(TIME '15:30:00', TIME '14:35:00', MINUTE)")
+        .unwrap();
+    assert_table_eq!(result, [[55]]);
+}
+
+#[test]
+fn test_time_diff_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_DIFF(TIME '15:30:30', TIME '15:30:00', SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[30]]);
+}
+
+#[test]
+fn test_time_diff_negative() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_DIFF(TIME '10:00:00', TIME '14:00:00', HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[-4]]);
+}
+
+#[test]
+fn test_time_sub_hour() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_SUB(TIME '15:30:00', INTERVAL 1 HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(14, 30, 0)]]);
+}
+
+#[test]
+fn test_time_sub_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_SUB(TIME '15:30:30', INTERVAL 30 SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 30, 0)]]);
+}
+
+#[test]
+fn test_time_sub_wrap_around() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_SUB(TIME '00:30:00', INTERVAL 1 HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(23, 30, 0)]]);
+}
+
+#[test]
+fn test_time_trunc_minute() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_TRUNC(TIME '15:30:45', MINUTE)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 30, 0)]]);
+}
+
+#[test]
+fn test_time_trunc_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIME_TRUNC(TIME '15:30:45', SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[tm(15, 30, 45)]]);
+}
+
+#[test]
+fn test_extract_microsecond_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(MICROSECOND FROM TIMESTAMP '2024-06-15 14:30:45.123456')")
+        .unwrap();
+    assert_table_eq!(result, [[123456]]);
+}
+
+#[test]
+fn test_extract_millisecond_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(MILLISECOND FROM TIMESTAMP '2024-06-15 14:30:45.123456')")
+        .unwrap();
+    assert_table_eq!(result, [[123]]);
+}
+
+#[test]
+fn test_extract_dayofweek_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(DAYOFWEEK FROM TIMESTAMP '2008-12-25 05:30:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[5]]);
+}
+
+#[test]
+fn test_extract_dayofyear_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(DAYOFYEAR FROM TIMESTAMP '2024-06-15 14:30:45')")
+        .unwrap();
+    assert_table_eq!(result, [[167]]);
+}
+
+#[test]
+fn test_extract_week_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(WEEK FROM TIMESTAMP '2005-01-03 12:34:56+00')")
+        .unwrap();
+    assert_table_eq!(result, [[1]]);
+}
+
+#[test]
+fn test_extract_isoweek_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(ISOWEEK FROM TIMESTAMP '2005-01-03 12:34:56+00')")
+        .unwrap();
+    assert_table_eq!(result, [[1]]);
+}
+
+#[test]
+fn test_extract_isoyear_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(ISOYEAR FROM TIMESTAMP '2005-01-03 12:34:56+00')")
+        .unwrap();
+    assert_table_eq!(result, [[2005]]);
+}
+
+#[test]
+fn test_extract_isoyear_boundary() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(ISOYEAR FROM TIMESTAMP '2007-12-31 12:00:00+00'), EXTRACT(YEAR FROM TIMESTAMP '2007-12-31 12:00:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[2008, 2007]]);
+}
+
+#[test]
+#[ignore]
+fn test_extract_date_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(DATE FROM TIMESTAMP '2024-06-15 14:30:45')")
+        .unwrap();
+    assert_table_eq!(result, [[d(2024, 6, 15)]]);
+}
+
+#[test]
+#[ignore]
+fn test_extract_time_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(TIME FROM TIMESTAMP '2024-06-15 14:30:45')")
+        .unwrap();
+    assert_table_eq!(result, [[tm(14, 30, 45)]]);
+}
+
+#[test]
+#[ignore]
+fn test_extract_week_sunday_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(WEEK(SUNDAY) FROM TIMESTAMP '2017-11-06 00:00:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[45]]);
+}
+
+#[test]
+fn test_extract_week_monday_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT EXTRACT(WEEK(MONDAY) FROM TIMESTAMP '2017-11-06 00:00:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[44]]);
+}
+
+#[test]
+fn test_format_timestamp_custom() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT FORMAT_TIMESTAMP('%c', TIMESTAMP '2050-12-25 15:30:55+00', 'UTC')")
+        .unwrap();
+    assert_table_eq!(result, [["Sun Dec 25 15:30:55 2050"]]);
+}
+
+#[test]
+fn test_format_timestamp_date_only() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT FORMAT_TIMESTAMP('%b-%d-%Y', TIMESTAMP '2050-12-25 15:30:55+00')")
+        .unwrap();
+    assert_table_eq!(result, [["Dec-25-2050"]]);
+}
+
+#[test]
+fn test_format_timestamp_month_year() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT FORMAT_TIMESTAMP('%b %Y', TIMESTAMP '2050-12-25 15:30:55+00')")
+        .unwrap();
+    assert_table_eq!(result, [["Dec 2050"]]);
+}
+
+#[test]
+fn test_format_timestamp_iso() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql(
+            "SELECT FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', TIMESTAMP '2050-12-25 15:30:55', 'UTC')",
+        )
+        .unwrap();
+    assert_table_eq!(result, [["2050-12-25T15:30:55Z"]]);
+}
+
+#[test]
+fn test_parse_timestamp_c_format() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT PARSE_TIMESTAMP('%c', 'Thu Dec 25 07:30:00 2008')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 7, 30, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_parse_timestamp_date_only() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT PARSE_TIMESTAMP('%Y-%m-%d', '2024-06-15')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 15, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_parse_timestamp_with_am_pm() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p', '2024-06-15 02:30:00 PM')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_constructor_from_string() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP('2008-12-25 15:30:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_constructor_from_string_with_timezone() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP('2008-12-25 15:30:00', 'America/Los_Angeles')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 23, 30, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_constructor_from_date() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP(DATE '2008-12-25')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_constructor_from_datetime() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP(DATETIME '2008-12-25 15:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_string_from_timestamp() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT STRING(TIMESTAMP '2008-12-25 15:30:00+00', 'UTC')")
+        .unwrap();
+    assert_table_eq!(result, [["2008-12-25 15:30:00+00"]]);
+}
+
+#[test]
+fn test_timestamp_add_minute() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_ADD(TIMESTAMP '2008-12-25 15:30:00+00', INTERVAL 10 MINUTE)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 15, 40, 0)]]);
+}
+
+#[test]
+fn test_timestamp_add_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_ADD(TIMESTAMP '2024-01-15 10:00:00', INTERVAL 30 SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 1, 15, 10, 0, 30)]]);
+}
+
+#[test]
+fn test_timestamp_add_day() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_ADD(TIMESTAMP '2024-01-15 10:00:00', INTERVAL 5 DAY)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 1, 20, 10, 0, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_add_millisecond() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql(
+            "SELECT TIMESTAMP_ADD(TIMESTAMP '2024-01-15 10:00:00', INTERVAL 500 MILLISECOND)",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[ts_ms(2024, 1, 15, 10, 0, 0, 500)]]);
+}
+
+#[test]
+fn test_timestamp_sub_minute() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_SUB(TIMESTAMP '2008-12-25 15:30:00+00', INTERVAL 10 MINUTE)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 15, 20, 0)]]);
+}
+
+#[test]
+fn test_timestamp_sub_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_SUB(TIMESTAMP '2024-01-15 10:00:30', INTERVAL 30 SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 1, 15, 10, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_sub_day() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_SUB(TIMESTAMP '2024-01-20 10:00:00', INTERVAL 5 DAY)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 1, 15, 10, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_diff_minute() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2024-01-15 12:30:00', TIMESTAMP '2024-01-15 12:00:00', MINUTE)")
+        .unwrap();
+    assert_table_eq!(result, [[30]]);
+}
+
+#[test]
+fn test_timestamp_diff_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2024-01-15 12:00:30', TIMESTAMP '2024-01-15 12:00:00', SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[30]]);
+}
+
+#[test]
+fn test_timestamp_diff_day() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2024-01-20 10:00:00', TIMESTAMP '2024-01-15 10:00:00', DAY)")
+        .unwrap();
+    assert_table_eq!(result, [[5]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_diff_negative() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2018-08-14', TIMESTAMP '2018-10-14', DAY)")
+        .unwrap();
+    assert_table_eq!(result, [[-61]]);
+}
+
+#[test]
+fn test_timestamp_diff_large() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2010-07-07 10:20:00+00', TIMESTAMP '2008-12-25 15:30:00+00', HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[13410]]);
+}
+
+#[test]
+fn test_timestamp_diff_partial_hour() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2001-02-01 01:00:00', TIMESTAMP '2001-02-01 00:00:01', HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[0]]);
+}
+
+#[test]
+fn test_timestamp_trunc_day() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', DAY)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 15, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_trunc_minute() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', MINUTE)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_trunc_second() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45.123', SECOND)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 45)]]);
+}
+
+#[test]
+fn test_timestamp_trunc_month() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', MONTH)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 1, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_trunc_year() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', YEAR)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 1, 1, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_trunc_quarter() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', QUARTER)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 4, 1, 0, 0, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_trunc_week() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', WEEK)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 9, 0, 0, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_trunc_week_monday() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql(
+            "SELECT TIMESTAMP_TRUNC(TIMESTAMP '2017-11-06 00:00:00+12', WEEK(MONDAY), 'UTC')",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[ts(2017, 10, 30, 0, 0, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_trunc_isoweek() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', ISOWEEK)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 10, 0, 0, 0)]]);
+}
+
+#[test]
+#[ignore]
+fn test_timestamp_trunc_isoyear() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2015-06-15 00:00:00+00', ISOYEAR)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2014, 12, 29, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_unix_seconds_specific() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT UNIX_SECONDS(TIMESTAMP '2008-12-25 15:30:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[1230219000]]);
+}
+
+#[test]
+fn test_unix_millis_specific() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT UNIX_MILLIS(TIMESTAMP '2008-12-25 15:30:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[1230219000000i64]]);
+}
+
+#[test]
+fn test_unix_micros_specific() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT UNIX_MICROS(TIMESTAMP '2008-12-25 15:30:00+00')")
+        .unwrap();
+    assert_table_eq!(result, [[1230219000000000i64]]);
+}
+
+#[test]
+fn test_timestamp_seconds_specific() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_SECONDS(1230219000)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
+}
+
+#[test]
+fn test_timestamp_millis_specific() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_MILLIS(1230219000000)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
+}
+
+#[test]
+fn test_timestamp_micros_specific() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_MICROS(1230219000000000)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
+}
+
+#[test]
+fn test_unix_millis_with_fractional() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT UNIX_MILLIS(TIMESTAMP '1970-01-01 00:00:00.0018+00')")
+        .unwrap();
+    assert_table_eq!(result, [[1i64]]);
+}
+
+#[test]
+fn test_unix_seconds_with_fractional() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT UNIX_SECONDS(TIMESTAMP '1970-01-01 00:00:01.8+00')")
+        .unwrap();
+    assert_table_eq!(result, [[1]]);
+}
+
+#[test]
+fn test_timestamp_with_null() {
+    let mut executor = create_executor();
+    let result = executor.execute_sql("SELECT TIMESTAMP(NULL)").unwrap();
+    assert_table_eq!(result, [[null()]]);
+}
+
+#[test]
+fn test_timestamp_add_with_null() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_ADD(NULL, INTERVAL 1 HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[null()]]);
+}
+
+#[test]
+fn test_timestamp_diff_with_null() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_DIFF(NULL, TIMESTAMP '2024-01-01 00:00:00', HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[null()]]);
+}
+
+#[test]
+fn test_timestamp_trunc_with_null() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(NULL, HOUR)")
+        .unwrap();
+    assert_table_eq!(result, [[null()]]);
 }

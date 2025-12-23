@@ -1,5 +1,6 @@
 mod alter_table;
 mod create_table;
+mod dcl;
 mod drop_table;
 mod functions;
 mod partitioning;

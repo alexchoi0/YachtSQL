@@ -233,3 +233,278 @@ fn test_insert_with_expression_default() {
 
     assert_table_eq!(result, [[1, "login", true]]);
 }
+
+#[test]
+fn test_insert_with_struct_type() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE products (
+                name STRING,
+                specs STRUCT<color STRING, weight FLOAT64>
+            )",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO products VALUES ('Widget', STRUCT('red', 1.5))")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT name, specs.color FROM products")
+        .unwrap();
+
+    assert_table_eq!(result, [["Widget", "red"]]);
+}
+
+#[test]
+fn test_insert_with_array_type() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE with_tags (id INT64, tags ARRAY<STRING>)")
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO with_tags (tags) VALUES (['tag1', 'tag2'])")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT ARRAY_LENGTH(tags) FROM with_tags")
+        .unwrap();
+
+    assert_table_eq!(result, [[2]]);
+}
+
+#[test]
+#[ignore]
+fn test_insert_select_with_unnest() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE warehouse (warehouse STRING, state STRING)")
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO warehouse (warehouse, state)
+            SELECT *
+            FROM UNNEST([('warehouse #1', 'WA'),
+                  ('warehouse #2', 'CA'),
+                  ('warehouse #3', 'WA')])",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT * FROM warehouse ORDER BY warehouse")
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["warehouse #1", "WA"],
+            ["warehouse #2", "CA"],
+            ["warehouse #3", "WA"],
+        ]
+    );
+}
+
+#[test]
+#[ignore]
+fn test_insert_select_with_cte() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE warehouse (warehouse STRING, state STRING)")
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO warehouse (warehouse, state)
+            WITH w AS (
+                SELECT ARRAY<STRUCT<warehouse STRING, state STRING>>
+                    [('warehouse #1', 'WA'),
+                     ('warehouse #2', 'CA')] col
+            )
+            SELECT warehouse, state FROM w, UNNEST(w.col)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT * FROM warehouse ORDER BY warehouse")
+        .unwrap();
+
+    assert_table_eq!(result, [["warehouse #1", "WA"], ["warehouse #2", "CA"],]);
+}
+
+#[test]
+#[ignore]
+fn test_insert_with_nested_struct() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE detailed_inventory (
+                product STRING,
+                quantity INT64,
+                specifications STRUCT<
+                    color STRING,
+                    warranty STRING,
+                    dimensions STRUCT<depth FLOAT64, height FLOAT64, width FLOAT64>
+                >
+            )",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO detailed_inventory
+            VALUES('washer', 10, ('white', '1 year', (30.0, 40.0, 28.0)))",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT product, specifications.color FROM detailed_inventory")
+        .unwrap();
+
+    assert_table_eq!(result, [["washer", "white"]]);
+}
+
+#[test]
+fn test_insert_with_array_of_struct() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE with_comments (
+                product STRING,
+                comments ARRAY<STRUCT<created DATE, comment STRING>>
+            )",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO with_comments
+            VALUES('washer', [(DATE '2024-01-01', 'comment1'), (DATE '2024-01-02', 'comment2')])",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT product, ARRAY_LENGTH(comments) FROM with_comments")
+        .unwrap();
+
+    assert_table_eq!(result, [["washer", 2]]);
+}
+
+#[test]
+#[ignore]
+fn test_insert_values_with_subquery() {
+    let mut executor = create_executor();
+    setup_simple_table(&mut executor);
+
+    executor
+        .execute_sql("INSERT INTO items VALUES (1, 'microwave', 20)")
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO items (id, name, quantity)
+            VALUES(2, 'countertop microwave',
+              (SELECT quantity FROM items WHERE name = 'microwave'))",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT quantity FROM items WHERE id = 2")
+        .unwrap();
+
+    assert_table_eq!(result, [[20]]);
+}
+
+#[test]
+fn test_insert_into_keyword() {
+    let mut executor = create_executor();
+    setup_simple_table(&mut executor);
+
+    executor
+        .execute_sql("INSERT INTO items VALUES (1, 'Widget', 100)")
+        .unwrap();
+
+    let result = executor.execute_sql("SELECT * FROM items").unwrap();
+
+    assert_table_eq!(result, [[1, "Widget", 100]]);
+}
+
+#[test]
+fn test_insert_copy_table() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE inventory (product STRING, quantity INT64, supply_constrained BOOL)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO inventory VALUES
+            ('dishwasher', 30, false),
+            ('dryer', 30, false),
+            ('washer', 20, false)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE detailed_inventory (product STRING, quantity INT64, supply_constrained BOOL)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO detailed_inventory (product, quantity, supply_constrained)
+            SELECT product, quantity, false
+            FROM inventory",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT COUNT(*) FROM detailed_inventory")
+        .unwrap();
+
+    assert_table_eq!(result, [[3]]);
+}
+
+#[test]
+#[ignore]
+fn test_insert_with_range_type() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE employee_schedule (
+                emp_id INT64,
+                dept_id INT64,
+                duration RANGE<DATE>
+            )",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO employee_schedule (emp_id, dept_id, duration)
+            VALUES(10, 1000, RANGE<DATE> '[2010-01-10, 2010-03-10)'),
+                  (10, 2000, RANGE<DATE> '[2010-03-10, 2010-07-15)'),
+                  (20, 2000, RANGE<DATE> '[2010-03-10, 2010-07-20)'),
+                  (20, 1000, RANGE<DATE> '[2020-05-10, 2020-09-20)')",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT emp_id, dept_id FROM employee_schedule ORDER BY emp_id, dept_id")
+        .unwrap();
+
+    assert_table_eq!(result, [[10, 1000], [10, 2000], [20, 1000], [20, 2000]]);
+}

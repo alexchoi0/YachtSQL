@@ -214,3 +214,153 @@ fn test_truncate_table() {
 
     assert_table_eq!(result, []);
 }
+
+#[test]
+#[ignore]
+fn test_delete_with_alias() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE inventory (product STRING, quantity INT64)")
+        .unwrap();
+
+    executor
+        .execute_sql("CREATE TABLE new_arrivals (product STRING, quantity INT64)")
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO inventory VALUES
+            ('dishwasher', 30),
+            ('dryer', 30),
+            ('washer', 20),
+            ('microwave', 20),
+            ('oven', 5)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO new_arrivals VALUES
+            ('dryer', 200),
+            ('oven', 300),
+            ('washer', 100)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "DELETE FROM inventory i WHERE i.product NOT IN (SELECT product FROM new_arrivals)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT product FROM inventory ORDER BY product")
+        .unwrap();
+
+    assert_table_eq!(result, [["dryer"], ["oven"], ["washer"]]);
+}
+
+#[test]
+#[ignore]
+fn test_delete_with_exists() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE inventory (product STRING, quantity INT64)")
+        .unwrap();
+
+    executor
+        .execute_sql("CREATE TABLE new_arrivals (product STRING, quantity INT64)")
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO inventory VALUES
+            ('dishwasher', 30),
+            ('dryer', 30),
+            ('washer', 20)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO new_arrivals VALUES
+            ('dryer', 200),
+            ('washer', 100)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "DELETE FROM inventory
+            WHERE NOT EXISTS
+              (SELECT * FROM new_arrivals
+               WHERE inventory.product = new_arrivals.product)",
+        )
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT product FROM inventory ORDER BY product")
+        .unwrap();
+
+    assert_table_eq!(result, [["dryer"], ["washer"]]);
+}
+
+#[test]
+fn test_delete_where_quantity_zero() {
+    let mut executor = create_executor();
+
+    executor
+        .execute_sql("CREATE TABLE inventory (product STRING, quantity INT64)")
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "INSERT INTO inventory VALUES
+            ('dishwasher', 20),
+            ('dryer', 30),
+            ('washer', 0),
+            ('microwave', 20),
+            ('oven', 0)",
+        )
+        .unwrap();
+
+    executor
+        .execute_sql("DELETE FROM inventory WHERE quantity = 0")
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT product FROM inventory ORDER BY product")
+        .unwrap();
+
+    assert_table_eq!(result, [["dishwasher"], ["dryer"], ["microwave"]]);
+}
+
+#[test]
+fn test_delete_without_from_keyword() {
+    let mut executor = create_executor();
+    setup_users_table(&mut executor);
+
+    executor.execute_sql("DELETE users WHERE id = 1").unwrap();
+
+    let result = executor
+        .execute_sql("SELECT id FROM users ORDER BY id")
+        .unwrap();
+
+    assert_table_eq!(result, [[2], [3]]);
+}
+
+#[test]
+fn test_delete_where_true() {
+    let mut executor = create_executor();
+    setup_users_table(&mut executor);
+
+    executor
+        .execute_sql("DELETE FROM users WHERE true")
+        .unwrap();
+
+    let result = executor.execute_sql("SELECT * FROM users").unwrap();
+
+    assert_table_eq!(result, []);
+}

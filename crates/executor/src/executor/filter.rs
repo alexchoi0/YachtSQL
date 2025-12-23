@@ -438,6 +438,7 @@ impl<'a> PlanExecutor<'a> {
             Value::Int64(n) => Literal::Int64(n),
             Value::Float64(f) => Literal::Float64(f),
             Value::Numeric(d) => Literal::Numeric(d),
+            Value::BigNumeric(d) => Literal::BigNumeric(d),
             Value::String(s) => Literal::String(s),
             Value::Bytes(b) => Literal::Bytes(b),
             Value::Date(d) => {

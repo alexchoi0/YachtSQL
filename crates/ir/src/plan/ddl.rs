@@ -126,3 +126,11 @@ pub enum ConstraintType {
         expr: Expr,
     },
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DclResourceType {
+    Schema,
+    Table,
+    View,
+    ExternalTable,
+}
