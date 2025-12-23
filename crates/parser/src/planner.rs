@@ -8,8 +8,8 @@ use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, StructField};
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
-    CteDefinition, DclResourceType, ExportFormat, ExportOptions, Expr, FunctionArg, FunctionBody,
-    JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
+    CteDefinition, DateTimeField, DclResourceType, ExportFormat, ExportOptions, Expr, FunctionArg,
+    FunctionBody, JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
     ProcedureArgMode, SampleType, SetOperationType, SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
@@ -4527,7 +4527,29 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     DataType::Unknown
                 }
             }
-            Expr::Extract { .. } => DataType::Int64,
+            Expr::Extract { field, .. } => match field {
+                DateTimeField::Date => DataType::Date,
+                DateTimeField::Time => DataType::Time,
+                DateTimeField::Year
+                | DateTimeField::IsoYear
+                | DateTimeField::Quarter
+                | DateTimeField::Month
+                | DateTimeField::Week
+                | DateTimeField::IsoWeek
+                | DateTimeField::Day
+                | DateTimeField::DayOfWeek
+                | DateTimeField::DayOfYear
+                | DateTimeField::Hour
+                | DateTimeField::Minute
+                | DateTimeField::Second
+                | DateTimeField::Millisecond
+                | DateTimeField::Microsecond
+                | DateTimeField::Nanosecond
+                | DateTimeField::Datetime
+                | DateTimeField::Timezone
+                | DateTimeField::TimezoneHour
+                | DateTimeField::TimezoneMinute => DataType::Int64,
+            },
             Expr::TypedString { data_type, .. } => data_type.clone(),
             Expr::Array {
                 elements,

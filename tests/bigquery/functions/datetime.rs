@@ -828,7 +828,6 @@ fn test_extract_isoyear_boundary() {
 }
 
 #[test]
-#[ignore]
 fn test_extract_date_from_timestamp() {
     let mut session = create_session();
     let result = session
@@ -838,7 +837,6 @@ fn test_extract_date_from_timestamp() {
 }
 
 #[test]
-#[ignore]
 fn test_extract_time_from_timestamp() {
     let mut session = create_session();
     let result = session
