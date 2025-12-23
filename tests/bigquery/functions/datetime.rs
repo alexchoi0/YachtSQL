@@ -1007,7 +1007,6 @@ fn test_timestamp_add_day() {
 }
 
 #[test]
-#[ignore]
 fn test_timestamp_add_millisecond() {
     let mut session = create_session();
     let result = session
@@ -1074,12 +1073,23 @@ fn test_timestamp_diff_day() {
 
 #[test]
 #[ignore]
-fn test_timestamp_diff_negative() {
+fn test_timestamp_diff_negative_date_only() {
     let mut session = create_session();
     let result = session
         .execute_sql("SELECT TIMESTAMP_DIFF(TIMESTAMP '2018-08-14', TIMESTAMP '2018-10-14', DAY)")
         .unwrap();
     assert_table_eq!(result, [[-61]]);
+}
+
+#[test]
+fn test_timestamp_diff_negative() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql(
+            "SELECT TIMESTAMP_DIFF(TIMESTAMP '2024-01-15 10:00:00', TIMESTAMP '2024-01-15 12:00:00', HOUR)",
+        )
+        .unwrap();
+    assert_table_eq!(result, [[-2]]);
 }
 
 #[test]

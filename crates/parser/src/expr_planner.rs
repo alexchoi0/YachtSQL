@@ -1604,6 +1604,12 @@ impl ExprPlanner {
                 0,
                 value * IntervalValue::MICROS_PER_SECOND * IntervalValue::NANOS_PER_MICRO,
             ),
+            Some(ast::DateTimeField::Millisecond) | Some(ast::DateTimeField::Milliseconds) => {
+                (0, 0, value * 1_000_000)
+            }
+            Some(ast::DateTimeField::Microsecond) | Some(ast::DateTimeField::Microseconds) => {
+                (0, 0, value * 1_000)
+            }
             None => (0, value as i32, 0i64),
             _ => {
                 return Err(Error::unsupported(format!(
