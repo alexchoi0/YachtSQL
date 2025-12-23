@@ -632,7 +632,6 @@ fn test_parse_time_t_format() {
 }
 
 #[test]
-#[ignore]
 fn test_time_constructor_from_parts() {
     let mut session = create_session();
     let result = session.execute_sql("SELECT TIME(15, 30, 0)").unwrap();

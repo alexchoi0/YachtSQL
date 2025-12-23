@@ -2738,6 +2738,23 @@ impl<'a> IrEvaluator<'a> {
     }
 
     fn fn_time(&self, args: &[Value]) -> Result<Value> {
+        if args.len() == 3 {
+            if args.iter().any(|a| a.is_null()) {
+                return Ok(Value::Null);
+            }
+            let hour = args[0]
+                .as_i64()
+                .ok_or_else(|| Error::InvalidQuery("TIME hour must be int".into()))?;
+            let minute = args[1]
+                .as_i64()
+                .ok_or_else(|| Error::InvalidQuery("TIME minute must be int".into()))?;
+            let second = args[2]
+                .as_i64()
+                .ok_or_else(|| Error::InvalidQuery("TIME second must be int".into()))?;
+            let time = NaiveTime::from_hms_opt(hour as u32, minute as u32, second as u32)
+                .ok_or_else(|| Error::InvalidQuery("Invalid time components".into()))?;
+            return Ok(Value::Time(time));
+        }
         match args.first() {
             Some(Value::Null) => Ok(Value::Null),
             Some(Value::String(s)) => {
