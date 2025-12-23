@@ -1183,6 +1183,22 @@ impl ExprPlanner {
     ) -> Result<Expr> {
         let name = func.name.to_string().to_uppercase();
 
+        if name == "WEEK"
+            && let ast::FunctionArguments::List(list) = &func.args
+            && list.args.len() == 1
+            && let Some(ast::FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
+                ast::Expr::Identifier(ident),
+            ))) = list.args.first()
+        {
+            let weekday = ident.value.to_uppercase();
+            if matches!(
+                weekday.as_str(),
+                "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY"
+            ) {
+                return Ok(Expr::Literal(Literal::String(format!("WEEK_{}", weekday))));
+            }
+        }
+
         if name == "ARRAY"
             && let ast::FunctionArguments::Subquery(query) = &func.args
         {

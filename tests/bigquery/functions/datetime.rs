@@ -520,3 +520,30 @@ fn test_datetime_constructor_from_string() {
         .unwrap();
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
 }
+
+#[test]
+fn test_timestamp_trunc_week_monday() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', WEEK(MONDAY))")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 10, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_trunc_isoweek() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', ISOWEEK)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 6, 10, 0, 0, 0)]]);
+}
+
+#[test]
+fn test_timestamp_trunc_isoyear() {
+    let mut executor = create_executor();
+    let result = executor
+        .execute_sql("SELECT TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15 14:30:45', ISOYEAR)")
+        .unwrap();
+    assert_table_eq!(result, [[ts(2024, 1, 1, 0, 0, 0)]]);
+}

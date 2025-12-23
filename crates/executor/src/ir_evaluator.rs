@@ -7233,10 +7233,26 @@ fn trunc_datetime(dt: &NaiveDateTime, part: &str) -> Result<NaiveDateTime> {
         "MONTH" => NaiveDate::from_ymd_opt(dt.year(), dt.month(), 1)
             .and_then(|d| d.and_hms_opt(0, 0, 0))
             .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into())),
-        "WEEK" => {
+        "WEEK" | "WEEK_SUNDAY" => {
+            let days_from_sunday = dt.weekday().num_days_from_sunday();
+            let date = dt.date() - chrono::Duration::days(days_from_sunday as i64);
+            date.and_hms_opt(0, 0, 0)
+                .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into()))
+        }
+        "WEEK_MONDAY" | "ISOWEEK" => {
             let days_from_monday = dt.weekday().num_days_from_monday();
             let date = dt.date() - chrono::Duration::days(days_from_monday as i64);
             date.and_hms_opt(0, 0, 0)
+                .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into()))
+        }
+        "ISOYEAR" => {
+            let iso_week = dt.iso_week();
+            let iso_year = iso_week.year();
+            let first_day_of_iso_year =
+                NaiveDate::from_isoywd_opt(iso_year, 1, chrono::Weekday::Mon)
+                    .ok_or_else(|| Error::InvalidQuery("Invalid ISO year".into()))?;
+            first_day_of_iso_year
+                .and_hms_opt(0, 0, 0)
                 .ok_or_else(|| Error::InvalidQuery("Invalid datetime".into()))
         }
         "DAY" => dt
