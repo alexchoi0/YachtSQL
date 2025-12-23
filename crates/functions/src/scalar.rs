@@ -249,6 +249,17 @@ pub fn sqrt(val: &Value) -> Result<Value> {
     }
 }
 
+pub fn cbrt(val: &Value) -> Result<Value> {
+    match val {
+        Value::Float64(f) => Ok(Value::Float64(ordered_float::OrderedFloat(f.cbrt()))),
+        Value::Int64(n) => Ok(Value::Float64(ordered_float::OrderedFloat(
+            (*n as f64).cbrt(),
+        ))),
+        Value::Null => Ok(Value::Null),
+        _ => Err(Error::type_mismatch("CBRT requires a number")),
+    }
+}
+
 pub fn power(base: &Value, exp: &Value) -> Result<Value> {
     match (base, exp) {
         (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),

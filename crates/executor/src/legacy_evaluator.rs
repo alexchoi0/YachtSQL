@@ -4158,6 +4158,21 @@ impl<'a> Evaluator<'a> {
                     None => Ok(Value::null()),
                 }
             }
+            "CBRT" => {
+                if args.len() != 1 {
+                    return Err(Error::InvalidQuery("CBRT requires 1 argument".to_string()));
+                }
+                if args[0].is_null() {
+                    return Ok(Value::null());
+                }
+                let n = args[0]
+                    .as_f64()
+                    .or_else(|| args[0].as_i64().map(|i| i as f64));
+                match n {
+                    Some(v) => Ok(Value::float64(v.cbrt())),
+                    None => Ok(Value::null()),
+                }
+            }
             "LOG" | "LN" => {
                 if args.len() != 1 {
                     return Err(Error::InvalidQuery("LOG requires 1 argument".to_string()));
