@@ -4534,7 +4534,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 | DateTimeField::IsoYear
                 | DateTimeField::Quarter
                 | DateTimeField::Month
-                | DateTimeField::Week
+                | DateTimeField::Week(_)
                 | DateTimeField::IsoWeek
                 | DateTimeField::Day
                 | DateTimeField::DayOfWeek
