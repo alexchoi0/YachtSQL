@@ -582,6 +582,9 @@ impl<'a> IrEvaluator<'a> {
             ScalarFunction::Sinh => self.fn_sinh(&arg_values),
             ScalarFunction::Cosh => self.fn_cosh(&arg_values),
             ScalarFunction::Tanh => self.fn_tanh(&arg_values),
+            ScalarFunction::Asinh => self.fn_asinh(&arg_values),
+            ScalarFunction::Acosh => self.fn_acosh(&arg_values),
+            ScalarFunction::Atanh => self.fn_atanh(&arg_values),
             ScalarFunction::Cot => self.fn_cot(&arg_values),
             ScalarFunction::Csc => self.fn_csc(&arg_values),
             ScalarFunction::Sec => self.fn_sec(&arg_values),
@@ -3834,6 +3837,59 @@ impl<'a> IrEvaluator<'a> {
             Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).tanh()))),
             Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.tanh()))),
             _ => Err(Error::InvalidQuery("TANH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_asinh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => Ok(Value::Float64(OrderedFloat((*n as f64).asinh()))),
+            Some(Value::Float64(f)) => Ok(Value::Float64(OrderedFloat(f.0.asinh()))),
+            _ => Err(Error::InvalidQuery("ASINH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_acosh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => {
+                let val = *n as f64;
+                if val < 1.0 {
+                    Err(Error::InvalidQuery("ACOSH argument must be >= 1".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(val.acosh())))
+                }
+            }
+            Some(Value::Float64(f)) => {
+                if f.0 < 1.0 {
+                    Err(Error::InvalidQuery("ACOSH argument must be >= 1".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(f.0.acosh())))
+                }
+            }
+            _ => Err(Error::InvalidQuery("ACOSH requires numeric argument".into())),
+        }
+    }
+
+    fn fn_atanh(&self, args: &[Value]) -> Result<Value> {
+        match args.first() {
+            Some(Value::Null) => Ok(Value::Null),
+            Some(Value::Int64(n)) => {
+                let val = *n as f64;
+                if val <= -1.0 || val >= 1.0 {
+                    Err(Error::InvalidQuery("ATANH argument must be in (-1, 1)".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(val.atanh())))
+                }
+            }
+            Some(Value::Float64(f)) => {
+                if f.0 <= -1.0 || f.0 >= 1.0 {
+                    Err(Error::InvalidQuery("ATANH argument must be in (-1, 1)".into()))
+                } else {
+                    Ok(Value::Float64(OrderedFloat(f.0.atanh())))
+                }
+            }
+            _ => Err(Error::InvalidQuery("ATANH requires numeric argument".into())),
         }
     }
 
