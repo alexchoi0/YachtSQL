@@ -5,12 +5,12 @@ use yachtsql_storage::{Record, Table};
 
 use super::{PlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_unnest(
         &mut self,
-        input: &ExecutorPlan,
+        input: &PhysicalPlan,
         columns: &[UnnestColumn],
         schema: &PlanSchema,
     ) -> Result<Table> {

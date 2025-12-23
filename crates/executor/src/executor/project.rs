@@ -6,12 +6,12 @@ use yachtsql_storage::{Record, Schema, Table};
 
 use super::{PlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_project(
         &mut self,
-        input: &ExecutorPlan,
+        input: &PhysicalPlan,
         expressions: &[Expr],
         schema: &PlanSchema,
     ) -> Result<Table> {
@@ -24,8 +24,9 @@ impl<'a> PlanExecutor<'a> {
         {
             self.execute_project_with_subqueries(&input_table, expressions, schema)
         } else {
-            let evaluator =
-                IrEvaluator::new(&input_schema).with_user_functions(&self.user_function_defs);
+            let evaluator = IrEvaluator::new(&input_schema)
+                .with_variables(&self.variables)
+                .with_user_functions(&self.user_function_defs);
             let result_schema = plan_schema_to_schema(schema);
             let mut result = Table::empty(result_schema);
 
@@ -71,7 +72,14 @@ impl<'a> PlanExecutor<'a> {
         record: &Record,
     ) -> Result<Value> {
         match expr {
-            Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => self.eval_scalar_subquery(plan),
+            Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => {
+                self.eval_scalar_subquery(plan, schema, record)
+            }
+            Expr::Exists { subquery, negated } => {
+                let has_rows = self.eval_exists_subquery(subquery, schema, record)?;
+                Ok(Value::Bool(if *negated { !has_rows } else { has_rows }))
+            }
+            Expr::ArraySubquery(plan) => self.eval_array_subquery(plan, schema, record),
             Expr::BinaryOp { left, op, right } => {
                 let left_val = self.eval_expr_with_subqueries(left, schema, record)?;
                 let right_val = self.eval_expr_with_subqueries(right, schema, record)?;
@@ -86,8 +94,9 @@ impl<'a> PlanExecutor<'a> {
                     .iter()
                     .map(|a| self.eval_expr_with_subqueries(a, schema, record))
                     .collect::<Result<_>>()?;
-                let evaluator =
-                    IrEvaluator::new(schema).with_user_functions(&self.user_function_defs);
+                let evaluator = IrEvaluator::new(schema)
+                    .with_variables(&self.variables)
+                    .with_user_functions(&self.user_function_defs);
                 evaluator.eval_scalar_function_with_values(name, &arg_vals)
             }
             Expr::Cast {
@@ -99,16 +108,23 @@ impl<'a> PlanExecutor<'a> {
                 IrEvaluator::cast_value(val, data_type, *safe)
             }
             _ => {
-                let evaluator =
-                    IrEvaluator::new(schema).with_user_functions(&self.user_function_defs);
+                let evaluator = IrEvaluator::new(schema)
+                    .with_variables(&self.variables)
+                    .with_user_functions(&self.user_function_defs);
                 evaluator.evaluate(expr, record)
             }
         }
     }
 
-    fn eval_scalar_subquery(&mut self, plan: &LogicalPlan) -> Result<Value> {
-        let physical = optimize(plan)?;
-        let executor_plan = ExecutorPlan::from_physical(&physical);
+    fn eval_scalar_subquery(
+        &mut self,
+        plan: &LogicalPlan,
+        outer_schema: &Schema,
+        outer_record: &Record,
+    ) -> Result<Value> {
+        let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
+        let physical = optimize(&substituted)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
         let result_table = self.execute_plan(&executor_plan)?;
 
         if result_table.is_empty() {
@@ -127,6 +143,52 @@ impl<'a> PlanExecutor<'a> {
         }
 
         Ok(values[0].clone())
+    }
+
+    fn eval_exists_subquery(
+        &mut self,
+        plan: &LogicalPlan,
+        outer_schema: &Schema,
+        outer_record: &Record,
+    ) -> Result<bool> {
+        let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
+        let physical = optimize(&substituted)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
+        let result_table = self.execute_plan(&executor_plan)?;
+        Ok(!result_table.is_empty())
+    }
+
+    fn eval_array_subquery(
+        &mut self,
+        plan: &LogicalPlan,
+        outer_schema: &Schema,
+        outer_record: &Record,
+    ) -> Result<Value> {
+        let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
+        let physical = optimize(&substituted)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
+        let result_table = self.execute_plan(&executor_plan)?;
+
+        let result_schema = result_table.schema();
+        let num_fields = result_schema.field_count();
+
+        let mut array_values = Vec::new();
+        for record in result_table.rows()? {
+            let values = record.values();
+            if num_fields == 1 {
+                array_values.push(values[0].clone());
+            } else {
+                let fields: Vec<(String, Value)> = result_schema
+                    .fields()
+                    .iter()
+                    .zip(values.iter())
+                    .map(|(f, v)| (f.name.clone(), v.clone()))
+                    .collect();
+                array_values.push(Value::Struct(fields));
+            }
+        }
+
+        Ok(Value::Array(array_values))
     }
 
     fn eval_binary_op_values(&self, left: Value, op: BinaryOp, right: Value) -> Result<Value> {
@@ -217,7 +279,10 @@ impl<'a> PlanExecutor<'a> {
 
     fn expr_contains_subquery_or_scalar_subquery(expr: &Expr) -> bool {
         match expr {
-            Expr::Subquery(_) | Expr::ScalarSubquery(_) => true,
+            Expr::Subquery(_)
+            | Expr::ScalarSubquery(_)
+            | Expr::ArraySubquery(_)
+            | Expr::Exists { .. } => true,
             Expr::BinaryOp { left, right, .. } => {
                 Self::expr_contains_subquery_or_scalar_subquery(left)
                     || Self::expr_contains_subquery_or_scalar_subquery(right)

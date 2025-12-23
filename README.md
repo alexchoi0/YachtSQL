@@ -1,16 +1,18 @@
 # YachtSQL
 
-An in-memory test database for Rust programs. YachtSQL emulates BigQuery SQL features—handy for unit tests and prototyping without spinning up real database servers.
+An in-memory test database for Rust programs. YachtSQL emulates BigQuery SQL features—handy for unit tests and
+prototyping without spinning up real database servers.
 
 ## Quick Start
 
 ```rust
-use yachtsql::{QueryExecutor, DialectType};
+use yachtsql::YachtSQLEngine;
 
 fn main() -> yachtsql::Result<()> {
-    let mut executor = QueryExecutor::with_dialect(DialectType::BigQuery);
+    let engine = YachtSQLEngine::new();
+    let mut session = engine.create_session();
 
-    executor.execute_sql("
+    session.execute_sql("
         CREATE TABLE users (
             id INT64,
             name STRING NOT NULL,
@@ -18,23 +20,40 @@ fn main() -> yachtsql::Result<()> {
         )
     ")?;
 
-    executor.execute_sql("
+    session.execute_sql("
         INSERT INTO users (id, name, email) VALUES
             (1, 'Alice', 'alice@example.com'),
             (2, 'Bob', 'bob@example.com')
     ")?;
 
-    let results = executor.execute_sql("SELECT * FROM users")?;
+    let results = session.execute_sql("SELECT * FROM users")?;
     println!("{:?}", results);
     Ok(())
 }
+```
+
+## Multiple Sessions
+
+Sessions are isolated from each other but share a query plan cache:
+
+```rust
+let engine = YachtSQLEngine::new();
+
+let mut session1 = engine.create_session();
+let mut session2 = engine.create_session();
+
+session1.execute_sql("CREATE TABLE foo (id INT64)") ?;
+session1.execute_sql("INSERT INTO foo VALUES (1)") ?;
+
+// session2 has its own isolated catalog - it won't see session1's table
+assert!(session2.execute_sql("SELECT * FROM foo").is_err());
 ```
 
 ## Installation
 
 ```toml
 [dependencies]
-yachtsql = { git = "https://github.com/alexchoi0/yachtSQL" }
+yachtsql = "0.1"
 ```
 
 Requires Rust nightly (edition 2024).
@@ -43,12 +62,14 @@ Requires Rust nightly (edition 2024).
 
 YachtSQL covers a good chunk of SQL:
 
-- **Queries**: Joins (inner, left, right, full, cross, lateral), subqueries, CTEs, window functions, aggregations, set operations
+- **Queries**: Joins (inner, left, right, full, cross, lateral), subqueries, CTEs, window functions, aggregations, set
+  operations
 - **DDL**: CREATE/DROP/ALTER for tables, views, indexes
 - **DML**: INSERT, UPDATE, DELETE, MERGE, TRUNCATE
 - **Types**: The usual suspects (integers, floats, strings, dates) plus arrays, structs, JSON, and more
 
-BigQuery-specific features like `STRUCT()`, `ARRAY_AGG()`, `SAFE_DIVIDE()`, and `INT64`/`FLOAT64`/`STRING` types are supported.
+BigQuery-specific features like `STRUCT()`, `ARRAY_AGG()`, `SAFE_DIVIDE()`, and `INT64`/`FLOAT64`/`STRING` types are
+supported.
 
 ## Project Structure
 

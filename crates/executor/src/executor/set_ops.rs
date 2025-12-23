@@ -6,12 +6,12 @@ use yachtsql_ir::PlanSchema;
 use yachtsql_storage::Table;
 
 use super::{PlanExecutor, plan_schema_to_schema};
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_union(
         &mut self,
-        inputs: &[ExecutorPlan],
+        inputs: &[PhysicalPlan],
         all: bool,
         schema: &PlanSchema,
     ) -> Result<Table> {
@@ -43,8 +43,8 @@ impl<'a> PlanExecutor<'a> {
 
     pub fn execute_intersect(
         &mut self,
-        left: &ExecutorPlan,
-        right: &ExecutorPlan,
+        left: &PhysicalPlan,
+        right: &PhysicalPlan,
         all: bool,
         schema: &PlanSchema,
     ) -> Result<Table> {
@@ -63,11 +63,11 @@ impl<'a> PlanExecutor<'a> {
 
             for record in left_table.rows()? {
                 let key = row_to_key(record.values());
-                if let Some(count) = right_counts.get_mut(&key) {
-                    if *count > 0 {
-                        result.push_row(record.values().to_vec())?;
-                        *count -= 1;
-                    }
+                if let Some(count) = right_counts.get_mut(&key)
+                    && *count > 0
+                {
+                    result.push_row(record.values().to_vec())?;
+                    *count -= 1;
                 }
             }
         } else {
@@ -91,8 +91,8 @@ impl<'a> PlanExecutor<'a> {
 
     pub fn execute_except(
         &mut self,
-        left: &ExecutorPlan,
-        right: &ExecutorPlan,
+        left: &PhysicalPlan,
+        right: &PhysicalPlan,
         all: bool,
         schema: &PlanSchema,
     ) -> Result<Table> {
@@ -111,11 +111,11 @@ impl<'a> PlanExecutor<'a> {
 
             for record in left_table.rows()? {
                 let key = row_to_key(record.values());
-                if let Some(count) = right_counts.get_mut(&key) {
-                    if *count > 0 {
-                        *count -= 1;
-                        continue;
-                    }
+                if let Some(count) = right_counts.get_mut(&key)
+                    && *count > 0
+                {
+                    *count -= 1;
+                    continue;
                 }
                 result.push_row(record.values().to_vec())?;
             }

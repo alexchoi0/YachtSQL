@@ -49,6 +49,12 @@ impl IntoValue for bool {
     }
 }
 
+impl<const N: usize> IntoValue for &[u8; N] {
+    fn into_value(self) -> Value {
+        Value::bytes(self.to_vec())
+    }
+}
+
 #[macro_export]
 macro_rules! val {
     ([]) => { $crate::common::array(vec![]) };
@@ -208,6 +214,7 @@ pub fn stv_numeric(vals: Vec<Value>) -> Value {
                     | Value::Bool(_)
                     | Value::Int64(_)
                     | Value::Numeric(_)
+                    | Value::BigNumeric(_)
                     | Value::String(_)
                     | Value::Bytes(_)
                     | Value::Date(_)
@@ -280,6 +287,17 @@ pub fn n(val: &str) -> Value {
     numeric(val)
 }
 
+pub fn bignumeric(val: &str) -> Value {
+    use std::str::FromStr;
+
+    use rust_decimal::Decimal;
+    Value::BigNumeric(Decimal::from_str(val).unwrap())
+}
+
+pub fn bn(val: &str) -> Value {
+    bignumeric(val)
+}
+
 pub fn dt(year: i32, month: u32, day: u32, hour: u32, min: u32, sec: u32) -> Value {
     datetime(year, month, day, hour, min, sec)
 }
@@ -301,4 +319,8 @@ pub fn time(hour: u32, min: u32, sec: u32) -> Value {
 
 pub fn tm(hour: u32, min: u32, sec: u32) -> Value {
     time(hour, min, sec)
+}
+
+pub fn bytes(val: &[u8]) -> Value {
+    Value::bytes(val.to_vec())
 }

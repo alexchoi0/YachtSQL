@@ -5,10 +5,10 @@ use yachtsql_common::types::Value;
 use yachtsql_storage::Table;
 
 use super::PlanExecutor;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
-    pub fn execute_distinct(&mut self, input: &ExecutorPlan) -> Result<Table> {
+    pub fn execute_distinct(&mut self, input: &PhysicalPlan) -> Result<Table> {
         let input_table = self.execute_plan(input)?;
         let schema = input_table.schema().clone();
         let mut result = Table::empty(schema);

@@ -1,8 +1,8 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, d};
+use crate::common::{create_session, d};
 
-fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
-    executor
+fn setup_ecommerce_schema(session: &mut yachtsql::YachtSQLSession) {
+    session
         .execute_sql(
             "CREATE TABLE customers (
                 customer_id INT64,
@@ -15,7 +15,7 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE products (
                 product_id INT64,
@@ -28,7 +28,7 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE orders (
                 order_id INT64,
@@ -40,7 +40,7 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "CREATE TABLE order_items (
                 order_item_id INT64,
@@ -53,7 +53,7 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO customers VALUES
             (1, 'Alice Johnson', 'alice@email.com', DATE '2023-01-15', 'USA', 'Premium'),
@@ -64,7 +64,7 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO products VALUES
             (101, 'Laptop Pro', 'Electronics', 'Computers', 1200, 800),
@@ -77,7 +77,7 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO orders VALUES
             (1001, 1, DATE '2024-01-10', 'Completed', 'USA'),
@@ -91,7 +91,7 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO order_items VALUES
             (1, 1001, 101, 1, 1200, 0),
@@ -112,10 +112,10 @@ fn setup_ecommerce_schema(executor: &mut yachtsql::QueryExecutor) {
 
 #[test]
 fn test_executive_dashboard_kpis() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 COUNT(DISTINCT o.order_id) AS total_orders,
@@ -134,10 +134,10 @@ fn test_executive_dashboard_kpis() {
 
 #[test]
 fn test_sales_by_geography() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 o.shipping_country,
@@ -164,10 +164,10 @@ fn test_sales_by_geography() {
 
 #[test]
 fn test_category_performance() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH category_aggregates AS (
                 SELECT
@@ -206,12 +206,11 @@ fn test_category_performance() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_lifetime_value() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH customer_orders AS (
                 SELECT
@@ -262,10 +261,10 @@ fn test_customer_lifetime_value() {
 
 #[test]
 fn test_product_affinity_analysis() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH order_products AS (
                 SELECT DISTINCT order_id, product_id
@@ -298,10 +297,10 @@ fn test_product_affinity_analysis() {
 
 #[test]
 fn test_inventory_velocity() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 p.product_id,
@@ -335,10 +334,10 @@ fn test_inventory_velocity() {
 
 #[test]
 fn test_customer_segmentation() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH customer_metrics AS (
                 SELECT
@@ -374,12 +373,11 @@ fn test_customer_segmentation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_conversion_funnel() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 'Registered Customers' AS stage, COUNT(*) AS count
@@ -407,10 +405,10 @@ fn test_conversion_funnel() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_order_status_breakdown() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 status,
@@ -434,10 +432,10 @@ fn test_order_status_breakdown() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_daily_sales_trend() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 o.order_date,
@@ -465,12 +463,11 @@ fn test_daily_sales_trend() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_discount_impact_analysis() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 CASE
@@ -506,12 +503,11 @@ fn test_discount_impact_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_new_vs_returning_customers() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH first_orders AS (
                 SELECT customer_id, MIN(order_date) AS first_order_date
@@ -535,10 +531,10 @@ fn test_new_vs_returning_customers() {
 
 #[test]
 fn test_average_basket_composition() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH order_summary AS (
                 SELECT
@@ -574,10 +570,10 @@ fn test_average_basket_composition() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_customer_acquisition_by_month() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 DATE_TRUNC(signup_date, MONTH) AS signup_month,
@@ -601,12 +597,11 @@ fn test_customer_acquisition_by_month() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_product_margin_analysis() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 p.product_id,
@@ -680,12 +675,11 @@ fn test_product_margin_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_order_size_distribution() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH order_totals AS (
                 SELECT
@@ -721,10 +715,10 @@ fn test_order_size_distribution() {
 
 #[test]
 fn test_cross_sell_opportunities() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH customer_categories AS (
                 SELECT DISTINCT
@@ -777,10 +771,10 @@ fn test_cross_sell_opportunities() {
 
 #[test]
 fn test_revenue_concentration() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH product_revenue AS (
                 SELECT
@@ -822,10 +816,10 @@ fn test_revenue_concentration() {
 
 #[test]
 fn test_days_between_orders() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH ordered AS (
                 SELECT
@@ -850,10 +844,10 @@ fn test_days_between_orders() {
 
 #[test]
 fn test_category_share_of_wallet() {
-    let mut executor = create_executor();
-    setup_ecommerce_schema(&mut executor);
+    let mut session = create_session();
+    setup_ecommerce_schema(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH customer_category_spend AS (
                 SELECT

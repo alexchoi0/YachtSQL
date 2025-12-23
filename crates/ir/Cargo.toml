@@ -4,14 +4,19 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "YachtSQL intermediate representation (IR) for logical plans and expressions"
+repository = "https://github.com/alexchoi0/yachtsql"
+homepage = "https://github.com/alexchoi0/yachtsql"
+documentation = "https://docs.rs/yachtsql-ir"
+keywords = ["sql", "database", "bigquery", "ir"]
+categories = ["database"]
 
 [dependencies]
 # Core types and errors
-yachtsql-common = { path = "../common" }
-yachtsql-storage = { path = "../storage" }
+yachtsql-common = { version = "0.1.0", path = "../common" }
+yachtsql-storage = { version = "0.1.0", path = "../storage" }
 
 # SQL parsing
-sqlparser = { version = "0.59", features = ["visitor"] }
+yachtsql-sqlparser = { version = "0.59", features = ["visitor"] }
 
 # Data structures
 indexmap = { version = "2.12", features = ["serde"] }
@@ -28,5 +33,3 @@ rust_decimal = { version = "1.36", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
-yachtsql = { path = "../.." }
-yachtsql-test-utils = { path = "../test-utils" }

@@ -26,6 +26,9 @@ pub enum AlterTableOp {
         name: String,
         action: AlterColumnAction,
     },
+    AddConstraint {
+        constraint: TableConstraint,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -122,4 +125,12 @@ pub enum ConstraintType {
     Check {
         expr: Expr,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DclResourceType {
+    Schema,
+    Table,
+    View,
+    ExternalTable,
 }

@@ -50,7 +50,8 @@ pub fn parse_and_plan<C: CatalogProvider>(sql: &str, catalog: &C) -> Result<Logi
         return parse_drop_snapshot(trimmed);
     }
 
-    let statements = parse_sql(sql)?;
+    let preprocessed = preprocess_range_types(sql);
+    let statements = parse_sql(&preprocessed)?;
 
     if statements.is_empty() {
         return Err(yachtsql_common::error::Error::parse_error(
@@ -72,7 +73,6 @@ fn try_parse_load_data(sql: &str) -> Result<Option<LogicalPlan>> {
     if !upper.trim_start().starts_with("LOAD DATA") {
         return Ok(None);
     }
-
     let overwrite = upper.contains("OVERWRITE");
     let is_temp_table = upper.contains("TEMP TABLE");
 
@@ -98,19 +98,19 @@ fn try_parse_load_data(sql: &str) -> Result<Option<LogicalPlan>> {
             trimmed
         };
 
-        if let Some(paren_start) = trimmed.find('(') {
-            let name = trimmed[..paren_start].trim().to_string();
-            let paren_end = find_matching_paren(&trimmed[paren_start..])
-                .map(|p| p + paren_start)
-                .unwrap_or(trimmed.len());
-            let col_str = &trimmed[paren_start + 1..paren_end];
+        let name_end = trimmed
+            .find(|c: char| c.is_whitespace() || c == '(')
+            .unwrap_or(trimmed.len());
+        let table_name = trimmed[..name_end].to_string();
+        let after_name = trimmed[name_end..].trim_start();
+
+        if after_name.starts_with('(') && !after_name.to_uppercase().starts_with("(FORMAT") {
+            let paren_end = find_matching_paren(after_name).unwrap_or(after_name.len());
+            let col_str = &after_name[1..paren_end];
             let cols = parse_column_defs(col_str);
-            (name, cols)
+            (table_name, cols)
         } else {
-            let end = trimmed
-                .find(|c: char| c.is_whitespace())
-                .unwrap_or(trimmed.len());
-            (trimmed[..end].to_string(), Vec::new())
+            (table_name, Vec::new())
         }
     };
 
@@ -348,4 +348,27 @@ fn parse_drop_snapshot(sql: &str) -> Result<LogicalPlan> {
         snapshot_name,
         if_exists,
     })
+}
+
+fn preprocess_range_types(sql: &str) -> String {
+    use regex::Regex;
+    let mut result = sql.to_string();
+
+    let range_re = Regex::new(r"(?i)\bRANGE\s*<\s*(DATE|DATETIME|TIMESTAMP)\s*>").unwrap();
+    result = range_re
+        .replace_all(&result, |caps: &regex::Captures| {
+            format!("RANGE_{}", caps[1].to_uppercase())
+        })
+        .to_string();
+
+    let replace_proc_re = Regex::new(r"(?i)CREATE\s+OR\s+REPLACE\s+PROCEDURE\s+(\w+)").unwrap();
+    result = replace_proc_re
+        .replace_all(&result, "CREATE PROCEDURE __orp__$1")
+        .to_string();
+
+    let proc_re =
+        Regex::new(r"(?i)(CREATE\s+PROCEDURE\s+\w+\s*\([^)]*\))\s*\n?\s*(BEGIN)").unwrap();
+    result = proc_re.replace_all(&result, "$1 AS $2").to_string();
+
+    result
 }

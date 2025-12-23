@@ -8,10 +8,10 @@ use yachtsql_storage::{Record, Schema, Table};
 use super::PlanExecutor;
 use super::window::WindowFuncType;
 use crate::ir_evaluator::IrEvaluator;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
-    pub fn execute_qualify(&mut self, input: &ExecutorPlan, predicate: &Expr) -> Result<Table> {
+    pub fn execute_qualify(&mut self, input: &PhysicalPlan, predicate: &Expr) -> Result<Table> {
         let input_table = self.execute_plan(input)?;
         let schema = input_table.schema().clone();
 
@@ -225,7 +225,7 @@ impl<'a> PlanExecutor<'a> {
                 partition_by.clone(),
                 order_by.clone(),
                 frame.clone(),
-                WindowFuncType::Window(func.clone()),
+                WindowFuncType::Window(*func),
             )),
             Expr::AggregateWindow {
                 func,
@@ -237,7 +237,7 @@ impl<'a> PlanExecutor<'a> {
                 partition_by.clone(),
                 order_by.clone(),
                 frame.clone(),
-                WindowFuncType::Aggregate(func.clone()),
+                WindowFuncType::Aggregate(*func),
             )),
             _ => panic!("Expected window expression in qualify"),
         }

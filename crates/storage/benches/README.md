@@ -1,3 +1,80 @@
+# Storage Benchmarks
+
+## NullBitmap Implementation
+
+Comparing `Vec<bool>` vs bit-packed `Vec<u64>` for null bitmaps.
+
+### Memory Usage
+
+| Size | Vec<bool> | Bit-packed | Savings |
+|------|-----------|------------|---------|
+| 1k   | 1,024 B   | 160 B      | 6.4x    |
+| 10k  | 10,024 B  | 1,288 B    | 7.8x    |
+| 100k | 100,024 B | 12,536 B   | 8x      |
+| 1M   | 1,000,024 B | 125,032 B | 8x    |
+
+### count_null Performance
+
+| Size | Vec<bool> | Bit-packed | Winner |
+|------|-----------|------------|--------|
+| 100  | 5.6 ns    | 0.77 ns    | bit-packed 7x faster |
+| 100k | 4.7 µs    | 153 ns     | bit-packed 31x faster |
+| 1M   | 47 µs     | 1.5 µs     | bit-packed 31x faster |
+
+Bit-packed uses CPU POPCNT instruction for O(n/64) null counting.
+
+## Sum with Null Handling
+
+Comparing approaches for summing column values while skipping nulls.
+
+### i64 Sum (100k values)
+
+| Scenario | Original | Auto-vectorize | Bitmap-chunks |
+|----------|----------|----------------|---------------|
+| No nulls | 51 µs    | 7.4 µs         | **7.4 µs**    |
+| 10% nulls| 53 µs    | 40 µs          | **43 µs**     |
+| 50% nulls| 53 µs    | 38 µs          | **18.5 µs**   |
+
+### f64 Sum (100k values)
+
+| Scenario | Original | Auto-vectorize | Bitmap-chunks |
+|----------|----------|----------------|---------------|
+| No nulls | 116 µs   | 50 µs          | **10.3 µs**   |
+| 10% nulls| 126 µs   | 124 µs         | **53 µs**     |
+| 50% nulls| 124 µs   | 124 µs         | **29 µs**     |
+
+### Implementation Details
+
+**Original**: Iterate all values, check `is_null(i)` for each.
+
+**Auto-vectorize**: Fast path for no-nulls, fallback to filtered iterator.
+
+**Bitmap-chunks**: Process 64 elements at a time using bitmap words.
+```rust
+for (&bitmap_word, chunk) in nulls.words().iter().zip(data.chunks_exact(64)) {
+    if bitmap_word == 0 {
+        sum += chunk.iter().sum();  // LLVM auto-vectorizes
+    } else if bitmap_word != u64::MAX {
+        // Extract valid indices with bit manipulation
+        let mut valid_mask = !bitmap_word;
+        while valid_mask != 0 {
+            let bit = valid_mask.trailing_zeros() as usize;
+            sum += chunk[bit];
+            valid_mask &= valid_mask - 1;
+        }
+    }
+}
+```
+
+### Why Bitmap-chunks Wins
+
+1. **No nulls**: `chunks_exact(64)` enables LLVM SIMD vectorization
+2. **Sparse nulls**: Processes 64 elements per bitmap word lookup
+3. **Dense nulls**: Skips entire 64-element chunks that are all null
+4. **f64 advantage**: 11x faster because LLVM vectorizes chunk sums better than filtered iterators
+
+---
+
 # SIMD Benchmark Results (ARM64 NEON)
 
 Benchmark results comparing manual SIMD implementations vs scalar (auto-vectorized) implementations on Apple Silicon.

@@ -4,15 +4,20 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "YachtSQL execution engine"
+repository = "https://github.com/alexchoi0/yachtsql"
+homepage = "https://github.com/alexchoi0/yachtsql"
+documentation = "https://docs.rs/yachtsql-executor"
+keywords = ["sql", "database", "bigquery", "executor"]
+categories = ["database"]
 
 [dependencies]
 # YachtSQL crates
-yachtsql-common = { path = "../common" }
-yachtsql-storage = { path = "../storage" }
-yachtsql-parser = { path = "../parser" }
-yachtsql-ir = { path = "../ir" }
-yachtsql-optimizer = { path = "../optimizer" }
-yachtsql-functions = { path = "../functions" }
+yachtsql-common = { version = "0.1.0", path = "../common" }
+yachtsql-storage = { version = "0.1.0", path = "../storage" }
+yachtsql-parser = { version = "0.1.0", path = "../parser" }
+yachtsql-ir = { version = "0.1.0", path = "../ir" }
+yachtsql-optimizer = { version = "0.1.0", path = "../optimizer" }
+yachtsql-functions = { version = "0.1.0", path = "../functions" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -81,6 +86,7 @@ cityhasher = "0.1"
 
 # AES encryption
 aes = "0.8"
+aes-gcm = "0.10"
 cbc = "0.1"
 ecb = "0.1"
 
@@ -100,9 +106,10 @@ lazy_static = "1.5"
 # Caching infrastructure
 lru = "0.12"
 
-# Async runtime (optional, for parallel execution)
+# Async runtime and concurrent data structures (optional, for parallel execution)
 tokio = { version = "1.42", features = ["rt-multi-thread", "sync", "macros"], optional = true }
 futures = { version = "0.3", optional = true }
+dashmap = { version = "6.1", optional = true }
 
 # Error handling
 thiserror = "2.0"
@@ -116,11 +123,12 @@ geojson = { version = "0.24", features = ["geo-types"] }
 geohash = "0.13"
 
 # JavaScript UDF support (V8 engine)
-mini-v8 = "0.4"
+v8 = "0.106"
 
 # Features
 [features]
 default = []
+concurrent = ["tokio", "futures", "dashmap"]
 
 # Linting configuration
 [lints.clippy]
@@ -129,9 +137,8 @@ enum-variant-names = "warn"
 wildcard-enum-match-arm = "warn"
 
 [dev-dependencies]
-yachtsql = { path = "../.." }
-yachtsql-test-utils = { path = "../test-utils" }
 mockall = "0.13"
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.14"
+tokio = { version = "1.42", features = ["rt-multi-thread", "sync", "macros", "time"] }
 

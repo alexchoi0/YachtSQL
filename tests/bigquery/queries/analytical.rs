@@ -1,8 +1,8 @@
 use crate::assert_table_eq;
-use crate::common::{create_executor, d, n, ts};
+use crate::common::{create_session, d, n, ts};
 
-fn setup_sales_data(executor: &mut yachtsql::QueryExecutor) {
-    executor
+fn setup_sales_data(session: &mut yachtsql::YachtSQLSession) {
+    session
         .execute_sql(
             "CREATE TABLE sales (
                 sale_id INT64,
@@ -19,7 +19,7 @@ fn setup_sales_data(executor: &mut yachtsql::QueryExecutor) {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO sales VALUES
             (1, 101, 'Widget A', 'Electronics', 'North', DATE '2024-01-15', 5, 100, 500, 1001),
@@ -38,10 +38,10 @@ fn setup_sales_data(executor: &mut yachtsql::QueryExecutor) {
 
 #[test]
 fn test_sales_by_category() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT category, SUM(total_amount) AS revenue
             FROM sales
@@ -57,10 +57,10 @@ fn test_sales_by_category() {
 
 #[test]
 fn test_sales_by_region_and_category() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT region, category, SUM(total_amount) AS revenue
             FROM sales
@@ -85,10 +85,10 @@ fn test_sales_by_region_and_category() {
 
 #[test]
 fn test_top_products_by_revenue() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT product_name, SUM(total_amount) AS revenue
             FROM sales
@@ -110,12 +110,11 @@ fn test_top_products_by_revenue() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_monthly_revenue_trend() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 DATE_TRUNC(sale_date, MONTH) AS month,
@@ -134,10 +133,10 @@ fn test_monthly_revenue_trend() {
 
 #[test]
 fn test_running_total() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 sale_date,
@@ -166,10 +165,10 @@ fn test_running_total() {
 
 #[test]
 fn test_moving_average() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 sale_date,
@@ -201,10 +200,10 @@ fn test_moving_average() {
 
 #[test]
 fn test_rank_products_by_sales() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 product_name,
@@ -231,10 +230,10 @@ fn test_rank_products_by_sales() {
 
 #[test]
 fn test_dense_rank_by_category() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 category,
@@ -265,10 +264,10 @@ fn test_dense_rank_by_category() {
 
 #[test]
 fn test_percentile_analysis() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 product_name,
@@ -297,10 +296,10 @@ fn test_percentile_analysis() {
 
 #[test]
 fn test_ntile_quartiles() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 product_name,
@@ -329,10 +328,10 @@ fn test_ntile_quartiles() {
 
 #[test]
 fn test_lead_lag_analysis() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 sale_date,
@@ -362,10 +361,10 @@ fn test_lead_lag_analysis() {
 
 #[test]
 fn test_first_last_value() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 category,
@@ -403,10 +402,10 @@ fn test_first_last_value() {
 
 #[test]
 fn test_customer_purchase_frequency() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 customer_id,
@@ -424,8 +423,8 @@ fn test_customer_purchase_frequency() {
 
 #[test]
 fn test_year_over_year_comparison() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE yearly_sales (
                 year INT64,
@@ -434,7 +433,7 @@ fn test_year_over_year_comparison() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO yearly_sales VALUES
             (2023, 1, 1000), (2023, 2, 1200), (2023, 3, 1100), (2023, 4, 1500),
@@ -442,7 +441,7 @@ fn test_year_over_year_comparison() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 a.quarter,
@@ -467,10 +466,9 @@ fn test_year_over_year_comparison() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_cohort_analysis() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE user_activity (
                 user_id INT64,
@@ -480,7 +478,7 @@ fn test_cohort_analysis() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO user_activity VALUES
             (1, DATE '2024-01-01', DATE '2024-01-01', 'signup'),
@@ -493,7 +491,7 @@ fn test_cohort_analysis() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 DATE_TRUNC(signup_date, MONTH) AS cohort_month,
@@ -518,8 +516,8 @@ fn test_cohort_analysis() {
 
 #[test]
 fn test_funnel_analysis() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE events (
                 user_id INT64,
@@ -528,7 +526,7 @@ fn test_funnel_analysis() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO events VALUES
             (1, 'page_view', TIMESTAMP '2024-01-01 10:00:00'),
@@ -544,7 +542,7 @@ fn test_funnel_analysis() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH total_views AS (
                 SELECT COUNT(DISTINCT user_id) AS total FROM events WHERE event_name = 'page_view'
@@ -576,10 +574,9 @@ fn test_funnel_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_retention_analysis() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE logins (
                 user_id INT64,
@@ -587,7 +584,7 @@ fn test_retention_analysis() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO logins VALUES
             (1, DATE '2024-01-01'), (1, DATE '2024-01-08'), (1, DATE '2024-01-15'),
@@ -598,7 +595,7 @@ fn test_retention_analysis() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH first_login AS (
                 SELECT user_id, MIN(login_date) AS first_date
@@ -626,10 +623,10 @@ fn test_retention_analysis() {
 
 #[test]
 fn test_abc_analysis() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH product_revenue AS (
                 SELECT
@@ -674,10 +671,9 @@ fn test_abc_analysis() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_rfm_analysis() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE transactions (
                 customer_id INT64,
@@ -686,7 +682,7 @@ fn test_rfm_analysis() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO transactions VALUES
             (1, DATE '2024-01-01', 100), (1, DATE '2024-01-15', 200), (1, DATE '2024-02-01', 150),
@@ -696,7 +692,7 @@ fn test_rfm_analysis() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH rfm AS (
                 SELECT
@@ -739,8 +735,8 @@ fn test_rfm_analysis() {
 
 #[test]
 fn test_time_series_decomposition() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE daily_metrics (
                 metric_date DATE,
@@ -748,7 +744,7 @@ fn test_time_series_decomposition() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO daily_metrics VALUES
             (DATE '2024-01-01', 100), (DATE '2024-01-02', 110), (DATE '2024-01-03', 105),
@@ -758,7 +754,7 @@ fn test_time_series_decomposition() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 metric_date,
@@ -787,10 +783,9 @@ fn test_time_series_decomposition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_sessionization() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE clickstream (
                 user_id INT64,
@@ -799,7 +794,7 @@ fn test_sessionization() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO clickstream VALUES
             (1, TIMESTAMP '2024-01-01 10:00:00', 'home'),
@@ -812,7 +807,7 @@ fn test_sessionization() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH session_breaks AS (
                 SELECT
@@ -856,8 +851,8 @@ fn test_sessionization() {
 
 #[test]
 fn test_market_basket_analysis() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE order_items (
                 order_id INT64,
@@ -865,7 +860,7 @@ fn test_market_basket_analysis() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO order_items VALUES
             (1, 101), (1, 102), (1, 103),
@@ -876,7 +871,7 @@ fn test_market_basket_analysis() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH total_orders AS (
                 SELECT COUNT(DISTINCT order_id) AS cnt FROM order_items
@@ -921,10 +916,10 @@ fn test_market_basket_analysis() {
 
 #[test]
 fn test_pareto_analysis() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH customer_value AS (
                 SELECT
@@ -967,8 +962,8 @@ fn test_pareto_analysis() {
 
 #[test]
 fn test_growth_rates() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE monthly_revenue (
                 month DATE,
@@ -976,7 +971,7 @@ fn test_growth_rates() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO monthly_revenue VALUES
             (DATE '2024-01-01', 10000),
@@ -988,7 +983,7 @@ fn test_growth_rates() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 month,
@@ -1016,8 +1011,8 @@ fn test_growth_rates() {
 
 #[test]
 fn test_variance_analysis() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE budget_vs_actual (
                 category STRING,
@@ -1026,7 +1021,7 @@ fn test_variance_analysis() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO budget_vs_actual VALUES
             ('Marketing', 50000, 55000),
@@ -1036,7 +1031,7 @@ fn test_variance_analysis() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 category,
@@ -1066,8 +1061,8 @@ fn test_variance_analysis() {
 
 #[test]
 fn test_weighted_average() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE portfolio (
                 asset STRING,
@@ -1076,7 +1071,7 @@ fn test_weighted_average() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO portfolio VALUES
             ('Stocks', 50000, 8.5),
@@ -1086,7 +1081,7 @@ fn test_weighted_average() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 SUM(value) AS total_portfolio,
@@ -1099,8 +1094,8 @@ fn test_weighted_average() {
 
 #[test]
 fn test_anomaly_detection_zscore() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE metrics (
                 metric_date DATE,
@@ -1108,7 +1103,7 @@ fn test_anomaly_detection_zscore() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO metrics VALUES
             (DATE '2024-01-01', 100), (DATE '2024-01-02', 102), (DATE '2024-01-03', 98),
@@ -1117,7 +1112,7 @@ fn test_anomaly_detection_zscore() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH stats AS (
                 SELECT
@@ -1154,12 +1149,11 @@ fn test_anomaly_detection_zscore() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_data_quality_checks() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT
                 'Total Records' AS metric, CAST(COUNT(*) AS STRING) AS value
@@ -1192,8 +1186,8 @@ fn test_data_quality_checks() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_complex_nested_ctes_with_array_agg_limit() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE orders (
                 order_id INT64,
@@ -1204,7 +1198,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "CREATE TABLE order_items (
                 item_id INT64,
@@ -1216,7 +1210,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "CREATE TABLE customers (
                 customer_id INT64,
@@ -1228,7 +1222,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO customers VALUES
             (1, 'Acme Corp', 'Enterprise', 'North', DATE '2022-01-15'),
@@ -1238,7 +1232,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
             (5, 'Epsilon Ltd', 'SMB', 'North', DATE '2023-09-01')",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO orders VALUES
             (101, 1, DATE '2024-01-05', 'completed', 5000.0),
@@ -1253,7 +1247,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
             (110, 1, DATE '2024-02-15', 'completed', 4200.0)",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO order_items VALUES
             (1, 101, 1001, 'Widget Pro', 10, 300.0),
@@ -1273,7 +1267,7 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH customer_orders AS (
                 SELECT
@@ -1394,10 +1388,9 @@ fn test_complex_nested_ctes_with_array_agg_limit() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_multi_level_cte_with_correlated_subquery() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE products (
                 product_id INT64,
@@ -1407,7 +1400,7 @@ fn test_multi_level_cte_with_correlated_subquery() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "CREATE TABLE sales_history (
                 sale_id INT64,
@@ -1420,7 +1413,7 @@ fn test_multi_level_cte_with_correlated_subquery() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO products VALUES
             (1, 'Laptop Pro', 'Electronics', 1200.0),
@@ -1431,7 +1424,7 @@ fn test_multi_level_cte_with_correlated_subquery() {
             (6, 'Keyboard Pro', 'Accessories', 120.0)",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO sales_history VALUES
             (1, 1, DATE '2024-01-05', 5, 1150.0, 'North'),
@@ -1449,7 +1442,7 @@ fn test_multi_level_cte_with_correlated_subquery() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH product_sales AS (
                 SELECT
@@ -1594,8 +1587,8 @@ fn test_multi_level_cte_with_correlated_subquery() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_array_agg_with_order_and_limit_in_subquery() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE user_events (
                 user_id INT64,
@@ -1607,7 +1600,7 @@ fn test_array_agg_with_order_and_limit_in_subquery() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO user_events VALUES
             (1, 'page_view', TIMESTAMP '2024-01-01 10:00:00', 0, '/home'),
@@ -1627,7 +1620,7 @@ fn test_array_agg_with_order_and_limit_in_subquery() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH user_sessions AS (
                 SELECT
@@ -1703,10 +1696,9 @@ fn test_array_agg_with_order_and_limit_in_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_complex_window_with_array_agg_ordered() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE stock_trades (
                 trade_id INT64,
@@ -1720,7 +1712,7 @@ fn test_complex_window_with_array_agg_ordered() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO stock_trades VALUES
             (1, 'AAPL', DATE '2024-01-02', TIMESTAMP '2024-01-02 09:30:00', 185.50, 1000, 'buy'),
@@ -1737,7 +1729,7 @@ fn test_complex_window_with_array_agg_ordered() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH trade_stats AS (
                 SELECT
@@ -1844,8 +1836,8 @@ fn test_complex_window_with_array_agg_ordered() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_nested_aggregates_with_scalar_subqueries() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE departments (
                 dept_id INT64,
@@ -1854,7 +1846,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "CREATE TABLE employees (
                 emp_id INT64,
@@ -1866,7 +1858,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "CREATE TABLE projects (
                 project_id INT64,
@@ -1878,7 +1870,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
             )",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "CREATE TABLE project_assignments (
                 assignment_id INT64,
@@ -1890,7 +1882,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO departments VALUES
             (1, 'Engineering', 500000.0),
@@ -1899,7 +1891,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
             (4, 'HR', 150000.0)",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO employees VALUES
             (101, 'Alice', 1, 120000.0, DATE '2020-01-15', NULL),
@@ -1912,7 +1904,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
             (108, 'Henry', 4, 80000.0, DATE '2022-02-15', NULL)",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO projects VALUES
             (1001, 'Platform Rebuild', 1, 200000.0, DATE '2024-01-01', 'active'),
@@ -1922,7 +1914,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
             (1005, 'HR Portal', 4, 50000.0, DATE '2024-03-01', 'planning')",
         )
         .unwrap();
-    executor
+    session
         .execute_sql(
             "INSERT INTO project_assignments VALUES
             (1, 1001, 101, 'Lead', 160),
@@ -1938,7 +1930,7 @@ fn test_nested_aggregates_with_scalar_subqueries() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH dept_employee_stats AS (
                 SELECT
@@ -2048,10 +2040,9 @@ fn test_nested_aggregates_with_scalar_subqueries() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_recursive_like_hierarchy_with_arrays() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE org_hierarchy (
                 emp_id INT64,
@@ -2063,7 +2054,7 @@ fn test_recursive_like_hierarchy_with_arrays() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO org_hierarchy VALUES
             (1, 'CEO', NULL, 'Chief Executive Officer', 1),
@@ -2081,7 +2072,7 @@ fn test_recursive_like_hierarchy_with_arrays() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH level_1 AS (
                 SELECT emp_id, emp_name, manager_id, title, level,
@@ -2270,8 +2261,8 @@ fn test_recursive_like_hierarchy_with_arrays() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_time_series_with_gaps_and_array_agg() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE sensor_readings (
                 sensor_id INT64,
@@ -2283,7 +2274,7 @@ fn test_time_series_with_gaps_and_array_agg() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO sensor_readings VALUES
             (1, TIMESTAMP '2024-01-01 00:00:00', 22.5, 45.0, 'normal'),
@@ -2300,7 +2291,7 @@ fn test_time_series_with_gaps_and_array_agg() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH hourly_stats AS (
                 SELECT
@@ -2419,10 +2410,9 @@ fn test_time_series_with_gaps_and_array_agg() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_complex_pivot_simulation_with_ctes() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE quarterly_sales (
                 year INT64,
@@ -2435,7 +2425,7 @@ fn test_complex_pivot_simulation_with_ctes() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO quarterly_sales VALUES
             (2023, 1, 'North', 'Electronics', 150000.0, 500),
@@ -2456,7 +2446,7 @@ fn test_complex_pivot_simulation_with_ctes() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH quarterly_pivot AS (
                 SELECT
@@ -2612,15 +2602,15 @@ fn test_complex_pivot_simulation_with_ctes() {
 
 #[test]
 fn test_cte_qualified_wildcard() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql("CREATE TABLE t (year INT64, value INT64)")
         .unwrap();
-    executor
+    session
         .execute_sql("INSERT INTO t VALUES (2023, 100), (2023, 200), (2024, 150)")
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "
         WITH totals AS (
@@ -2640,8 +2630,8 @@ fn test_cte_qualified_wildcard() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_unnest_with_complex_cte_and_array_operations() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE user_tags (
                 user_id INT64,
@@ -2653,7 +2643,7 @@ fn test_unnest_with_complex_cte_and_array_operations() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO user_tags VALUES
             (1, 'alice', ['tech', 'music', 'sports'], [85, 90, 75], [STRUCT('theme', 'dark'), STRUCT('lang', 'en')]),
@@ -2663,7 +2653,7 @@ fn test_unnest_with_complex_cte_and_array_operations() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH unnested_tags AS (
                 SELECT
@@ -2747,8 +2737,8 @@ fn test_unnest_with_complex_cte_and_array_operations() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_unnest_cross_join_with_nested_structs() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE orders_nested (
                 order_id INT64,
@@ -2764,7 +2754,7 @@ fn test_unnest_cross_join_with_nested_structs() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO orders_nested VALUES
             (1, 'Alice', DATE '2024-01-15', [
@@ -2781,7 +2771,7 @@ fn test_unnest_cross_join_with_nested_structs() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH flattened_items AS (
                 SELECT
@@ -2860,8 +2850,8 @@ fn test_unnest_cross_join_with_nested_structs() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_unnest_with_window_functions_and_array_subquery() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE product_reviews (
                 product_id INT64,
@@ -2876,7 +2866,7 @@ fn test_unnest_with_window_functions_and_array_subquery() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO product_reviews VALUES
             (101, 'Wireless Headphones', [
@@ -2900,7 +2890,7 @@ fn test_unnest_with_window_functions_and_array_subquery() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH unnested_reviews AS (
                 SELECT
@@ -2984,8 +2974,8 @@ fn test_unnest_with_window_functions_and_array_subquery() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_unnest_multi_array_correlation() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE student_grades (
                 student_id INT64,
@@ -2997,7 +2987,7 @@ fn test_unnest_multi_array_correlation() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO student_grades VALUES
             (1, 'Alice', ['Math', 'Physics', 'Chemistry', 'Biology'], [92.5, 88.0, 85.5, 90.0], ['Fall', 'Fall', 'Spring', 'Spring']),
@@ -3007,7 +2997,7 @@ fn test_unnest_multi_array_correlation() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH grade_details AS (
                 SELECT
@@ -3103,8 +3093,8 @@ fn test_unnest_multi_array_correlation() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_unnest_with_lateral_join_simulation() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE sales_teams (
                 team_id INT64,
@@ -3116,7 +3106,7 @@ fn test_unnest_with_lateral_join_simulation() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO sales_teams VALUES
             (1, 'Alpha Team', 'North',
@@ -3131,7 +3121,7 @@ fn test_unnest_with_lateral_join_simulation() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH team_members_flat AS (
                 SELECT
@@ -3224,8 +3214,8 @@ fn test_unnest_with_lateral_join_simulation() {
 #[test]
 #[ignore = "Implement me!"]
 fn test_deep_nested_unnest_with_aggregations() {
-    let mut executor = create_executor();
-    executor
+    let mut session = create_session();
+    session
         .execute_sql(
             "CREATE TABLE ecommerce_orders (
                 order_id INT64,
@@ -3243,7 +3233,7 @@ fn test_deep_nested_unnest_with_aggregations() {
         )
         .unwrap();
 
-    executor
+    session
         .execute_sql(
             "INSERT INTO ecommerce_orders VALUES
             (1001, 1, DATE '2024-01-15',
@@ -3266,7 +3256,7 @@ fn test_deep_nested_unnest_with_aggregations() {
         )
         .unwrap();
 
-    let result = executor
+    let result = session
         .execute_sql(
             "WITH order_items AS (
                 SELECT
@@ -3372,10 +3362,10 @@ fn test_deep_nested_unnest_with_aggregations() {
 
 #[test]
 fn test_union_debug_case_in_agg() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let result = executor
+    let result = session
         .execute_sql(
             "SELECT SUM(CASE WHEN product_name IS NULL THEN 1 ELSE 0 END) AS null_count FROM sales",
         )
@@ -3385,15 +3375,15 @@ fn test_union_debug_case_in_agg() {
 
 #[test]
 fn test_union_debug_with_case() {
-    let mut executor = create_executor();
-    setup_sales_data(&mut executor);
+    let mut session = create_session();
+    setup_sales_data(&mut session);
 
-    let r1 = executor.execute_sql(
+    let r1 = session.execute_sql(
         "SELECT 'b', CAST(SUM(CASE WHEN product_name IS NULL THEN 1 ELSE 0 END) AS STRING) FROM sales",
     );
     eprintln!("Standalone: {:?}", r1.is_ok());
 
-    let r2 = executor.execute_sql(
+    let r2 = session.execute_sql(
         "SELECT 'a' AS m, CAST(COUNT(*) AS STRING) AS v FROM sales
          UNION ALL
          SELECT 'b', CAST(SUM(CASE WHEN product_name IS NULL THEN 1 ELSE 0 END) AS STRING) FROM sales",

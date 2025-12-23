@@ -4,21 +4,26 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "YachtSQL - Lightweight in-memory SQL test database with columnar storage for rust programs"
+repository = "https://github.com/alexchoi0/yachtsql"
+homepage = "https://github.com/alexchoi0/yachtsql"
+documentation = "https://docs.rs/yachtsql"
+keywords = ["sql", "database", "bigquery", "test", "columnar"]
+categories = ["database"]
 
 [dependencies]
 # Internal crates
-yachtsql-common = { path = "crates/common" }
-yachtsql-storage = { path = "crates/storage" }
-yachtsql-ir = { path = "crates/ir" }
-yachtsql-optimizer = { path = "crates/optimizer" }
-yachtsql-parser = { path = "crates/parser" }
-yachtsql-functions = { path = "crates/functions" }
-yachtsql-executor = { path = "crates/executor" }
+yachtsql-common = { version = "0.1.0", path = "crates/common" }
+yachtsql-storage = { version = "0.1.0", path = "crates/storage" }
+yachtsql-ir = { version = "0.1.0", path = "crates/ir" }
+yachtsql-optimizer = { version = "0.1.0", path = "crates/optimizer" }
+yachtsql-parser = { version = "0.1.0", path = "crates/parser" }
+yachtsql-functions = { version = "0.1.0", path = "crates/functions" }
+yachtsql-executor = { version = "0.1.0", path = "crates/executor" }
 
 sentry = "0.45.0"
 
-# SQL parsing
-sqlparser = { version = "0.59", features = ["visitor"] }
+# SQL parsing (BigQuery scripting support)
+yachtsql-sqlparser = { version = "0.59", features = ["visitor"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -86,16 +91,20 @@ wkt = { version = "0.11", features = ["geo-types"] }
 geojson = { version = "0.24", features = ["geo-types"] }
 geohash = "0.13"
 
+[features]
+default = []
+concurrent = ["yachtsql-executor/concurrent"]
+
 [dev-dependencies]
 proptest = "1.5"
 criterion = { version = "0.5", features = ["html_reports"] }
 tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "time"] }
 pprof = { version = "0.14", features = ["flamegraph", "criterion"] }
-sqlparser = "0.59"
+yachtsql-sqlparser = { version = "0.59", features = ["visitor"] }
 arrow = { version = "54", default-features = false }
 parquet = { version = "54", default-features = false, features = ["arrow"] }
 tempfile = "3.14"
-yachtsql-test-utils = { path = "crates/test-utils" }
+yachtsql-test-utils = { version = "0.1.0", path = "crates/test-utils" }
 
 # Linting configuration
 # Run with: cargo clippy -- -D warnings
@@ -110,6 +119,7 @@ wildcard-enum-match-arm = "warn"     # Discourage wildcards in match (prefer exh
 [workspace]
 members = [
     ".",
+    "crates/cli",
     "crates/common",
     "crates/executor",
     "crates/functions",
@@ -120,3 +130,4 @@ members = [
     "crates/test-utils",
 ]
 resolver = "2"
+

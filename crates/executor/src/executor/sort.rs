@@ -7,10 +7,10 @@ use yachtsql_storage::{Record, Table};
 
 use super::PlanExecutor;
 use crate::ir_evaluator::IrEvaluator;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
-    pub fn execute_sort(&mut self, input: &ExecutorPlan, sort_exprs: &[SortExpr]) -> Result<Table> {
+    pub fn execute_sort(&mut self, input: &PhysicalPlan, sort_exprs: &[SortExpr]) -> Result<Table> {
         let input_table = self.execute_plan(input)?;
         let schema = input_table.schema().clone();
         let evaluator = IrEvaluator::new(&schema);
@@ -33,12 +33,23 @@ impl<'a> PlanExecutor<'a> {
                     ordering
                 };
 
-                if sort_expr.nulls_first {
-                    match (a_val.is_null(), b_val.is_null()) {
-                        (true, false) => return Ordering::Less,
-                        (false, true) => return Ordering::Greater,
-                        _ => {}
+                match (a_val.is_null(), b_val.is_null()) {
+                    (true, true) => {}
+                    (true, false) => {
+                        return if sort_expr.nulls_first {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        };
                     }
+                    (false, true) => {
+                        return if sort_expr.nulls_first {
+                            Ordering::Greater
+                        } else {
+                            Ordering::Less
+                        };
+                    }
+                    (false, false) => {}
                 }
 
                 if ordering != Ordering::Equal {

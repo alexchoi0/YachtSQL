@@ -34,6 +34,31 @@ pub struct StructField {
     pub data_type: DataType,
 }
 
+impl DataType {
+    pub fn to_bq_type(&self) -> String {
+        match self {
+            DataType::Unknown => "STRING".to_string(),
+            DataType::Bool => "BOOLEAN".to_string(),
+            DataType::Int64 => "INT64".to_string(),
+            DataType::Float64 => "FLOAT64".to_string(),
+            DataType::Numeric(_) => "NUMERIC".to_string(),
+            DataType::BigNumeric => "BIGNUMERIC".to_string(),
+            DataType::String => "STRING".to_string(),
+            DataType::Bytes => "BYTES".to_string(),
+            DataType::Date => "DATE".to_string(),
+            DataType::DateTime => "DATETIME".to_string(),
+            DataType::Time => "TIME".to_string(),
+            DataType::Timestamp => "TIMESTAMP".to_string(),
+            DataType::Geography => "GEOGRAPHY".to_string(),
+            DataType::Json => "JSON".to_string(),
+            DataType::Struct(_) => "STRUCT".to_string(),
+            DataType::Array(inner) => format!("ARRAY<{}>", inner.to_bq_type()),
+            DataType::Interval => "INTERVAL".to_string(),
+            DataType::Range(_) => "STRING".to_string(),
+        }
+    }
+}
+
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -77,6 +102,7 @@ pub enum Value {
     Int64(i64),
     Float64(ordered_float::OrderedFloat<f64>),
     Numeric(Decimal),
+    BigNumeric(Decimal),
     String(String),
     Bytes(Vec<u8>),
     Date(NaiveDate),
@@ -322,6 +348,7 @@ impl Value {
             Value::Int64(_) => DataType::Int64,
             Value::Float64(_) => DataType::Float64,
             Value::Numeric(_) => DataType::Numeric(None),
+            Value::BigNumeric(_) => DataType::BigNumeric,
             Value::String(_) => DataType::String,
             Value::Bytes(_) => DataType::Bytes,
             Value::Date(_) => DataType::Date,
@@ -493,6 +520,41 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn to_json(&self) -> serde_json::Value {
+        match self {
+            Value::Null => serde_json::Value::Null,
+            Value::Bool(b) => serde_json::Value::Bool(*b),
+            Value::Int64(i) => serde_json::json!(i),
+            Value::Float64(f) => serde_json::json!(f.into_inner()),
+            Value::Numeric(d) => serde_json::Value::String(d.to_string()),
+            Value::BigNumeric(d) => serde_json::Value::String(d.to_string()),
+            Value::String(s) => serde_json::Value::String(s.clone()),
+            Value::Bytes(b) => serde_json::Value::String(base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                b,
+            )),
+            Value::Date(d) => serde_json::Value::String(d.to_string()),
+            Value::Time(t) => serde_json::Value::String(t.to_string()),
+            Value::DateTime(dt) => serde_json::Value::String(dt.to_string()),
+            Value::Timestamp(ts) => serde_json::Value::String(ts.to_string()),
+            Value::Json(j) => j.clone(),
+            Value::Array(arr) => {
+                serde_json::Value::Array(arr.iter().map(|v| v.to_json()).collect())
+            }
+            Value::Struct(fields) => {
+                let obj: serde_json::Map<String, serde_json::Value> = fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_json()))
+                    .collect();
+                serde_json::Value::Object(obj)
+            }
+            Value::Geography(g) => serde_json::Value::String(g.clone()),
+            Value::Interval(i) => serde_json::Value::String(format!("{:?}", i)),
+            Value::Range(r) => serde_json::Value::String(format!("{:?}", r)),
+            Value::Default => serde_json::Value::Null,
+        }
+    }
 }
 
 impl fmt::Debug for Value {
@@ -503,6 +565,7 @@ impl fmt::Debug for Value {
             Value::Int64(v) => write!(f, "{}", v),
             Value::Float64(v) => write!(f, "{}", v),
             Value::Numeric(v) => write!(f, "{}", v),
+            Value::BigNumeric(v) => write!(f, "{}", v),
             Value::String(v) => write!(f, "'{}'", v),
             Value::Bytes(v) => write!(f, "b'{}'", hex::encode(v)),
             Value::Date(v) => write!(f, "DATE '{}'", v),
@@ -564,6 +627,7 @@ impl fmt::Display for Value {
             Value::Int64(v) => write!(f, "{}", v),
             Value::Float64(v) => write!(f, "{}", v),
             Value::Numeric(v) => write!(f, "{}", v),
+            Value::BigNumeric(v) => write!(f, "{}", v),
             Value::String(v) => write!(f, "{}", v),
             Value::Bytes(v) => write!(f, "{}", hex::encode(v)),
             Value::Date(v) => write!(f, "{}", v),
@@ -622,6 +686,7 @@ impl std::hash::Hash for Value {
             Value::Int64(v) => v.hash(state),
             Value::Float64(v) => v.hash(state),
             Value::Numeric(v) => v.hash(state),
+            Value::BigNumeric(v) => v.hash(state),
             Value::String(v) => v.hash(state),
             Value::Bytes(v) => v.hash(state),
             Value::Date(v) => v.hash(state),

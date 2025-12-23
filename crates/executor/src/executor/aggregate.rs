@@ -8,18 +8,149 @@ use yachtsql_storage::Table;
 
 use super::{PlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
+
+#[allow(clippy::wildcard_enum_match_arm)]
+fn get_simple_column_index(expr: &Expr) -> Option<usize> {
+    match expr {
+        Expr::Column { index, .. } => *index,
+        Expr::Alias { expr, .. } => get_simple_column_index(expr),
+        Expr::Aggregate { args, .. } if args.len() == 1 => get_simple_column_index(&args[0]),
+        _ => None,
+    }
+}
+
+#[allow(clippy::wildcard_enum_match_arm)]
+fn can_use_columnar_aggregate(
+    aggregates: &[Expr],
+    group_by: &[Expr],
+    grouping_sets: Option<&Vec<Vec<usize>>>,
+) -> bool {
+    if !group_by.is_empty() || grouping_sets.is_some() {
+        return false;
+    }
+
+    aggregates.iter().all(|expr| {
+        let (func, distinct, filter, args) = match expr {
+            Expr::Aggregate {
+                func,
+                args,
+                distinct,
+                filter,
+                ..
+            } => (func, *distinct, filter.is_some(), args),
+            Expr::Alias { expr, .. } => match expr.as_ref() {
+                Expr::Aggregate {
+                    func,
+                    args,
+                    distinct,
+                    filter,
+                    ..
+                } => (func, *distinct, filter.is_some(), args),
+                _ => return false,
+            },
+            _ => return false,
+        };
+
+        if distinct || filter {
+            return false;
+        }
+
+        let is_simple_column = args.len() == 1 && get_simple_column_index(&args[0]).is_some();
+        let is_count_star = args.is_empty() || matches!(args.first(), Some(Expr::Wildcard { .. }));
+
+        match func {
+            AggregateFunction::Count => is_count_star || is_simple_column,
+            AggregateFunction::Sum
+            | AggregateFunction::Avg
+            | AggregateFunction::Min
+            | AggregateFunction::Max => is_simple_column,
+            _ => false,
+        }
+    })
+}
+
+fn execute_columnar_aggregate(
+    input_table: &Table,
+    aggregates: &[Expr],
+    schema: &PlanSchema,
+) -> Result<Table> {
+    let result_schema = plan_schema_to_schema(schema);
+    let mut result = Table::empty(result_schema);
+    let mut row: Vec<Value> = Vec::with_capacity(aggregates.len());
+
+    for expr in aggregates {
+        let (func, args) = match expr {
+            Expr::Aggregate { func, args, .. } => (func, args),
+            Expr::Alias { expr, .. } => match expr.as_ref() {
+                Expr::Aggregate { func, args, .. } => (func, args),
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        };
+
+        let value = match func {
+            AggregateFunction::Count => {
+                if args.is_empty() || matches!(args.first(), Some(Expr::Wildcard { .. })) {
+                    Value::Int64(input_table.row_count() as i64)
+                } else {
+                    let col_idx = get_simple_column_index(&args[0]).unwrap();
+                    let column = input_table.column(col_idx).unwrap();
+                    Value::Int64(column.count_valid() as i64)
+                }
+            }
+            AggregateFunction::Sum => {
+                let col_idx = get_simple_column_index(&args[0]).unwrap();
+                let column = input_table.column(col_idx).unwrap();
+                column.sum().map(Value::float64).unwrap_or(Value::Null)
+            }
+            AggregateFunction::Avg => {
+                let col_idx = get_simple_column_index(&args[0]).unwrap();
+                let column = input_table.column(col_idx).unwrap();
+                let count = column.count_valid();
+                if count == 0 {
+                    Value::Null
+                } else {
+                    column
+                        .sum()
+                        .map(|s| Value::float64(s / count as f64))
+                        .unwrap_or(Value::Null)
+                }
+            }
+            AggregateFunction::Min => {
+                let col_idx = get_simple_column_index(&args[0]).unwrap();
+                let column = input_table.column(col_idx).unwrap();
+                column.min().unwrap_or(Value::Null)
+            }
+            AggregateFunction::Max => {
+                let col_idx = get_simple_column_index(&args[0]).unwrap();
+                let column = input_table.column(col_idx).unwrap();
+                column.max().unwrap_or(Value::Null)
+            }
+            _ => unreachable!(),
+        };
+        row.push(value);
+    }
+
+    result.push_row(row)?;
+    Ok(result)
+}
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_aggregate(
         &mut self,
-        input: &ExecutorPlan,
+        input: &PhysicalPlan,
         group_by: &[Expr],
         aggregates: &[Expr],
         schema: &PlanSchema,
         grouping_sets: Option<&Vec<Vec<usize>>>,
     ) -> Result<Table> {
         let input_table = self.execute_plan(input)?;
+
+        if can_use_columnar_aggregate(aggregates, group_by, grouping_sets) {
+            return execute_columnar_aggregate(&input_table, aggregates, schema);
+        }
+
         let input_schema = input_table.schema().clone();
         let evaluator = IrEvaluator::new(&input_schema);
 
@@ -254,6 +385,7 @@ fn extract_agg_arg(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -315,6 +447,7 @@ fn extract_conditional_agg_args(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -372,6 +505,7 @@ fn extract_bivariate_args(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -428,6 +562,7 @@ fn extract_order_by_keys(
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -473,6 +608,7 @@ fn has_order_by(agg_expr: &Expr) -> bool {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -518,6 +654,7 @@ fn get_agg_func(expr: &Expr) -> Option<&AggregateFunction> {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -563,6 +700,7 @@ fn is_distinct_aggregate(expr: &Expr) -> bool {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -570,6 +708,14 @@ fn is_distinct_aggregate(expr: &Expr) -> bool {
         | Expr::AtTimeZone { .. }
         | Expr::JsonAccess { .. }
         | Expr::Default => false,
+    }
+}
+
+fn extract_agg_limit(expr: &Expr) -> Option<usize> {
+    match expr {
+        Expr::Aggregate { limit, .. } => *limit,
+        Expr::Alias { expr, .. } => extract_agg_limit(expr),
+        _ => None,
     }
 }
 
@@ -608,6 +754,7 @@ fn has_ignore_nulls(expr: &Expr) -> bool {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -621,10 +768,10 @@ fn has_ignore_nulls(expr: &Expr) -> bool {
 fn extract_int_arg(expr: &Expr, index: usize) -> Option<i64> {
     match expr {
         Expr::Aggregate { args, .. } => {
-            if args.len() > index {
-                if let Expr::Literal(yachtsql_ir::Literal::Int64(n)) = &args[index] {
-                    return Some(*n);
-                }
+            if args.len() > index
+                && let Expr::Literal(yachtsql_ir::Literal::Int64(n)) = &args[index]
+            {
+                return Some(*n);
             }
             None
         }
@@ -660,6 +807,7 @@ fn extract_int_arg(expr: &Expr, index: usize) -> Option<i64> {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -712,6 +860,7 @@ fn extract_string_agg_separator(expr: &Expr) -> String {
         | Expr::Wildcard { .. }
         | Expr::Subquery(_)
         | Expr::ScalarSubquery(_)
+        | Expr::ArraySubquery(_)
         | Expr::Parameter { .. }
         | Expr::Variable { .. }
         | Expr::Placeholder { .. }
@@ -736,6 +885,7 @@ enum Accumulator {
     ArrayAgg {
         items: Vec<(Value, Vec<(Value, bool)>)>,
         ignore_nulls: bool,
+        limit: Option<usize>,
     },
     StringAgg {
         values: Vec<String>,
@@ -823,6 +973,7 @@ impl Accumulator {
                 AggregateFunction::ArrayAgg => Accumulator::ArrayAgg {
                     items: Vec::new(),
                     ignore_nulls: has_ignore_nulls(expr),
+                    limit: extract_agg_limit(expr),
                 },
                 AggregateFunction::StringAgg => Accumulator::StringAgg {
                     values: Vec::new(),
@@ -1111,6 +1262,7 @@ impl Accumulator {
             Accumulator::ArrayAgg {
                 items,
                 ignore_nulls,
+                ..
             } => {
                 if *ignore_nulls && value.is_null() {
                     return Ok(());
@@ -1257,8 +1409,8 @@ impl Accumulator {
             None
         };
 
-        if let (Some(x), Some(y)) = (x_val, y_val) {
-            if let Accumulator::Covariance {
+        if let (Some(x), Some(y)) = (x_val, y_val)
+            && let Accumulator::Covariance {
                 count,
                 mean_x,
                 mean_y,
@@ -1267,19 +1419,18 @@ impl Accumulator {
                 m2_y,
                 ..
             } = self
-            {
-                *count += 1;
-                let n = *count as f64;
-                let delta_x = x - *mean_x;
-                let delta_y = y - *mean_y;
-                *mean_x += delta_x / n;
-                *mean_y += delta_y / n;
-                let delta_x2 = x - *mean_x;
-                let delta_y2 = y - *mean_y;
-                *c_xy += delta_x * delta_y2;
-                *m2_x += delta_x * delta_x2;
-                *m2_y += delta_y * delta_y2;
-            }
+        {
+            *count += 1;
+            let n = *count as f64;
+            let delta_x = x - *mean_x;
+            let delta_y = y - *mean_y;
+            *mean_x += delta_x / n;
+            *mean_y += delta_y / n;
+            let delta_x2 = x - *mean_x;
+            let delta_y2 = y - *mean_y;
+            *c_xy += delta_x * delta_y2;
+            *m2_x += delta_x * delta_x2;
+            *m2_y += delta_y * delta_y2;
         }
         Ok(())
     }
@@ -1321,7 +1472,7 @@ impl Accumulator {
             }
             Accumulator::Min(min) => min.clone().unwrap_or(Value::Null),
             Accumulator::Max(max) => max.clone().unwrap_or(Value::Null),
-            Accumulator::ArrayAgg { items, .. } => {
+            Accumulator::ArrayAgg { items, limit, .. } => {
                 let mut sorted_items = items.clone();
                 if !sorted_items.is_empty() && !sorted_items[0].1.is_empty() {
                     sorted_items.sort_by(|a, b| {
@@ -1337,7 +1488,16 @@ impl Accumulator {
                         std::cmp::Ordering::Equal
                     });
                 }
-                Value::Array(sorted_items.into_iter().map(|(v, _)| v).collect())
+                let result_items: Vec<Value> = if let Some(lim) = limit {
+                    sorted_items
+                        .into_iter()
+                        .take(*lim)
+                        .map(|(v, _)| v)
+                        .collect()
+                } else {
+                    sorted_items.into_iter().map(|(v, _)| v).collect()
+                };
+                Value::Array(result_items)
             }
             Accumulator::StringAgg { values, separator } => {
                 if values.is_empty() {

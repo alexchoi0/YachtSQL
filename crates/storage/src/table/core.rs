@@ -1,10 +1,11 @@
 use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 use yachtsql_common::error::Result;
 use yachtsql_common::types::Value;
 
 use crate::{Column, Record, Schema};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Table {
     schema: Schema,
     columns: IndexMap<String, Column>,
@@ -276,6 +277,25 @@ impl Table {
             columns: new_columns,
             row_count: self.row_count,
         }
+    }
+
+    pub fn to_query_result(&self) -> Result<yachtsql_common::QueryResult> {
+        use yachtsql_common::{ColumnInfo, QueryResult, Row};
+
+        let schema: Vec<ColumnInfo> = self
+            .schema
+            .fields()
+            .iter()
+            .map(|f| ColumnInfo::new(&f.name, f.data_type.to_bq_type()))
+            .collect();
+
+        let records = self.to_records()?;
+        let rows: Vec<Row> = records
+            .into_iter()
+            .map(|record| Row::new(record.into_values()))
+            .collect();
+
+        Ok(QueryResult::new(schema, rows))
     }
 }
 

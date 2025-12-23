@@ -3,12 +3,12 @@ use yachtsql_ir::SortExpr;
 use yachtsql_storage::Table;
 
 use super::PlanExecutor;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_limit(
         &mut self,
-        input: &ExecutorPlan,
+        input: &PhysicalPlan,
         limit: Option<usize>,
         offset: Option<usize>,
     ) -> Result<Table> {
@@ -34,7 +34,7 @@ impl<'a> PlanExecutor<'a> {
 
     pub fn execute_topn(
         &mut self,
-        input: &ExecutorPlan,
+        input: &PhysicalPlan,
         sort_exprs: &[SortExpr],
         limit: usize,
     ) -> Result<Table> {

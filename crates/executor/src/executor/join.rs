@@ -5,13 +5,13 @@ use yachtsql_storage::{Record, Schema, Table};
 
 use super::{PlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_nested_loop_join(
         &mut self,
-        left: &ExecutorPlan,
-        right: &ExecutorPlan,
+        left: &PhysicalPlan,
+        right: &PhysicalPlan,
         join_type: &JoinType,
         condition: Option<&Expr>,
         schema: &PlanSchema,
@@ -71,8 +71,8 @@ impl<'a> PlanExecutor<'a> {
 
     pub fn execute_cross_join(
         &mut self,
-        left: &ExecutorPlan,
-        right: &ExecutorPlan,
+        left: &PhysicalPlan,
+        right: &PhysicalPlan,
         schema: &PlanSchema,
     ) -> Result<Table> {
         let left_table = self.execute_plan(left)?;

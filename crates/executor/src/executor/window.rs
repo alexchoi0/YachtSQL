@@ -9,12 +9,12 @@ use yachtsql_storage::{Record, Table};
 
 use super::{PlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
-use crate::plan::ExecutorPlan;
+use crate::plan::PhysicalPlan;
 
 impl<'a> PlanExecutor<'a> {
     pub fn execute_window(
         &mut self,
-        input: &ExecutorPlan,
+        input: &PhysicalPlan,
         window_exprs: &[Expr],
         schema: &PlanSchema,
     ) -> Result<Table> {
@@ -89,7 +89,7 @@ impl<'a> PlanExecutor<'a> {
                 partition_by.clone(),
                 order_by.clone(),
                 frame.clone(),
-                WindowFuncType::Window(func.clone()),
+                WindowFuncType::Window(*func),
             )),
             Expr::AggregateWindow {
                 func,
@@ -101,7 +101,7 @@ impl<'a> PlanExecutor<'a> {
                 partition_by.clone(),
                 order_by.clone(),
                 frame.clone(),
-                WindowFuncType::Aggregate(func.clone()),
+                WindowFuncType::Aggregate(*func),
             )),
             Expr::Alias { expr: inner, .. } => Self::extract_window_spec(inner),
             Expr::BinaryOp { left, right, .. } => {
@@ -118,10 +118,10 @@ impl<'a> PlanExecutor<'a> {
                 when_clauses,
                 else_result,
             } => {
-                if let Some(op) = operand {
-                    if let Ok(spec) = Self::extract_window_spec(op) {
-                        return Ok(spec);
-                    }
+                if let Some(op) = operand
+                    && let Ok(spec) = Self::extract_window_spec(op)
+                {
+                    return Ok(spec);
                 }
                 for clause in when_clauses {
                     if let Ok(spec) = Self::extract_window_spec(&clause.condition) {
@@ -131,10 +131,10 @@ impl<'a> PlanExecutor<'a> {
                         return Ok(spec);
                     }
                 }
-                if let Some(e) = else_result {
-                    if let Ok(spec) = Self::extract_window_spec(e) {
-                        return Ok(spec);
-                    }
+                if let Some(e) = else_result
+                    && let Ok(spec) = Self::extract_window_spec(e)
+                {
+                    return Ok(spec);
                 }
                 Err(Error::InvalidQuery(format!(
                     "Expected window expression, got {:?}",
@@ -255,10 +255,10 @@ impl<'a> PlanExecutor<'a> {
                                 })
                                 .collect();
 
-                            if let Some(prev) = &prev_values {
-                                if curr_values != *prev {
-                                    rank = (i + 1) as i64;
-                                }
+                            if let Some(prev) = &prev_values
+                                && curr_values != *prev
+                            {
+                                rank = (i + 1) as i64;
                             }
                             results.push(Value::Int64(rank));
                             prev_values = Some(curr_values);
@@ -281,10 +281,10 @@ impl<'a> PlanExecutor<'a> {
                                 })
                                 .collect();
 
-                            if let Some(prev) = &prev_values {
-                                if curr_values != *prev {
-                                    rank += 1;
-                                }
+                            if let Some(prev) = &prev_values
+                                && curr_values != *prev
+                            {
+                                rank += 1;
                             }
                             results.push(Value::Int64(rank));
                             prev_values = Some(curr_values);
@@ -484,11 +484,11 @@ impl<'a> PlanExecutor<'a> {
                             })
                             .collect();
 
-                        if let Some(prev) = &prev_values {
-                            if curr_values != *prev {
-                                peer_groups.push((group_start, i - 1));
-                                group_start = i;
-                            }
+                        if let Some(prev) = &prev_values
+                            && curr_values != *prev
+                        {
+                            peer_groups.push((group_start, i - 1));
+                            group_start = i;
                         }
                         prev_values = Some(curr_values);
                     }

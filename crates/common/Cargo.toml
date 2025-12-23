@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Common types and errors for YachtSQL (BigQuery dialect)"
+repository = "https://github.com/alexchoi0/yachtsql"
+homepage = "https://github.com/alexchoi0/yachtsql"
+documentation = "https://docs.rs/yachtsql-common"
+keywords = ["sql", "database", "bigquery"]
+categories = ["database"]
 
 [dependencies]
 # Serialization
@@ -37,6 +42,4 @@ anyhow = "1.0"
 debug_print = "1.0"
 
 [dev-dependencies]
-yachtsql = { path = "../.." }
-yachtsql-test-utils = { path = "../test-utils" }
 criterion = { version = "0.5", features = ["html_reports"] }

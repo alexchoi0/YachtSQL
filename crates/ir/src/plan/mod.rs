@@ -22,11 +22,23 @@ use crate::expr::{Expr, SortExpr};
 use crate::schema::{Assignment, ColumnDef, EMPTY_SCHEMA, PlanSchema};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SampleType {
+    Rows,
+    Percent,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LogicalPlan {
     Scan {
         table_name: String,
         schema: PlanSchema,
         projection: Option<Vec<usize>>,
+    },
+
+    Sample {
+        input: Box<LogicalPlan>,
+        sample_type: SampleType,
+        sample_value: i64,
     },
 
     Filter {
@@ -180,6 +192,11 @@ pub enum LogicalPlan {
         cascade: bool,
     },
 
+    AlterSchema {
+        name: String,
+        options: Vec<(String, String)>,
+    },
+
     CreateFunction {
         name: String,
         args: Vec<FunctionArg>,
@@ -285,12 +302,32 @@ pub enum LogicalPlan {
         snapshot_name: String,
         if_exists: bool,
     },
+
+    Assert {
+        condition: Expr,
+        message: Option<Expr>,
+    },
+
+    Grant {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
+    },
+
+    Revoke {
+        roles: Vec<String>,
+        resource_type: DclResourceType,
+        resource_name: String,
+        grantees: Vec<String>,
+    },
 }
 
 impl LogicalPlan {
     pub fn schema(&self) -> &PlanSchema {
         match self {
             LogicalPlan::Scan { schema, .. } => schema,
+            LogicalPlan::Sample { input, .. } => input.schema(),
             LogicalPlan::Filter { input, .. } => input.schema(),
             LogicalPlan::Project { schema, .. } => schema,
             LogicalPlan::Aggregate { schema, .. } => schema,
@@ -317,6 +354,7 @@ impl LogicalPlan {
             LogicalPlan::DropView { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropSchema { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::AlterSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateFunction { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropFunction { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateProcedure { .. } => &EMPTY_SCHEMA,
@@ -337,6 +375,9 @@ impl LogicalPlan {
             LogicalPlan::Continue => &EMPTY_SCHEMA,
             LogicalPlan::CreateSnapshot { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropSnapshot { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Assert { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Grant { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Revoke { .. } => &EMPTY_SCHEMA,
         }
     }
 

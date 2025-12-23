@@ -4,11 +4,16 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Function implementations for YachtSQL"
+repository = "https://github.com/alexchoi0/yachtsql"
+homepage = "https://github.com/alexchoi0/yachtsql"
+documentation = "https://docs.rs/yachtsql-functions"
+keywords = ["sql", "database", "bigquery", "functions"]
+categories = ["database"]
 
 [features]
 default = ["core", "json", "network", "encryption", "approximate"]
 core = []
-json = ["dep:serde_json", "dep:serde_json_path", "dep:sqlparser"]
+json = ["dep:serde_json", "dep:serde_json_path", "dep:yachtsql-sqlparser"]
 network = ["dep:ipnetwork", "dep:url", "dep:publicsuffix", "dep:urlencoding"]
 encryption = ["dep:md5", "dep:sha1", "dep:sha2", "dep:hex", "dep:farmhash", "dep:blake3", "dep:xxhash-rust", "dep:siphasher", "dep:murmur3", "dep:metrohash", "dep:cityhasher"]
 approximate = ["dep:bloomfilter", "dep:ahash"]
@@ -16,11 +21,11 @@ all = ["core", "json", "network", "encryption", "approximate"]
 
 [dependencies]
 # Core types and errors
-yachtsql-common = { path = "../common" }
-yachtsql-parser = { path = "../parser" }
+yachtsql-common = { version = "0.1.0", path = "../common" }
+yachtsql-parser = { version = "0.1.0", path = "../parser" }
 
 # SQL parsing (needed for JSON functions)
-sqlparser = { version = "0.59", features = ["visitor"], optional = true }
+yachtsql-sqlparser = { version = "0.59", features = ["visitor"], optional = true }
 
 # Serialization
 serde_json = { version = "1.0", optional = true }
@@ -87,7 +92,5 @@ debug_print = "1.0.0"
 hostname = "0.4"
 
 [dev-dependencies]
-yachtsql = { path = "../.." }
-yachtsql-common = { path = "../common" }
-yachtsql-storage = { path = "../storage" }
-yachtsql-test-utils = { path = "../test-utils" }
+yachtsql-common = { version = "0.1.0", path = "../common" }
+yachtsql-storage = { version = "0.1.0", path = "../storage" }
