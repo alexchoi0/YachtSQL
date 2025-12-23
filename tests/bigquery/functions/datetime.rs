@@ -1300,3 +1300,21 @@ fn test_timestamp_trunc_with_null() {
         .unwrap();
     assert_table_eq!(result, [[null()]]);
 }
+
+#[test]
+fn test_string_from_timestamp_basic() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT STRING(TIMESTAMP '2024-06-15 14:30:00')")
+        .unwrap();
+    assert_table_eq!(result, [["2024-06-15 14:30:00.000000 UTC"]]);
+}
+
+#[test]
+fn test_string_from_timestamp_null() {
+    let mut session = create_session();
+    let result = session
+        .execute_sql("SELECT STRING(CAST(NULL AS TIMESTAMP))")
+        .unwrap();
+    assert_table_eq!(result, [[null()]]);
+}
