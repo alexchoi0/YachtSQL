@@ -166,7 +166,9 @@ pub enum PhysicalPlan {
 
     Update {
         table_name: String,
+        alias: Option<String>,
         assignments: Vec<Assignment>,
+        from: Option<Box<PhysicalPlan>>,
         filter: Option<Expr>,
     },
 
@@ -551,11 +553,15 @@ impl PhysicalPlan {
 
             OptimizedLogicalPlan::Update {
                 table_name,
+                alias,
                 assignments,
+                from,
                 filter,
             } => PhysicalPlan::Update {
                 table_name: table_name.clone(),
+                alias: alias.clone(),
                 assignments: assignments.clone(),
+                from: from.as_ref().map(|p| Box::new(Self::from_physical(p))),
                 filter: filter.clone(),
             },
 

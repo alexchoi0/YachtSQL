@@ -139,7 +139,9 @@ pub enum OptimizedLogicalPlan {
 
     Update {
         table_name: String,
+        alias: Option<String>,
         assignments: Vec<Assignment>,
+        from: Option<Box<OptimizedLogicalPlan>>,
         filter: Option<Expr>,
     },
 

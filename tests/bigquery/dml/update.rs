@@ -175,7 +175,6 @@ fn test_update_with_like_condition() {
 }
 
 #[test]
-#[ignore]
 fn test_update_with_from_clause() {
     let mut session = create_session();
 
@@ -434,7 +433,6 @@ fn test_update_array_append() {
 }
 
 #[test]
-#[ignore]
 fn test_update_with_three_table_join() {
     let mut session = create_session();
 
@@ -517,7 +515,6 @@ fn test_update_where_true() {
 }
 
 #[test]
-#[ignore]
 fn test_update_with_join_on_clause() {
     let mut session = create_session();
 

@@ -248,6 +248,7 @@ impl<'a> PlanExecutor<'a> {
         &mut self,
         table_name: &str,
         assignments: &[Assignment],
+        from: Option<&PhysicalPlan>,
         filter: Option<&Expr>,
     ) -> Result<Table> {
         let table = self
@@ -256,44 +257,116 @@ impl<'a> PlanExecutor<'a> {
             .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?
             .clone();
 
-        let schema = table.schema().clone();
-        let evaluator = IrEvaluator::new(&schema);
+        let target_schema = table.schema().clone();
 
-        let has_subquery = filter.map(Self::expr_contains_subquery).unwrap_or(false);
-        let mut new_table = Table::empty(schema.clone());
+        match from {
+            Some(from_plan) => {
+                let from_data = self.execute_plan(from_plan)?;
+                let from_schema = from_data.schema().clone();
 
-        for record in table.rows()? {
-            let should_update = match filter {
-                Some(expr) => {
-                    if has_subquery {
-                        self.eval_expr_with_subquery(expr, &schema, &record)?
-                            .as_bool()
-                            .unwrap_or(false)
+                let combined_schema = {
+                    let mut schema = Schema::new();
+                    for field in target_schema.fields() {
+                        schema.add_field(field.clone());
+                    }
+                    for field in from_schema.fields() {
+                        schema.add_field(field.clone());
+                    }
+                    schema
+                };
+
+                let evaluator = IrEvaluator::new(&combined_schema);
+
+                let target_rows: Vec<Vec<Value>> =
+                    table.rows()?.iter().map(|r| r.values().to_vec()).collect();
+                let from_rows: Vec<Vec<Value>> = from_data
+                    .rows()?
+                    .iter()
+                    .map(|r| r.values().to_vec())
+                    .collect();
+
+                let mut updated_rows: std::collections::HashMap<usize, Vec<Value>> =
+                    std::collections::HashMap::new();
+
+                for (target_idx, target_row) in target_rows.iter().enumerate() {
+                    for from_row in &from_rows {
+                        let mut combined_values = target_row.clone();
+                        combined_values.extend(from_row.clone());
+                        let combined_record = Record::from_values(combined_values);
+
+                        let should_update = match filter {
+                            Some(expr) => evaluator
+                                .evaluate(expr, &combined_record)?
+                                .as_bool()
+                                .unwrap_or(false),
+                            None => true,
+                        };
+
+                        if should_update && !updated_rows.contains_key(&target_idx) {
+                            let mut new_row = target_row.clone();
+                            for assignment in assignments {
+                                if let Some(col_idx) = target_schema.field_index(&assignment.column)
+                                {
+                                    let new_val =
+                                        evaluator.evaluate(&assignment.value, &combined_record)?;
+                                    new_row[col_idx] = new_val;
+                                }
+                            }
+                            updated_rows.insert(target_idx, new_row);
+                        }
+                    }
+                }
+
+                let mut new_table = Table::empty(target_schema);
+                for (idx, row) in target_rows.iter().enumerate() {
+                    if let Some(updated_row) = updated_rows.get(&idx) {
+                        new_table.push_row(updated_row.clone())?;
                     } else {
-                        evaluator
-                            .evaluate(expr, &record)?
-                            .as_bool()
-                            .unwrap_or(false)
+                        new_table.push_row(row.clone())?;
                     }
                 }
-                None => true,
-            };
 
-            if should_update {
-                let mut new_row = record.values().to_vec();
-                for assignment in assignments {
-                    if let Some(col_idx) = schema.field_index(&assignment.column) {
-                        let new_val = evaluator.evaluate(&assignment.value, &record)?;
-                        new_row[col_idx] = new_val;
+                self.catalog.replace_table(table_name, new_table)?;
+            }
+            None => {
+                let evaluator = IrEvaluator::new(&target_schema);
+                let has_subquery = filter.map(Self::expr_contains_subquery).unwrap_or(false);
+                let mut new_table = Table::empty(target_schema.clone());
+
+                for record in table.rows()? {
+                    let should_update = match filter {
+                        Some(expr) => {
+                            if has_subquery {
+                                self.eval_expr_with_subquery(expr, &target_schema, &record)?
+                                    .as_bool()
+                                    .unwrap_or(false)
+                            } else {
+                                evaluator
+                                    .evaluate(expr, &record)?
+                                    .as_bool()
+                                    .unwrap_or(false)
+                            }
+                        }
+                        None => true,
+                    };
+
+                    if should_update {
+                        let mut new_row = record.values().to_vec();
+                        for assignment in assignments {
+                            if let Some(col_idx) = target_schema.field_index(&assignment.column) {
+                                let new_val = evaluator.evaluate(&assignment.value, &record)?;
+                                new_row[col_idx] = new_val;
+                            }
+                        }
+                        new_table.push_row(new_row)?;
+                    } else {
+                        new_table.push_row(record.values().to_vec())?;
                     }
                 }
-                new_table.push_row(new_row)?;
-            } else {
-                new_table.push_row(record.values().to_vec())?;
+
+                self.catalog.replace_table(table_name, new_table)?;
             }
         }
-
-        self.catalog.replace_table(table_name, new_table)?;
 
         Ok(Table::empty(Schema::new()))
     }

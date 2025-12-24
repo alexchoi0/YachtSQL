@@ -216,7 +216,6 @@ fn test_truncate_table() {
 }
 
 #[test]
-#[ignore]
 fn test_delete_with_alias() {
     let mut session = create_session();
 

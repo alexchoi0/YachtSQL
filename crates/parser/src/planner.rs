@@ -55,9 +55,10 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::Update {
                 table,
                 assignments,
+                from,
                 selection,
                 ..
-            } => self.plan_update(table, assignments, selection.as_ref()),
+            } => self.plan_update(table, assignments, from.as_ref(), selection.as_ref()),
             Statement::Delete(delete) => self.plan_delete(delete),
             Statement::CreateTable(create) => self.plan_create_table(create),
             Statement::Drop {
@@ -2831,10 +2832,14 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         &self,
         table: &ast::TableWithJoins,
         assignments: &[ast::Assignment],
+        from: Option<&ast::UpdateTableFromKind>,
         selection: Option<&ast::Expr>,
     ) -> Result<LogicalPlan> {
-        let table_name = match &table.relation {
-            TableFactor::Table { name, .. } => object_name_to_raw_string(name),
+        let (table_name, alias) = match &table.relation {
+            TableFactor::Table { name, alias, .. } => (
+                object_name_to_raw_string(name),
+                alias.as_ref().map(|a| a.name.value.clone()),
+            ),
             _ => return Err(Error::parse_error("UPDATE requires a table name")),
         };
 
@@ -2842,7 +2847,23 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .catalog
             .get_table_schema(&table_name)
             .ok_or_else(|| Error::table_not_found(&table_name))?;
-        let schema = self.storage_schema_to_plan_schema(&storage_schema, Some(&table_name));
+        let target_qualifier = alias.as_deref().or(Some(&table_name));
+        let target_schema = self.storage_schema_to_plan_schema(&storage_schema, target_qualifier);
+
+        let (from_plan, combined_schema) = match from {
+            Some(ast::UpdateTableFromKind::AfterSet(from_tables))
+            | Some(ast::UpdateTableFromKind::BeforeSet(from_tables)) => {
+                let from_plan = self.plan_from(from_tables)?;
+                let from_schema = from_plan.schema();
+                let mut combined_fields = target_schema.fields.clone();
+                combined_fields.extend(from_schema.fields.clone());
+                (
+                    Some(Box::new(from_plan)),
+                    PlanSchema::from_fields(combined_fields),
+                )
+            }
+            None => (None, target_schema.clone()),
+        };
 
         let mut plan_assignments = Vec::new();
         for assign in assignments {
@@ -2854,33 +2875,43 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     .collect::<Vec<_>>()
                     .join(", "),
             };
-            let value = ExprPlanner::plan_expr(&assign.value, &schema)?;
+            let value = ExprPlanner::plan_expr(&assign.value, &combined_schema)?;
             plan_assignments.push(Assignment { column, value });
         }
 
         let subquery_planner = |query: &ast::Query| self.plan_query(query);
         let filter = selection
-            .map(|s| ExprPlanner::plan_expr_with_subquery(s, &schema, Some(&subquery_planner)))
+            .map(|s| {
+                ExprPlanner::plan_expr_with_subquery(s, &combined_schema, Some(&subquery_planner))
+            })
             .transpose()?;
 
         Ok(LogicalPlan::Update {
             table_name,
+            alias,
             assignments: plan_assignments,
+            from: from_plan,
             filter,
         })
     }
 
     fn plan_delete(&self, delete: &ast::Delete) -> Result<LogicalPlan> {
-        let table_name = match &delete.from {
+        let (table_name, alias) = match &delete.from {
             ast::FromTable::WithFromKeyword(tables) => {
                 tables.first().and_then(|t| match &t.relation {
-                    TableFactor::Table { name, .. } => Some(object_name_to_raw_string(name)),
+                    TableFactor::Table { name, alias, .. } => Some((
+                        object_name_to_raw_string(name),
+                        alias.as_ref().map(|a| a.name.value.clone()),
+                    )),
                     _ => None,
                 })
             }
             ast::FromTable::WithoutKeyword(tables) => {
                 tables.first().and_then(|t| match &t.relation {
-                    TableFactor::Table { name, .. } => Some(object_name_to_raw_string(name)),
+                    TableFactor::Table { name, alias, .. } => Some((
+                        object_name_to_raw_string(name),
+                        alias.as_ref().map(|a| a.name.value.clone()),
+                    )),
                     _ => None,
                 })
             }
@@ -2891,7 +2922,8 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .catalog
             .get_table_schema(&table_name)
             .ok_or_else(|| Error::table_not_found(&table_name))?;
-        let schema = self.storage_schema_to_plan_schema(&storage_schema, Some(&table_name));
+        let schema_qualifier = alias.as_deref().or(Some(&table_name));
+        let schema = self.storage_schema_to_plan_schema(&storage_schema, schema_qualifier);
 
         let subquery_planner = |query: &ast::Query| self.plan_query(query);
         let filter = delete
@@ -2900,7 +2932,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .map(|s| ExprPlanner::plan_expr_with_subquery(s, &schema, Some(&subquery_planner)))
             .transpose()?;
 
-        Ok(LogicalPlan::Delete { table_name, filter })
+        Ok(LogicalPlan::Delete {
+            table_name,
+            alias,
+            filter,
+        })
     }
 
     fn plan_merge(

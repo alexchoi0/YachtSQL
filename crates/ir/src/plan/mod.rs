@@ -130,12 +130,15 @@ pub enum LogicalPlan {
 
     Update {
         table_name: String,
+        alias: Option<String>,
         assignments: Vec<Assignment>,
+        from: Option<Box<LogicalPlan>>,
         filter: Option<Expr>,
     },
 
     Delete {
         table_name: String,
+        alias: Option<String>,
         filter: Option<Expr>,
     },
 

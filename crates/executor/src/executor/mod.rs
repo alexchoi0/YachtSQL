@@ -200,8 +200,10 @@ impl<'a> PlanExecutor<'a> {
             PhysicalPlan::Update {
                 table_name,
                 assignments,
+                from,
                 filter,
-            } => self.execute_update(table_name, assignments, filter.as_ref()),
+                ..
+            } => self.execute_update(table_name, assignments, from.as_deref(), filter.as_ref()),
             PhysicalPlan::Delete { table_name, filter } => {
                 self.execute_delete(table_name, filter.as_ref())
             }

@@ -240,15 +240,27 @@ impl PhysicalPlanner {
 
             LogicalPlan::Update {
                 table_name,
+                alias,
                 assignments,
+                from,
                 filter,
-            } => Ok(OptimizedLogicalPlan::Update {
-                table_name: table_name.clone(),
-                assignments: assignments.clone(),
-                filter: filter.clone(),
-            }),
+            } => {
+                let from_plan = match from {
+                    Some(plan) => Some(Box::new(self.plan(plan)?)),
+                    None => None,
+                };
+                Ok(OptimizedLogicalPlan::Update {
+                    table_name: table_name.clone(),
+                    alias: alias.clone(),
+                    assignments: assignments.clone(),
+                    from: from_plan,
+                    filter: filter.clone(),
+                })
+            }
 
-            LogicalPlan::Delete { table_name, filter } => Ok(OptimizedLogicalPlan::Delete {
+            LogicalPlan::Delete {
+                table_name, filter, ..
+            } => Ok(OptimizedLogicalPlan::Delete {
                 table_name: table_name.clone(),
                 filter: filter.clone(),
             }),
@@ -783,16 +795,22 @@ impl OptimizedLogicalPlan {
             },
             OptimizedLogicalPlan::Update {
                 table_name,
+                alias,
                 assignments,
+                from,
                 filter,
             } => LogicalPlan::Update {
                 table_name,
+                alias,
                 assignments,
+                from: from.map(|p| Box::new(p.into_logical())),
                 filter,
             },
-            OptimizedLogicalPlan::Delete { table_name, filter } => {
-                LogicalPlan::Delete { table_name, filter }
-            }
+            OptimizedLogicalPlan::Delete { table_name, filter } => LogicalPlan::Delete {
+                table_name,
+                alias: None,
+                filter,
+            },
             OptimizedLogicalPlan::Merge {
                 target_table,
                 source,
