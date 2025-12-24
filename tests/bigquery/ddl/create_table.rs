@@ -322,7 +322,6 @@ fn test_create_table_as_select_with_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_required_struct_field() {
     let mut session = create_session();
 
@@ -657,7 +656,6 @@ fn test_create_table_like() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_copy() {
     let mut session = create_session();
 
@@ -744,7 +742,6 @@ fn test_create_table_with_named_constraint() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_default_collate() {
     let mut session = create_session();
 
@@ -770,7 +767,6 @@ fn test_create_table_with_default_collate() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_column_collate() {
     let mut session = create_session();
 
@@ -912,7 +908,6 @@ fn test_create_table_with_multiple_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_dataset_qualified_name() {
     let mut session = create_session();
 
@@ -931,7 +926,6 @@ fn test_create_table_dataset_qualified_name() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_backtick_qualified_name() {
     let mut session = create_session();
 
@@ -974,7 +968,6 @@ fn test_create_table_with_default_rounding_mode() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_complex_from_docs() {
     let mut session = create_session();
 
@@ -1120,7 +1113,6 @@ fn test_create_table_clone_isolation() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_clone_for_system_time() {
     let mut session = create_session();
 
@@ -1144,7 +1136,6 @@ fn test_create_table_clone_for_system_time() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_clone_with_options() {
     let mut session = create_session();
 
@@ -1168,7 +1159,6 @@ fn test_create_table_clone_with_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_external_table() {
     let mut session = create_session();
 
@@ -1191,7 +1181,6 @@ fn test_create_external_table() {
 }
 
 #[test]
-#[ignore]
 fn test_create_external_table_with_schema() {
     let mut session = create_session();
 
@@ -1211,7 +1200,6 @@ fn test_create_external_table_with_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_create_external_table_if_not_exists() {
     let mut session = create_session();
 
@@ -1229,7 +1217,6 @@ fn test_create_external_table_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_external_table() {
     let mut session = create_session();
 
@@ -1260,7 +1247,6 @@ fn test_create_or_replace_external_table() {
 }
 
 #[test]
-#[ignore]
 fn test_create_external_table_with_hive_partitioning() {
     let mut session = create_session();
 
@@ -1283,7 +1269,6 @@ fn test_create_external_table_with_hive_partitioning() {
 }
 
 #[test]
-#[ignore]
 fn test_create_external_table_bigtable() {
     let mut session = create_session();
 
@@ -1299,7 +1284,6 @@ fn test_create_external_table_bigtable() {
 }
 
 #[test]
-#[ignore]
 fn test_create_external_table_with_connection() {
     let mut session = create_session();
 
@@ -1459,7 +1443,6 @@ fn test_create_table_like_with_as_select() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_copy_with_options() {
     let mut session = create_session();
 
@@ -1485,7 +1468,6 @@ fn test_create_table_copy_with_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_table_copy() {
     let mut session = create_session();
 

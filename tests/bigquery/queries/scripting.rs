@@ -1247,7 +1247,6 @@ fn test_return_in_loop() {
 }
 
 #[test]
-#[ignore]
 fn test_variable_scope_in_block() {
     let mut session = create_session();
 

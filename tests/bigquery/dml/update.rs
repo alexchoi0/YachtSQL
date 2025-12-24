@@ -617,7 +617,6 @@ fn test_update_repeated_records_with_array_subquery() {
 }
 
 #[test]
-#[ignore]
 fn test_update_delete_from_repeated_records() {
     let mut session = create_session();
 

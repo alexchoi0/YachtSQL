@@ -329,7 +329,6 @@ fn test_alter_table_drop_primary_key() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_view_set_options() {
     let mut session = create_session();
 
@@ -347,7 +346,6 @@ fn test_alter_view_set_options() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_materialized_view_set_options() {
     let mut session = create_session();
 
@@ -532,7 +530,6 @@ fn test_alter_table_drop_foreign_key() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_set_default_collate() {
     let mut session = create_session();
 
@@ -557,7 +554,6 @@ fn test_alter_table_set_default_collate() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_column_set_options() {
     let mut session = create_session();
 
@@ -646,7 +642,6 @@ fn test_alter_table_add_column_with_json() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_add_column_position() {
     let mut session = create_session();
 
@@ -731,7 +726,6 @@ fn test_alter_table_add_check_constraint() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_alter_column_collate() {
     let mut session = create_session();
 
@@ -903,7 +897,6 @@ fn test_alter_table_add_composite_foreign_key() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_view_alter_column() {
     let mut session = create_session();
 
@@ -923,7 +916,6 @@ fn test_alter_view_alter_column() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_materialized_view_enable_refresh() {
     let mut session = create_session();
 

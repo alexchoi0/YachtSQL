@@ -240,7 +240,6 @@ fn test_truncate_table_in_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_undrop_schema() {
     let mut session = create_session();
 
@@ -265,7 +264,6 @@ fn test_undrop_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_undrop_schema_if_not_exists() {
     let mut session = create_session();
 
@@ -277,7 +275,6 @@ fn test_undrop_schema_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_schema_or_replace() {
     let mut session = create_session();
 
@@ -328,7 +325,6 @@ fn test_schema_with_default_collation() {
 }
 
 #[test]
-#[ignore]
 fn test_create_row_access_policy() {
     let mut session = create_session();
 
@@ -353,7 +349,6 @@ fn test_create_row_access_policy() {
 }
 
 #[test]
-#[ignore]
 fn test_create_row_access_policy_if_not_exists() {
     let mut session = create_session();
 
@@ -372,7 +367,6 @@ fn test_create_row_access_policy_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_row_access_policy() {
     let mut session = create_session();
 
@@ -400,7 +394,6 @@ fn test_create_or_replace_row_access_policy() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_row_access_policy() {
     let mut session = create_session();
 
@@ -423,7 +416,6 @@ fn test_drop_row_access_policy() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_all_row_access_policies() {
     let mut session = create_session();
 
@@ -449,7 +441,6 @@ fn test_drop_all_row_access_policies() {
 }
 
 #[test]
-#[ignore]
 fn test_create_search_index() {
     let mut session = create_session();
 
@@ -466,7 +457,6 @@ fn test_create_search_index() {
 }
 
 #[test]
-#[ignore]
 fn test_create_search_index_all_columns() {
     let mut session = create_session();
 
@@ -483,7 +473,6 @@ fn test_create_search_index_all_columns() {
 }
 
 #[test]
-#[ignore]
 fn test_create_search_index_with_options() {
     let mut session = create_session();
 
@@ -501,7 +490,6 @@ fn test_create_search_index_with_options() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_search_index() {
     let mut session = create_session();
 
@@ -519,7 +507,6 @@ fn test_drop_search_index() {
 }
 
 #[test]
-#[ignore]
 fn test_create_vector_index() {
     let mut session = create_session();
 
@@ -537,7 +524,6 @@ fn test_create_vector_index() {
 }
 
 #[test]
-#[ignore]
 fn test_create_vector_index_stored_column() {
     let mut session = create_session();
 
@@ -556,7 +542,6 @@ fn test_create_vector_index_stored_column() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_vector_index() {
     let mut session = create_session();
 
@@ -689,7 +674,6 @@ fn test_create_schema_with_max_time_travel() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_schema_set_default_collate() {
     let mut session = create_session();
 
@@ -733,7 +717,6 @@ fn test_alter_schema_set_multiple_options() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_external_schema() {
     let mut session = create_session();
 
@@ -753,7 +736,6 @@ fn test_drop_external_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_create_vector_index_tree_ah() {
     let mut session = create_session();
 
@@ -775,7 +757,6 @@ fn test_create_vector_index_tree_ah() {
 }
 
 #[test]
-#[ignore]
 fn test_create_search_index_if_not_exists() {
     let mut session = create_session();
 
@@ -793,7 +774,6 @@ fn test_create_search_index_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_search_index_with_data_types() {
     let mut session = create_session();
 
@@ -827,7 +807,6 @@ fn test_drop_search_index_if_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_vector_index() {
     let mut session = create_session();
 

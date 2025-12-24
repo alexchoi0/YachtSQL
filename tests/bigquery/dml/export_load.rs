@@ -2049,7 +2049,6 @@ fn test_export_data_deflate_compression() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_snappy_compression_avro() {
     let mut session = create_session();
     session
@@ -2070,7 +2069,6 @@ fn test_export_data_snappy_compression_avro() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_to_s3() {
     let mut session = create_session();
     session
@@ -2091,7 +2089,6 @@ fn test_export_data_to_s3() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_csv_all_options() {
     let mut session = create_session();
     session
@@ -2114,7 +2111,6 @@ fn test_export_data_csv_all_options() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_with_order_and_limit() {
     let mut session = create_session();
     session
@@ -2152,7 +2148,6 @@ fn test_export_data_missing_uri_error() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_with_connection() {
     let mut session = create_session();
     session
@@ -2175,7 +2170,6 @@ fn test_export_data_with_connection() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_with_backtick_connection() {
     let mut session = create_session();
     session
@@ -2197,7 +2191,6 @@ fn test_export_data_with_backtick_connection() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_to_bigtable() {
     let mut session = create_session();
     session
@@ -2235,7 +2228,6 @@ fn test_export_data_to_bigtable() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_to_bigtable_with_overwrite() {
     let mut session = create_session();
     session
@@ -2256,7 +2248,6 @@ fn test_export_data_to_bigtable_with_overwrite() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_to_bigtable_with_truncate() {
     let mut session = create_session();
     session
@@ -2277,7 +2268,6 @@ fn test_export_data_to_bigtable_with_truncate() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_to_bigtable_auto_create_column_families() {
     let mut session = create_session();
     session
@@ -2298,7 +2288,6 @@ fn test_export_data_to_bigtable_auto_create_column_families() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_to_pubsub() {
     let mut session = create_session();
     session
@@ -2332,7 +2321,6 @@ fn test_export_data_to_pubsub() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_to_spanner() {
     let mut session = create_session();
     session
@@ -2353,7 +2341,6 @@ fn test_export_data_to_spanner() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_avro_with_logical_types() {
     let mut session = create_session();
     session
@@ -2393,7 +2380,6 @@ fn test_export_data_case_insensitive_format() {
 }
 
 #[test]
-#[ignore]
 fn test_export_data_parquet_with_overwrite() {
     let mut session = create_session();
     session
@@ -2635,7 +2621,6 @@ mod local_csv {
     }
 
     #[test]
-    #[ignore]
     fn test_load_csv_no_header() {
         let mut session = create_session();
         session
@@ -2714,7 +2699,6 @@ mod local_csv {
     }
 
     #[test]
-    #[ignore]
     fn test_load_csv_with_tab_delimiter() {
         let mut session = create_session();
         session
@@ -2741,7 +2725,6 @@ mod local_csv {
     }
 
     #[test]
-    #[ignore]
     fn test_load_csv_with_quoted_fields() {
         let mut session = create_session();
         session
@@ -2767,7 +2750,6 @@ mod local_csv {
     }
 
     #[test]
-    #[ignore]
     fn test_load_csv_with_null_marker() {
         let mut session = create_session();
         session
@@ -2860,7 +2842,6 @@ mod local_csv {
     }
 
     #[test]
-    #[ignore]
     fn test_export_csv_with_field_delimiter() {
         let mut session = create_session();
         session
@@ -3048,7 +3029,6 @@ mod local_csv {
     }
 
     #[test]
-    #[ignore]
     fn test_load_csv_multiple_files() {
         let mut session = create_session();
         session
