@@ -3528,6 +3528,24 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     constraint: table_constraint,
                 })
             }
+            ast::AlterTableOperation::DropConstraint { name, .. } => {
+                Ok(AlterTableOp::DropConstraint {
+                    name: name.to_string(),
+                })
+            }
+            ast::AlterTableOperation::DropPrimaryKey { .. } => Ok(AlterTableOp::DropPrimaryKey),
+            ast::AlterTableOperation::SetTblProperties { table_properties } => {
+                let options: Vec<(String, String)> = table_properties
+                    .iter()
+                    .filter_map(|opt| match opt {
+                        ast::SqlOption::KeyValue { key, value } => {
+                            Some((key.to_string(), value.to_string()))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                Ok(AlterTableOp::SetOptions { options })
+            }
             _ => Err(Error::unsupported(format!(
                 "Unsupported ALTER TABLE operation: {:?}",
                 operation

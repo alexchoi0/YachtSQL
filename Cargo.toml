@@ -131,3 +131,5 @@ members = [
 ]
 resolver = "2"
 
+[patch.crates-io]
+yachtsql-sqlparser = { path = "vendor/yachtsql-sqlparser" }

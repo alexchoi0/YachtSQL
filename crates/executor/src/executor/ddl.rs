@@ -226,16 +226,15 @@ impl<'a> PlanExecutor<'a> {
                         defaults.retain(|d| d.column_name.to_uppercase() != name.to_uppercase());
                         self.catalog.set_table_defaults(table_name, defaults);
                     }
-                    AlterColumnAction::SetDataType { .. } => {
-                        return Err(Error::UnsupportedFeature(format!(
-                            "ALTER COLUMN {:?} not yet implemented",
-                            action
-                        )));
+                    AlterColumnAction::SetDataType { data_type } => {
+                        table.set_column_data_type(name, data_type.clone())?;
                     }
                 }
                 Ok(Table::empty(Schema::new()))
             }
             AlterTableOp::AddConstraint { .. } => Ok(Table::empty(Schema::new())),
+            AlterTableOp::DropConstraint { .. } => Ok(Table::empty(Schema::new())),
+            AlterTableOp::DropPrimaryKey => Ok(Table::empty(Schema::new())),
         }
     }
 

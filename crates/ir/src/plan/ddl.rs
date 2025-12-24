@@ -31,6 +31,10 @@ pub enum AlterTableOp {
     AddConstraint {
         constraint: TableConstraint,
     },
+    DropConstraint {
+        name: String,
+    },
+    DropPrimaryKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

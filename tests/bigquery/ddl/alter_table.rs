@@ -176,7 +176,6 @@ fn test_alter_table_drop_not_null() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_set_options() {
     let mut session = create_session();
 
@@ -265,7 +264,6 @@ fn test_alter_table_if_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_drop_constraint() {
     let mut session = create_session();
 
@@ -292,7 +290,6 @@ fn test_alter_table_drop_constraint() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_alter_column_set_data_type() {
     let mut session = create_session();
 
@@ -319,7 +316,6 @@ fn test_alter_table_add_primary_key() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_drop_primary_key() {
     let mut session = create_session();
 
@@ -513,7 +509,6 @@ fn test_alter_table_add_foreign_key() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_drop_foreign_key() {
     let mut session = create_session();
 
@@ -583,7 +578,6 @@ fn test_alter_column_set_options() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_set_options_multiple() {
     let mut session = create_session();
 
@@ -673,7 +667,6 @@ fn test_alter_table_add_column_position() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_alter_column_set_data_type_widening() {
     let mut session = create_session();
 
@@ -822,7 +815,6 @@ fn test_alter_table_add_array_of_struct_column() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_set_partition_expiration() {
     let mut session = create_session();
 
@@ -839,7 +831,6 @@ fn test_alter_table_set_partition_expiration() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_set_require_partition_filter() {
     let mut session = create_session();
 
@@ -954,7 +945,6 @@ fn test_alter_materialized_view_enable_refresh() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_add_column_with_range() {
     let mut session = create_session();
 
@@ -977,7 +967,6 @@ fn test_alter_table_add_column_with_range() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_table_add_column_with_interval() {
     let mut session = create_session();
 

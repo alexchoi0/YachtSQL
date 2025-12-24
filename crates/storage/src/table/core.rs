@@ -324,6 +324,127 @@ impl Table {
         Ok(())
     }
 
+    pub fn set_column_data_type(
+        &mut self,
+        col_name: &str,
+        new_data_type: yachtsql_common::types::DataType,
+    ) -> Result<()> {
+        let upper = col_name.to_uppercase();
+        let field_idx = self
+            .schema
+            .fields()
+            .iter()
+            .position(|f| f.name.to_uppercase() == upper);
+        let field_idx = match field_idx {
+            Some(idx) => idx,
+            None => {
+                return Err(yachtsql_common::error::Error::ColumnNotFound(
+                    col_name.to_string(),
+                ));
+            }
+        };
+
+        let old_field = &self.schema.fields()[field_idx];
+        let old_type = &old_field.data_type;
+
+        let needs_conversion = !Self::types_compatible(old_type, &new_data_type);
+
+        if needs_conversion {
+            let col_name_key = self
+                .columns
+                .keys()
+                .find(|k| k.to_uppercase() == upper)
+                .cloned();
+            if let Some(key) = col_name_key
+                && let Some(old_col) = self.columns.get(&key)
+            {
+                let new_col = Self::convert_column(old_col, old_type, &new_data_type)?;
+                self.columns.insert(key, new_col);
+            }
+        }
+
+        let fields: Vec<_> = self
+            .schema
+            .fields()
+            .iter()
+            .map(|f| {
+                if f.name.to_uppercase() == upper {
+                    crate::Field::new(f.name.clone(), new_data_type.clone(), f.mode)
+                } else {
+                    f.clone()
+                }
+            })
+            .collect();
+        self.schema = Schema::from_fields(fields);
+        Ok(())
+    }
+
+    fn types_compatible(
+        old_type: &yachtsql_common::types::DataType,
+        new_type: &yachtsql_common::types::DataType,
+    ) -> bool {
+        use yachtsql_common::types::DataType;
+        matches!(
+            (old_type, new_type),
+            (DataType::String, DataType::String)
+                | (DataType::Int64, DataType::Int64)
+                | (DataType::Float64, DataType::Float64)
+                | (DataType::Numeric(_), DataType::Numeric(_))
+        )
+    }
+
+    fn convert_column(
+        old_col: &Column,
+        _old_type: &yachtsql_common::types::DataType,
+        new_type: &yachtsql_common::types::DataType,
+    ) -> Result<Column> {
+        use rust_decimal::Decimal;
+        use yachtsql_common::types::DataType;
+
+        match new_type {
+            DataType::Numeric(_) => {
+                let len = old_col.len();
+                let mut new_data = Vec::with_capacity(len);
+                let mut new_nulls = crate::NullBitmap::new_valid(len);
+                for i in 0..len {
+                    let val = old_col.get_value(i);
+                    match val {
+                        Value::Null => {
+                            new_data.push(Decimal::ZERO);
+                            new_nulls.set_null(i);
+                        }
+                        Value::Int64(v) => {
+                            new_data.push(Decimal::from(v));
+                        }
+                        Value::Float64(v) => {
+                            let f = v.into_inner();
+                            new_data.push(
+                                Decimal::try_from(f).unwrap_or_else(|_| Decimal::from(f as i64)),
+                            );
+                        }
+                        Value::Numeric(d) => {
+                            new_data.push(d);
+                        }
+                        _ => {
+                            return Err(yachtsql_common::error::Error::invalid_query(format!(
+                                "Cannot convert {:?} to NUMERIC",
+                                val
+                            )));
+                        }
+                    }
+                }
+                Ok(Column::Numeric {
+                    data: new_data,
+                    nulls: new_nulls,
+                })
+            }
+            _ => Err(yachtsql_common::error::Error::UnsupportedFeature(format!(
+                "Data type conversion to {:?} not yet implemented",
+                new_type
+            ))),
+        }
+    }
+
     pub fn with_schema(&self, new_schema: Schema) -> Table {
         let mut new_columns = IndexMap::new();
         for (old_col, new_field) in self.columns.values().zip(new_schema.fields().iter()) {

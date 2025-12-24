@@ -5612,8 +5612,6 @@ dependencies = [
 [[package]]
 name = "yachtsql-sqlparser"
 version = "0.59.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d269de611109b9eeafd671837a110dda689cb8615823fe35615bdbd1c11e937"
 dependencies = [
  "log",
  "recursive",
