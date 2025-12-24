@@ -950,7 +950,6 @@ fn test_create_table_backtick_qualified_name() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_default_rounding_mode() {
     let mut session = create_session();
 
@@ -1010,7 +1009,6 @@ fn test_create_table_complex_from_docs() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_clone() {
     let mut session = create_session();
 
@@ -1033,7 +1031,6 @@ fn test_create_table_clone() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_clone_if_not_exists() {
     let mut session = create_session();
 
@@ -1060,7 +1057,6 @@ fn test_create_table_clone_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_table_clone() {
     let mut session = create_session();
 
@@ -1323,7 +1319,6 @@ fn test_create_external_table_with_connection() {
 }
 
 #[test]
-#[ignore]
 fn test_create_snapshot_table() {
     let mut session = create_session();
 
@@ -1348,7 +1343,6 @@ fn test_create_snapshot_table() {
 }
 
 #[test]
-#[ignore]
 fn test_create_snapshot_table_if_not_exists() {
     let mut session = create_session();
 
@@ -1366,7 +1360,6 @@ fn test_create_snapshot_table_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_snapshot_table_for_system_time() {
     let mut session = create_session();
 
@@ -1388,7 +1381,6 @@ fn test_create_snapshot_table_for_system_time() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_snapshot_table() {
     let mut session = create_session();
 
@@ -1406,7 +1398,6 @@ fn test_drop_snapshot_table() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_snapshot_table_if_exists() {
     let mut session = create_session();
 
@@ -1415,7 +1406,6 @@ fn test_drop_snapshot_table_if_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_like_with_options() {
     let mut session = create_session();
 
@@ -1440,7 +1430,6 @@ fn test_create_table_like_with_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_like_with_as_select() {
     let mut session = create_session();
 
@@ -1524,7 +1513,6 @@ fn test_create_or_replace_table_copy() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_kms_key() {
     let mut session = create_session();
 
@@ -1539,7 +1527,6 @@ fn test_create_table_with_kms_key() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_max_staleness() {
     let mut session = create_session();
 
@@ -1554,7 +1541,6 @@ fn test_create_table_with_max_staleness() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_change_history() {
     let mut session = create_session();
 
@@ -1701,7 +1687,6 @@ fn test_create_table_with_interval_type() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_with_range_type() {
     let mut session = create_session();
 

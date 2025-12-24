@@ -19,7 +19,6 @@ fn setup_tables(session: &mut yachtsql::YachtSQLSession) {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_update_when_matched() {
     let mut session = create_session();
     setup_tables(&mut session);
@@ -38,7 +37,6 @@ fn test_merge_update_when_matched() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_insert_when_not_matched() {
     let mut session = create_session();
     setup_tables(&mut session);
@@ -54,7 +52,6 @@ fn test_merge_insert_when_not_matched() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_delete_when_matched() {
     let mut session = create_session();
     setup_tables(&mut session);
@@ -70,7 +67,6 @@ fn test_merge_delete_when_matched() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_update_and_insert() {
     let mut session = create_session();
     setup_tables(&mut session);
@@ -89,7 +85,6 @@ fn test_merge_update_and_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_with_condition() {
     let mut session = create_session();
     setup_tables(&mut session);
@@ -105,7 +100,6 @@ fn test_merge_with_condition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_update_delete_insert() {
     let mut session = create_session();
     setup_tables(&mut session);
@@ -121,7 +115,6 @@ fn test_merge_update_delete_insert() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_with_subquery_source() {
     let mut session = create_session();
     session
@@ -148,7 +141,6 @@ fn test_merge_with_subquery_source() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_insert_row() {
     let mut session = create_session();
     session
@@ -174,7 +166,6 @@ fn test_merge_insert_row() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_when_not_matched_by_source() {
     let mut session = create_session();
     session
@@ -201,7 +192,6 @@ fn test_merge_when_not_matched_by_source() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_all_clauses() {
     let mut session = create_session();
     session
@@ -228,7 +218,6 @@ fn test_merge_all_clauses() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_merge_with_constants() {
     let mut session = create_session();
     session

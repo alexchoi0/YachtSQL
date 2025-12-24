@@ -663,7 +663,6 @@ fn test_create_schema_with_default_partition_expiration() {
 }
 
 #[test]
-#[ignore]
 fn test_create_schema_with_storage_billing_model() {
     let mut session = create_session();
 
@@ -677,7 +676,6 @@ fn test_create_schema_with_storage_billing_model() {
 }
 
 #[test]
-#[ignore]
 fn test_create_schema_with_max_time_travel() {
     let mut session = create_session();
 
@@ -820,7 +818,6 @@ fn test_create_search_index_with_data_types() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_search_index_if_exists() {
     let mut session = create_session();
 

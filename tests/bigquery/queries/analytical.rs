@@ -2628,7 +2628,6 @@ fn test_cte_qualified_wildcard() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_with_complex_cte_and_array_operations() {
     let mut session = create_session();
     session
@@ -2972,7 +2971,6 @@ fn test_unnest_with_window_functions_and_array_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_multi_array_correlation() {
     let mut session = create_session();
     session

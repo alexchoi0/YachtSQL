@@ -264,7 +264,6 @@ fn test_view_with_multiple_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_materialized_view_with_options() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -368,7 +367,6 @@ fn test_create_materialized_view_with_partition_and_cluster() {
 }
 
 #[test]
-#[ignore]
 fn test_create_materialized_view_max_staleness() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -385,7 +383,6 @@ fn test_create_materialized_view_max_staleness() {
 }
 
 #[test]
-#[ignore]
 fn test_create_materialized_view_allow_non_incremental() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -400,7 +397,6 @@ fn test_create_materialized_view_allow_non_incremental() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_materialized_view() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -426,7 +422,6 @@ fn test_create_or_replace_materialized_view() {
 }
 
 #[test]
-#[ignore]
 fn test_create_materialized_view_if_not_exists() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -569,7 +564,6 @@ fn test_view_with_qualified_name() {
 }
 
 #[test]
-#[ignore]
 fn test_view_with_collation() {
     let mut session = create_session();
 

@@ -523,7 +523,6 @@ fn test_drop_table_function() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_with_options() {
     let mut session = create_session();
 
@@ -541,7 +540,6 @@ fn test_create_function_with_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_javascript() {
     let mut session = create_session();
 
@@ -642,7 +640,6 @@ fn test_procedure_with_loop() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_exception_handling() {
     let mut session = create_session();
 
@@ -691,7 +688,6 @@ fn test_procedure_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_deterministic() {
     let mut session = create_session();
 
@@ -709,7 +705,6 @@ fn test_create_function_deterministic() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_not_deterministic() {
     let mut session = create_session();
 
@@ -763,7 +758,6 @@ fn test_create_function_with_security_invoker() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_with_data_governance() {
     let mut session = create_session();
 
@@ -877,7 +871,6 @@ fn test_create_table_function_with_struct_output() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_with_any_type() {
     let mut session = create_session();
 
@@ -914,7 +907,6 @@ fn test_create_function_with_lambda() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_in_schema() {
     let mut session = create_session();
 
@@ -935,7 +927,6 @@ fn test_create_function_in_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_function_with_signature() {
     let mut session = create_session();
 
@@ -1118,7 +1109,6 @@ fn test_procedure_with_raise() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_transaction() {
     let mut session = create_session();
 
@@ -1216,7 +1206,6 @@ def py_calc(x):
 }
 
 #[test]
-#[ignore]
 fn test_create_function_javascript_with_library() {
     let mut session = create_session();
 
@@ -1332,7 +1321,6 @@ fn test_drop_aggregate_function_if_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_with_qualified_types() {
     let mut session = create_session();
 

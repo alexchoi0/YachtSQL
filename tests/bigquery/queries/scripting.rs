@@ -693,7 +693,6 @@ fn test_execute_immediate_dml() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exception_error_message() {
     let mut session = create_session();
 
@@ -1105,7 +1104,6 @@ fn test_leave_synonym() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_begin_transaction_commit() {
     let mut session = create_session();
 
@@ -1154,7 +1152,6 @@ fn test_begin_transaction_rollback() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_transaction_with_exception_rollback() {
     let mut session = create_session();
 

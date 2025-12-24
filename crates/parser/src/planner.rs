@@ -3112,6 +3112,13 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
         let query = if let Some(query_box) = &create.query {
             Some(Box::new(self.plan_query(query_box)?))
+        } else if let Some(clone_source) = &create.clone {
+            let source_name = object_name_to_raw_string(clone_source);
+            Some(Box::new(LogicalPlan::Scan {
+                table_name: source_name,
+                schema: PlanSchema::new(),
+                projection: None,
+            }))
         } else {
             None
         };
