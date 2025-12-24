@@ -57,6 +57,7 @@ pub struct FunctionArg {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FunctionBody {
     Sql(Box<Expr>),
+    SqlQuery(String),
     JavaScript(String),
     Language { name: String, code: String },
 }

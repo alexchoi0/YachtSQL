@@ -2360,14 +2360,21 @@ impl fmt::Display for WhileStatement {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
 pub struct LoopStatement {
+    pub label: Option<Ident>,
     pub body: Vec<Statement>,
 }
 
 impl fmt::Display for LoopStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(label) = &self.label {
+            write!(f, "{}: ", label)?;
+        }
         write!(f, "LOOP ")?;
         format_statement_list(f, &self.body)?;
         write!(f, " END LOOP")?;
+        if let Some(label) = &self.label {
+            write!(f, " {}", label)?;
+        }
         Ok(())
     }
 }

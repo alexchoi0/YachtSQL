@@ -561,7 +561,7 @@ impl<'a> Parser<'a> {
                     self.parse_while()
                 }
                 Keyword::LOOP if self.dialect.supports_loop_end_loop() => {
-                    self.parse_loop()
+                    self.parse_loop(None)
                 }
                 Keyword::FOR if self.dialect.supports_loop_end_loop() => {
                     self.parse_for_statement()
@@ -698,7 +698,16 @@ impl<'a> Parser<'a> {
                     self.prev_token();
                     self.parse_vacuum()
                 }
-                _ => self.expected("an SQL statement", next_token),
+                _ => {
+                    if self.dialect.supports_loop_end_loop() && self.peek_token() == Token::Colon {
+                        let label = Ident::new(w.value.clone());
+                        self.expect_token(&Token::Colon)?;
+                        self.expect_keyword_is(Keyword::LOOP)?;
+                        self.parse_loop(Some(label))
+                    } else {
+                        self.expected("an SQL statement", next_token)
+                    }
+                }
             },
             Token::LParen => {
                 self.prev_token();
@@ -815,12 +824,15 @@ impl<'a> Parser<'a> {
     /// Parse a `LOOP` statement.
     ///
     /// See [Statement::Loop]
-    fn parse_loop(&mut self) -> Result<Statement, ParserError> {
+    fn parse_loop(&mut self, label: Option<Ident>) -> Result<Statement, ParserError> {
         let body = self.parse_statement_list(&[Keyword::END])?;
         self.expect_keyword_is(Keyword::END)?;
         self.expect_keyword_is(Keyword::LOOP)?;
+        if let Token::Word(_) = self.peek_token().token {
+            let _ = self.parse_identifier();
+        }
 
-        Ok(Statement::Loop(LoopStatement { body }))
+        Ok(Statement::Loop(LoopStatement { label, body }))
     }
 
     /// Parse a `FOR` statement.

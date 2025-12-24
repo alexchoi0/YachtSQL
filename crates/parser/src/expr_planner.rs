@@ -73,7 +73,12 @@ impl ExprPlanner {
                 Self::resolve_compound_identifier(parts, schema)
             }
 
-            ast::Expr::Value(val) => Ok(Expr::Literal(Self::plan_literal(&val.value)?)),
+            ast::Expr::Value(val) => {
+                if let ast::Value::Placeholder(name) = &val.value {
+                    return Ok(Expr::Variable { name: name.clone() });
+                }
+                Ok(Expr::Literal(Self::plan_literal(&val.value)?))
+            }
 
             ast::Expr::BinaryOp { left, op, right } => {
                 let left = Self::plan_expr_full(
@@ -800,6 +805,21 @@ impl ExprPlanner {
                 Ok(Expr::Subquery(Box::new(plan)))
             }
 
+            ast::Expr::Lambda(lambda) => {
+                let params: Vec<String> = lambda.params.iter().map(|p| p.value.clone()).collect();
+                let body = Self::plan_expr_full(
+                    &lambda.body,
+                    schema,
+                    subquery_planner,
+                    named_windows,
+                    udf_resolver,
+                )?;
+                Ok(Expr::Lambda {
+                    params,
+                    body: Box::new(body),
+                })
+            }
+
             _ => Err(Error::unsupported(format!(
                 "Unsupported expression: {:?}",
                 sql_expr
@@ -1335,19 +1355,20 @@ impl ExprPlanner {
 
         if let Some(resolver) = udf_resolver
             && let Some(udf) = resolver(&name)
-            && udf.is_aggregate
+            && matches!(&udf.body, FunctionBody::Sql(_))
         {
-            let call_args = Self::extract_function_args(func, schema)?;
-            return match &udf.body {
-                FunctionBody::Sql(body_expr) => {
-                    let substituted =
-                        Self::substitute_parameters(body_expr, &udf.parameters, &call_args);
-                    Ok(substituted)
-                }
-                _ => Err(Error::UnsupportedFeature(
-                    "Non-SQL aggregate functions are not supported".to_string(),
-                )),
-            };
+            let call_args = Self::extract_function_args_full(
+                func,
+                schema,
+                subquery_planner,
+                named_windows,
+                udf_resolver,
+            )?;
+            if let FunctionBody::Sql(body_expr) = &udf.body {
+                let substituted =
+                    Self::substitute_parameters(body_expr, &udf.parameters, &call_args);
+                return Ok(substituted);
+            }
         }
 
         let args = Self::extract_function_args(func, schema)?;
@@ -1955,6 +1976,75 @@ impl ExprPlanner {
         }
     }
 
+    fn extract_function_args_full(
+        func: &ast::Function,
+        schema: &PlanSchema,
+        subquery_planner: Option<SubqueryPlannerFn>,
+        named_windows: &[ast::NamedWindowDefinition],
+        udf_resolver: Option<UdfResolverFn>,
+    ) -> Result<Vec<Expr>> {
+        match &func.args {
+            ast::FunctionArguments::None => Ok(vec![]),
+            ast::FunctionArguments::Subquery(_) => {
+                Err(Error::unsupported("Subquery function arguments"))
+            }
+            ast::FunctionArguments::List(list) => {
+                let mut args = Vec::new();
+                for arg in &list.args {
+                    match arg {
+                        ast::FunctionArg::Unnamed(arg_expr) => match arg_expr {
+                            ast::FunctionArgExpr::Expr(e) => {
+                                args.push(Self::plan_expr_full(
+                                    e,
+                                    schema,
+                                    subquery_planner,
+                                    named_windows,
+                                    udf_resolver,
+                                )?);
+                            }
+                            ast::FunctionArgExpr::Wildcard => {
+                                args.push(Expr::Wildcard { table: None });
+                            }
+                            ast::FunctionArgExpr::QualifiedWildcard(name) => {
+                                args.push(Expr::Wildcard {
+                                    table: Some(name.to_string()),
+                                });
+                            }
+                            ast::FunctionArgExpr::TableRef(_) => {
+                                return Err(Error::unsupported(
+                                    "TABLE argument in scalar function",
+                                ));
+                            }
+                        },
+                        ast::FunctionArg::Named { arg, .. } => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                args.push(Self::plan_expr_full(
+                                    e,
+                                    schema,
+                                    subquery_planner,
+                                    named_windows,
+                                    udf_resolver,
+                                )?);
+                            }
+                        }
+                        ast::FunctionArg::ExprNamed { arg, .. } => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                args.push(Self::plan_expr_full(
+                                    e,
+                                    schema,
+                                    subquery_planner,
+                                    named_windows,
+                                    udf_resolver,
+                                )?);
+                            }
+                        }
+                    }
+                }
+                Ok(args)
+            }
+        }
+    }
+
     fn plan_case(
         operand: Option<&ast::Expr>,
         conditions: &[ast::CaseWhen],
@@ -2095,13 +2185,22 @@ impl ExprPlanner {
     }
 
     fn substitute_parameters(expr: &Expr, params: &[FunctionArg], args: &[Expr]) -> Expr {
-        let param_map: std::collections::HashMap<String, &Expr> = params
-            .iter()
-            .zip(args.iter())
-            .map(|(p, a)| (p.name.to_uppercase(), a))
-            .collect();
+        let mut param_map: std::collections::HashMap<String, Expr> =
+            std::collections::HashMap::new();
+        for (i, param) in params.iter().enumerate() {
+            let value = if i < args.len() {
+                args[i].clone()
+            } else if let Some(default) = &param.default {
+                default.clone()
+            } else {
+                continue;
+            };
+            param_map.insert(param.name.to_uppercase(), value);
+        }
+        let param_ref_map: std::collections::HashMap<String, &Expr> =
+            param_map.iter().map(|(k, v)| (k.clone(), v)).collect();
 
-        Self::substitute_expr(expr, &param_map)
+        Self::substitute_expr(expr, &param_ref_map)
     }
 
     fn substitute_expr(expr: &Expr, param_map: &std::collections::HashMap<String, &Expr>) -> Expr {
@@ -2157,13 +2256,33 @@ impl ExprPlanner {
                 op: *op,
                 expr: Box::new(Self::substitute_expr(inner, param_map)),
             },
-            Expr::ScalarFunction { name, args } => Expr::ScalarFunction {
-                name: name.clone(),
-                args: args
-                    .iter()
-                    .map(|a| Self::substitute_expr(a, param_map))
-                    .collect(),
-            },
+            Expr::ScalarFunction { name, args } => {
+                if let ScalarFunction::Custom(func_name) = name
+                    && let Some(replacement) = param_map.get(&func_name.to_uppercase())
+                    && let Expr::Lambda {
+                        params: lambda_params,
+                        body: lambda_body,
+                    } = replacement
+                {
+                    let substituted_args: Vec<Expr> = args
+                        .iter()
+                        .map(|a| Self::substitute_expr(a, param_map))
+                        .collect();
+                    let lambda_param_map: std::collections::HashMap<String, &Expr> = lambda_params
+                        .iter()
+                        .zip(substituted_args.iter())
+                        .map(|(p, a)| (p.to_uppercase(), a))
+                        .collect();
+                    return Self::substitute_expr(lambda_body, &lambda_param_map);
+                }
+                Expr::ScalarFunction {
+                    name: name.clone(),
+                    args: args
+                        .iter()
+                        .map(|a| Self::substitute_expr(a, param_map))
+                        .collect(),
+                }
+            }
             Expr::Case {
                 operand,
                 when_clauses,

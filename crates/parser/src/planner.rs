@@ -10,12 +10,12 @@ use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
     CteDefinition, DateTimeField, DclResourceType, ExportFormat, ExportOptions, Expr, FunctionArg,
     FunctionBody, JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
-    ProcedureArgMode, SampleType, SetOperationType, SortExpr, TableConstraint,
+    ProcedureArgMode, RaiseLevel, SampleType, SetOperationType, SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
 
-use crate::CatalogProvider;
 use crate::expr_planner::ExprPlanner;
+use crate::{CatalogProvider, parse_sql};
 
 fn object_name_to_raw_string(name: &ObjectName) -> String {
     name.0
@@ -201,6 +201,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::Loop(loop_stmt) => self.plan_loop(loop_stmt),
             Statement::For(for_stmt) => self.plan_for(for_stmt),
             Statement::Case(case_stmt) => self.plan_case(case_stmt),
+            Statement::Repeat(repeat_stmt) => self.plan_repeat(repeat_stmt),
             Statement::Leave { .. } | Statement::Break { .. } => Ok(LogicalPlan::Break),
             Statement::Iterate { .. } | Statement::Continue { .. } => Ok(LogicalPlan::Continue),
             Statement::Grant {
@@ -215,6 +216,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 grantees,
                 ..
             } => self.plan_revoke(privileges, objects.as_ref(), grantees),
+            Statement::Raise(raise_stmt) => self.plan_raise(raise_stmt),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -266,6 +268,21 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         Ok(LogicalPlan::Assert {
             condition: cond_expr,
             message: msg_expr,
+        })
+    }
+
+    fn plan_raise(&self, raise_stmt: &ast::RaiseStatement) -> Result<LogicalPlan> {
+        let empty_schema = PlanSchema::new();
+        let message = match &raise_stmt.value {
+            Some(ast::RaiseStatementValue::UsingMessage(expr))
+            | Some(ast::RaiseStatementValue::Expr(expr)) => {
+                Some(ExprPlanner::plan_expr(expr, &empty_schema)?)
+            }
+            None => None,
+        };
+        Ok(LogicalPlan::Raise {
+            message,
+            level: RaiseLevel::Exception,
         })
     }
 
@@ -330,6 +347,21 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         Ok(LogicalPlan::While {
             condition: cond_expr,
             body,
+        })
+    }
+
+    fn plan_repeat(&self, repeat_stmt: &ast::RepeatStatement) -> Result<LogicalPlan> {
+        let empty_schema = PlanSchema::new();
+        let body: Vec<LogicalPlan> = repeat_stmt
+            .body
+            .iter()
+            .map(|stmt| self.plan_statement(stmt))
+            .collect::<Result<Vec<_>>>()?;
+        let until_condition = ExprPlanner::plan_expr(&repeat_stmt.until_condition, &empty_schema)?;
+
+        Ok(LogicalPlan::Repeat {
+            body,
+            until_condition,
         })
     }
 
@@ -863,6 +895,68 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                     )));
                                 }
                             },
+                            FunctionBody::SqlQuery(query_str) => {
+                                let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+
+                                let mut param_bindings: HashMap<String, String> = HashMap::new();
+                                for (i, arg) in tbl_args.args.iter().enumerate() {
+                                    if i < func_def.parameters.len() {
+                                        let param_name = func_def.parameters[i].name.to_uppercase();
+                                        let arg_str = match arg {
+                                            ast::FunctionArg::Unnamed(
+                                                ast::FunctionArgExpr::Expr(e),
+                                            ) => e.to_string(),
+                                            _ => {
+                                                return Err(Error::unsupported(
+                                                    "Unsupported function argument type",
+                                                ));
+                                            }
+                                        };
+                                        param_bindings.insert(param_name, arg_str);
+                                    }
+                                }
+
+                                let mut substituted_query = query_str.clone();
+                                for (param_name, value) in &param_bindings {
+                                    substituted_query = substituted_query
+                                        .replace(&param_name.to_lowercase(), value)
+                                        .replace(param_name, value);
+                                }
+
+                                let parsed = parse_sql(&substituted_query)?;
+                                let query_stmt = parsed.first().ok_or_else(|| {
+                                    Error::parse_error("Empty table function query")
+                                })?;
+
+                                let mut plan = match query_stmt {
+                                    Statement::Query(q) => self.plan_query(q)?,
+                                    _ => {
+                                        return Err(Error::invalid_query(
+                                            "Table function body must be a query".to_string(),
+                                        ));
+                                    }
+                                };
+
+                                if let Some(alias_str) = alias_name {
+                                    let schema = self.rename_schema(plan.schema(), alias_str);
+                                    plan = LogicalPlan::Project {
+                                        input: Box::new(plan.clone()),
+                                        expressions: plan
+                                            .schema()
+                                            .fields
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(i, f)| Expr::Column {
+                                                table: None,
+                                                name: f.name.clone(),
+                                                index: Some(i),
+                                            })
+                                            .collect(),
+                                        schema,
+                                    };
+                                }
+                                plan
+                            }
                             _ => {
                                 return Err(Error::invalid_query(format!(
                                     "Function {} is not a SQL table function",
@@ -3554,10 +3648,14 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     .filter_map(|arg| {
                         let param_name = arg.name.as_ref()?.value.clone();
                         let data_type = Self::convert_sql_type(&arg.data_type);
+                        let default = arg
+                            .default_expr
+                            .as_ref()
+                            .and_then(|e| ExprPlanner::plan_expr(e, &PlanSchema::new()).ok());
                         Some(FunctionArg {
                             name: param_name,
                             data_type,
-                            default: None,
+                            default,
                         })
                     })
                     .collect()
@@ -3625,17 +3723,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
                     let is_table_function = create.table_function
                         || matches!(&create.return_type, Some(ast::DataType::Table(_)));
-                    let expr = if is_table_function {
-                        match body_expr {
-                            ast::Expr::Subquery(query) => {
-                                let plan = self.plan_query(query)?;
-                                Expr::Subquery(Box::new(plan))
-                            }
+                    if is_table_function {
+                        let query_str = match body_expr {
+                            ast::Expr::Subquery(query) => query.to_string(),
                             ast::Expr::Nested(inner) => match inner.as_ref() {
-                                ast::Expr::Subquery(query) => {
-                                    let plan = self.plan_query(query)?;
-                                    Expr::Subquery(Box::new(plan))
-                                }
+                                ast::Expr::Subquery(query) => query.to_string(),
                                 _ => {
                                     return Err(Error::InvalidQuery(
                                         "TABLE FUNCTION body must be a subquery".to_string(),
@@ -3647,11 +3739,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                     "TABLE FUNCTION body must be a subquery".to_string(),
                                 ));
                             }
-                        }
+                        };
+                        FunctionBody::SqlQuery(query_str)
                     } else {
-                        ExprPlanner::plan_expr(body_expr, &arg_schema)?
-                    };
-                    FunctionBody::Sql(Box::new(expr))
+                        let expr = ExprPlanner::plan_expr(body_expr, &arg_schema)?;
+                        FunctionBody::Sql(Box::new(expr))
+                    }
                 }
                 _ => {
                     return Err(Error::UnsupportedFeature(format!(
@@ -3666,6 +3759,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Some(dt) => self.sql_type_to_data_type(dt),
             None => match &body {
                 FunctionBody::Sql(expr) => Self::infer_expr_type_static(expr, &arg_schema),
+                FunctionBody::SqlQuery(_) => DataType::Unknown,
                 FunctionBody::JavaScript(_) | FunctionBody::Language { .. } => {
                     return Err(Error::InvalidQuery(
                         "RETURNS clause is required for non-SQL functions".to_string(),

@@ -395,6 +395,17 @@ impl<'a> IrEvaluator<'a> {
             if let Some(val) = vars.get(&upper_name) {
                 return Ok(val.clone());
             }
+            if let Some(table_name) = table {
+                let upper_table = table_name.to_uppercase();
+                if let Some(Value::Struct(fields)) = vars.get(&upper_table) {
+                    let field_name_lower = name.to_lowercase();
+                    for (field_name, field_value) in fields {
+                        if field_name.to_lowercase() == field_name_lower {
+                            return Ok(field_value.clone());
+                        }
+                    }
+                }
+            }
         }
 
         let idx = self.schema.field_index_qualified(name, table);
@@ -8932,6 +8943,9 @@ impl<'a> IrEvaluator<'a> {
                     )))
                 }
             }
+            FunctionBody::SqlQuery(_) => Err(Error::InvalidQuery(
+                "Table functions cannot be called as scalar functions".to_string(),
+            )),
         }
     }
 

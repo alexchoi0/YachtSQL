@@ -162,17 +162,18 @@ impl<'a> PlanExecutor<'a> {
     ) -> Result<Table> {
         let cond_val = self.evaluate_scripting_expr(condition)?;
 
+        let mut last_result = Table::empty(Schema::new());
         if cond_val.as_bool().unwrap_or(false) {
             for plan in then_branch {
-                self.execute_plan(plan)?;
+                last_result = self.execute_plan(plan)?;
             }
         } else if let Some(else_plans) = else_branch {
             for plan in else_plans {
-                self.execute_plan(plan)?;
+                last_result = self.execute_plan(plan)?;
             }
         }
 
-        Ok(Table::empty(Schema::new()))
+        Ok(last_result)
     }
 
     fn evaluate_scripting_expr(&mut self, expr: &Expr) -> Result<Value> {
@@ -302,12 +303,19 @@ impl<'a> PlanExecutor<'a> {
         body: &[PhysicalPlan],
     ) -> Result<Table> {
         let result = self.execute_plan(query)?;
+        let schema_fields = result.schema().fields();
 
         for record in result.rows()? {
-            if let Some(val) = record.values().first() {
-                self.variables.insert(variable.to_uppercase(), val.clone());
-                self.session.set_variable(variable, val.clone());
-            }
+            let values = record.values();
+            let struct_fields: Vec<(String, Value)> = schema_fields
+                .iter()
+                .zip(values.iter())
+                .map(|(f, v)| (f.name.clone(), v.clone()))
+                .collect();
+            let row_value = Value::Struct(struct_fields);
+            self.variables
+                .insert(variable.to_uppercase(), row_value.clone());
+            self.session.set_variable(variable, row_value);
 
             for plan in body {
                 match self.execute_plan(plan) {
