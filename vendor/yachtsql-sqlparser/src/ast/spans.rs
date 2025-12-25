@@ -577,6 +577,7 @@ impl Spanned for Statement {
             Statement::AlterViewWithOperations { name, .. } => name.span(),
             Statement::AlterFunction { name, .. } => name.span(),
             Statement::AlterProcedure { name, .. } => name.span(),
+            Statement::CreateMaterializedViewReplica { name, .. } => name.span(),
         }
     }
 }

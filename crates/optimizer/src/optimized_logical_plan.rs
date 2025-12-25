@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterTableOp, Assignment, ColumnDef, CteDefinition, DclResourceType, ExportOptions, Expr,
-    FunctionArg, FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg,
-    RaiseLevel, SortExpr, UnnestColumn,
+    FunctionArg, FunctionBody, GapFillColumn, JoinType, LoadOptions, MergeClause, PlanSchema,
+    ProcedureArg, RaiseLevel, SortExpr, UnnestColumn,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -197,6 +197,7 @@ pub enum OptimizedLogicalPlan {
     CreateSchema {
         name: String,
         if_not_exists: bool,
+        or_replace: bool,
     },
 
     DropSchema {
@@ -341,6 +342,28 @@ pub enum OptimizedLogicalPlan {
         resource_name: String,
         grantees: Vec<String>,
     },
+
+    BeginTransaction,
+
+    Commit,
+
+    Rollback,
+
+    TryCatch {
+        try_block: Vec<OptimizedLogicalPlan>,
+        catch_block: Vec<OptimizedLogicalPlan>,
+    },
+
+    GapFill {
+        input: Box<OptimizedLogicalPlan>,
+        ts_column: String,
+        bucket_width: Expr,
+        value_columns: Vec<GapFillColumn>,
+        partitioning_columns: Vec<String>,
+        origin: Option<Expr>,
+        input_schema: PlanSchema,
+        schema: PlanSchema,
+    },
 }
 
 impl OptimizedLogicalPlan {
@@ -404,6 +427,11 @@ impl OptimizedLogicalPlan {
             OptimizedLogicalPlan::Assert { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Grant { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Revoke { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::BeginTransaction => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::Commit => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::Rollback => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::TryCatch { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::GapFill { schema, .. } => schema,
         }
     }
 }

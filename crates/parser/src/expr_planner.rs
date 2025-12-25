@@ -66,6 +66,11 @@ impl ExprPlanner {
                 if ident.value.eq_ignore_ascii_case("DEFAULT") {
                     return Ok(Expr::Default);
                 }
+                if ident.value.starts_with('@') {
+                    return Ok(Expr::Variable {
+                        name: ident.value.clone(),
+                    });
+                }
                 Self::resolve_column(&ident.value, None, schema)
             }
 
@@ -439,17 +444,50 @@ impl ExprPlanner {
             }
 
             ast::Expr::Array(arr) => {
+                let element_type = arr
+                    .element_type
+                    .as_ref()
+                    .map(|dt| Self::plan_data_type(dt))
+                    .transpose()?;
+
+                let struct_field_names: Option<Vec<String>> = element_type.as_ref().and_then(|t| {
+                    if let DataType::Struct(fields) = t {
+                        Some(fields.iter().map(|f| f.name.clone()).collect())
+                    } else {
+                        None
+                    }
+                });
+
                 let elements = arr
                     .elem
                     .iter()
                     .map(|e| {
-                        Self::plan_expr_full(
+                        let mut expr = Self::plan_expr_full(
                             e,
                             schema,
                             subquery_planner,
                             named_windows,
                             udf_resolver,
-                        )
+                        )?;
+                        if let (Some(names), Expr::Struct { fields }) = (&struct_field_names, &expr)
+                        {
+                            let new_fields: Vec<(Option<String>, Expr)> = fields
+                                .iter()
+                                .enumerate()
+                                .map(|(i, (old_name, field_expr))| {
+                                    let name = if old_name.is_some() {
+                                        old_name.clone()
+                                    } else if i < names.len() {
+                                        Some(names[i].clone())
+                                    } else {
+                                        None
+                                    };
+                                    (name, field_expr.clone())
+                                })
+                                .collect();
+                            expr = Expr::Struct { fields: new_fields };
+                        }
+                        Ok(expr)
                     })
                     .collect::<Result<Vec<_>>>()?;
 
@@ -459,6 +497,22 @@ impl ExprPlanner {
                         .into_iter()
                         .filter_map(|e| match e {
                             Expr::Literal(lit) => Some(lit),
+                            Expr::Struct { fields } => {
+                                let struct_fields: Vec<(String, Literal)> = fields
+                                    .into_iter()
+                                    .enumerate()
+                                    .filter_map(|(i, (name, expr))| {
+                                        if let Expr::Literal(lit) = expr {
+                                            let field_name =
+                                                name.unwrap_or_else(|| format!("_field{}", i));
+                                            Some((field_name, lit))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect();
+                                Some(Literal::Struct(struct_fields))
+                            }
                             _ => None,
                         })
                         .collect();
@@ -466,7 +520,7 @@ impl ExprPlanner {
                 } else {
                     Ok(Expr::Array {
                         elements,
-                        element_type: None,
+                        element_type,
                     })
                 }
             }
@@ -730,22 +784,20 @@ impl ExprPlanner {
             }
 
             ast::Expr::Tuple(exprs) => {
-                let elements: Vec<Expr> = exprs
+                let fields: Vec<(Option<String>, Expr)> = exprs
                     .iter()
                     .map(|e| {
-                        Self::plan_expr_full(
+                        let expr = Self::plan_expr_full(
                             e,
                             schema,
                             subquery_planner,
                             named_windows,
                             udf_resolver,
-                        )
+                        )?;
+                        Ok((None, expr))
                     })
                     .collect::<Result<Vec<_>>>()?;
-                Ok(Expr::Array {
-                    elements,
-                    element_type: None,
-                })
+                Ok(Expr::Struct { fields })
             }
 
             ast::Expr::Extract { field, expr, .. } => {
@@ -1367,7 +1419,8 @@ impl ExprPlanner {
             if let FunctionBody::Sql(body_expr) = &udf.body {
                 let substituted =
                     Self::substitute_parameters(body_expr, &udf.parameters, &call_args);
-                return Ok(substituted);
+                let result = Self::apply_struct_field_names(substituted, &udf.return_type);
+                return Ok(result);
             }
         }
 
@@ -2109,6 +2162,26 @@ impl ExprPlanner {
                 };
                 Ok(DataType::Array(Box::new(inner)))
             }
+            ast::DataType::Struct(fields, _) => {
+                let struct_fields = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| {
+                        let name = f
+                            .field_name
+                            .as_ref()
+                            .map(|id| id.value.clone())
+                            .unwrap_or_else(|| format!("_field{}", i));
+                        let field_type =
+                            Self::plan_data_type(&f.field_type).unwrap_or(DataType::Unknown);
+                        yachtsql_common::types::StructField {
+                            name,
+                            data_type: field_type,
+                        }
+                    })
+                    .collect();
+                Ok(DataType::Struct(struct_fields))
+            }
             _ => Ok(DataType::Unknown),
         }
     }
@@ -2201,6 +2274,30 @@ impl ExprPlanner {
             param_map.iter().map(|(k, v)| (k.clone(), v)).collect();
 
         Self::substitute_expr(expr, &param_ref_map)
+    }
+
+    fn apply_struct_field_names(expr: Expr, return_type: &DataType) -> Expr {
+        use yachtsql_common::types::DataType;
+        match (&expr, return_type) {
+            (Expr::Struct { fields }, DataType::Struct(struct_fields)) => {
+                let new_fields: Vec<(Option<String>, Expr)> = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (existing_name, field_expr))| {
+                        let field_name = if existing_name.is_some() {
+                            existing_name.clone()
+                        } else if i < struct_fields.len() {
+                            Some(struct_fields[i].name.clone())
+                        } else {
+                            None
+                        };
+                        (field_name, field_expr.clone())
+                    })
+                    .collect();
+                Expr::Struct { fields: new_fields }
+            }
+            _ => expr,
+        }
     }
 
     fn substitute_expr(expr: &Expr, param_map: &std::collections::HashMap<String, &Expr>) -> Expr {
@@ -2344,6 +2441,196 @@ impl ExprPlanner {
                     .map(|e| Self::substitute_expr(e, param_map))
                     .collect(),
                 negated: *negated,
+            },
+            Expr::Struct { fields } => Expr::Struct {
+                fields: fields
+                    .iter()
+                    .map(|(name, e)| (name.clone(), Self::substitute_expr(e, param_map)))
+                    .collect(),
+            },
+            Expr::StructAccess { expr: inner, field } => Expr::StructAccess {
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+                field: field.clone(),
+            },
+            Expr::Array {
+                elements,
+                element_type,
+            } => Expr::Array {
+                elements: elements
+                    .iter()
+                    .map(|e| Self::substitute_expr(e, param_map))
+                    .collect(),
+                element_type: element_type.clone(),
+            },
+            Expr::ArrayAccess { array, index } => Expr::ArrayAccess {
+                array: Box::new(Self::substitute_expr(array, param_map)),
+                index: Box::new(Self::substitute_expr(index, param_map)),
+            },
+            Expr::Window {
+                func,
+                args,
+                partition_by,
+                order_by,
+                frame,
+            } => Expr::Window {
+                func: *func,
+                args: args
+                    .iter()
+                    .map(|a| Self::substitute_expr(a, param_map))
+                    .collect(),
+                partition_by: partition_by
+                    .iter()
+                    .map(|e| Self::substitute_expr(e, param_map))
+                    .collect(),
+                order_by: order_by
+                    .iter()
+                    .map(|o| SortExpr {
+                        expr: Self::substitute_expr(&o.expr, param_map),
+                        asc: o.asc,
+                        nulls_first: o.nulls_first,
+                    })
+                    .collect(),
+                frame: frame.clone(),
+            },
+            Expr::AggregateWindow {
+                func,
+                args,
+                distinct,
+                partition_by,
+                order_by,
+                frame,
+            } => Expr::AggregateWindow {
+                func: *func,
+                args: args
+                    .iter()
+                    .map(|a| Self::substitute_expr(a, param_map))
+                    .collect(),
+                distinct: *distinct,
+                partition_by: partition_by
+                    .iter()
+                    .map(|e| Self::substitute_expr(e, param_map))
+                    .collect(),
+                order_by: order_by
+                    .iter()
+                    .map(|o| SortExpr {
+                        expr: Self::substitute_expr(&o.expr, param_map),
+                        asc: o.asc,
+                        nulls_first: o.nulls_first,
+                    })
+                    .collect(),
+                frame: frame.clone(),
+            },
+            Expr::Like {
+                expr: inner,
+                pattern,
+                negated,
+                case_insensitive,
+            } => Expr::Like {
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+                pattern: Box::new(Self::substitute_expr(pattern, param_map)),
+                negated: *negated,
+                case_insensitive: *case_insensitive,
+            },
+            Expr::Extract { field, expr: inner } => Expr::Extract {
+                field: *field,
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+            },
+            Expr::Substring {
+                expr: inner,
+                start,
+                length,
+            } => Expr::Substring {
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+                start: start
+                    .as_ref()
+                    .map(|s| Box::new(Self::substitute_expr(s, param_map))),
+                length: length
+                    .as_ref()
+                    .map(|l| Box::new(Self::substitute_expr(l, param_map))),
+            },
+            Expr::Trim {
+                expr: inner,
+                trim_what,
+                trim_where,
+            } => Expr::Trim {
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+                trim_what: trim_what
+                    .as_ref()
+                    .map(|t| Box::new(Self::substitute_expr(t, param_map))),
+                trim_where: *trim_where,
+            },
+            Expr::Position { substr, string } => Expr::Position {
+                substr: Box::new(Self::substitute_expr(substr, param_map)),
+                string: Box::new(Self::substitute_expr(string, param_map)),
+            },
+            Expr::Overlay {
+                expr: inner,
+                overlay_what,
+                overlay_from,
+                overlay_for,
+            } => Expr::Overlay {
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+                overlay_what: Box::new(Self::substitute_expr(overlay_what, param_map)),
+                overlay_from: Box::new(Self::substitute_expr(overlay_from, param_map)),
+                overlay_for: overlay_for
+                    .as_ref()
+                    .map(|f| Box::new(Self::substitute_expr(f, param_map))),
+            },
+            Expr::Interval {
+                value,
+                leading_field,
+            } => Expr::Interval {
+                value: Box::new(Self::substitute_expr(value, param_map)),
+                leading_field: *leading_field,
+            },
+            Expr::AtTimeZone {
+                timestamp,
+                time_zone,
+            } => Expr::AtTimeZone {
+                timestamp: Box::new(Self::substitute_expr(timestamp, param_map)),
+                time_zone: Box::new(Self::substitute_expr(time_zone, param_map)),
+            },
+            Expr::JsonAccess { expr: inner, path } => Expr::JsonAccess {
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+                path: path.clone(),
+            },
+            Expr::InUnnest {
+                expr: inner,
+                array_expr,
+                negated,
+            } => Expr::InUnnest {
+                expr: Box::new(Self::substitute_expr(inner, param_map)),
+                array_expr: Box::new(Self::substitute_expr(array_expr, param_map)),
+                negated: *negated,
+            },
+            Expr::UserDefinedAggregate {
+                name,
+                args,
+                distinct,
+                filter,
+            } => Expr::UserDefinedAggregate {
+                name: name.clone(),
+                args: args
+                    .iter()
+                    .map(|a| Self::substitute_expr(a, param_map))
+                    .collect(),
+                distinct: *distinct,
+                filter: filter
+                    .as_ref()
+                    .map(|f| Box::new(Self::substitute_expr(f, param_map))),
+            },
+            Expr::IsDistinctFrom {
+                left,
+                right,
+                negated,
+            } => Expr::IsDistinctFrom {
+                left: Box::new(Self::substitute_expr(left, param_map)),
+                right: Box::new(Self::substitute_expr(right, param_map)),
+                negated: *negated,
+            },
+            Expr::Lambda { params, body } => Expr::Lambda {
+                params: params.clone(),
+                body: Box::new(Self::substitute_expr(body, param_map)),
             },
             other => other.clone(),
         }

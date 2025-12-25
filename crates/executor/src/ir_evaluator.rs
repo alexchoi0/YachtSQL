@@ -5956,10 +5956,33 @@ impl<'a> IrEvaluator<'a> {
             "DETERMINISTIC_ENCRYPT" => self.fn_deterministic_encrypt(args),
             "DETERMINISTIC_DECRYPT_STRING" => self.fn_deterministic_decrypt_string(args),
             "DETERMINISTIC_DECRYPT_BYTES" => self.fn_deterministic_decrypt_bytes(args),
+            "COLLATE" => self.fn_collate(args),
             _ => Err(Error::UnsupportedFeature(format!(
                 "Scalar function Custom(\"{}\") not yet implemented in IR evaluator",
                 name
             ))),
+        }
+    }
+
+    fn fn_collate(&self, args: &[Value]) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(Error::InvalidQuery(
+                "COLLATE requires exactly 2 arguments".into(),
+            ));
+        }
+        let Value::String(s) = &args[0] else {
+            return Ok(Value::null());
+        };
+        let Value::String(collation) = &args[1] else {
+            return Err(Error::InvalidQuery(
+                "COLLATE second argument must be a string".into(),
+            ));
+        };
+        let collation_lower = collation.to_lowercase();
+        if collation_lower.contains(":ci") {
+            Ok(Value::String(s.to_lowercase()))
+        } else {
+            Ok(Value::String(s.clone()))
         }
     }
 

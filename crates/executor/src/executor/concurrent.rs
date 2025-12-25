@@ -233,7 +233,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             PhysicalPlan::CreateSchema {
                 name,
                 if_not_exists,
-            } => self.execute_create_schema(name, *if_not_exists),
+                or_replace,
+            } => self.execute_create_schema(name, *if_not_exists, *or_replace),
             PhysicalPlan::DropSchema {
                 name,
                 if_exists,
@@ -1182,7 +1183,11 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         &mut self,
         name: &str,
         if_not_exists: bool,
+        or_replace: bool,
     ) -> Result<Table> {
+        if or_replace && self.catalog.schema_exists(name) {
+            self.catalog.drop_schema(name, true, true)?;
+        }
         self.catalog.create_schema(name, if_not_exists)?;
         Ok(Table::empty(Schema::new()))
     }

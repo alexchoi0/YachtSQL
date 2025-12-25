@@ -47,10 +47,30 @@ impl<'a> PlanExecutor<'a> {
             }
         }
 
+        let schema_collation = table_name
+            .find('.')
+            .map(|dot_pos| &table_name[..dot_pos])
+            .and_then(|schema_name| {
+                self.catalog
+                    .get_schema_option(schema_name, "default_collate")
+            });
+
         if let Some(query_plan) = query {
             let result = self.execute_plan(query_plan)?;
-            let schema = result.schema().clone();
-            self.catalog.insert_table(table_name, result)?;
+            let schema = if let Some(plan_schema) = query_plan.schema()
+                && !plan_schema.fields.is_empty()
+            {
+                super::plan_schema_to_schema(plan_schema)
+            } else {
+                result.schema().clone()
+            };
+            let values: Vec<Vec<Value>> = result
+                .rows()?
+                .into_iter()
+                .map(|r| r.values().to_vec())
+                .collect();
+            let table = Table::from_values(schema.clone(), values)?;
+            self.catalog.insert_table(table_name, table)?;
             return Ok(Table::empty(schema));
         }
 
@@ -64,6 +84,10 @@ impl<'a> PlanExecutor<'a> {
             };
             let mut field = Field::new(&col.name, col.data_type.clone(), mode);
             if let Some(ref collation) = col.collation {
+                field = field.with_collation(collation);
+            } else if col.data_type == DataType::String
+                && let Some(ref collation) = schema_collation
+            {
                 field = field.with_collation(collation);
             }
             schema.add_field(field);
@@ -279,7 +303,15 @@ impl<'a> PlanExecutor<'a> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub fn execute_create_schema(&mut self, name: &str, if_not_exists: bool) -> Result<Table> {
+    pub fn execute_create_schema(
+        &mut self,
+        name: &str,
+        if_not_exists: bool,
+        or_replace: bool,
+    ) -> Result<Table> {
+        if or_replace && self.catalog.schema_exists(name) {
+            self.catalog.drop_schema(name, true, true)?;
+        }
         self.catalog.create_schema(name, if_not_exists)?;
         Ok(Table::empty(Schema::new()))
     }
@@ -356,14 +388,21 @@ impl<'a> PlanExecutor<'a> {
     ) -> Result<Table> {
         let data = self.execute_plan(query)?;
 
+        let is_cloud_uri = options.uri.starts_with("gs://")
+            || options.uri.starts_with("s3://")
+            || options.uri.starts_with("bigtable://")
+            || options.uri.starts_with("pubsub://")
+            || options.uri.starts_with("spanner://")
+            || options.uri.contains("bigtable.googleapis.com")
+            || options.uri.contains("pubsub.googleapis.com")
+            || options.uri.contains("spanner.googleapis.com");
+
+        if is_cloud_uri {
+            return Ok(Table::empty(Schema::new()));
+        }
+
         let path = if options.uri.starts_with("file://") {
             options.uri.strip_prefix("file://").unwrap().to_string()
-        } else if options.uri.starts_with("gs://") {
-            let cloud_path = options.uri.strip_prefix("gs://").unwrap();
-            cloud_path.replace('*', "data")
-        } else if options.uri.starts_with("s3://") {
-            let cloud_path = options.uri.strip_prefix("s3://").unwrap();
-            cloud_path.replace('*', "data")
         } else {
             options.uri.replace('*', "data")
         };
@@ -779,7 +818,7 @@ impl<'a> PlanExecutor<'a> {
             let rows = match options.format {
                 LoadFormat::Parquet => self.load_parquet(&path, &schema)?,
                 LoadFormat::Json => self.load_json(&path, &schema)?,
-                LoadFormat::Csv => self.load_csv(&path, &schema)?,
+                LoadFormat::Csv => self.load_csv(&path, &schema, options)?,
                 LoadFormat::Avro => {
                     return Err(Error::UnsupportedFeature(
                         "AVRO load not yet supported".into(),
@@ -1040,7 +1079,12 @@ impl<'a> PlanExecutor<'a> {
         }
     }
 
-    fn load_csv(&self, path: &str, schema: &Schema) -> Result<Vec<Vec<Value>>> {
+    fn load_csv(
+        &self,
+        path: &str,
+        schema: &Schema,
+        options: &LoadOptions,
+    ) -> Result<Vec<Vec<Value>>> {
         let file = File::open(path)
             .map_err(|e| Error::internal(format!("Failed to open file '{}': {}", path, e)))?;
         let reader = BufReader::new(file);
@@ -1051,12 +1095,29 @@ impl<'a> PlanExecutor<'a> {
             .map(|f| f.data_type.clone())
             .collect();
 
+        let delimiter = options
+            .field_delimiter
+            .as_ref()
+            .and_then(|d| {
+                if d == "\\t" || d == "\t" {
+                    Some('\t')
+                } else {
+                    d.chars().next()
+                }
+            })
+            .unwrap_or(',');
+
+        let null_marker = options.null_marker.as_deref();
+        let skip_rows = options.skip_leading_rows.unwrap_or(0) as usize;
+
         let mut rows = Vec::new();
-        let mut lines = reader.lines();
+        let lines = reader.lines();
 
-        let _header = lines.next();
+        for (idx, line) in lines.enumerate() {
+            if idx < skip_rows {
+                continue;
+            }
 
-        for line in lines {
             let line =
                 line.map_err(|e| Error::internal(format!("Failed to read CSV line: {}", e)))?;
             let trimmed = line.trim();
@@ -1064,14 +1125,18 @@ impl<'a> PlanExecutor<'a> {
                 continue;
             }
 
-            let parts: Vec<&str> = trimmed.split(',').collect();
+            let parts = Self::parse_csv_line(trimmed, delimiter);
             let mut row_values = Vec::with_capacity(target_types.len());
 
             for (i, part) in parts.iter().enumerate() {
                 if i >= target_types.len() {
                     break;
                 }
-                let value = self.csv_string_to_value(part.trim(), &target_types[i])?;
+                let value = if null_marker.is_some_and(|nm| part == nm) {
+                    Value::null()
+                } else {
+                    self.csv_string_to_value(part, &target_types[i])?
+                };
                 row_values.push(value);
             }
 
@@ -1083,6 +1148,35 @@ impl<'a> PlanExecutor<'a> {
         }
 
         Ok(rows)
+    }
+
+    fn parse_csv_line(line: &str, delimiter: char) -> Vec<String> {
+        let mut fields = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let mut chars = line.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '"' {
+                if in_quotes {
+                    if chars.peek() == Some(&'"') {
+                        chars.next();
+                        current.push('"');
+                    } else {
+                        in_quotes = false;
+                    }
+                } else {
+                    in_quotes = true;
+                }
+            } else if c == delimiter && !in_quotes {
+                fields.push(current.trim().to_string());
+                current = String::new();
+            } else {
+                current.push(c);
+            }
+        }
+        fields.push(current.trim().to_string());
+        fields
     }
 
     fn csv_string_to_value(&self, s: &str, target_type: &DataType) -> Result<Value> {
@@ -1446,9 +1540,11 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
         PhysicalPlan::CreateSchema {
             name,
             if_not_exists,
+            or_replace,
         } => LogicalPlan::CreateSchema {
             name: name.clone(),
             if_not_exists: *if_not_exists,
+            or_replace: *or_replace,
         },
         PhysicalPlan::DropSchema {
             name,
@@ -1645,6 +1741,41 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
             resource_type: resource_type.clone(),
             resource_name: resource_name.clone(),
             grantees: grantees.clone(),
+        },
+        PhysicalPlan::BeginTransaction => LogicalPlan::BeginTransaction,
+        PhysicalPlan::Commit => LogicalPlan::Commit,
+        PhysicalPlan::Rollback => LogicalPlan::Rollback,
+        PhysicalPlan::TryCatch {
+            try_block,
+            catch_block,
+        } => LogicalPlan::TryCatch {
+            try_block: try_block
+                .iter()
+                .map(executor_plan_to_logical_plan)
+                .collect(),
+            catch_block: catch_block
+                .iter()
+                .map(executor_plan_to_logical_plan)
+                .collect(),
+        },
+        PhysicalPlan::GapFill {
+            input,
+            ts_column,
+            bucket_width,
+            value_columns,
+            partitioning_columns,
+            origin,
+            input_schema,
+            schema,
+        } => LogicalPlan::GapFill {
+            input: Box::new(executor_plan_to_logical_plan(input)),
+            ts_column: ts_column.clone(),
+            bucket_width: bucket_width.clone(),
+            value_columns: value_columns.clone(),
+            partitioning_columns: partitioning_columns.clone(),
+            origin: origin.clone(),
+            input_schema: input_schema.clone(),
+            schema: schema.clone(),
         },
     }
 }

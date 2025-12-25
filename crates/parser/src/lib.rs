@@ -161,11 +161,24 @@ fn try_parse_load_data(sql: &str) -> Result<Option<LogicalPlan>> {
         .map(|s| s.to_uppercase() == "TRUE")
         .unwrap_or(false);
 
+    let field_delimiter = extract_option(options_str, "FIELD_DELIMITER")
+        .or_else(|| extract_option(options_str, "field_delimiter"));
+
+    let skip_leading_rows = extract_option(options_str, "SKIP_LEADING_ROWS")
+        .or_else(|| extract_option(options_str, "skip_leading_rows"))
+        .and_then(|s| s.parse::<u64>().ok());
+
+    let null_marker = extract_option(options_str, "NULL_MARKER")
+        .or_else(|| extract_option(options_str, "null_marker"));
+
     let options = LoadOptions {
         uris,
         format,
         overwrite,
         allow_schema_update,
+        field_delimiter,
+        skip_leading_rows,
+        null_marker,
     };
 
     let temp_schema = if is_temp_table && !column_defs.is_empty() {

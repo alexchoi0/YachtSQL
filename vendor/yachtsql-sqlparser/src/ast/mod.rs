@@ -3380,6 +3380,14 @@ pub enum Statement {
         sql_security: Option<SqlSecurity>,
     },
     /// ```sql
+    /// CREATE MATERIALIZED VIEW REPLICA name AS REPLICA OF source
+    /// ```
+    CreateMaterializedViewReplica {
+        name: ObjectName,
+        source: ObjectName,
+        if_not_exists: bool,
+    },
+    /// ```sql
     /// CREATE TABLE
     /// ```
     CreateTable(CreateTable),
@@ -3575,6 +3583,7 @@ pub enum Statement {
         #[cfg_attr(feature = "visitor", visit(with = "visit_relation"))]
         name: ObjectName,
         options: Vec<SqlOption>,
+        operations: Vec<AlterViewOperation>,
     },
     /// ```sql
     /// ALTER VIEW ... SET OPTIONS / ALTER COLUMN (BigQuery-style)
@@ -4039,6 +4048,7 @@ pub enum Statement {
         /// `<schema name> | AUTHORIZATION <schema authorization identifier>  | <schema name>  AUTHORIZATION <schema authorization identifier>`
         schema_name: SchemaName,
         if_not_exists: bool,
+        or_replace: bool,
         /// Schema properties.
         ///
         /// ```sql
@@ -5255,6 +5265,17 @@ impl fmt::Display for Statement {
                 }
                 Ok(())
             }
+            Statement::CreateMaterializedViewReplica {
+                name,
+                source,
+                if_not_exists,
+            } => {
+                write!(f, "CREATE MATERIALIZED VIEW REPLICA ")?;
+                if *if_not_exists {
+                    write!(f, "IF NOT EXISTS ")?;
+                }
+                write!(f, "{name} AS REPLICA OF {source}")
+            }
             Statement::CreateTable(create_table) => create_table.fmt(f),
             Statement::LoadData {
                 local,
@@ -5677,10 +5698,13 @@ impl fmt::Display for Statement {
                 }
                 write!(f, " AS {query}")
             }
-            Statement::AlterMaterializedView { name, options } => {
+            Statement::AlterMaterializedView { name, options, operations } => {
                 write!(f, "ALTER MATERIALIZED VIEW {name}")?;
                 if !options.is_empty() {
                     write!(f, " SET OPTIONS ({})", display_comma_separated(options))?;
+                }
+                for operation in operations {
+                    write!(f, " {}", operation)?;
                 }
                 Ok(())
             }
@@ -6106,6 +6130,7 @@ impl fmt::Display for Statement {
             Statement::CreateSchema {
                 schema_name,
                 if_not_exists,
+                or_replace,
                 with,
                 options,
                 default_collate_spec,
@@ -6113,7 +6138,8 @@ impl fmt::Display for Statement {
             } => {
                 write!(
                     f,
-                    "CREATE SCHEMA {if_not_exists}{name}",
+                    "CREATE {or_replace}SCHEMA {if_not_exists}{name}",
+                    or_replace = if *or_replace { "OR REPLACE " } else { "" },
                     if_not_exists = if *if_not_exists { "IF NOT EXISTS " } else { "" },
                     name = schema_name
                 )?;

@@ -4892,7 +4892,11 @@ impl<'a> Parser<'a> {
         } else if self.parse_keyword(Keyword::POLICY) {
             self.parse_create_policy()
         } else if self.parse_keyword(Keyword::EXTERNAL) {
-            self.parse_create_external_table(or_replace)
+            if self.parse_keyword(Keyword::SCHEMA) {
+                self.parse_create_external_schema()
+            } else {
+                self.parse_create_external_table(or_replace)
+            }
         } else if self.parse_keywords(&[Keyword::AGGREGATE, Keyword::FUNCTION]) {
             self.parse_create_function_with_aggregate(or_alter, or_replace, temporary, true)
         } else if self.parse_keyword(Keyword::FUNCTION) {
@@ -4915,9 +4919,11 @@ impl<'a> Parser<'a> {
             self.parse_create_vector_index(or_replace)
         } else if self.parse_keywords(&[Keyword::ROW, Keyword::ACCESS, Keyword::POLICY]) {
             self.parse_create_row_access_policy(or_replace)
+        } else if self.parse_keyword(Keyword::SCHEMA) {
+            self.parse_create_schema(or_replace)
         } else if or_replace {
             self.expected(
-                "[EXTERNAL] TABLE or [MATERIALIZED] VIEW or FUNCTION after CREATE OR REPLACE",
+                "[EXTERNAL] TABLE or [MATERIALIZED] VIEW or FUNCTION or SCHEMA after CREATE OR REPLACE",
                 self.peek_token(),
             )
         } else if self.parse_keyword(Keyword::EXTENSION) {
@@ -4928,8 +4934,6 @@ impl<'a> Parser<'a> {
             self.parse_create_index(true)
         } else if self.parse_keyword(Keyword::VIRTUAL) {
             self.parse_create_virtual_table()
-        } else if self.parse_keyword(Keyword::SCHEMA) {
-            self.parse_create_schema()
         } else if self.parse_keyword(Keyword::DATABASE) {
             self.parse_create_database()
         } else if self.parse_keyword(Keyword::ROLE) {
@@ -5155,7 +5159,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    pub fn parse_create_schema(&mut self) -> Result<Statement, ParserError> {
+    pub fn parse_create_schema(&mut self, or_replace: bool) -> Result<Statement, ParserError> {
         let if_not_exists = self.parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
 
         let schema_name = self.parse_schema_name()?;
@@ -5187,10 +5191,31 @@ impl<'a> Parser<'a> {
         Ok(Statement::CreateSchema {
             schema_name,
             if_not_exists,
+            or_replace,
             with,
             options,
             default_collate_spec,
             clone,
+        })
+    }
+
+    pub fn parse_create_external_schema(&mut self) -> Result<Statement, ParserError> {
+        let schema_name = self.parse_schema_name()?;
+
+        let options = if self.peek_keyword(Keyword::OPTIONS) {
+            Some(self.parse_options(Keyword::OPTIONS)?)
+        } else {
+            None
+        };
+
+        Ok(Statement::CreateSchema {
+            schema_name,
+            if_not_exists: false,
+            or_replace: false,
+            with: None,
+            options,
+            default_collate_spec: None,
+            clone: None,
         })
     }
 
@@ -6150,12 +6175,25 @@ impl<'a> Parser<'a> {
         let secure = self.parse_keyword(Keyword::SECURE);
         let materialized = self.parse_keyword(Keyword::MATERIALIZED);
         self.expect_keyword_is(Keyword::VIEW)?;
+
+        let is_replica = materialized && self.parse_keyword(Keyword::REPLICA);
+
         let allow_unquoted_hyphen = dialect_of!(self is BigQueryDialect);
         // Tries to parse IF NOT EXISTS either before name or after name
         // Name before IF NOT EXISTS is supported by snowflake but undocumented
         let if_not_exists_first =
             self.parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
         let name = self.parse_object_name(allow_unquoted_hyphen)?;
+
+        if is_replica {
+            self.expect_keywords(&[Keyword::AS, Keyword::REPLICA, Keyword::OF])?;
+            let source = self.parse_object_name(allow_unquoted_hyphen)?;
+            return Ok(Statement::CreateMaterializedViewReplica {
+                name,
+                source,
+                if_not_exists: if_not_exists_first,
+            });
+        }
         let name_before_not_exists = !if_not_exists_first
             && self.parse_keywords(&[Keyword::IF, Keyword::NOT, Keyword::EXISTS]);
         let if_not_exists = if_not_exists_first || name_before_not_exists;
@@ -6731,6 +6769,8 @@ impl<'a> Parser<'a> {
         } else if self.parse_keyword(Keyword::ROLE) {
             ObjectType::Role
         } else if self.parse_keyword(Keyword::SCHEMA) {
+            ObjectType::Schema
+        } else if self.parse_keywords(&[Keyword::EXTERNAL, Keyword::SCHEMA]) {
             ObjectType::Schema
         } else if self.parse_keyword(Keyword::DATABASE) {
             ObjectType::Database
@@ -9956,8 +9996,30 @@ impl<'a> Parser<'a> {
 
     pub fn parse_alter_materialized_view(&mut self) -> Result<Statement, ParserError> {
         let name = self.parse_object_name(false)?;
-        let options = self.parse_options_with_keywords(&[Keyword::SET, Keyword::OPTIONS])?;
-        Ok(Statement::AlterMaterializedView { name, options })
+        let mut operations = vec![];
+        let mut options = vec![];
+
+        loop {
+            if self.parse_keywords(&[Keyword::SET, Keyword::OPTIONS]) {
+                self.expect_token(&Token::LParen)?;
+                options = self.parse_comma_separated(Parser::parse_sql_option)?;
+                self.expect_token(&Token::RParen)?;
+            } else if self.parse_keywords(&[Keyword::ALTER, Keyword::COLUMN]) {
+                let column_name = self.parse_identifier()?;
+                self.expect_keywords(&[Keyword::SET, Keyword::OPTIONS])?;
+                self.expect_token(&Token::LParen)?;
+                let col_options = self.parse_comma_separated(Parser::parse_sql_option)?;
+                self.expect_token(&Token::RParen)?;
+                operations.push(AlterViewOperation::AlterColumn {
+                    column_name,
+                    operation: AlterColumnOperation::SetOptions { options: col_options },
+                });
+            } else {
+                break;
+            }
+        }
+
+        Ok(Statement::AlterMaterializedView { name, options, operations })
     }
 
     /// Parse a [Statement::AlterType]

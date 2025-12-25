@@ -187,7 +187,12 @@ fn collect_union_terms(
         | LogicalPlan::Sample { .. }
         | LogicalPlan::Assert { .. }
         | LogicalPlan::Grant { .. }
-        | LogicalPlan::Revoke { .. } => {
+        | LogicalPlan::Revoke { .. }
+        | LogicalPlan::BeginTransaction
+        | LogicalPlan::Commit
+        | LogicalPlan::Rollback
+        | LogicalPlan::TryCatch { .. }
+        | LogicalPlan::GapFill { .. } => {
             if references_table(plan, cte_name) {
                 recursives.push(plan.clone());
             } else {
@@ -276,5 +281,16 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
         LogicalPlan::Assert { .. } => false,
         LogicalPlan::Grant { .. } => false,
         LogicalPlan::Revoke { .. } => false,
+        LogicalPlan::BeginTransaction => false,
+        LogicalPlan::Commit => false,
+        LogicalPlan::Rollback => false,
+        LogicalPlan::TryCatch {
+            try_block,
+            catch_block,
+        } => {
+            try_block.iter().any(|p| references_table(p, table_name))
+                || catch_block.iter().any(|p| references_table(p, table_name))
+        }
+        LogicalPlan::GapFill { input, .. } => references_table(input, table_name),
     }
 }

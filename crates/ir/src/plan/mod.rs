@@ -189,6 +189,7 @@ pub enum LogicalPlan {
     CreateSchema {
         name: String,
         if_not_exists: bool,
+        or_replace: bool,
     },
 
     DropSchema {
@@ -333,6 +334,28 @@ pub enum LogicalPlan {
         resource_name: String,
         grantees: Vec<String>,
     },
+
+    BeginTransaction,
+
+    Commit,
+
+    Rollback,
+
+    TryCatch {
+        try_block: Vec<LogicalPlan>,
+        catch_block: Vec<LogicalPlan>,
+    },
+
+    GapFill {
+        input: Box<LogicalPlan>,
+        ts_column: String,
+        bucket_width: Expr,
+        value_columns: Vec<GapFillColumn>,
+        partitioning_columns: Vec<String>,
+        origin: Option<Expr>,
+        input_schema: PlanSchema,
+        schema: PlanSchema,
+    },
 }
 
 impl LogicalPlan {
@@ -391,6 +414,11 @@ impl LogicalPlan {
             LogicalPlan::Assert { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Grant { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Revoke { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::BeginTransaction => &EMPTY_SCHEMA,
+            LogicalPlan::Commit => &EMPTY_SCHEMA,
+            LogicalPlan::Rollback => &EMPTY_SCHEMA,
+            LogicalPlan::TryCatch { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::GapFill { schema, .. } => schema,
         }
     }
 

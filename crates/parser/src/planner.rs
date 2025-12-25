@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use regex::Regex;
 use sqlparser::ast::{
     self, ObjectName, ObjectNamePart, SetExpr, Statement, TableFactor, TableObject,
 };
@@ -9,8 +10,9 @@ use yachtsql_common::types::{DataType, StructField};
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
     CteDefinition, DateTimeField, DclResourceType, ExportFormat, ExportOptions, Expr, FunctionArg,
-    FunctionBody, JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
-    ProcedureArgMode, RaiseLevel, SampleType, SetOperationType, SortExpr, TableConstraint,
+    FunctionBody, GapFillColumn, GapFillStrategy, JoinType, Literal, LogicalPlan, MergeClause,
+    PlanField, PlanSchema, ProcedureArg, ProcedureArgMode, RaiseLevel, SampleType,
+    SetOperationType, SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
 
@@ -78,8 +80,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::CreateSchema {
                 schema_name,
                 if_not_exists,
+                or_replace,
                 ..
-            } => self.plan_create_schema(schema_name, *if_not_exists),
+            } => self.plan_create_schema(schema_name, *if_not_exists, *or_replace),
             Statement::AlterSchema(alter_schema) => self.plan_alter_schema(alter_schema),
             Statement::UndropSchema {
                 if_not_exists,
@@ -124,6 +127,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::DropAllRowAccessPolicies { .. } => Ok(LogicalPlan::Empty {
                 schema: PlanSchema::new(),
             }),
+            Statement::CreateMaterializedViewReplica { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
             Statement::CreateView {
                 name,
                 columns,
@@ -157,15 +163,41 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 clauses,
                 ..
             } => self.plan_merge(table, source, on, clauses),
-            Statement::StartTransaction { .. } => Ok(LogicalPlan::Empty {
-                schema: PlanSchema::new(),
-            }),
-            Statement::Commit { .. } => Ok(LogicalPlan::Empty {
-                schema: PlanSchema::new(),
-            }),
-            Statement::Rollback { .. } => Ok(LogicalPlan::Empty {
-                schema: PlanSchema::new(),
-            }),
+            Statement::StartTransaction {
+                statements,
+                exception,
+                ..
+            } => {
+                if !statements.is_empty() || exception.is_some() {
+                    let try_block: Vec<LogicalPlan> = statements
+                        .iter()
+                        .map(|stmt| self.plan_statement(stmt))
+                        .collect::<Result<Vec<_>>>()?;
+
+                    if let Some(exception_whens) = exception {
+                        let catch_block: Vec<LogicalPlan> = exception_whens
+                            .iter()
+                            .flat_map(|ew| &ew.statements)
+                            .map(|stmt| self.plan_statement(stmt))
+                            .collect::<Result<Vec<_>>>()?;
+
+                        Ok(LogicalPlan::TryCatch {
+                            try_block,
+                            catch_block,
+                        })
+                    } else {
+                        Ok(LogicalPlan::If {
+                            condition: yachtsql_ir::Expr::Literal(yachtsql_ir::Literal::Bool(true)),
+                            then_branch: try_block,
+                            else_branch: None,
+                        })
+                    }
+                } else {
+                    Ok(LogicalPlan::BeginTransaction)
+                }
+            }
+            Statement::Commit { .. } => Ok(LogicalPlan::Commit),
+            Statement::Rollback { .. } => Ok(LogicalPlan::Rollback),
             Statement::CreateProcedure {
                 or_alter,
                 if_not_exists,
@@ -838,6 +870,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 let table_name_upper = table_name.to_uppercase();
 
                 let base_plan = if let Some(tbl_args) = args {
+                    if table_name_upper == "GAP_FILL" {
+                        return self.plan_gap_fill(tbl_args, alias);
+                    }
                     if let Some(func_def) = self.catalog.get_function(&table_name) {
                         match &func_def.body {
                             FunctionBody::Sql(body_expr) => match body_expr.as_ref() {
@@ -918,9 +953,15 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
                                 let mut substituted_query = query_str.clone();
                                 for (param_name, value) in &param_bindings {
-                                    substituted_query = substituted_query
-                                        .replace(&param_name.to_lowercase(), value)
-                                        .replace(param_name, value);
+                                    let pattern_lower = format!(
+                                        r"(?i)\b{}\b",
+                                        regex::escape(&param_name.to_lowercase())
+                                    );
+                                    if let Ok(re) = Regex::new(&pattern_lower) {
+                                        substituted_query = re
+                                            .replace_all(&substituted_query, value.as_str())
+                                            .to_string();
+                                    }
                                 }
 
                                 let parsed = parse_sql(&substituted_query)?;
@@ -3577,6 +3618,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         &self,
         schema_name: &ast::SchemaName,
         if_not_exists: bool,
+        or_replace: bool,
     ) -> Result<LogicalPlan> {
         let name = match schema_name {
             ast::SchemaName::Simple(name) => object_name_to_raw_string(name),
@@ -3586,6 +3628,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         Ok(LogicalPlan::CreateSchema {
             name,
             if_not_exists,
+            or_replace,
         })
     }
 
@@ -3604,7 +3647,18 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         }
                     }
                 }
-                _ => {
+                ast::AlterSchemaOperation::SetDefaultCollate { collate } => {
+                    let collate_str = self.extract_sql_option_value(collate);
+                    options.push(("default_collate".to_string(), collate_str));
+                }
+                ast::AlterSchemaOperation::Rename { name: new_name } => {
+                    options.push(("rename_to".to_string(), new_name.to_string()));
+                }
+                ast::AlterSchemaOperation::OwnerTo { owner } => {
+                    options.push(("owner".to_string(), owner.to_string()));
+                }
+                ast::AlterSchemaOperation::AddReplica { .. }
+                | ast::AlterSchemaOperation::DropReplica { .. } => {
                     return Err(Error::unsupported(format!(
                         "ALTER SCHEMA operation not supported: {:?}",
                         operation
@@ -5843,5 +5897,225 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .iter()
             .filter_map(|g| g.name.as_ref().map(|n| format!("{}", n)))
             .collect())
+    }
+
+    fn plan_gap_fill(
+        &self,
+        args: &ast::TableFunctionArgs,
+        _alias: &Option<ast::TableAlias>,
+    ) -> Result<LogicalPlan> {
+        let mut input_plan: Option<LogicalPlan> = None;
+        let mut ts_column: Option<String> = None;
+        let mut bucket_width: Option<Expr> = None;
+        let mut value_columns: Vec<GapFillColumn> = Vec::new();
+        let mut partitioning_columns: Vec<String> = Vec::new();
+        let mut origin: Option<Expr> = None;
+
+        for arg in &args.args {
+            match arg {
+                ast::FunctionArg::Unnamed(arg_expr) => match arg_expr {
+                    ast::FunctionArgExpr::TableRef(table_name) => {
+                        let name_str = object_name_to_raw_string(table_name);
+                        if let Some(schema) = self.catalog.get_table_schema(&name_str) {
+                            let plan_schema =
+                                self.storage_schema_to_plan_schema(&schema, Some(&name_str));
+                            input_plan = Some(LogicalPlan::Scan {
+                                table_name: name_str.clone(),
+                                schema: plan_schema,
+                                projection: None,
+                            });
+                        } else {
+                            return Err(Error::invalid_query(format!(
+                                "Table not found: {}",
+                                name_str
+                            )));
+                        }
+                    }
+                    ast::FunctionArgExpr::Expr(ast::Expr::Subquery(query)) => {
+                        input_plan = Some(self.plan_query(query)?);
+                    }
+                    ast::FunctionArgExpr::Expr(_) => {}
+                    _ => {}
+                },
+                ast::FunctionArg::Named { name, arg, .. } => {
+                    let name_str = name.value.to_lowercase();
+                    match name_str.as_str() {
+                        "ts_column" => {
+                            if let ast::FunctionArgExpr::Expr(ast::Expr::Value(
+                                ast::ValueWithSpan {
+                                    value: ast::Value::SingleQuotedString(s),
+                                    ..
+                                },
+                            )) = arg
+                            {
+                                ts_column = Some(s.clone());
+                            }
+                        }
+                        "bucket_width" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                bucket_width = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        "value_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                value_columns = self.parse_gap_fill_value_columns(e)?;
+                            }
+                        }
+                        "partitioning_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                partitioning_columns = self.parse_gap_fill_partitioning(e)?;
+                            }
+                        }
+                        "origin" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                origin = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                ast::FunctionArg::ExprNamed { name, arg, .. } => {
+                    let name_str = match name {
+                        ast::Expr::Identifier(ident) => ident.value.to_lowercase(),
+                        _ => continue,
+                    };
+                    match name_str.as_str() {
+                        "ts_column" => {
+                            if let ast::FunctionArgExpr::Expr(ast::Expr::Value(
+                                ast::ValueWithSpan {
+                                    value: ast::Value::SingleQuotedString(s),
+                                    ..
+                                },
+                            )) = arg
+                            {
+                                ts_column = Some(s.clone());
+                            }
+                        }
+                        "bucket_width" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                bucket_width = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        "value_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                value_columns = self.parse_gap_fill_value_columns(e)?;
+                            }
+                        }
+                        "partitioning_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                partitioning_columns = self.parse_gap_fill_partitioning(e)?;
+                            }
+                        }
+                        "origin" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                origin = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let input =
+            input_plan.ok_or_else(|| Error::invalid_query("GAP_FILL requires a table input"))?;
+        let ts_col =
+            ts_column.ok_or_else(|| Error::invalid_query("GAP_FILL requires ts_column"))?;
+        let bucket =
+            bucket_width.ok_or_else(|| Error::invalid_query("GAP_FILL requires bucket_width"))?;
+
+        let input_schema = input.schema().clone();
+        let mut output_fields = Vec::new();
+
+        for field in &input_schema.fields {
+            if field.name.to_uppercase() == ts_col.to_uppercase() {
+                output_fields.push(field.clone());
+            }
+        }
+
+        for field in &input_schema.fields {
+            if partitioning_columns
+                .iter()
+                .any(|p| p.to_uppercase() == field.name.to_uppercase())
+            {
+                output_fields.push(field.clone());
+            }
+        }
+
+        for vc in &value_columns {
+            for field in &input_schema.fields {
+                if field.name.to_uppercase() == vc.column_name.to_uppercase() {
+                    output_fields.push(field.clone());
+                    break;
+                }
+            }
+        }
+
+        let schema = PlanSchema {
+            fields: output_fields,
+        };
+
+        Ok(LogicalPlan::GapFill {
+            input: Box::new(input),
+            ts_column: ts_col,
+            bucket_width: bucket,
+            value_columns,
+            partitioning_columns,
+            origin,
+            input_schema: input_schema.clone(),
+            schema,
+        })
+    }
+
+    fn parse_gap_fill_value_columns(&self, expr: &ast::Expr) -> Result<Vec<GapFillColumn>> {
+        let mut columns = Vec::new();
+        if let ast::Expr::Array(ast::Array { elem, .. }) = expr {
+            for e in elem {
+                if let ast::Expr::Tuple(items) = e
+                    && items.len() == 2
+                {
+                    let col_name = match &items[0] {
+                        ast::Expr::Value(ast::ValueWithSpan {
+                            value: ast::Value::SingleQuotedString(s),
+                            ..
+                        }) => s.clone(),
+                        _ => continue,
+                    };
+                    let strategy = match &items[1] {
+                        ast::Expr::Value(ast::ValueWithSpan {
+                            value: ast::Value::SingleQuotedString(s),
+                            ..
+                        }) => match s.to_lowercase().as_str() {
+                            "null" => GapFillStrategy::Null,
+                            "locf" => GapFillStrategy::Locf,
+                            "linear" => GapFillStrategy::Linear,
+                            _ => GapFillStrategy::Null,
+                        },
+                        _ => GapFillStrategy::Null,
+                    };
+                    columns.push(GapFillColumn {
+                        column_name: col_name,
+                        strategy,
+                    });
+                }
+            }
+        }
+        Ok(columns)
+    }
+
+    fn parse_gap_fill_partitioning(&self, expr: &ast::Expr) -> Result<Vec<String>> {
+        let mut columns = Vec::new();
+        if let ast::Expr::Array(ast::Array { elem, .. }) = expr {
+            for e in elem {
+                if let ast::Expr::Value(ast::ValueWithSpan {
+                    value: ast::Value::SingleQuotedString(s),
+                    ..
+                }) = e
+                {
+                    columns.push(s.clone());
+                }
+            }
+        }
+        Ok(columns)
     }
 }

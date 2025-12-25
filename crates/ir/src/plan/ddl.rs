@@ -101,6 +101,9 @@ pub struct LoadOptions {
     pub format: LoadFormat,
     pub overwrite: bool,
     pub allow_schema_update: bool,
+    pub field_delimiter: Option<String>,
+    pub skip_leading_rows: Option<u64>,
+    pub null_marker: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -141,4 +144,17 @@ pub enum DclResourceType {
     Table,
     View,
     ExternalTable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum GapFillStrategy {
+    Null,
+    Locf,
+    Linear,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GapFillColumn {
+    pub column_name: String,
+    pub strategy: GapFillStrategy,
 }
