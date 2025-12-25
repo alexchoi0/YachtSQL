@@ -662,7 +662,7 @@ impl PhysicalPlanner {
             } => {
                 let try_block = try_block
                     .iter()
-                    .map(|p| self.plan(p))
+                    .map(|(p, sql)| Ok((self.plan(p)?, sql.clone())))
                     .collect::<Result<Vec<_>>>()?;
                 let catch_block = catch_block
                     .iter()
@@ -1169,7 +1169,10 @@ impl OptimizedLogicalPlan {
                 try_block,
                 catch_block,
             } => LogicalPlan::TryCatch {
-                try_block: try_block.into_iter().map(|p| p.into_logical()).collect(),
+                try_block: try_block
+                    .into_iter()
+                    .map(|(p, sql)| (p.into_logical(), sql))
+                    .collect(),
                 catch_block: catch_block.into_iter().map(|p| p.into_logical()).collect(),
             },
             OptimizedLogicalPlan::GapFill {

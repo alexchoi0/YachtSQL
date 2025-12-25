@@ -403,7 +403,6 @@ fn test_conversion_funnel() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_order_status_breakdown() {
     let mut session = create_session();
     setup_ecommerce_schema(&mut session);
@@ -430,7 +429,6 @@ fn test_order_status_breakdown() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_daily_sales_trend() {
     let mut session = create_session();
     setup_ecommerce_schema(&mut session);
@@ -568,7 +566,6 @@ fn test_average_basket_composition() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_customer_acquisition_by_month() {
     let mut session = create_session();
     setup_ecommerce_schema(&mut session);

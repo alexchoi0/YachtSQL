@@ -398,7 +398,7 @@ pub enum PhysicalPlan {
     Rollback,
 
     TryCatch {
-        try_block: Vec<PhysicalPlan>,
+        try_block: Vec<(PhysicalPlan, Option<String>)>,
         catch_block: Vec<PhysicalPlan>,
     },
 
@@ -948,7 +948,10 @@ impl PhysicalPlan {
                 try_block,
                 catch_block,
             } => PhysicalPlan::TryCatch {
-                try_block: try_block.iter().map(PhysicalPlan::from_physical).collect(),
+                try_block: try_block
+                    .iter()
+                    .map(|(p, sql)| (PhysicalPlan::from_physical(p), sql.clone()))
+                    .collect(),
                 catch_block: catch_block
                     .iter()
                     .map(PhysicalPlan::from_physical)

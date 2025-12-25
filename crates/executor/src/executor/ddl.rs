@@ -1777,7 +1777,7 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
         } => LogicalPlan::TryCatch {
             try_block: try_block
                 .iter()
-                .map(executor_plan_to_logical_plan)
+                .map(|(p, sql)| (executor_plan_to_logical_plan(p), sql.clone()))
                 .collect(),
             catch_block: catch_block
                 .iter()

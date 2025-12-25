@@ -696,7 +696,6 @@ fn test_exception_error_message() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_exception_statement_text() {
     let mut session = create_session();
 

@@ -363,7 +363,7 @@ pub enum LogicalPlan {
     Rollback,
 
     TryCatch {
-        try_block: Vec<LogicalPlan>,
+        try_block: Vec<(LogicalPlan, Option<String>)>,
         catch_block: Vec<LogicalPlan>,
     },
 

@@ -426,24 +426,22 @@ impl<'a> PlanExecutor<'a> {
 
     fn execute_try_catch(
         &mut self,
-        try_block: &[PhysicalPlan],
+        try_block: &[(PhysicalPlan, Option<String>)],
         catch_block: &[PhysicalPlan],
     ) -> Result<Table> {
         let mut last_result = Table::empty(Schema::new());
 
-        for plan in try_block {
+        for (plan, source_sql) in try_block {
             match self.execute_plan(plan) {
                 Ok(result) => {
                     last_result = result;
                 }
                 Err(e) => {
                     let error_message = e.to_string();
+                    let stmt_text = source_sql.clone().unwrap_or_else(|| format!("{:?}", plan));
                     let error_struct = Value::Struct(vec![
                         ("message".to_string(), Value::String(error_message.clone())),
-                        (
-                            "statement_text".to_string(),
-                            Value::String(format!("{:?}", plan)),
-                        ),
+                        ("statement_text".to_string(), Value::String(stmt_text)),
                     ]);
                     self.variables
                         .insert("@@ERROR".to_string(), error_struct.clone());

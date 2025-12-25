@@ -294,7 +294,9 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
             try_block,
             catch_block,
         } => {
-            try_block.iter().any(|p| references_table(p, table_name))
+            try_block
+                .iter()
+                .any(|(p, _)| references_table(p, table_name))
                 || catch_block.iter().any(|p| references_table(p, table_name))
         }
         LogicalPlan::GapFill { input, .. } => references_table(input, table_name),
