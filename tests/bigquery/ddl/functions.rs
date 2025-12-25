@@ -263,7 +263,6 @@ fn test_procedure_with_out_param() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_inout_param() {
     let mut session = create_session();
 
@@ -284,7 +283,6 @@ fn test_procedure_with_inout_param() {
 }
 
 #[test]
-#[ignore]
 fn test_function_with_struct_return() {
     let mut session = create_session();
 
@@ -332,7 +330,6 @@ fn test_function_nested_call() {
 }
 
 #[test]
-#[ignore]
 fn test_create_aggregate_function() {
     let mut session = create_session();
 
@@ -361,7 +358,6 @@ fn test_create_aggregate_function() {
 }
 
 #[test]
-#[ignore]
 fn test_create_aggregate_function_with_multiple_args() {
     let mut session = create_session();
 
@@ -390,7 +386,6 @@ fn test_create_aggregate_function_with_multiple_args() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_aggregate_function() {
     let mut session = create_session();
 
@@ -412,7 +407,6 @@ fn test_create_or_replace_aggregate_function() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_aggregate_function() {
     let mut session = create_session();
 
@@ -433,7 +427,6 @@ fn test_drop_aggregate_function() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_function() {
     let mut session = create_session();
 
@@ -455,7 +448,6 @@ fn test_create_table_function() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_function_any_type() {
     let mut session = create_session();
 
@@ -477,7 +469,6 @@ fn test_create_table_function_any_type() {
 }
 
 #[test]
-#[ignore]
 fn test_create_or_replace_table_function() {
     let mut session = create_session();
 
@@ -502,7 +493,6 @@ fn test_create_or_replace_table_function() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_table_function() {
     let mut session = create_session();
 
@@ -559,7 +549,6 @@ fn test_create_function_javascript() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_remote() {
     let mut session = create_session();
 
@@ -595,7 +584,6 @@ fn test_procedure_with_declare() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_if() {
     let mut session = create_session();
 
@@ -661,7 +649,6 @@ fn test_procedure_with_exception_handling() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_if_not_exists() {
     let mut session = create_session();
 
@@ -722,7 +709,6 @@ fn test_create_function_not_deterministic() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_with_security_definer() {
     let mut session = create_session();
 
@@ -740,7 +726,6 @@ fn test_create_function_with_security_definer() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_with_security_invoker() {
     let mut session = create_session();
 
@@ -772,7 +757,6 @@ fn test_create_function_with_data_governance() {
 }
 
 #[test]
-#[ignore]
 fn test_create_aggregate_function_with_over() {
     let mut session = create_session();
 
@@ -801,7 +785,6 @@ fn test_create_aggregate_function_with_over() {
 }
 
 #[test]
-#[ignore]
 fn test_create_aggregate_function_with_filter() {
     let mut session = create_session();
 
@@ -828,7 +811,6 @@ fn test_create_aggregate_function_with_filter() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_function_with_multiple_params() {
     let mut session = create_session();
 
@@ -849,7 +831,6 @@ fn test_create_table_function_with_multiple_params() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_function_with_struct_output() {
     let mut session = create_session();
 
@@ -889,7 +870,6 @@ fn test_create_function_with_any_type() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_with_lambda() {
     let mut session = create_session();
 
@@ -943,7 +923,6 @@ fn test_drop_function_with_signature() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_returns_table() {
     let mut session = create_session();
 
@@ -964,7 +943,6 @@ fn test_create_function_returns_table() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_for_loop() {
     let mut session = create_session();
 
@@ -986,7 +964,6 @@ fn test_procedure_with_for_loop() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_repeat() {
     let mut session = create_session();
 
@@ -1011,7 +988,6 @@ fn test_procedure_with_repeat() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_case_statement() {
     let mut session = create_session();
 
@@ -1033,7 +1009,6 @@ fn test_procedure_with_case_statement() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_leave() {
     let mut session = create_session();
 
@@ -1058,7 +1033,6 @@ fn test_procedure_with_leave() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_iterate() {
     let mut session = create_session();
 
@@ -1088,7 +1062,6 @@ fn test_procedure_with_iterate() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_raise() {
     let mut session = create_session();
 
@@ -1137,7 +1110,6 @@ fn test_procedure_with_transaction() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_rollback() {
     let mut session = create_session();
 
@@ -1165,7 +1137,6 @@ fn test_procedure_with_rollback() {
 }
 
 #[test]
-#[ignore]
 fn test_create_function_python() {
     let mut session = create_session();
 
@@ -1186,7 +1157,6 @@ def py_add(x, y):
 }
 
 #[test]
-#[ignore]
 fn test_create_function_python_with_dependencies() {
     let mut session = create_session();
 
@@ -1223,7 +1193,6 @@ fn test_create_function_javascript_with_library() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_function_set_options() {
     let mut session = create_session();
 
@@ -1237,7 +1206,6 @@ fn test_alter_function_set_options() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_procedure_set_options() {
     let mut session = create_session();
 
@@ -1256,7 +1224,6 @@ fn test_alter_procedure_set_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_aggregate_function_if_not_exists() {
     let mut session = create_session();
 
@@ -1278,7 +1245,6 @@ fn test_create_aggregate_function_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_create_table_function_if_not_exists() {
     let mut session = create_session();
 
@@ -1303,7 +1269,6 @@ fn test_create_table_function_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_table_function_if_exists() {
     let mut session = create_session();
 
@@ -1312,7 +1277,6 @@ fn test_drop_table_function_if_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_aggregate_function_if_exists() {
     let mut session = create_session();
 
@@ -1334,7 +1298,6 @@ fn test_create_function_with_qualified_types() {
 }
 
 #[test]
-#[ignore]
 fn test_function_with_default_parameter() {
     let mut session = create_session();
 
@@ -1356,7 +1319,6 @@ fn test_function_with_default_parameter() {
 }
 
 #[test]
-#[ignore]
 fn test_procedure_with_options() {
     let mut session = create_session();
 

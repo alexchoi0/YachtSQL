@@ -297,7 +297,6 @@ fn test_insert_select_with_unnest_simple() {
 }
 
 #[test]
-#[ignore]
 fn test_insert_select_with_unnest() {
     let mut session = create_session();
 
@@ -352,7 +351,6 @@ fn test_insert_select_with_cte_simple() {
 }
 
 #[test]
-#[ignore]
 fn test_insert_select_with_cte() {
     let mut session = create_session();
 
@@ -380,7 +378,6 @@ fn test_insert_select_with_cte() {
 }
 
 #[test]
-#[ignore]
 fn test_insert_with_nested_struct_simple() {
     let mut session = create_session();
 
@@ -410,7 +407,6 @@ fn test_insert_with_nested_struct_simple() {
 }
 
 #[test]
-#[ignore]
 fn test_insert_with_nested_struct() {
     let mut session = create_session();
 
@@ -585,7 +581,6 @@ fn test_insert_with_range_function() {
 }
 
 #[test]
-#[ignore]
 fn test_insert_with_range_type() {
     let mut session = create_session();
 

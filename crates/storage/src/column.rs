@@ -200,6 +200,45 @@ impl Column {
         }
     }
 
+    fn coerce_struct_value(
+        value_fields: Vec<(String, Value)>,
+        target_fields: &[(String, DataType)],
+    ) -> Vec<(String, Value)> {
+        value_fields
+            .into_iter()
+            .enumerate()
+            .map(|(i, (_, val))| {
+                let (new_name, new_type) = if i < target_fields.len() {
+                    (&target_fields[i].0, &target_fields[i].1)
+                } else {
+                    return (format!("_field{}", i), val);
+                };
+                let coerced_val = Self::coerce_value_for_type(val, new_type);
+                (new_name.clone(), coerced_val)
+            })
+            .collect()
+    }
+
+    fn coerce_value_for_type(value: Value, target_type: &DataType) -> Value {
+        match (value, target_type) {
+            (Value::Struct(fields), DataType::Struct(target_fields)) => {
+                let target_field_info: Vec<(String, DataType)> = target_fields
+                    .iter()
+                    .map(|f| (f.name.clone(), f.data_type.clone()))
+                    .collect();
+                Value::Struct(Self::coerce_struct_value(fields, &target_field_info))
+            }
+            (Value::Array(elements), DataType::Array(element_type)) => {
+                let coerced: Vec<Value> = elements
+                    .into_iter()
+                    .map(|e| Self::coerce_value_for_type(e, element_type))
+                    .collect();
+                Value::Array(coerced)
+            }
+            (v, _) => v,
+        }
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Column::Bool { data, .. } => data.len(),
@@ -812,8 +851,16 @@ impl Column {
                 data.push(Vec::new());
                 nulls.push(true);
             }
-            (Column::Struct { data, nulls, .. }, Value::Struct(v)) => {
-                data.push(v);
+            (
+                Column::Struct {
+                    data,
+                    nulls,
+                    fields,
+                },
+                Value::Struct(v),
+            ) => {
+                let coerced = Self::coerce_struct_value(v, fields);
+                data.push(coerced);
                 nulls.push(false);
             }
             (Column::Geography { data, nulls }, Value::Null) => {

@@ -566,7 +566,8 @@ impl<'a> Evaluator<'a> {
             Expr::BinaryOp { left, op, right } => {
                 let left_val = self.evaluate(left, record)?;
                 let right_val = self.evaluate(right, record)?;
-                self.evaluate_binary_op(&left_val, op, &right_val)
+                let collation = self.get_collation_for_expr(left).or_else(|| self.get_collation_for_expr(right));
+                self.evaluate_binary_op_with_collation(&left_val, op, &right_val, collation.as_deref())
             }
 
             Expr::UnaryOp { op, expr } => {
@@ -2254,11 +2255,37 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn evaluate_binary_op(
+    fn get_collation_for_expr(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::ColumnRef { name, table, .. } => {
+                let col_name = name.clone();
+                let table_prefix = table.clone();
+                let upper_col = col_name.to_uppercase();
+                for field in self.schema.fields() {
+                    if field.name.to_uppercase() == upper_col {
+                        if let Some(src) = &field.source_table {
+                            if let Some(ref prefix) = table_prefix {
+                                if prefix.to_uppercase() != src.to_uppercase() {
+                                    continue;
+                                }
+                            }
+                        }
+                        return field.collation.clone();
+                    }
+                }
+                None
+            }
+            Expr::Nested(inner) => self.get_collation_for_expr(inner),
+            _ => None,
+        }
+    }
+
+    fn evaluate_binary_op_with_collation(
         &self,
         left: &Value,
         op: &BinaryOperator,
         right: &Value,
+        collation: Option<&str>,
     ) -> Result<Value> {
         if left.is_null() || right.is_null() {
             match op {
@@ -2284,9 +2311,25 @@ impl<'a> Evaluator<'a> {
             }
         }
 
+        let is_case_insensitive = matches!(collation, Some("und:ci"));
+
         match op {
-            BinaryOperator::Eq => Ok(Value::bool_val(left == right)),
-            BinaryOperator::NotEq => Ok(Value::bool_val(left != right)),
+            BinaryOperator::Eq => {
+                if is_case_insensitive {
+                    if let (Some(l), Some(r)) = (left.as_string(), right.as_string()) {
+                        return Ok(Value::bool_val(l.to_lowercase() == r.to_lowercase()));
+                    }
+                }
+                Ok(Value::bool_val(left == right))
+            }
+            BinaryOperator::NotEq => {
+                if is_case_insensitive {
+                    if let (Some(l), Some(r)) = (left.as_string(), right.as_string()) {
+                        return Ok(Value::bool_val(l.to_lowercase() != r.to_lowercase()));
+                    }
+                }
+                Ok(Value::bool_val(left != right))
+            }
             BinaryOperator::Lt => self.compare_values(left, right, |ord| ord.is_lt()),
             BinaryOperator::LtEq => self.compare_values(left, right, |ord| ord.is_le()),
             BinaryOperator::Gt => self.compare_values(left, right, |ord| ord.is_gt()),

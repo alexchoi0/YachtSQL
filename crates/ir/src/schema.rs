@@ -114,6 +114,7 @@ pub struct ColumnDef {
     pub data_type: DataType,
     pub nullable: bool,
     pub default_value: Option<Expr>,
+    pub collation: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

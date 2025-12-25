@@ -14,6 +14,7 @@ pub struct UserFunction {
     pub return_type: DataType,
     pub body: FunctionBody,
     pub is_temporary: bool,
+    pub is_aggregate: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +41,17 @@ pub struct ColumnDefault {
     pub default_expr: Expr,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransactionSnapshot {
+    pub tables: HashMap<String, Table>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DroppedSchema {
+    pub metadata: SchemaMetadata,
+    pub tables: HashMap<String, Table>,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Catalog {
     tables: HashMap<String, Table>,
@@ -50,6 +62,9 @@ pub struct Catalog {
     schemas: HashSet<String>,
     schema_metadata: HashMap<String, SchemaMetadata>,
     search_path: Vec<String>,
+    dropped_schemas: HashMap<String, DroppedSchema>,
+    #[serde(skip)]
+    transaction_snapshot: Option<TransactionSnapshot>,
 }
 
 impl Catalog {
@@ -63,6 +78,24 @@ impl Catalog {
             schemas: HashSet::new(),
             schema_metadata: HashMap::new(),
             search_path: Vec::new(),
+            dropped_schemas: HashMap::new(),
+            transaction_snapshot: None,
+        }
+    }
+
+    pub fn begin_transaction(&mut self) {
+        self.transaction_snapshot = Some(TransactionSnapshot {
+            tables: self.tables.clone(),
+        });
+    }
+
+    pub fn commit(&mut self) {
+        self.transaction_snapshot = None;
+    }
+
+    pub fn rollback(&mut self) {
+        if let Some(snapshot) = self.transaction_snapshot.take() {
+            self.tables = snapshot.tables;
         }
     }
 
@@ -78,7 +111,9 @@ impl Catalog {
             )));
         }
         self.schemas.insert(key.clone());
-        self.schema_metadata.insert(key, SchemaMetadata::default());
+        self.schema_metadata
+            .insert(key.clone(), SchemaMetadata::default());
+        self.dropped_schemas.remove(&key);
         Ok(())
     }
 
@@ -99,7 +134,9 @@ impl Catalog {
             )));
         }
         self.schemas.insert(key.clone());
-        self.schema_metadata.insert(key, SchemaMetadata { options });
+        self.schema_metadata
+            .insert(key.clone(), SchemaMetadata { options });
+        self.dropped_schemas.remove(&key);
         Ok(())
     }
 
@@ -127,17 +164,70 @@ impl Catalog {
             )));
         }
 
+        let mut dropped_tables = HashMap::new();
         for table_key in tables_in_schema {
-            self.tables.remove(&table_key);
+            if let Some(table) = self.tables.remove(&table_key) {
+                dropped_tables.insert(table_key, table);
+            }
         }
 
+        let metadata = self.schema_metadata.remove(&key).unwrap_or_default();
         self.schemas.remove(&key);
-        self.schema_metadata.remove(&key);
+
+        self.dropped_schemas.insert(
+            key,
+            DroppedSchema {
+                metadata,
+                tables: dropped_tables,
+            },
+        );
+
         Ok(())
+    }
+
+    pub fn undrop_schema(&mut self, name: &str, if_not_exists: bool) -> Result<()> {
+        let key = name.to_uppercase();
+        if self.schemas.contains(&key) {
+            if if_not_exists {
+                return Ok(());
+            }
+            return Err(Error::invalid_query(format!(
+                "Schema already exists: {}",
+                name
+            )));
+        }
+
+        let dropped = self.dropped_schemas.remove(&key);
+        match dropped {
+            Some(dropped_schema) => {
+                self.schemas.insert(key.clone());
+                self.schema_metadata.insert(key, dropped_schema.metadata);
+                for (table_key, table) in dropped_schema.tables {
+                    self.tables.insert(table_key, table);
+                }
+                Ok(())
+            }
+            None => {
+                if if_not_exists {
+                    return Ok(());
+                }
+                Err(Error::invalid_query(format!(
+                    "No dropped schema found: {}",
+                    name
+                )))
+            }
+        }
     }
 
     pub fn schema_exists(&self, name: &str) -> bool {
         self.schemas.contains(&name.to_uppercase())
+    }
+
+    pub fn get_schema_option(&self, schema_name: &str, option_key: &str) -> Option<String> {
+        let key = schema_name.to_uppercase();
+        self.schema_metadata
+            .get(&key)
+            .and_then(|meta| meta.options.get(option_key).cloned())
     }
 
     pub fn alter_schema_options(
@@ -181,12 +271,13 @@ impl Catalog {
 
     pub fn create_table(&mut self, name: &str, schema: Schema) -> Result<()> {
         let key = name.to_uppercase();
-        if let Some(dot_pos) = key.find('.') {
-            let schema_name = &key[..dot_pos];
-            if !self.schemas.contains(schema_name) && !schema_name.is_empty() {
+        let parts: Vec<&str> = key.split('.').collect();
+        if parts.len() == 2 {
+            let schema_name = parts[0];
+            if self.dropped_schemas.contains_key(schema_name) {
                 return Err(Error::invalid_query(format!(
                     "Schema not found: {}",
-                    &name[..dot_pos]
+                    schema_name
                 )));
             }
         }
@@ -222,9 +313,10 @@ impl Catalog {
 
     pub fn insert_table(&mut self, name: &str, table: Table) -> Result<()> {
         let key = name.to_uppercase();
-        if let Some(dot_pos) = key.find('.') {
-            let schema_name = &key[..dot_pos];
-            if !self.schemas.contains(schema_name) {
+        let parts: Vec<&str> = key.split('.').collect();
+        if parts.len() == 2 {
+            let schema_name = parts[0];
+            if self.dropped_schemas.contains_key(schema_name) {
                 return Err(Error::invalid_query(format!(
                     "Schema not found: {}",
                     schema_name
@@ -329,13 +421,23 @@ impl Catalog {
         self.functions.contains_key(&name.to_uppercase())
     }
 
-    pub fn create_procedure(&mut self, proc: UserProcedure, or_replace: bool) -> Result<()> {
+    pub fn create_procedure(
+        &mut self,
+        proc: UserProcedure,
+        or_replace: bool,
+        if_not_exists: bool,
+    ) -> Result<()> {
         let key = proc.name.to_uppercase();
-        if self.procedures.contains_key(&key) && !or_replace {
-            return Err(Error::invalid_query(format!(
-                "Procedure already exists: {}",
-                proc.name
-            )));
+        if self.procedures.contains_key(&key) {
+            if if_not_exists {
+                return Ok(());
+            }
+            if !or_replace {
+                return Err(Error::invalid_query(format!(
+                    "Procedure already exists: {}",
+                    proc.name
+                )));
+            }
         }
         self.procedures.insert(key, proc);
         Ok(())
@@ -422,6 +524,18 @@ impl CatalogProvider for Catalog {
             .map(|v| yachtsql_parser::ViewDefinition {
                 query: v.query.clone(),
                 column_aliases: v.column_aliases.clone(),
+            })
+    }
+
+    fn get_function(&self, name: &str) -> Option<yachtsql_parser::FunctionDefinition> {
+        self.functions
+            .get(&name.to_uppercase())
+            .map(|f| yachtsql_parser::FunctionDefinition {
+                name: f.name.clone(),
+                parameters: f.parameters.clone(),
+                return_type: f.return_type.clone(),
+                body: f.body.clone(),
+                is_aggregate: f.is_aggregate,
             })
     }
 }

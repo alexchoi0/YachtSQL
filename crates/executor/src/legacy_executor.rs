@@ -8000,6 +8000,7 @@ impl QueryExecutor {
             return_type,
             body,
             is_temporary: create.temporary,
+            is_aggregate: create.aggregate,
         };
 
         self.catalog.create_function(func, create.or_replace)?;

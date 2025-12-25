@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use yachtsql_common::types::DataType;
 use yachtsql_ir::{
     AlterTableOp, Assignment, ColumnDef, CteDefinition, DclResourceType, ExportOptions, Expr,
-    FunctionArg, FunctionBody, JoinType, LoadOptions, MergeClause, PlanSchema, ProcedureArg,
-    RaiseLevel, SortExpr, UnnestColumn,
+    FunctionArg, FunctionBody, GapFillColumn, JoinType, LoadOptions, MergeClause, PlanSchema,
+    ProcedureArg, RaiseLevel, SortExpr, UnnestColumn,
 };
 use yachtsql_optimizer::{OptimizedLogicalPlan, SampleType};
 
@@ -224,12 +224,18 @@ pub enum PhysicalPlan {
     CreateSchema {
         name: String,
         if_not_exists: bool,
+        or_replace: bool,
     },
 
     DropSchema {
         name: String,
         if_exists: bool,
         cascade: bool,
+    },
+
+    UndropSchema {
+        name: String,
+        if_not_exists: bool,
     },
 
     AlterSchema {
@@ -245,6 +251,7 @@ pub enum PhysicalPlan {
         or_replace: bool,
         if_not_exists: bool,
         is_temp: bool,
+        is_aggregate: bool,
     },
 
     DropFunction {
@@ -257,6 +264,7 @@ pub enum PhysicalPlan {
         args: Vec<ProcedureArg>,
         body: Vec<PhysicalPlan>,
         or_replace: bool,
+        if_not_exists: bool,
     },
 
     DropProcedure {
@@ -360,6 +368,28 @@ pub enum PhysicalPlan {
         resource_type: DclResourceType,
         resource_name: String,
         grantees: Vec<String>,
+    },
+
+    BeginTransaction,
+
+    Commit,
+
+    Rollback,
+
+    TryCatch {
+        try_block: Vec<PhysicalPlan>,
+        catch_block: Vec<PhysicalPlan>,
+    },
+
+    GapFill {
+        input: Box<PhysicalPlan>,
+        ts_column: String,
+        bucket_width: Expr,
+        value_columns: Vec<GapFillColumn>,
+        partitioning_columns: Vec<String>,
+        origin: Option<Expr>,
+        input_schema: PlanSchema,
+        schema: PlanSchema,
     },
 }
 
@@ -642,9 +672,11 @@ impl PhysicalPlan {
             OptimizedLogicalPlan::CreateSchema {
                 name,
                 if_not_exists,
+                or_replace,
             } => PhysicalPlan::CreateSchema {
                 name: name.clone(),
                 if_not_exists: *if_not_exists,
+                or_replace: *or_replace,
             },
 
             OptimizedLogicalPlan::DropSchema {
@@ -655,6 +687,14 @@ impl PhysicalPlan {
                 name: name.clone(),
                 if_exists: *if_exists,
                 cascade: *cascade,
+            },
+
+            OptimizedLogicalPlan::UndropSchema {
+                name,
+                if_not_exists,
+            } => PhysicalPlan::UndropSchema {
+                name: name.clone(),
+                if_not_exists: *if_not_exists,
             },
 
             OptimizedLogicalPlan::AlterSchema { name, options } => PhysicalPlan::AlterSchema {
@@ -670,6 +710,7 @@ impl PhysicalPlan {
                 or_replace,
                 if_not_exists,
                 is_temp,
+                is_aggregate,
             } => PhysicalPlan::CreateFunction {
                 name: name.clone(),
                 args: args.clone(),
@@ -678,6 +719,7 @@ impl PhysicalPlan {
                 or_replace: *or_replace,
                 if_not_exists: *if_not_exists,
                 is_temp: *is_temp,
+                is_aggregate: *is_aggregate,
             },
 
             OptimizedLogicalPlan::DropFunction { name, if_exists } => PhysicalPlan::DropFunction {
@@ -690,11 +732,13 @@ impl PhysicalPlan {
                 args,
                 body,
                 or_replace,
+                if_not_exists,
             } => PhysicalPlan::CreateProcedure {
                 name: name.clone(),
                 args: args.clone(),
                 body: body.iter().map(Self::from_physical).collect(),
                 or_replace: *or_replace,
+                if_not_exists: *if_not_exists,
             },
 
             OptimizedLogicalPlan::DropProcedure { name, if_exists } => {
@@ -843,6 +887,68 @@ impl PhysicalPlan {
                 resource_name: resource_name.clone(),
                 grantees: grantees.clone(),
             },
+
+            OptimizedLogicalPlan::BeginTransaction => PhysicalPlan::BeginTransaction,
+            OptimizedLogicalPlan::Commit => PhysicalPlan::Commit,
+            OptimizedLogicalPlan::Rollback => PhysicalPlan::Rollback,
+
+            OptimizedLogicalPlan::TryCatch {
+                try_block,
+                catch_block,
+            } => PhysicalPlan::TryCatch {
+                try_block: try_block.iter().map(PhysicalPlan::from_physical).collect(),
+                catch_block: catch_block
+                    .iter()
+                    .map(PhysicalPlan::from_physical)
+                    .collect(),
+            },
+
+            OptimizedLogicalPlan::GapFill {
+                input,
+                ts_column,
+                bucket_width,
+                value_columns,
+                partitioning_columns,
+                origin,
+                input_schema,
+                schema,
+            } => PhysicalPlan::GapFill {
+                input: Box::new(PhysicalPlan::from_physical(input)),
+                ts_column: ts_column.clone(),
+                bucket_width: bucket_width.clone(),
+                value_columns: value_columns.clone(),
+                partitioning_columns: partitioning_columns.clone(),
+                origin: origin.clone(),
+                input_schema: input_schema.clone(),
+                schema: schema.clone(),
+            },
+        }
+    }
+
+    pub fn schema(&self) -> Option<&PlanSchema> {
+        match self {
+            PhysicalPlan::TableScan { schema, .. } => Some(schema),
+            PhysicalPlan::Sample { input, .. } => input.schema(),
+            PhysicalPlan::Filter { input, .. } => input.schema(),
+            PhysicalPlan::Project { schema, .. } => Some(schema),
+            PhysicalPlan::NestedLoopJoin { schema, .. } => Some(schema),
+            PhysicalPlan::CrossJoin { schema, .. } => Some(schema),
+            PhysicalPlan::HashAggregate { schema, .. } => Some(schema),
+            PhysicalPlan::Sort { input, .. } => input.schema(),
+            PhysicalPlan::Limit { input, .. } => input.schema(),
+            PhysicalPlan::TopN { input, .. } => input.schema(),
+            PhysicalPlan::Distinct { input } => input.schema(),
+            PhysicalPlan::Union { schema, .. } => Some(schema),
+            PhysicalPlan::Intersect { schema, .. } => Some(schema),
+            PhysicalPlan::Except { schema, .. } => Some(schema),
+            PhysicalPlan::Window { schema, .. } => Some(schema),
+            PhysicalPlan::Unnest { schema, .. } => Some(schema),
+            PhysicalPlan::Qualify { input, .. } => input.schema(),
+            PhysicalPlan::WithCte { body, .. } => body.schema(),
+            PhysicalPlan::Values { schema, .. } => Some(schema),
+            PhysicalPlan::Empty { schema } => Some(schema),
+            PhysicalPlan::GapFill { schema, .. } => Some(schema),
+            _ => None,
         }
     }
 
@@ -985,6 +1091,7 @@ impl PhysicalPlan {
             | PhysicalPlan::DropView { .. }
             | PhysicalPlan::CreateSchema { .. }
             | PhysicalPlan::DropSchema { .. }
+            | PhysicalPlan::UndropSchema { .. }
             | PhysicalPlan::AlterSchema { .. }
             | PhysicalPlan::CreateFunction { .. }
             | PhysicalPlan::DropFunction { .. }
@@ -1000,8 +1107,13 @@ impl PhysicalPlan {
             | PhysicalPlan::Assert { .. }
             | PhysicalPlan::Grant { .. }
             | PhysicalPlan::Revoke { .. }
+            | PhysicalPlan::BeginTransaction
+            | PhysicalPlan::Commit
+            | PhysicalPlan::Rollback
+            | PhysicalPlan::TryCatch { .. }
             | PhysicalPlan::Values { .. }
-            | PhysicalPlan::Empty { .. } => {}
+            | PhysicalPlan::Empty { .. }
+            | PhysicalPlan::GapFill { .. } => {}
         }
     }
 }

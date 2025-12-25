@@ -160,31 +160,72 @@ impl<'a> PlanExecutor<'a> {
         then_branch: &[PhysicalPlan],
         else_branch: Option<&[PhysicalPlan]>,
     ) -> Result<Table> {
-        let empty_schema = Schema::new();
-        let empty_record = Record::from_values(vec![]);
-        let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
-        let cond_val = evaluator.evaluate(condition, &empty_record)?;
+        let cond_val = self.evaluate_scripting_expr(condition)?;
 
+        let mut last_result = Table::empty(Schema::new());
         if cond_val.as_bool().unwrap_or(false) {
             for plan in then_branch {
-                self.execute_plan(plan)?;
+                last_result = self.execute_plan(plan)?;
             }
         } else if let Some(else_plans) = else_branch {
             for plan in else_plans {
-                self.execute_plan(plan)?;
+                last_result = self.execute_plan(plan)?;
             }
         }
 
-        Ok(Table::empty(Schema::new()))
+        Ok(last_result)
+    }
+
+    fn evaluate_scripting_expr(&mut self, expr: &Expr) -> Result<Value> {
+        let empty_schema = Schema::new();
+        let empty_record = Record::from_values(vec![]);
+        match expr {
+            Expr::Exists { subquery, negated } => {
+                let physical = optimize(subquery)?;
+                let plan = PhysicalPlan::from_physical(&physical);
+                let result = self.execute_plan(&plan)?;
+                let has_rows = !result.is_empty();
+                Ok(Value::Bool(if *negated { !has_rows } else { has_rows }))
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_scripting_expr(left)?;
+                let right_val = self.evaluate_scripting_expr(right)?;
+                use yachtsql_ir::BinaryOp;
+                match op {
+                    BinaryOp::And => {
+                        let l = left_val.as_bool().unwrap_or(false);
+                        let r = right_val.as_bool().unwrap_or(false);
+                        Ok(Value::Bool(l && r))
+                    }
+                    BinaryOp::Or => {
+                        let l = left_val.as_bool().unwrap_or(false);
+                        let r = right_val.as_bool().unwrap_or(false);
+                        Ok(Value::Bool(l || r))
+                    }
+                    _ => {
+                        let evaluator =
+                            IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                        evaluator.evaluate(expr, &empty_record)
+                    }
+                }
+            }
+            Expr::UnaryOp {
+                op: yachtsql_ir::UnaryOp::Not,
+                expr: inner,
+            } => {
+                let val = self.evaluate_scripting_expr(inner)?;
+                Ok(Value::Bool(!val.as_bool().unwrap_or(false)))
+            }
+            _ => {
+                let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                evaluator.evaluate(expr, &empty_record)
+            }
+        }
     }
 
     pub fn execute_while(&mut self, condition: &Expr, body: &[PhysicalPlan]) -> Result<Table> {
-        let empty_schema = Schema::new();
-        let empty_record = Record::from_values(vec![]);
-
         loop {
-            let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
-            let cond_val = evaluator.evaluate(condition, &empty_record)?;
+            let cond_val = self.evaluate_scripting_expr(condition)?;
             if !cond_val.as_bool().unwrap_or(false) {
                 break;
             }
@@ -262,12 +303,19 @@ impl<'a> PlanExecutor<'a> {
         body: &[PhysicalPlan],
     ) -> Result<Table> {
         let result = self.execute_plan(query)?;
+        let schema_fields = result.schema().fields();
 
         for record in result.rows()? {
-            if let Some(val) = record.values().first() {
-                self.variables.insert(variable.to_uppercase(), val.clone());
-                self.session.set_variable(variable, val.clone());
-            }
+            let values = record.values();
+            let struct_fields: Vec<(String, Value)> = schema_fields
+                .iter()
+                .zip(values.iter())
+                .map(|(f, v)| (f.name.clone(), v.clone()))
+                .collect();
+            let row_value = Value::Struct(struct_fields);
+            self.variables
+                .insert(variable.to_uppercase(), row_value.clone());
+            self.session.set_variable(variable, row_value);
 
             for plan in body {
                 match self.execute_plan(plan) {

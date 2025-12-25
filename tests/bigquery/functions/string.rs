@@ -214,7 +214,6 @@ fn test_code_points_to_bytes() {
 // =============================================================================
 
 #[test]
-#[ignore]
 fn test_collate() {
     let mut session = create_session();
     let result = session
@@ -297,7 +296,6 @@ fn test_contains_substr_not_found() {
 }
 
 #[test]
-#[ignore]
 fn test_contains_substr_normalized() {
     let mut session = create_session();
     let result = session
@@ -307,7 +305,6 @@ fn test_contains_substr_normalized() {
 }
 
 #[test]
-#[ignore]
 fn test_contains_substr_struct() {
     let mut session = create_session();
     let result = session
@@ -860,7 +857,6 @@ fn test_ltrim_multiple_chars() {
 // =============================================================================
 
 #[test]
-#[ignore]
 fn test_normalize() {
     let mut session = create_session();
     let result = session
@@ -870,7 +866,6 @@ fn test_normalize() {
 }
 
 #[test]
-#[ignore]
 fn test_normalize_nfkc() {
     let mut session = create_session();
     let result = session

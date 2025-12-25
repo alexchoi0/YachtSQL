@@ -50,6 +50,13 @@ pub enum Expr {
         ignore_nulls: bool,
     },
 
+    UserDefinedAggregate {
+        name: String,
+        args: Vec<Expr>,
+        distinct: bool,
+        filter: Option<Box<Expr>>,
+    },
+
     Window {
         func: WindowFunction,
         args: Vec<Expr>,

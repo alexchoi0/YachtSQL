@@ -126,6 +126,9 @@ geohash = "0.13"
 # JavaScript UDF support (V8 engine)
 v8 = "0.106"
 
+# Python UDF support (PyO3)
+pyo3 = { version = "0.27", features = ["auto-initialize"] }
+
 # Features
 [features]
 default = []

@@ -8,6 +8,7 @@ use sqlparser::dialect::BigQueryDialect;
 use sqlparser::parser::Parser;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::DataType;
+use yachtsql_ir::plan::{FunctionArg, FunctionBody};
 use yachtsql_ir::{ColumnDef, LoadFormat, LoadOptions, LogicalPlan};
 use yachtsql_storage::Schema;
 
@@ -19,6 +20,16 @@ pub struct ViewDefinition {
 pub trait CatalogProvider {
     fn get_table_schema(&self, name: &str) -> Option<Schema>;
     fn get_view(&self, name: &str) -> Option<ViewDefinition>;
+    fn get_function(&self, name: &str) -> Option<FunctionDefinition>;
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionDefinition {
+    pub name: String,
+    pub parameters: Vec<FunctionArg>,
+    pub return_type: DataType,
+    pub body: FunctionBody,
+    pub is_aggregate: bool,
 }
 
 pub fn parse_sql(sql: &str) -> Result<Vec<sqlparser::ast::Statement>> {
@@ -150,11 +161,24 @@ fn try_parse_load_data(sql: &str) -> Result<Option<LogicalPlan>> {
         .map(|s| s.to_uppercase() == "TRUE")
         .unwrap_or(false);
 
+    let field_delimiter = extract_option(options_str, "FIELD_DELIMITER")
+        .or_else(|| extract_option(options_str, "field_delimiter"));
+
+    let skip_leading_rows = extract_option(options_str, "SKIP_LEADING_ROWS")
+        .or_else(|| extract_option(options_str, "skip_leading_rows"))
+        .and_then(|s| s.parse::<u64>().ok());
+
+    let null_marker = extract_option(options_str, "NULL_MARKER")
+        .or_else(|| extract_option(options_str, "null_marker"));
+
     let options = LoadOptions {
         uris,
         format,
         overwrite,
         allow_schema_update,
+        field_delimiter,
+        skip_leading_rows,
+        null_marker,
     };
 
     let temp_schema = if is_temp_table && !column_defs.is_empty() {
@@ -166,6 +190,7 @@ fn try_parse_load_data(sql: &str) -> Result<Option<LogicalPlan>> {
                     data_type: parse_simple_data_type(&dtype),
                     nullable: true,
                     default_value: None,
+                    collation: None,
                 })
                 .collect(),
         )

@@ -244,7 +244,6 @@ fn test_merge_with_constants() {
 }
 
 #[test]
-#[ignore]
 fn test_merge_insert_new_items_with_condition() {
     let mut session = create_session();
 
@@ -352,7 +351,6 @@ fn test_merge_update_and_delete_with_condition() {
 }
 
 #[test]
-#[ignore]
 fn test_merge_false_predicate_replace() {
     let mut session = create_session();
 
@@ -402,7 +400,6 @@ fn test_merge_false_predicate_replace() {
 }
 
 #[test]
-#[ignore]
 fn test_merge_with_avg_subquery() {
     let mut session = create_session();
 

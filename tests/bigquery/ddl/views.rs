@@ -289,7 +289,6 @@ fn test_create_materialized_view_with_options() {
 }
 
 #[test]
-#[ignore]
 fn test_create_materialized_view_with_partition() {
     let mut session = create_session();
 
@@ -313,7 +312,6 @@ fn test_create_materialized_view_with_partition() {
 }
 
 #[test]
-#[ignore]
 fn test_create_materialized_view_with_cluster() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -335,7 +333,6 @@ fn test_create_materialized_view_with_cluster() {
 }
 
 #[test]
-#[ignore]
 fn test_create_materialized_view_with_partition_and_cluster() {
     let mut session = create_session();
 
@@ -447,7 +444,6 @@ fn test_create_materialized_view_if_not_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_materialized_view() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -468,7 +464,6 @@ fn test_drop_materialized_view() {
 }
 
 #[test]
-#[ignore]
 fn test_drop_materialized_view_if_exists() {
     let mut session = create_session();
 
@@ -477,7 +472,6 @@ fn test_drop_materialized_view_if_exists() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_view_set_options() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -494,7 +488,6 @@ fn test_alter_view_set_options() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_view_set_multiple_options() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -514,7 +507,6 @@ fn test_alter_view_set_multiple_options() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_materialized_view_set_options() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -585,7 +577,6 @@ fn test_view_with_collation() {
 }
 
 #[test]
-#[ignore]
 fn test_view_security_invoker() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -605,7 +596,6 @@ fn test_view_security_invoker() {
 }
 
 #[test]
-#[ignore]
 fn test_view_security_definer() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -858,7 +848,6 @@ fn test_view_with_struct_column() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_view_alter_column() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -873,7 +862,6 @@ fn test_alter_view_alter_column() {
 }
 
 #[test]
-#[ignore]
 fn test_alter_materialized_view_alter_column() {
     let mut session = create_session();
     setup_base_table(&mut session);
@@ -893,7 +881,6 @@ fn test_alter_materialized_view_alter_column() {
 }
 
 #[test]
-#[ignore]
 fn test_materialized_view_replica() {
     let mut session = create_session();
     setup_base_table(&mut session);

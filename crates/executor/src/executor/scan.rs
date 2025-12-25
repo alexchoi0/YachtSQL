@@ -19,6 +19,10 @@ impl<'a> PlanExecutor<'a> {
     }
 
     fn apply_planned_schema(&self, source_table: &Table, planned_schema: &PlanSchema) -> Table {
+        if planned_schema.fields.is_empty() {
+            return source_table.clone();
+        }
+
         let mut new_schema = Schema::new();
         for plan_field in &planned_schema.fields {
             let mode = if plan_field.nullable {
@@ -29,6 +33,16 @@ impl<'a> PlanExecutor<'a> {
             let mut field = Field::new(&plan_field.name, plan_field.data_type.clone(), mode);
             if let Some(ref table) = plan_field.table {
                 field = field.with_source_table(table.clone());
+            }
+            let source_field = source_table
+                .schema()
+                .fields()
+                .iter()
+                .find(|f| f.name.eq_ignore_ascii_case(&plan_field.name));
+            if let Some(src) = source_field
+                && let Some(ref collation) = src.collation
+            {
+                field.collation = Some(collation.clone());
             }
             new_schema.add_field(field);
         }

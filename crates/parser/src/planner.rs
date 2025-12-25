@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use regex::Regex;
 use sqlparser::ast::{
     self, ObjectName, ObjectNamePart, SetExpr, Statement, TableFactor, TableObject,
 };
@@ -9,13 +10,14 @@ use yachtsql_common::types::{DataType, StructField};
 use yachtsql_ir::{
     AlterColumnAction, AlterTableOp, Assignment, BinaryOp, ColumnDef, ConstraintType,
     CteDefinition, DateTimeField, DclResourceType, ExportFormat, ExportOptions, Expr, FunctionArg,
-    FunctionBody, JoinType, Literal, LogicalPlan, MergeClause, PlanField, PlanSchema, ProcedureArg,
-    ProcedureArgMode, SampleType, SetOperationType, SortExpr, TableConstraint,
+    FunctionBody, GapFillColumn, GapFillStrategy, JoinType, Literal, LogicalPlan, MergeClause,
+    PlanField, PlanSchema, ProcedureArg, ProcedureArgMode, RaiseLevel, SampleType,
+    SetOperationType, SortExpr, TableConstraint,
 };
 use yachtsql_storage::Schema;
 
-use crate::CatalogProvider;
 use crate::expr_planner::ExprPlanner;
+use crate::{CatalogProvider, parse_sql};
 
 fn object_name_to_raw_string(name: &ObjectName) -> String {
     name.0
@@ -38,6 +40,7 @@ fn table_object_to_raw_string(table: &TableObject) -> String {
 pub struct Planner<'a, C: CatalogProvider> {
     catalog: &'a C,
     cte_schemas: RefCell<HashMap<String, PlanSchema>>,
+    outer_schema: RefCell<Option<PlanSchema>>,
 }
 
 impl<'a, C: CatalogProvider> Planner<'a, C> {
@@ -45,7 +48,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         Self {
             catalog,
             cte_schemas: RefCell::new(HashMap::new()),
+            outer_schema: RefCell::new(None),
         }
+    }
+
+    fn with_outer_schema(&self, schema: &PlanSchema) {
+        *self.outer_schema.borrow_mut() = Some(schema.clone());
+    }
+
+    fn clear_outer_schema(&self) {
+        *self.outer_schema.borrow_mut() = None;
     }
 
     pub fn plan_statement(&self, stmt: &Statement) -> Result<LogicalPlan> {
@@ -78,9 +90,56 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::CreateSchema {
                 schema_name,
                 if_not_exists,
+                or_replace,
                 ..
-            } => self.plan_create_schema(schema_name, *if_not_exists),
+            } => self.plan_create_schema(schema_name, *if_not_exists, *or_replace),
             Statement::AlterSchema(alter_schema) => self.plan_alter_schema(alter_schema),
+            Statement::UndropSchema {
+                if_not_exists,
+                schema_name,
+            } => {
+                let name = object_name_to_raw_string(schema_name);
+                Ok(LogicalPlan::UndropSchema {
+                    name,
+                    if_not_exists: *if_not_exists,
+                })
+            }
+            Statement::AlterMaterializedView { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::AlterViewWithOperations { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::AlterFunction { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::AlterProcedure { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::CreateSearchIndex { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::CreateVectorIndex { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::CreateRowAccessPolicy { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::DropSearchIndex { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::DropVectorIndex { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::DropRowAccessPolicy { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::DropAllRowAccessPolicies { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
+            Statement::CreateMaterializedViewReplica { .. } => Ok(LogicalPlan::Empty {
+                schema: PlanSchema::new(),
+            }),
             Statement::CreateView {
                 name,
                 columns,
@@ -114,22 +173,49 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 clauses,
                 ..
             } => self.plan_merge(table, source, on, clauses),
-            Statement::StartTransaction { .. } => Ok(LogicalPlan::Empty {
-                schema: PlanSchema::new(),
-            }),
-            Statement::Commit { .. } => Ok(LogicalPlan::Empty {
-                schema: PlanSchema::new(),
-            }),
-            Statement::Rollback { .. } => Ok(LogicalPlan::Empty {
-                schema: PlanSchema::new(),
-            }),
+            Statement::StartTransaction {
+                statements,
+                exception,
+                ..
+            } => {
+                if !statements.is_empty() || exception.is_some() {
+                    let try_block: Vec<LogicalPlan> = statements
+                        .iter()
+                        .map(|stmt| self.plan_statement(stmt))
+                        .collect::<Result<Vec<_>>>()?;
+
+                    if let Some(exception_whens) = exception {
+                        let catch_block: Vec<LogicalPlan> = exception_whens
+                            .iter()
+                            .flat_map(|ew| &ew.statements)
+                            .map(|stmt| self.plan_statement(stmt))
+                            .collect::<Result<Vec<_>>>()?;
+
+                        Ok(LogicalPlan::TryCatch {
+                            try_block,
+                            catch_block,
+                        })
+                    } else {
+                        Ok(LogicalPlan::If {
+                            condition: yachtsql_ir::Expr::Literal(yachtsql_ir::Literal::Bool(true)),
+                            then_branch: try_block,
+                            else_branch: None,
+                        })
+                    }
+                } else {
+                    Ok(LogicalPlan::BeginTransaction)
+                }
+            }
+            Statement::Commit { .. } => Ok(LogicalPlan::Commit),
+            Statement::Rollback { .. } => Ok(LogicalPlan::Rollback),
             Statement::CreateProcedure {
                 or_alter,
+                if_not_exists,
                 name,
                 params,
                 body,
                 ..
-            } => self.plan_create_procedure(name, params, body, *or_alter),
+            } => self.plan_create_procedure(name, params, body, *or_alter, *if_not_exists),
             Statement::DropProcedure {
                 if_exists,
                 proc_desc,
@@ -155,7 +241,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::If(if_stmt) => self.plan_if(if_stmt),
             Statement::While(while_stmt) => self.plan_while(while_stmt),
             Statement::Loop(loop_stmt) => self.plan_loop(loop_stmt),
+            Statement::For(for_stmt) => self.plan_for(for_stmt),
             Statement::Case(case_stmt) => self.plan_case(case_stmt),
+            Statement::Repeat(repeat_stmt) => self.plan_repeat(repeat_stmt),
             Statement::Leave { .. } | Statement::Break { .. } => Ok(LogicalPlan::Break),
             Statement::Iterate { .. } | Statement::Continue { .. } => Ok(LogicalPlan::Continue),
             Statement::Grant {
@@ -170,6 +258,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 grantees,
                 ..
             } => self.plan_revoke(privileges, objects.as_ref(), grantees),
+            Statement::Raise(raise_stmt) => self.plan_raise(raise_stmt),
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -184,6 +273,21 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .map(|s| self.plan_statement(s))
             .collect::<Result<Vec<_>>>()?;
         Ok(LogicalPlan::Loop { body, label: None })
+    }
+
+    fn plan_for(&self, for_stmt: &ast::ForStatement) -> Result<LogicalPlan> {
+        let variable = for_stmt.variable.value.clone();
+        let query = self.plan_query(&for_stmt.query)?;
+        let body = for_stmt
+            .body
+            .iter()
+            .map(|s| self.plan_statement(s))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(LogicalPlan::For {
+            variable,
+            query: Box::new(query),
+            body,
+        })
     }
 
     fn plan_assert(
@@ -209,14 +313,34 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         })
     }
 
+    fn plan_raise(&self, raise_stmt: &ast::RaiseStatement) -> Result<LogicalPlan> {
+        let empty_schema = PlanSchema::new();
+        let message = match &raise_stmt.value {
+            Some(ast::RaiseStatementValue::UsingMessage(expr))
+            | Some(ast::RaiseStatementValue::Expr(expr)) => {
+                Some(ExprPlanner::plan_expr(expr, &empty_schema)?)
+            }
+            None => None,
+        };
+        Ok(LogicalPlan::Raise {
+            message,
+            level: RaiseLevel::Exception,
+        })
+    }
+
     fn plan_if(&self, if_stmt: &ast::IfStatement) -> Result<LogicalPlan> {
         let empty_schema = PlanSchema::new();
+        let subquery_planner = |query: &ast::Query| self.plan_query(query);
         let condition = if_stmt
             .if_block
             .condition
             .as_ref()
             .ok_or_else(|| Error::parse_error("IF statement missing condition"))?;
-        let cond_expr = ExprPlanner::plan_expr(condition, &empty_schema)?;
+        let cond_expr = ExprPlanner::plan_expr_with_subquery(
+            condition,
+            &empty_schema,
+            Some(&subquery_planner),
+        )?;
 
         let then_branch = self.plan_statement_sequence(&if_stmt.if_block.conditional_statements)?;
 
@@ -228,7 +352,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
         for elseif_block in if_stmt.elseif_blocks.iter().rev() {
             if let Some(elseif_cond) = &elseif_block.condition {
-                let elseif_cond_expr = ExprPlanner::plan_expr(elseif_cond, &empty_schema)?;
+                let elseif_cond_expr = ExprPlanner::plan_expr_with_subquery(
+                    elseif_cond,
+                    &empty_schema,
+                    Some(&subquery_planner),
+                )?;
                 let elseif_then =
                     self.plan_statement_sequence(&elseif_block.conditional_statements)?;
                 let nested_if = LogicalPlan::If {
@@ -261,6 +389,21 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         Ok(LogicalPlan::While {
             condition: cond_expr,
             body,
+        })
+    }
+
+    fn plan_repeat(&self, repeat_stmt: &ast::RepeatStatement) -> Result<LogicalPlan> {
+        let empty_schema = PlanSchema::new();
+        let body: Vec<LogicalPlan> = repeat_stmt
+            .body
+            .iter()
+            .map(|stmt| self.plan_statement(stmt))
+            .collect::<Result<Vec<_>>>()?;
+        let until_condition = ExprPlanner::plan_expr(&repeat_stmt.until_condition, &empty_schema)?;
+
+        Ok(LogicalPlan::Repeat {
+            body,
+            until_condition,
         })
     }
 
@@ -730,14 +873,152 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 name,
                 alias,
                 sample,
+                args,
                 ..
             } => {
                 let table_name = object_name_to_raw_string(name);
                 let table_name_upper = table_name.to_uppercase();
 
-                let base_plan = if let Some(cte_schema) =
-                    self.cte_schemas.borrow().get(&table_name_upper)
-                {
+                let base_plan = if let Some(tbl_args) = args {
+                    if table_name_upper == "GAP_FILL" {
+                        return self.plan_gap_fill(tbl_args, alias);
+                    }
+                    if let Some(func_def) = self.catalog.get_function(&table_name) {
+                        match &func_def.body {
+                            FunctionBody::Sql(body_expr) => match body_expr.as_ref() {
+                                Expr::Subquery(subquery_plan) => {
+                                    let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+
+                                    let mut param_bindings: HashMap<String, Expr> = HashMap::new();
+                                    for (i, arg) in tbl_args.args.iter().enumerate() {
+                                        if i < func_def.parameters.len() {
+                                            let param_name =
+                                                func_def.parameters[i].name.to_uppercase();
+                                            let arg_expr = match arg {
+                                                ast::FunctionArg::Unnamed(
+                                                    ast::FunctionArgExpr::Expr(e),
+                                                ) => ExprPlanner::plan_expr(e, &PlanSchema::new())?,
+                                                _ => {
+                                                    return Err(Error::unsupported(
+                                                        "Unsupported function argument type",
+                                                    ));
+                                                }
+                                            };
+                                            param_bindings.insert(param_name, arg_expr);
+                                        }
+                                    }
+
+                                    let mut plan = Self::substitute_params_in_plan(
+                                        subquery_plan.as_ref().clone(),
+                                        &param_bindings,
+                                    );
+
+                                    if let Some(alias_str) = alias_name {
+                                        let schema = self.rename_schema(plan.schema(), alias_str);
+                                        plan = LogicalPlan::Project {
+                                            input: Box::new(plan.clone()),
+                                            expressions: plan
+                                                .schema()
+                                                .fields
+                                                .iter()
+                                                .enumerate()
+                                                .map(|(i, f)| Expr::Column {
+                                                    table: None,
+                                                    name: f.name.clone(),
+                                                    index: Some(i),
+                                                })
+                                                .collect(),
+                                            schema,
+                                        };
+                                    }
+                                    plan
+                                }
+                                _ => {
+                                    return Err(Error::invalid_query(format!(
+                                        "Function {} is not a table function",
+                                        table_name
+                                    )));
+                                }
+                            },
+                            FunctionBody::SqlQuery(query_str) => {
+                                let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
+
+                                let mut param_bindings: HashMap<String, String> = HashMap::new();
+                                for (i, arg) in tbl_args.args.iter().enumerate() {
+                                    if i < func_def.parameters.len() {
+                                        let param_name = func_def.parameters[i].name.to_uppercase();
+                                        let arg_str = match arg {
+                                            ast::FunctionArg::Unnamed(
+                                                ast::FunctionArgExpr::Expr(e),
+                                            ) => e.to_string(),
+                                            _ => {
+                                                return Err(Error::unsupported(
+                                                    "Unsupported function argument type",
+                                                ));
+                                            }
+                                        };
+                                        param_bindings.insert(param_name, arg_str);
+                                    }
+                                }
+
+                                let mut substituted_query = query_str.clone();
+                                for (param_name, value) in &param_bindings {
+                                    let pattern_lower = format!(
+                                        r"(?i)\b{}\b",
+                                        regex::escape(&param_name.to_lowercase())
+                                    );
+                                    if let Ok(re) = Regex::new(&pattern_lower) {
+                                        substituted_query = re
+                                            .replace_all(&substituted_query, value.as_str())
+                                            .to_string();
+                                    }
+                                }
+
+                                let parsed = parse_sql(&substituted_query)?;
+                                let query_stmt = parsed.first().ok_or_else(|| {
+                                    Error::parse_error("Empty table function query")
+                                })?;
+
+                                let mut plan = match query_stmt {
+                                    Statement::Query(q) => self.plan_query(q)?,
+                                    _ => {
+                                        return Err(Error::invalid_query(
+                                            "Table function body must be a query".to_string(),
+                                        ));
+                                    }
+                                };
+
+                                if let Some(alias_str) = alias_name {
+                                    let schema = self.rename_schema(plan.schema(), alias_str);
+                                    plan = LogicalPlan::Project {
+                                        input: Box::new(plan.clone()),
+                                        expressions: plan
+                                            .schema()
+                                            .fields
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(i, f)| Expr::Column {
+                                                table: None,
+                                                name: f.name.clone(),
+                                                index: Some(i),
+                                            })
+                                            .collect(),
+                                        schema,
+                                    };
+                                }
+                                plan
+                            }
+                            _ => {
+                                return Err(Error::invalid_query(format!(
+                                    "Function {} is not a SQL table function",
+                                    table_name
+                                )));
+                            }
+                        }
+                    } else {
+                        return Err(Error::function_not_found(&table_name));
+                    }
+                } else if let Some(cte_schema) = self.cte_schemas.borrow().get(&table_name_upper) {
                     let alias_name = alias.as_ref().map(|a| a.name.value.as_str());
                     let schema = if let Some(alias) = alias_name {
                         self.rename_schema(cte_schema, alias)
@@ -880,7 +1161,31 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     .unwrap_or_else(|| "offset".to_string());
 
                 let empty_schema = PlanSchema::new();
-                let context_schema = left_schema.unwrap_or(&empty_schema);
+                let outer_borrowed = self.outer_schema.borrow();
+                let context_schema = match (left_schema, outer_borrowed.as_ref()) {
+                    (Some(ls), Some(os)) => {
+                        let merged = ls.clone().merge(os.clone());
+                        drop(outer_borrowed);
+                        let merged_box = Box::new(merged);
+                        let merged_ref: &'static PlanSchema = Box::leak(merged_box);
+                        merged_ref
+                    }
+                    (Some(ls), None) => {
+                        drop(outer_borrowed);
+                        ls
+                    }
+                    (None, Some(os)) => {
+                        let os_clone = os.clone();
+                        drop(outer_borrowed);
+                        let os_box = Box::new(os_clone);
+                        let os_ref: &'static PlanSchema = Box::leak(os_box);
+                        os_ref
+                    }
+                    (None, None) => {
+                        drop(outer_borrowed);
+                        &empty_schema
+                    }
+                };
                 let array_expr = ExprPlanner::plan_expr(&array_exprs[0], context_schema)?;
                 let array_type = self.infer_expr_type(&array_expr, context_schema);
                 let element_type = match array_type {
@@ -899,7 +1204,18 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     },
                 };
 
-                let mut fields = vec![PlanField::new(element_alias, element_type)];
+                let mut fields = if let DataType::Struct(struct_fields) = &element_type {
+                    struct_fields
+                        .iter()
+                        .map(|sf| {
+                            let mut field = PlanField::new(sf.name.clone(), sf.data_type.clone());
+                            field.table = Some(element_alias.clone());
+                            field
+                        })
+                        .collect()
+                } else {
+                    vec![PlanField::new(element_alias.clone(), element_type)]
+                };
                 if *with_offset {
                     fields.push(PlanField::new(offset_alias_str, DataType::Int64));
                 }
@@ -995,15 +1311,17 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let mut expressions = Vec::new();
         let mut fields = Vec::new();
         let subquery_planner = |query: &ast::Query| self.plan_query(query);
+        let udf_resolver = |name: &str| self.catalog.get_function(name);
 
         for item in items {
             match item {
                 ast::SelectItem::UnnamedExpr(expr) => {
-                    let planned_expr = ExprPlanner::plan_expr_with_named_windows(
+                    let planned_expr = ExprPlanner::plan_expr_with_udf_resolver(
                         expr,
                         input.schema(),
                         Some(&subquery_planner),
                         named_windows,
+                        Some(&udf_resolver),
                     )?;
                     let name = self.expr_name(expr);
                     let data_type = self.infer_expr_type(&planned_expr, input.schema());
@@ -1011,11 +1329,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     expressions.push(planned_expr);
                 }
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
-                    let planned_expr = ExprPlanner::plan_expr_with_named_windows(
+                    let planned_expr = ExprPlanner::plan_expr_with_udf_resolver(
                         expr,
                         input.schema(),
                         Some(&subquery_planner),
                         named_windows,
+                        Some(&udf_resolver),
                     )?;
                     let data_type = self.infer_expr_type(&planned_expr, input.schema());
                     fields.push(PlanField::new(alias.value.clone(), data_type));
@@ -1304,6 +1623,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let mut agg_fields = Vec::new();
         let mut agg_canonical_names: Vec<String> = Vec::new();
         let subquery_planner = |query: &ast::Query| self.plan_query(query);
+        let udf_resolver = |name: &str| self.catalog.get_function(name);
         let mut grouping_sets: Option<Vec<Vec<usize>>> = None;
 
         let select_aliases: Vec<(String, &ast::Expr)> = select
@@ -1400,10 +1720,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 }
 
                 for expr in &all_exprs {
-                    let planned = ExprPlanner::plan_expr_with_subquery(
+                    let planned = ExprPlanner::plan_expr_with_udf_resolver(
                         expr,
                         input.schema(),
                         Some(&subquery_planner),
+                        &select.named_window,
+                        Some(&udf_resolver),
                     )?;
                     let name = self.expr_name(expr);
                     let data_type = self.infer_expr_type(&planned, input.schema());
@@ -1441,10 +1763,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
                     if self.is_aggregate_expr(expr) {
                         if Self::is_pure_aggregate_expr(expr) {
-                            let planned = ExprPlanner::plan_expr_with_subquery(
+                            let planned = ExprPlanner::plan_expr_with_udf_resolver(
                                 expr,
                                 input.schema(),
                                 Some(&subquery_planner),
+                                &select.named_window,
+                                Some(&udf_resolver),
                             )?;
                             let canonical = Self::canonical_agg_name(expr);
                             let data_type = self.infer_expr_type(&planned, input.schema());
@@ -1460,10 +1784,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             });
                             final_projection_fields.push(PlanField::new(output_name, data_type));
                         } else {
-                            let planned = ExprPlanner::plan_expr_with_subquery(
+                            let planned = ExprPlanner::plan_expr_with_udf_resolver(
                                 expr,
                                 input.schema(),
                                 Some(&subquery_planner),
+                                &select.named_window,
+                                Some(&udf_resolver),
                             )?;
                             let (replaced_expr, _extracted_aggs) = self
                                 .extract_aggregates_from_expr(
@@ -1479,10 +1805,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             final_projection_fields.push(PlanField::new(output_name, data_type));
                         }
                     } else if Self::ast_has_window_expr(expr) {
-                        let planned = ExprPlanner::plan_expr_with_subquery(
+                        let planned = ExprPlanner::plan_expr_with_udf_resolver(
                             expr,
                             input.schema(),
                             Some(&subquery_planner),
+                            &select.named_window,
+                            Some(&udf_resolver),
                         )?;
                         let (replaced_window_expr, _) = self.extract_aggregates_from_expr(
                             &planned,
@@ -1529,10 +1857,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             });
                             final_projection_fields.push(PlanField::new(output_name, data_type));
                         } else {
-                            let planned = ExprPlanner::plan_expr_with_subquery(
+                            let planned = ExprPlanner::plan_expr_with_udf_resolver(
                                 expr,
                                 input.schema(),
                                 Some(&subquery_planner),
+                                &select.named_window,
+                                Some(&udf_resolver),
                             )?;
                             if Self::is_constant_expr(&planned)
                                 || Self::only_references_fields(
@@ -2865,6 +3195,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             None => (None, target_schema.clone()),
         };
 
+        self.with_outer_schema(&combined_schema);
+        let subquery_planner = |query: &ast::Query| self.plan_query(query);
+
         let mut plan_assignments = Vec::new();
         for assign in assignments {
             let column = match &assign.target {
@@ -2875,16 +3208,20 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     .collect::<Vec<_>>()
                     .join(", "),
             };
-            let value = ExprPlanner::plan_expr(&assign.value, &combined_schema)?;
+            let value = ExprPlanner::plan_expr_with_subquery(
+                &assign.value,
+                &combined_schema,
+                Some(&subquery_planner),
+            )?;
             plan_assignments.push(Assignment { column, value });
         }
-
-        let subquery_planner = |query: &ast::Query| self.plan_query(query);
         let filter = selection
             .map(|s| {
                 ExprPlanner::plan_expr_with_subquery(s, &combined_schema, Some(&subquery_planner))
             })
             .transpose()?;
+
+        self.clear_outer_schema();
 
         Ok(LogicalPlan::Update {
             table_name,
@@ -2996,7 +3333,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .clone()
             .merge(source_schema_with_alias.clone());
 
-        let on_expr = ExprPlanner::plan_expr(on, &combined_schema)?;
+        let subquery_planner = |query: &ast::Query| self.plan_query(query);
+        let on_expr =
+            ExprPlanner::plan_expr_with_subquery(on, &combined_schema, Some(&subquery_planner))?;
 
         let mut merge_clauses = Vec::new();
         for clause in clauses {
@@ -3005,6 +3344,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 &combined_schema,
                 &target_schema,
                 &source_schema_with_alias,
+                &subquery_planner,
             )?;
             merge_clauses.push(planned_clause);
         }
@@ -3017,17 +3357,23 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         })
     }
 
-    fn plan_merge_clause(
+    fn plan_merge_clause<F>(
         &self,
         clause: &ast::MergeClause,
         combined_schema: &PlanSchema,
         target_schema: &PlanSchema,
         _source_schema: &PlanSchema,
-    ) -> Result<MergeClause> {
+        subquery_planner: &F,
+    ) -> Result<MergeClause>
+    where
+        F: Fn(&ast::Query) -> Result<LogicalPlan>,
+    {
         let condition = clause
             .predicate
             .as_ref()
-            .map(|p| ExprPlanner::plan_expr(p, combined_schema))
+            .map(|p| {
+                ExprPlanner::plan_expr_with_subquery(p, combined_schema, Some(subquery_planner))
+            })
             .transpose()?;
 
         match &clause.clause_kind {
@@ -3043,7 +3389,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                 .collect::<Vec<_>>()
                                 .join(", "),
                         };
-                        let value = ExprPlanner::plan_expr(&assign.value, combined_schema)?;
+                        let value = ExprPlanner::plan_expr_with_subquery(
+                            &assign.value,
+                            combined_schema,
+                            Some(subquery_planner),
+                        )?;
                         plan_assignments.push(Assignment { column, value });
                     }
                     Ok(MergeClause::MatchedUpdate {
@@ -3071,7 +3421,13 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                 if let Some(first_row) = vals.rows.first() {
                                     first_row
                                         .iter()
-                                        .map(|e| ExprPlanner::plan_expr(e, combined_schema))
+                                        .map(|e| {
+                                            ExprPlanner::plan_expr_with_subquery(
+                                                e,
+                                                combined_schema,
+                                                Some(subquery_planner),
+                                            )
+                                        })
                                         .collect::<Result<Vec<_>>>()?
                                 } else {
                                     Vec::new()
@@ -3102,7 +3458,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                 .collect::<Vec<_>>()
                                 .join(", "),
                         };
-                        let value = ExprPlanner::plan_expr(&assign.value, target_schema)?;
+                        let value = ExprPlanner::plan_expr_with_subquery(
+                            &assign.value,
+                            target_schema,
+                            Some(subquery_planner),
+                        )?;
                         plan_assignments.push(Assignment { column, value });
                     }
                     Ok(MergeClause::NotMatchedBySource {
@@ -3122,6 +3482,25 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let table_name = object_name_to_raw_string(&create.name);
         let empty_schema = PlanSchema::new();
 
+        let default_collation = match &create.table_options {
+            ast::CreateTableOptions::Plain(opts) => opts.iter().find_map(|opt| {
+                if let ast::SqlOption::KeyValue {
+                    key,
+                    value:
+                        ast::Expr::Value(ast::ValueWithSpan {
+                            value: ast::Value::SingleQuotedString(v),
+                            ..
+                        }),
+                } = opt
+                    && key.value.eq_ignore_ascii_case("DEFAULT COLLATE")
+                {
+                    return Some(v.clone());
+                }
+                None
+            }),
+            _ => None,
+        };
+
         let columns: Vec<ColumnDef> = create
             .columns
             .iter()
@@ -3137,11 +3516,42 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     }
                     _ => None,
                 });
+                let col_collation = col.options.iter().find_map(|o| match &o.option {
+                    ast::ColumnOption::Collation(obj_name) => {
+                        let s = obj_name.to_string();
+                        let trimmed = s.trim_matches(|c| c == '\'' || c == '"' || c == '`');
+                        Some(trimmed.to_string())
+                    }
+                    ast::ColumnOption::Options(opts) => opts.iter().find_map(|opt| {
+                        if let ast::SqlOption::KeyValue {
+                            key,
+                            value:
+                                ast::Expr::Value(ast::ValueWithSpan {
+                                    value: ast::Value::SingleQuotedString(v),
+                                    ..
+                                }),
+                        } = opt
+                            && key.value.eq_ignore_ascii_case("COLLATE")
+                        {
+                            return Some(v.clone());
+                        }
+                        None
+                    }),
+                    _ => None,
+                });
+                let collation = col_collation.or_else(|| {
+                    if matches!(data_type, DataType::String) {
+                        default_collation.clone()
+                    } else {
+                        None
+                    }
+                });
                 ColumnDef {
                     name: col.name.value.clone(),
                     data_type,
                     nullable,
                     default_value,
+                    collation,
                 }
             })
             .collect();
@@ -3150,6 +3560,13 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Some(Box::new(self.plan_query(query_box)?))
         } else if let Some(clone_source) = &create.clone {
             let source_name = object_name_to_raw_string(clone_source);
+            Some(Box::new(LogicalPlan::Scan {
+                table_name: source_name,
+                schema: PlanSchema::new(),
+                projection: None,
+            }))
+        } else if let Some(copy_source) = &create.copy {
+            let source_name = object_name_to_raw_string(copy_source);
             Some(Box::new(LogicalPlan::Scan {
                 table_name: source_name,
                 schema: PlanSchema::new(),
@@ -3208,6 +3625,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
                 Ok(LogicalPlan::DropView { name, if_exists })
             }
+            ast::ObjectType::MaterializedView => {
+                let name = names
+                    .first()
+                    .map(object_name_to_raw_string)
+                    .ok_or_else(|| {
+                        Error::parse_error("DROP MATERIALIZED VIEW requires a view name")
+                    })?;
+
+                Ok(LogicalPlan::DropView { name, if_exists })
+            }
             _ => Err(Error::unsupported(format!(
                 "Unsupported DROP object type: {:?}",
                 object_type
@@ -3228,6 +3655,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         &self,
         schema_name: &ast::SchemaName,
         if_not_exists: bool,
+        or_replace: bool,
     ) -> Result<LogicalPlan> {
         let name = match schema_name {
             ast::SchemaName::Simple(name) => object_name_to_raw_string(name),
@@ -3237,6 +3665,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         Ok(LogicalPlan::CreateSchema {
             name,
             if_not_exists,
+            or_replace,
         })
     }
 
@@ -3255,7 +3684,18 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         }
                     }
                 }
-                _ => {
+                ast::AlterSchemaOperation::SetDefaultCollate { collate } => {
+                    let collate_str = self.extract_sql_option_value(collate);
+                    options.push(("default_collate".to_string(), collate_str));
+                }
+                ast::AlterSchemaOperation::Rename { name: new_name } => {
+                    options.push(("rename_to".to_string(), new_name.to_string()));
+                }
+                ast::AlterSchemaOperation::OwnerTo { owner } => {
+                    options.push(("owner".to_string(), owner.to_string()));
+                }
+                ast::AlterSchemaOperation::AddReplica { .. }
+                | ast::AlterSchemaOperation::DropReplica { .. } => {
                     return Err(Error::unsupported(format!(
                         "ALTER SCHEMA operation not supported: {:?}",
                         operation
@@ -3299,10 +3739,14 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     .filter_map(|arg| {
                         let param_name = arg.name.as_ref()?.value.clone();
                         let data_type = Self::convert_sql_type(&arg.data_type);
+                        let default = arg
+                            .default_expr
+                            .as_ref()
+                            .and_then(|e| ExprPlanner::plan_expr(e, &PlanSchema::new()).ok());
                         Some(FunctionArg {
                             name: param_name,
                             data_type,
-                            default: None,
+                            default,
                         })
                     })
                     .collect()
@@ -3315,44 +3759,90 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 .collect(),
         );
 
-        let body = match language.as_str() {
-            "JAVASCRIPT" | "JS" => {
-                let js_code = match &create.function_body {
-                    Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => {
-                        self.extract_string_from_expr(expr)?
-                    }
-                    Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => {
-                        self.extract_string_from_expr(expr)?
-                    }
-                    _ => {
-                        return Err(Error::InvalidQuery(
-                            "JavaScript UDF requires AS 'code' body".to_string(),
-                        ));
-                    }
-                };
-                FunctionBody::JavaScript(js_code)
+        let body = if create.remote_connection.is_some() {
+            FunctionBody::Language {
+                name: "REMOTE".to_string(),
+                code: String::new(),
             }
-            "SQL" | "" => {
-                let expr = match &create.function_body {
-                    Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => {
-                        ExprPlanner::plan_expr(expr, &arg_schema)?
+        } else {
+            match language.as_str() {
+                "JAVASCRIPT" | "JS" => {
+                    let js_code = match &create.function_body {
+                        Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => {
+                            self.extract_string_from_expr(expr)?
+                        }
+                        Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => {
+                            self.extract_string_from_expr(expr)?
+                        }
+                        _ => {
+                            return Err(Error::InvalidQuery(
+                                "JavaScript UDF requires AS 'code' body".to_string(),
+                            ));
+                        }
+                    };
+                    FunctionBody::JavaScript(js_code)
+                }
+                "PYTHON" => {
+                    let py_code = match &create.function_body {
+                        Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => {
+                            self.extract_string_from_expr(expr)?
+                        }
+                        Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => {
+                            self.extract_string_from_expr(expr)?
+                        }
+                        _ => {
+                            return Err(Error::InvalidQuery(
+                                "Python UDF requires AS '''code''' body".to_string(),
+                            ));
+                        }
+                    };
+                    FunctionBody::Language {
+                        name: "PYTHON".to_string(),
+                        code: py_code,
                     }
-                    Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => {
-                        ExprPlanner::plan_expr(expr, &arg_schema)?
+                }
+                "SQL" | "" => {
+                    let body_expr = match &create.function_body {
+                        Some(ast::CreateFunctionBody::AsBeforeOptions(expr)) => expr,
+                        Some(ast::CreateFunctionBody::AsAfterOptions(expr)) => expr,
+                        _ => {
+                            return Err(Error::UnsupportedFeature(
+                                "SQL UDF requires AS (expr) body".to_string(),
+                            ));
+                        }
+                    };
+
+                    let is_table_function = create.table_function
+                        || matches!(&create.return_type, Some(ast::DataType::Table(_)));
+                    if is_table_function {
+                        let query_str = match body_expr {
+                            ast::Expr::Subquery(query) => query.to_string(),
+                            ast::Expr::Nested(inner) => match inner.as_ref() {
+                                ast::Expr::Subquery(query) => query.to_string(),
+                                _ => {
+                                    return Err(Error::InvalidQuery(
+                                        "TABLE FUNCTION body must be a subquery".to_string(),
+                                    ));
+                                }
+                            },
+                            _ => {
+                                return Err(Error::InvalidQuery(
+                                    "TABLE FUNCTION body must be a subquery".to_string(),
+                                ));
+                            }
+                        };
+                        FunctionBody::SqlQuery(query_str)
+                    } else {
+                        let expr = ExprPlanner::plan_expr(body_expr, &arg_schema)?;
+                        FunctionBody::Sql(Box::new(expr))
                     }
-                    _ => {
-                        return Err(Error::UnsupportedFeature(
-                            "SQL UDF requires AS (expr) body".to_string(),
-                        ));
-                    }
-                };
-                FunctionBody::Sql(Box::new(expr))
-            }
-            _ => {
-                return Err(Error::UnsupportedFeature(format!(
-                    "Unsupported function language: {}. Supported: SQL, JAVASCRIPT",
-                    language
-                )));
+                }
+                _ => {
+                    return Err(Error::UnsupportedFeature(format!(
+                        "Unsupported function language: {}. Supported: SQL, JAVASCRIPT, PYTHON",
+                        language
+                    )));
+                }
             }
         };
 
@@ -3360,6 +3850,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Some(dt) => self.sql_type_to_data_type(dt),
             None => match &body {
                 FunctionBody::Sql(expr) => Self::infer_expr_type_static(expr, &arg_schema),
+                FunctionBody::SqlQuery(_) => DataType::Unknown,
                 FunctionBody::JavaScript(_) | FunctionBody::Language { .. } => {
                     return Err(Error::InvalidQuery(
                         "RETURNS clause is required for non-SQL functions".to_string(),
@@ -3376,6 +3867,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             or_replace: create.or_replace,
             if_not_exists: create.if_not_exists,
             is_temp: create.temporary,
+            is_aggregate: create.aggregate,
         })
     }
 
@@ -3407,35 +3899,43 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             return Err(Error::parse_error("DECLARE requires at least one variable"));
         }
 
-        let decl = &stmts[0];
-        let name = decl
-            .names
-            .first()
-            .ok_or_else(|| Error::parse_error("DECLARE requires a variable name"))?
-            .value
-            .clone();
+        let mut all_plans: Vec<LogicalPlan> = Vec::new();
 
-        let data_type = match &decl.data_type {
-            Some(dt) => self.sql_type_to_data_type(dt),
-            None => DataType::Unknown,
-        };
+        for decl in stmts {
+            let data_type = match &decl.data_type {
+                Some(dt) => self.sql_type_to_data_type(dt),
+                None => DataType::Unknown,
+            };
 
-        let empty_schema = PlanSchema::new();
-        let default = match &decl.assignment {
-            Some(ast::DeclareAssignment::Default(expr))
-            | Some(ast::DeclareAssignment::Expr(expr))
-            | Some(ast::DeclareAssignment::For(expr))
-            | Some(ast::DeclareAssignment::DuckAssignment(expr))
-            | Some(ast::DeclareAssignment::MsSqlAssignment(expr)) => {
-                Some(ExprPlanner::plan_expr(expr, &empty_schema)?)
+            let empty_schema = PlanSchema::new();
+            let default = match &decl.assignment {
+                Some(ast::DeclareAssignment::Default(expr))
+                | Some(ast::DeclareAssignment::Expr(expr))
+                | Some(ast::DeclareAssignment::For(expr))
+                | Some(ast::DeclareAssignment::DuckAssignment(expr))
+                | Some(ast::DeclareAssignment::MsSqlAssignment(expr)) => {
+                    Some(ExprPlanner::plan_expr(expr, &empty_schema)?)
+                }
+                None => None,
+            };
+
+            for name_ident in &decl.names {
+                all_plans.push(LogicalPlan::Declare {
+                    name: name_ident.value.clone(),
+                    data_type: data_type.clone(),
+                    default: default.clone(),
+                });
             }
-            None => None,
-        };
+        }
 
-        Ok(LogicalPlan::Declare {
-            name,
-            data_type,
-            default,
+        if all_plans.len() == 1 {
+            return Ok(all_plans.remove(0));
+        }
+
+        Ok(LogicalPlan::If {
+            condition: yachtsql_ir::Expr::Literal(yachtsql_ir::Literal::Bool(true)),
+            then_branch: all_plans,
+            else_branch: None,
         })
     }
 
@@ -3502,6 +4002,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         data_type,
                         nullable,
                         default_value,
+                        collation: None,
                     },
                     if_not_exists: *if_not_exists,
                 })
@@ -3553,6 +4054,17 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         let dt = self.sql_type_to_data_type(data_type);
                         AlterColumnAction::SetDataType { data_type: dt }
                     }
+                    ast::AlterColumnOperation::SetOptions { options } => {
+                        let collation = options.iter().find_map(|opt| match opt {
+                            ast::SqlOption::KeyValue { key, value }
+                                if key.value.to_lowercase() == "collate" =>
+                            {
+                                Some(value.to_string().trim_matches('\'').to_string())
+                            }
+                            _ => None,
+                        });
+                        AlterColumnAction::SetOptions { collation }
+                    }
                     _ => {
                         return Err(Error::unsupported(format!(
                             "Unsupported ALTER COLUMN operation: {:?}",
@@ -3588,6 +4100,9 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     })
                     .collect();
                 Ok(AlterTableOp::SetOptions { options })
+            }
+            ast::AlterTableOperation::SetDefaultCollate { .. } => {
+                Ok(AlterTableOp::SetOptions { options: vec![] })
             }
             _ => Err(Error::unsupported(format!(
                 "Unsupported ALTER TABLE operation: {:?}",
@@ -3635,6 +4150,33 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     value,
                 })
             }
+            ast::Set::ParenthesizedAssignments { variables, values } => {
+                if variables.len() != values.len() {
+                    return Err(Error::parse_error(
+                        "SET: number of variables must match number of values",
+                    ));
+                }
+
+                let mut plans: Vec<LogicalPlan> = Vec::new();
+                for (var, val) in variables.iter().zip(values.iter()) {
+                    let var_name = var.to_string();
+                    let value = self.plan_set_value(val)?;
+                    plans.push(LogicalPlan::SetVariable {
+                        name: var_name,
+                        value,
+                    });
+                }
+
+                if plans.len() == 1 {
+                    return Ok(plans.remove(0));
+                }
+
+                Ok(LogicalPlan::If {
+                    condition: yachtsql_ir::Expr::Literal(yachtsql_ir::Literal::Bool(true)),
+                    then_branch: plans,
+                    else_branch: None,
+                })
+            }
             _ => Err(Error::unsupported(format!(
                 "Unsupported SET statement: {:?}",
                 set_stmt
@@ -3655,7 +4197,8 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             }
             _ => {
                 let empty_schema = PlanSchema::new();
-                ExprPlanner::plan_expr(expr, &empty_schema)
+                let subquery_planner = |subquery: &ast::Query| self.plan_query(subquery);
+                ExprPlanner::plan_expr_with_subquery(expr, &empty_schema, Some(&subquery_planner))
             }
         }
     }
@@ -3672,6 +4215,146 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             })
             .collect();
         PlanSchema::from_fields(fields)
+    }
+
+    fn substitute_params_in_plan(
+        plan: LogicalPlan,
+        bindings: &HashMap<String, Expr>,
+    ) -> LogicalPlan {
+        match plan {
+            LogicalPlan::Project {
+                input,
+                expressions,
+                schema,
+            } => LogicalPlan::Project {
+                input: Box::new(Self::substitute_params_in_plan(*input, bindings)),
+                expressions: expressions
+                    .into_iter()
+                    .map(|e| Self::substitute_params_in_expr(e, bindings))
+                    .collect(),
+                schema,
+            },
+            LogicalPlan::Filter { input, predicate } => LogicalPlan::Filter {
+                input: Box::new(Self::substitute_params_in_plan(*input, bindings)),
+                predicate: Self::substitute_params_in_expr(predicate, bindings),
+            },
+            LogicalPlan::Values { values, schema } => LogicalPlan::Values {
+                values: values
+                    .into_iter()
+                    .map(|row| {
+                        row.into_iter()
+                            .map(|e| Self::substitute_params_in_expr(e, bindings))
+                            .collect()
+                    })
+                    .collect(),
+                schema,
+            },
+            other => other,
+        }
+    }
+
+    fn substitute_params_in_expr(expr: Expr, bindings: &HashMap<String, Expr>) -> Expr {
+        match expr {
+            Expr::Column { ref name, .. } => {
+                if let Some(replacement) = bindings.get(&name.to_uppercase()) {
+                    replacement.clone()
+                } else {
+                    expr
+                }
+            }
+            Expr::BinaryOp { left, op, right } => Expr::BinaryOp {
+                left: Box::new(Self::substitute_params_in_expr(*left, bindings)),
+                op,
+                right: Box::new(Self::substitute_params_in_expr(*right, bindings)),
+            },
+            Expr::UnaryOp { op, expr: inner } => Expr::UnaryOp {
+                op,
+                expr: Box::new(Self::substitute_params_in_expr(*inner, bindings)),
+            },
+            Expr::ScalarFunction { name, args } => Expr::ScalarFunction {
+                name,
+                args: args
+                    .into_iter()
+                    .map(|e| Self::substitute_params_in_expr(e, bindings))
+                    .collect(),
+            },
+            Expr::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => Expr::Case {
+                operand: operand.map(|e| Box::new(Self::substitute_params_in_expr(*e, bindings))),
+                when_clauses: when_clauses
+                    .into_iter()
+                    .map(|wc| yachtsql_ir::WhenClause {
+                        condition: Self::substitute_params_in_expr(wc.condition, bindings),
+                        result: Self::substitute_params_in_expr(wc.result, bindings),
+                    })
+                    .collect(),
+                else_result: else_result
+                    .map(|e| Box::new(Self::substitute_params_in_expr(*e, bindings))),
+            },
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                safe,
+            } => Expr::Cast {
+                expr: Box::new(Self::substitute_params_in_expr(*inner, bindings)),
+                data_type,
+                safe,
+            },
+            Expr::InList {
+                expr: inner,
+                list,
+                negated,
+            } => Expr::InList {
+                expr: Box::new(Self::substitute_params_in_expr(*inner, bindings)),
+                list: list
+                    .into_iter()
+                    .map(|e| Self::substitute_params_in_expr(e, bindings))
+                    .collect(),
+                negated,
+            },
+            Expr::IsNull {
+                expr: inner,
+                negated,
+            } => Expr::IsNull {
+                expr: Box::new(Self::substitute_params_in_expr(*inner, bindings)),
+                negated,
+            },
+            Expr::Between {
+                expr: inner,
+                negated,
+                low,
+                high,
+            } => Expr::Between {
+                expr: Box::new(Self::substitute_params_in_expr(*inner, bindings)),
+                negated,
+                low: Box::new(Self::substitute_params_in_expr(*low, bindings)),
+                high: Box::new(Self::substitute_params_in_expr(*high, bindings)),
+            },
+            Expr::Struct { fields } => Expr::Struct {
+                fields: fields
+                    .into_iter()
+                    .map(|(name, e)| (name, Self::substitute_params_in_expr(e, bindings)))
+                    .collect(),
+            },
+            Expr::Array {
+                elements,
+                element_type,
+            } => Expr::Array {
+                elements: elements
+                    .into_iter()
+                    .map(|e| Self::substitute_params_in_expr(e, bindings))
+                    .collect(),
+                element_type,
+            },
+            Expr::Alias { expr: inner, name } => Expr::Alias {
+                expr: Box::new(Self::substitute_params_in_expr(*inner, bindings)),
+                name,
+            },
+            other => other,
+        }
     }
 
     fn rename_schema(&self, schema: &PlanSchema, new_table: &str) -> PlanSchema {
@@ -3782,6 +4465,10 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 DataType::Array(Box::new(element_type))
             }
             ast::DataType::Interval { .. } => DataType::Interval,
+            ast::DataType::Range(inner) => {
+                let inner_type = Self::convert_sql_type(inner);
+                DataType::Range(Box::new(inner_type))
+            }
             ast::DataType::Custom(name, modifiers) => {
                 let type_name = object_name_to_raw_string(name).to_uppercase();
                 match type_name.as_str() {
@@ -3838,7 +4525,32 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn is_aggregate_expr(&self, expr: &ast::Expr) -> bool {
-        Self::check_aggregate_expr(expr)
+        self.check_aggregate_expr_with_catalog(expr)
+    }
+
+    fn check_aggregate_expr_with_catalog(&self, expr: &ast::Expr) -> bool {
+        match expr {
+            ast::Expr::Function(func) => {
+                if func.over.is_some() {
+                    return false;
+                }
+                let name = func.name.to_string().to_uppercase();
+                if let Some(udf) = self.catalog.get_function(&name)
+                    && udf.is_aggregate
+                {
+                    return true;
+                }
+                Self::check_aggregate_expr(expr)
+            }
+            ast::Expr::BinaryOp { left, right, .. } => {
+                self.check_aggregate_expr_with_catalog(left)
+                    || self.check_aggregate_expr_with_catalog(right)
+            }
+            ast::Expr::UnaryOp { expr: inner, .. } => self.check_aggregate_expr_with_catalog(inner),
+            ast::Expr::Nested(inner) => self.check_aggregate_expr_with_catalog(inner),
+            ast::Expr::Cast { expr: inner, .. } => self.check_aggregate_expr_with_catalog(inner),
+            _ => Self::check_aggregate_expr(expr),
+        }
     }
 
     fn ast_has_window_expr(expr: &ast::Expr) -> bool {
@@ -4958,6 +5670,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         params: &Option<Vec<ast::ProcedureParam>>,
         body: &ast::ConditionalStatements,
         or_replace: bool,
+        if_not_exists: bool,
     ) -> Result<LogicalPlan> {
         let raw_name = object_name_to_raw_string(name);
         let (proc_name, or_replace) = if let Some(stripped) = raw_name.strip_prefix("__orp__") {
@@ -4992,6 +5705,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             args,
             body: body_plans,
             or_replace,
+            if_not_exists,
         })
     }
 
@@ -5224,5 +5938,225 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .iter()
             .filter_map(|g| g.name.as_ref().map(|n| format!("{}", n)))
             .collect())
+    }
+
+    fn plan_gap_fill(
+        &self,
+        args: &ast::TableFunctionArgs,
+        _alias: &Option<ast::TableAlias>,
+    ) -> Result<LogicalPlan> {
+        let mut input_plan: Option<LogicalPlan> = None;
+        let mut ts_column: Option<String> = None;
+        let mut bucket_width: Option<Expr> = None;
+        let mut value_columns: Vec<GapFillColumn> = Vec::new();
+        let mut partitioning_columns: Vec<String> = Vec::new();
+        let mut origin: Option<Expr> = None;
+
+        for arg in &args.args {
+            match arg {
+                ast::FunctionArg::Unnamed(arg_expr) => match arg_expr {
+                    ast::FunctionArgExpr::TableRef(table_name) => {
+                        let name_str = object_name_to_raw_string(table_name);
+                        if let Some(schema) = self.catalog.get_table_schema(&name_str) {
+                            let plan_schema =
+                                self.storage_schema_to_plan_schema(&schema, Some(&name_str));
+                            input_plan = Some(LogicalPlan::Scan {
+                                table_name: name_str.clone(),
+                                schema: plan_schema,
+                                projection: None,
+                            });
+                        } else {
+                            return Err(Error::invalid_query(format!(
+                                "Table not found: {}",
+                                name_str
+                            )));
+                        }
+                    }
+                    ast::FunctionArgExpr::Expr(ast::Expr::Subquery(query)) => {
+                        input_plan = Some(self.plan_query(query)?);
+                    }
+                    ast::FunctionArgExpr::Expr(_) => {}
+                    _ => {}
+                },
+                ast::FunctionArg::Named { name, arg, .. } => {
+                    let name_str = name.value.to_lowercase();
+                    match name_str.as_str() {
+                        "ts_column" => {
+                            if let ast::FunctionArgExpr::Expr(ast::Expr::Value(
+                                ast::ValueWithSpan {
+                                    value: ast::Value::SingleQuotedString(s),
+                                    ..
+                                },
+                            )) = arg
+                            {
+                                ts_column = Some(s.clone());
+                            }
+                        }
+                        "bucket_width" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                bucket_width = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        "value_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                value_columns = self.parse_gap_fill_value_columns(e)?;
+                            }
+                        }
+                        "partitioning_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                partitioning_columns = self.parse_gap_fill_partitioning(e)?;
+                            }
+                        }
+                        "origin" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                origin = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                ast::FunctionArg::ExprNamed { name, arg, .. } => {
+                    let name_str = match name {
+                        ast::Expr::Identifier(ident) => ident.value.to_lowercase(),
+                        _ => continue,
+                    };
+                    match name_str.as_str() {
+                        "ts_column" => {
+                            if let ast::FunctionArgExpr::Expr(ast::Expr::Value(
+                                ast::ValueWithSpan {
+                                    value: ast::Value::SingleQuotedString(s),
+                                    ..
+                                },
+                            )) = arg
+                            {
+                                ts_column = Some(s.clone());
+                            }
+                        }
+                        "bucket_width" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                bucket_width = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        "value_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                value_columns = self.parse_gap_fill_value_columns(e)?;
+                            }
+                        }
+                        "partitioning_columns" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                partitioning_columns = self.parse_gap_fill_partitioning(e)?;
+                            }
+                        }
+                        "origin" => {
+                            if let ast::FunctionArgExpr::Expr(e) = arg {
+                                origin = Some(ExprPlanner::plan_expr(e, &PlanSchema::new())?);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let input =
+            input_plan.ok_or_else(|| Error::invalid_query("GAP_FILL requires a table input"))?;
+        let ts_col =
+            ts_column.ok_or_else(|| Error::invalid_query("GAP_FILL requires ts_column"))?;
+        let bucket =
+            bucket_width.ok_or_else(|| Error::invalid_query("GAP_FILL requires bucket_width"))?;
+
+        let input_schema = input.schema().clone();
+        let mut output_fields = Vec::new();
+
+        for field in &input_schema.fields {
+            if field.name.to_uppercase() == ts_col.to_uppercase() {
+                output_fields.push(field.clone());
+            }
+        }
+
+        for field in &input_schema.fields {
+            if partitioning_columns
+                .iter()
+                .any(|p| p.to_uppercase() == field.name.to_uppercase())
+            {
+                output_fields.push(field.clone());
+            }
+        }
+
+        for vc in &value_columns {
+            for field in &input_schema.fields {
+                if field.name.to_uppercase() == vc.column_name.to_uppercase() {
+                    output_fields.push(field.clone());
+                    break;
+                }
+            }
+        }
+
+        let schema = PlanSchema {
+            fields: output_fields,
+        };
+
+        Ok(LogicalPlan::GapFill {
+            input: Box::new(input),
+            ts_column: ts_col,
+            bucket_width: bucket,
+            value_columns,
+            partitioning_columns,
+            origin,
+            input_schema: input_schema.clone(),
+            schema,
+        })
+    }
+
+    fn parse_gap_fill_value_columns(&self, expr: &ast::Expr) -> Result<Vec<GapFillColumn>> {
+        let mut columns = Vec::new();
+        if let ast::Expr::Array(ast::Array { elem, .. }) = expr {
+            for e in elem {
+                if let ast::Expr::Tuple(items) = e
+                    && items.len() == 2
+                {
+                    let col_name = match &items[0] {
+                        ast::Expr::Value(ast::ValueWithSpan {
+                            value: ast::Value::SingleQuotedString(s),
+                            ..
+                        }) => s.clone(),
+                        _ => continue,
+                    };
+                    let strategy = match &items[1] {
+                        ast::Expr::Value(ast::ValueWithSpan {
+                            value: ast::Value::SingleQuotedString(s),
+                            ..
+                        }) => match s.to_lowercase().as_str() {
+                            "null" => GapFillStrategy::Null,
+                            "locf" => GapFillStrategy::Locf,
+                            "linear" => GapFillStrategy::Linear,
+                            _ => GapFillStrategy::Null,
+                        },
+                        _ => GapFillStrategy::Null,
+                    };
+                    columns.push(GapFillColumn {
+                        column_name: col_name,
+                        strategy,
+                    });
+                }
+            }
+        }
+        Ok(columns)
+    }
+
+    fn parse_gap_fill_partitioning(&self, expr: &ast::Expr) -> Result<Vec<String>> {
+        let mut columns = Vec::new();
+        if let ast::Expr::Array(ast::Array { elem, .. }) = expr {
+            for e in elem {
+                if let ast::Expr::Value(ast::ValueWithSpan {
+                    value: ast::Value::SingleQuotedString(s),
+                    ..
+                }) = e
+                {
+                    columns.push(s.clone());
+                }
+            }
+        }
+        Ok(columns)
     }
 }

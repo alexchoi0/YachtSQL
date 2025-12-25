@@ -14,6 +14,7 @@ mod executor;
 mod ir_evaluator;
 mod js_udf;
 mod plan;
+mod py_udf;
 mod session;
 
 #[cfg(feature = "concurrent")]
@@ -84,6 +85,7 @@ fn is_cacheable_plan(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::DropView { .. }
         | OptimizedLogicalPlan::CreateSchema { .. }
         | OptimizedLogicalPlan::DropSchema { .. }
+        | OptimizedLogicalPlan::UndropSchema { .. }
         | OptimizedLogicalPlan::AlterSchema { .. }
         | OptimizedLogicalPlan::CreateFunction { .. }
         | OptimizedLogicalPlan::DropFunction { .. }
@@ -107,7 +109,12 @@ fn is_cacheable_plan(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::DropSnapshot { .. }
         | OptimizedLogicalPlan::Assert { .. }
         | OptimizedLogicalPlan::Grant { .. }
-        | OptimizedLogicalPlan::Revoke { .. } => false,
+        | OptimizedLogicalPlan::Revoke { .. }
+        | OptimizedLogicalPlan::BeginTransaction
+        | OptimizedLogicalPlan::Commit
+        | OptimizedLogicalPlan::Rollback
+        | OptimizedLogicalPlan::TryCatch { .. }
+        | OptimizedLogicalPlan::GapFill { .. } => false,
     }
 }
 
@@ -121,6 +128,7 @@ fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::DropView { .. }
         | OptimizedLogicalPlan::CreateSchema { .. }
         | OptimizedLogicalPlan::DropSchema { .. }
+        | OptimizedLogicalPlan::UndropSchema { .. }
         | OptimizedLogicalPlan::AlterSchema { .. }
         | OptimizedLogicalPlan::CreateFunction { .. }
         | OptimizedLogicalPlan::DropFunction { .. }
@@ -169,7 +177,12 @@ fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::Continue
         | OptimizedLogicalPlan::Assert { .. }
         | OptimizedLogicalPlan::Grant { .. }
-        | OptimizedLogicalPlan::Revoke { .. } => false,
+        | OptimizedLogicalPlan::Revoke { .. }
+        | OptimizedLogicalPlan::BeginTransaction
+        | OptimizedLogicalPlan::Commit
+        | OptimizedLogicalPlan::Rollback
+        | OptimizedLogicalPlan::TryCatch { .. }
+        | OptimizedLogicalPlan::GapFill { .. } => false,
     }
 }
 

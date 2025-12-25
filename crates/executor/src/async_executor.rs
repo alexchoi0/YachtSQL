@@ -53,6 +53,7 @@ fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::DropView { .. }
         | OptimizedLogicalPlan::CreateSchema { .. }
         | OptimizedLogicalPlan::DropSchema { .. }
+        | OptimizedLogicalPlan::UndropSchema { .. }
         | OptimizedLogicalPlan::AlterSchema { .. }
         | OptimizedLogicalPlan::CreateFunction { .. }
         | OptimizedLogicalPlan::DropFunction { .. }

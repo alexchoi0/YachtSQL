@@ -2068,6 +2068,50 @@ impl<'a> Tokenizer<'a> {
                             s.push(ch);
                             s.push(*next);
                             chars.next(); // consume next
+                        } else if *next == 'u' {
+                            // Unicode escape \uXXXX (4 hex digits)
+                            chars.next(); // consume 'u'
+                            let hex: String = (0..4)
+                                .filter_map(|_| chars.next())
+                                .collect();
+                            if hex.len() == 4 {
+                                if let Ok(code_point) = u32::from_str_radix(&hex, 16) {
+                                    if let Some(unicode_char) = char::from_u32(code_point) {
+                                        s.push(unicode_char);
+                                    } else {
+                                        s.push_str("\\u");
+                                        s.push_str(&hex);
+                                    }
+                                } else {
+                                    s.push_str("\\u");
+                                    s.push_str(&hex);
+                                }
+                            } else {
+                                s.push_str("\\u");
+                                s.push_str(&hex);
+                            }
+                        } else if *next == 'U' {
+                            // Unicode escape \UXXXXXXXX (8 hex digits)
+                            chars.next(); // consume 'U'
+                            let hex: String = (0..8)
+                                .filter_map(|_| chars.next())
+                                .collect();
+                            if hex.len() == 8 {
+                                if let Ok(code_point) = u32::from_str_radix(&hex, 16) {
+                                    if let Some(unicode_char) = char::from_u32(code_point) {
+                                        s.push(unicode_char);
+                                    } else {
+                                        s.push_str("\\U");
+                                        s.push_str(&hex);
+                                    }
+                                } else {
+                                    s.push_str("\\U");
+                                    s.push_str(&hex);
+                                }
+                            } else {
+                                s.push_str("\\U");
+                                s.push_str(&hex);
+                            }
                         } else {
                             let n = match next {
                                 '0' => '\0',

@@ -62,7 +62,6 @@ fn test_set_variable() {
 }
 
 #[test]
-#[ignore]
 fn test_set_from_query() {
     let mut session = create_session();
     session
@@ -575,7 +574,6 @@ fn test_declare_array() {
 }
 
 #[test]
-#[ignore]
 fn test_declare_multiple_with_default() {
     let mut session = create_session();
 
@@ -588,7 +586,6 @@ fn test_declare_multiple_with_default() {
 }
 
 #[test]
-#[ignore]
 fn test_set_multiple_variables() {
     let mut session = create_session();
 
@@ -1250,7 +1247,6 @@ fn test_return_in_loop() {
 }
 
 #[test]
-#[ignore]
 fn test_variable_scope_in_block() {
     let mut session = create_session();
 
@@ -1347,7 +1343,6 @@ fn test_complex_while_loop() {
 }
 
 #[test]
-#[ignore]
 fn test_if_with_subquery_condition() {
     let mut session = create_session();
 

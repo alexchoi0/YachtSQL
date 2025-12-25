@@ -350,9 +350,11 @@ impl PhysicalPlanner {
             LogicalPlan::CreateSchema {
                 name,
                 if_not_exists,
+                or_replace,
             } => Ok(OptimizedLogicalPlan::CreateSchema {
                 name: name.clone(),
                 if_not_exists: *if_not_exists,
+                or_replace: *or_replace,
             }),
 
             LogicalPlan::DropSchema {
@@ -363,6 +365,14 @@ impl PhysicalPlanner {
                 name: name.clone(),
                 if_exists: *if_exists,
                 cascade: *cascade,
+            }),
+
+            LogicalPlan::UndropSchema {
+                name,
+                if_not_exists,
+            } => Ok(OptimizedLogicalPlan::UndropSchema {
+                name: name.clone(),
+                if_not_exists: *if_not_exists,
             }),
 
             LogicalPlan::AlterSchema { name, options } => Ok(OptimizedLogicalPlan::AlterSchema {
@@ -378,6 +388,7 @@ impl PhysicalPlanner {
                 or_replace,
                 if_not_exists,
                 is_temp,
+                is_aggregate,
             } => Ok(OptimizedLogicalPlan::CreateFunction {
                 name: name.clone(),
                 args: args.clone(),
@@ -386,6 +397,7 @@ impl PhysicalPlanner {
                 or_replace: *or_replace,
                 if_not_exists: *if_not_exists,
                 is_temp: *is_temp,
+                is_aggregate: *is_aggregate,
             }),
 
             LogicalPlan::DropFunction { name, if_exists } => {
@@ -400,6 +412,7 @@ impl PhysicalPlanner {
                 args,
                 body,
                 or_replace,
+                if_not_exists,
             } => {
                 let body = body
                     .iter()
@@ -410,6 +423,7 @@ impl PhysicalPlanner {
                     args: args.clone(),
                     body,
                     or_replace: *or_replace,
+                    if_not_exists: *if_not_exists,
                 })
             }
 
@@ -599,6 +613,48 @@ impl PhysicalPlanner {
                 resource_type: resource_type.clone(),
                 resource_name: resource_name.clone(),
                 grantees: grantees.clone(),
+            }),
+
+            LogicalPlan::BeginTransaction => Ok(OptimizedLogicalPlan::BeginTransaction),
+            LogicalPlan::Commit => Ok(OptimizedLogicalPlan::Commit),
+            LogicalPlan::Rollback => Ok(OptimizedLogicalPlan::Rollback),
+
+            LogicalPlan::TryCatch {
+                try_block,
+                catch_block,
+            } => {
+                let try_block = try_block
+                    .iter()
+                    .map(|p| self.plan(p))
+                    .collect::<Result<Vec<_>>>()?;
+                let catch_block = catch_block
+                    .iter()
+                    .map(|p| self.plan(p))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(OptimizedLogicalPlan::TryCatch {
+                    try_block,
+                    catch_block,
+                })
+            }
+
+            LogicalPlan::GapFill {
+                input,
+                ts_column,
+                bucket_width,
+                value_columns,
+                partitioning_columns,
+                origin,
+                input_schema,
+                schema,
+            } => Ok(OptimizedLogicalPlan::GapFill {
+                input: Box::new(self.plan(input)?),
+                ts_column: ts_column.clone(),
+                bucket_width: bucket_width.clone(),
+                value_columns: value_columns.clone(),
+                partitioning_columns: partitioning_columns.clone(),
+                origin: origin.clone(),
+                input_schema: input_schema.clone(),
+                schema: schema.clone(),
             }),
         }
     }
@@ -873,9 +929,11 @@ impl OptimizedLogicalPlan {
             OptimizedLogicalPlan::CreateSchema {
                 name,
                 if_not_exists,
+                or_replace,
             } => LogicalPlan::CreateSchema {
                 name,
                 if_not_exists,
+                or_replace,
             },
             OptimizedLogicalPlan::DropSchema {
                 name,
@@ -885,6 +943,13 @@ impl OptimizedLogicalPlan {
                 name,
                 if_exists,
                 cascade,
+            },
+            OptimizedLogicalPlan::UndropSchema {
+                name,
+                if_not_exists,
+            } => LogicalPlan::UndropSchema {
+                name,
+                if_not_exists,
             },
             OptimizedLogicalPlan::AlterSchema { name, options } => {
                 LogicalPlan::AlterSchema { name, options }
@@ -897,6 +962,7 @@ impl OptimizedLogicalPlan {
                 or_replace,
                 if_not_exists,
                 is_temp,
+                is_aggregate,
             } => LogicalPlan::CreateFunction {
                 name,
                 args,
@@ -905,6 +971,7 @@ impl OptimizedLogicalPlan {
                 or_replace,
                 if_not_exists,
                 is_temp,
+                is_aggregate,
             },
             OptimizedLogicalPlan::DropFunction { name, if_exists } => {
                 LogicalPlan::DropFunction { name, if_exists }
@@ -914,11 +981,13 @@ impl OptimizedLogicalPlan {
                 args,
                 body,
                 or_replace,
+                if_not_exists,
             } => LogicalPlan::CreateProcedure {
                 name,
                 args,
                 body: body.into_iter().map(|p| p.into_logical()).collect(),
                 or_replace,
+                if_not_exists,
             },
             OptimizedLogicalPlan::DropProcedure { name, if_exists } => {
                 LogicalPlan::DropProcedure { name, if_exists }
@@ -1034,6 +1103,35 @@ impl OptimizedLogicalPlan {
                 resource_type,
                 resource_name,
                 grantees,
+            },
+            OptimizedLogicalPlan::BeginTransaction => LogicalPlan::BeginTransaction,
+            OptimizedLogicalPlan::Commit => LogicalPlan::Commit,
+            OptimizedLogicalPlan::Rollback => LogicalPlan::Rollback,
+            OptimizedLogicalPlan::TryCatch {
+                try_block,
+                catch_block,
+            } => LogicalPlan::TryCatch {
+                try_block: try_block.into_iter().map(|p| p.into_logical()).collect(),
+                catch_block: catch_block.into_iter().map(|p| p.into_logical()).collect(),
+            },
+            OptimizedLogicalPlan::GapFill {
+                input,
+                ts_column,
+                bucket_width,
+                value_columns,
+                partitioning_columns,
+                origin,
+                input_schema,
+                schema,
+            } => LogicalPlan::GapFill {
+                input: Box::new(input.into_logical()),
+                ts_column,
+                bucket_width,
+                value_columns,
+                partitioning_columns,
+                origin,
+                input_schema,
+                schema,
             },
         }
     }

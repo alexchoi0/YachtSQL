@@ -18,6 +18,7 @@ pub struct Field {
     pub description: Option<String>,
     pub source_table: Option<String>,
     pub default_value: Option<Value>,
+    pub collation: Option<String>,
 }
 
 impl Field {
@@ -29,6 +30,7 @@ impl Field {
             description: None,
             source_table: None,
             default_value: None,
+            collation: None,
         }
     }
 
@@ -56,6 +58,11 @@ impl Field {
 
     pub fn with_default(mut self, default_value: Value) -> Self {
         self.default_value = Some(default_value);
+        self
+    }
+
+    pub fn with_collation(mut self, collation: impl Into<String>) -> Self {
+        self.collation = Some(collation.into());
         self
     }
 

@@ -379,6 +379,41 @@ impl Table {
         Ok(())
     }
 
+    pub fn set_column_collation(&mut self, col_name: &str, collation: String) -> Result<()> {
+        let upper = col_name.to_uppercase();
+        let field_idx = self
+            .schema
+            .fields()
+            .iter()
+            .position(|f| f.name.to_uppercase() == upper);
+        let field_idx = match field_idx {
+            Some(idx) => idx,
+            None => {
+                return Err(yachtsql_common::error::Error::ColumnNotFound(
+                    col_name.to_string(),
+                ));
+            }
+        };
+
+        let fields: Vec<_> = self
+            .schema
+            .fields()
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                if i == field_idx {
+                    let mut new_field = f.clone();
+                    new_field.collation = Some(collation.clone());
+                    new_field
+                } else {
+                    f.clone()
+                }
+            })
+            .collect();
+        self.schema = Schema::from_fields(fields);
+        Ok(())
+    }
+
     fn types_compatible(
         old_type: &yachtsql_common::types::DataType,
         new_type: &yachtsql_common::types::DataType,

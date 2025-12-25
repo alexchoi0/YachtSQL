@@ -1,4 +1,4 @@
-use yachtsql_common::error::Result;
+use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_ir::{BinaryOp, Expr, Literal, LogicalPlan, SortExpr, UnnestColumn};
 use yachtsql_optimizer::optimize;
@@ -98,11 +98,22 @@ impl<'a> PlanExecutor<'a> {
                         Self::compare_values(&left_val, &right_val),
                         std::cmp::Ordering::Greater | std::cmp::Ordering::Equal
                     ))),
+                    BinaryOp::Add => Self::arithmetic_op(&left_val, &right_val, |a, b| a + b),
+                    BinaryOp::Sub => Self::arithmetic_op(&left_val, &right_val, |a, b| a - b),
+                    BinaryOp::Mul => Self::arithmetic_op(&left_val, &right_val, |a, b| a * b),
+                    BinaryOp::Div => Self::arithmetic_op(&left_val, &right_val, |a, b| a / b),
                     _ => {
+                        let new_left = Self::value_to_literal(left_val);
+                        let new_right = Self::value_to_literal(right_val);
+                        let simplified_expr = Expr::BinaryOp {
+                            left: Box::new(Expr::Literal(new_left)),
+                            op: *op,
+                            right: Box::new(Expr::Literal(new_right)),
+                        };
                         let evaluator = IrEvaluator::new(outer_schema)
                             .with_variables(&self.variables)
                             .with_user_functions(&self.user_function_defs);
-                        evaluator.evaluate(expr, outer_record)
+                        evaluator.evaluate(&simplified_expr, outer_record)
                     }
                 }
             }
@@ -113,7 +124,26 @@ impl<'a> PlanExecutor<'a> {
                 let val = self.eval_expr_with_subquery(inner, outer_schema, outer_record)?;
                 Ok(Value::Bool(!val.as_bool().unwrap_or(false)))
             }
-            Expr::Subquery(subquery) => self.evaluate_scalar_subquery(subquery),
+            Expr::Subquery(subquery) | Expr::ScalarSubquery(subquery) => {
+                if Self::plan_contains_outer_refs(subquery, outer_schema) {
+                    self.evaluate_scalar_subquery_with_outer(subquery, outer_schema, outer_record)
+                } else {
+                    self.evaluate_scalar_subquery(subquery)
+                }
+            }
+            Expr::ArraySubquery(subquery) => {
+                self.evaluate_array_subquery(subquery, outer_schema, outer_record)
+            }
+            Expr::ScalarFunction { name, args } => {
+                let arg_vals: Vec<Value> = args
+                    .iter()
+                    .map(|a| self.eval_expr_with_subquery(a, outer_schema, outer_record))
+                    .collect::<Result<_>>()?;
+                let evaluator = IrEvaluator::new(outer_schema)
+                    .with_variables(&self.variables)
+                    .with_user_functions(&self.user_function_defs);
+                evaluator.eval_scalar_function_with_values(name, &arg_vals)
+            }
             _ => {
                 let evaluator = IrEvaluator::new(outer_schema)
                     .with_variables(&self.variables)
@@ -129,8 +159,14 @@ impl<'a> PlanExecutor<'a> {
         outer_schema: &Schema,
         outer_record: &Record,
     ) -> Result<bool> {
-        let substituted =
-            self.substitute_outer_refs_in_plan(subquery, outer_schema, outer_record)?;
+        let mut inner_tables = std::collections::HashSet::new();
+        Self::collect_plan_tables(subquery, &mut inner_tables);
+        let substituted = self.substitute_outer_refs_in_plan_with_inner_tables(
+            subquery,
+            outer_schema,
+            outer_record,
+            &inner_tables,
+        )?;
         let physical = optimize(&substituted)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
         let result_table = self.execute_plan(&executor_plan)?;
@@ -169,6 +205,73 @@ impl<'a> PlanExecutor<'a> {
             }
         }
         Ok(Value::Null)
+    }
+
+    fn evaluate_scalar_subquery_with_outer(
+        &mut self,
+        subquery: &LogicalPlan,
+        outer_schema: &Schema,
+        outer_record: &Record,
+    ) -> Result<Value> {
+        let mut inner_tables = std::collections::HashSet::new();
+        Self::collect_plan_tables(subquery, &mut inner_tables);
+        let substituted = self.substitute_outer_refs_in_plan_with_inner_tables(
+            subquery,
+            outer_schema,
+            outer_record,
+            &inner_tables,
+        )?;
+        let physical = optimize(&substituted)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
+        let result_table = self.execute_plan(&executor_plan)?;
+
+        for record in result_table.rows()? {
+            let row_values = record.values();
+            if !row_values.is_empty() {
+                return Ok(row_values[0].clone());
+            }
+        }
+        Ok(Value::Null)
+    }
+
+    fn evaluate_array_subquery(
+        &mut self,
+        subquery: &LogicalPlan,
+        outer_schema: &Schema,
+        outer_record: &Record,
+    ) -> Result<Value> {
+        let mut inner_tables = std::collections::HashSet::new();
+        Self::collect_plan_tables(subquery, &mut inner_tables);
+        let substituted = self.substitute_outer_refs_in_plan_with_inner_tables(
+            subquery,
+            outer_schema,
+            outer_record,
+            &inner_tables,
+        )?;
+        let physical = optimize(&substituted)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
+        let result_table = self.execute_plan(&executor_plan)?;
+
+        let result_schema = result_table.schema();
+        let num_fields = result_schema.field_count();
+
+        let mut array_values = Vec::new();
+        for record in result_table.rows()? {
+            let values = record.values();
+            if num_fields == 1 {
+                array_values.push(values[0].clone());
+            } else {
+                let fields: Vec<(String, Value)> = result_schema
+                    .fields()
+                    .iter()
+                    .zip(values.iter())
+                    .map(|(f, v)| (f.name.clone(), v.clone()))
+                    .collect();
+                array_values.push(Value::Struct(fields));
+            }
+        }
+
+        Ok(Value::Array(array_values))
     }
 
     pub fn substitute_outer_refs_in_plan(
@@ -415,13 +518,430 @@ impl<'a> PlanExecutor<'a> {
         }
     }
 
+    fn substitute_outer_refs_in_plan_with_inner_tables(
+        &self,
+        plan: &LogicalPlan,
+        outer_schema: &Schema,
+        outer_record: &Record,
+        inner_tables: &std::collections::HashSet<String>,
+    ) -> Result<LogicalPlan> {
+        match plan {
+            LogicalPlan::Scan {
+                table_name,
+                schema,
+                projection,
+            } => Ok(LogicalPlan::Scan {
+                table_name: table_name.clone(),
+                schema: schema.clone(),
+                projection: projection.clone(),
+            }),
+            LogicalPlan::Filter { input, predicate } => {
+                let new_input = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    input,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_predicate = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    predicate,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(LogicalPlan::Filter {
+                    input: Box::new(new_input),
+                    predicate: new_predicate,
+                })
+            }
+            LogicalPlan::Project {
+                input,
+                expressions,
+                schema,
+            } => {
+                let new_input = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    input,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_expressions = expressions
+                    .iter()
+                    .map(|e| {
+                        self.substitute_outer_refs_in_expr_with_inner_tables(
+                            e,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(LogicalPlan::Project {
+                    input: Box::new(new_input),
+                    expressions: new_expressions,
+                    schema: schema.clone(),
+                })
+            }
+            LogicalPlan::Unnest {
+                input,
+                columns,
+                schema,
+            } => {
+                let new_input = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    input,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_columns = columns
+                    .iter()
+                    .map(|c| {
+                        let new_expr = self.substitute_outer_refs_in_expr_with_inner_tables(
+                            &c.expr,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )?;
+                        Ok(UnnestColumn {
+                            expr: new_expr,
+                            alias: c.alias.clone(),
+                            with_offset: c.with_offset,
+                            offset_alias: c.offset_alias.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(LogicalPlan::Unnest {
+                    input: Box::new(new_input),
+                    columns: new_columns,
+                    schema: schema.clone(),
+                })
+            }
+            LogicalPlan::SetOperation {
+                left,
+                right,
+                op,
+                all,
+                schema,
+            } => {
+                let new_left = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    left,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_right = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    right,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(LogicalPlan::SetOperation {
+                    left: Box::new(new_left),
+                    right: Box::new(new_right),
+                    op: *op,
+                    all: *all,
+                    schema: schema.clone(),
+                })
+            }
+            other => Ok(other.clone()),
+        }
+    }
+
+    fn substitute_outer_refs_in_expr_with_inner_tables(
+        &self,
+        expr: &Expr,
+        outer_schema: &Schema,
+        outer_record: &Record,
+        inner_tables: &std::collections::HashSet<String>,
+    ) -> Result<Expr> {
+        match expr {
+            Expr::Column { table, name, index } => {
+                let should_substitute = if let Some(tbl) = table {
+                    if inner_tables.contains(&tbl.to_lowercase()) {
+                        false
+                    } else {
+                        outer_schema.fields().iter().any(|f| {
+                            f.source_table
+                                .as_ref()
+                                .is_some_and(|src| src.eq_ignore_ascii_case(tbl))
+                        }) || outer_schema
+                            .fields()
+                            .iter()
+                            .any(|f| f.name.eq_ignore_ascii_case(name) && f.source_table.is_none())
+                    }
+                } else {
+                    let inner_table_is_only_alias = inner_tables
+                        .iter()
+                        .all(|t| self.catalog.get_table(t).is_none());
+                    inner_table_is_only_alias
+                        && !inner_tables.contains(&name.to_lowercase())
+                        && outer_schema.field_index(name).is_some()
+                };
+
+                if should_substitute && let Some(idx) = outer_schema.field_index(name) {
+                    let value = outer_record
+                        .values()
+                        .get(idx)
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    return Ok(Expr::Literal(Self::value_to_literal(value)));
+                }
+                Ok(Expr::Column {
+                    table: table.clone(),
+                    name: name.clone(),
+                    index: *index,
+                })
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let new_left = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    left,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_right = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    right,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(Expr::BinaryOp {
+                    left: Box::new(new_left),
+                    op: *op,
+                    right: Box::new(new_right),
+                })
+            }
+            Expr::ScalarFunction { name, args } => {
+                let new_args = args
+                    .iter()
+                    .map(|a| {
+                        self.substitute_outer_refs_in_expr_with_inner_tables(
+                            a,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Expr::ScalarFunction {
+                    name: name.clone(),
+                    args: new_args,
+                })
+            }
+            Expr::Struct { fields } => {
+                let new_fields = fields
+                    .iter()
+                    .map(|(name, e)| {
+                        let new_e = self.substitute_outer_refs_in_expr_with_inner_tables(
+                            e,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )?;
+                        Ok((name.clone(), new_e))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Expr::Struct { fields: new_fields })
+            }
+            Expr::StructAccess { expr, field } => {
+                let new_expr = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    expr,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(Expr::StructAccess {
+                    expr: Box::new(new_expr),
+                    field: field.clone(),
+                })
+            }
+            Expr::IsNull { expr, negated } => {
+                let new_expr = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    expr,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(Expr::IsNull {
+                    expr: Box::new(new_expr),
+                    negated: *negated,
+                })
+            }
+            Expr::Like {
+                expr,
+                pattern,
+                negated,
+                case_insensitive,
+            } => {
+                let new_expr = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    expr,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_pattern = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    pattern,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(Expr::Like {
+                    expr: Box::new(new_expr),
+                    pattern: Box::new(new_pattern),
+                    negated: *negated,
+                    case_insensitive: *case_insensitive,
+                })
+            }
+            Expr::UnaryOp { op, expr } => {
+                let new_expr = self.substitute_outer_refs_in_expr_with_inner_tables(
+                    expr,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(Expr::UnaryOp {
+                    op: *op,
+                    expr: Box::new(new_expr),
+                })
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
     pub fn expr_contains_subquery(expr: &Expr) -> bool {
         match expr {
-            Expr::Exists { .. } | Expr::InSubquery { .. } | Expr::Subquery(_) => true,
+            Expr::Exists { .. }
+            | Expr::InSubquery { .. }
+            | Expr::Subquery(_)
+            | Expr::ScalarSubquery(_)
+            | Expr::ArraySubquery(_) => true,
             Expr::BinaryOp { left, right, .. } => {
                 Self::expr_contains_subquery(left) || Self::expr_contains_subquery(right)
             }
             Expr::UnaryOp { expr, .. } => Self::expr_contains_subquery(expr),
+            Expr::ScalarFunction { args, .. } => args.iter().any(Self::expr_contains_subquery),
+            _ => false,
+        }
+    }
+
+    fn plan_contains_outer_refs(plan: &LogicalPlan, outer_schema: &Schema) -> bool {
+        let mut inner_tables = std::collections::HashSet::new();
+        Self::collect_plan_tables(plan, &mut inner_tables);
+        Self::plan_has_outer_refs(plan, outer_schema, &inner_tables)
+    }
+
+    fn collect_plan_tables(plan: &LogicalPlan, tables: &mut std::collections::HashSet<String>) {
+        match plan {
+            LogicalPlan::Scan { table_name, .. } => {
+                tables.insert(table_name.to_lowercase());
+            }
+            LogicalPlan::Filter { input, .. } => Self::collect_plan_tables(input, tables),
+            LogicalPlan::Project { input, .. } => Self::collect_plan_tables(input, tables),
+            LogicalPlan::Aggregate { input, .. } => Self::collect_plan_tables(input, tables),
+            LogicalPlan::Join { left, right, .. } => {
+                Self::collect_plan_tables(left, tables);
+                Self::collect_plan_tables(right, tables);
+            }
+            LogicalPlan::Unnest { input, columns, .. } => {
+                Self::collect_plan_tables(input, tables);
+                for col in columns {
+                    if let Some(alias) = &col.alias {
+                        tables.insert(alias.to_lowercase());
+                    }
+                }
+            }
+            LogicalPlan::Sort { input, .. } => Self::collect_plan_tables(input, tables),
+            LogicalPlan::Limit { input, .. } => Self::collect_plan_tables(input, tables),
+            LogicalPlan::Distinct { input, .. } => Self::collect_plan_tables(input, tables),
+            _ => {}
+        }
+    }
+
+    fn plan_has_outer_refs(
+        plan: &LogicalPlan,
+        outer_schema: &Schema,
+        inner_tables: &std::collections::HashSet<String>,
+    ) -> bool {
+        match plan {
+            LogicalPlan::Filter { input, predicate } => {
+                Self::expr_has_outer_refs(predicate, outer_schema, inner_tables)
+                    || Self::plan_has_outer_refs(input, outer_schema, inner_tables)
+            }
+            LogicalPlan::Project {
+                input, expressions, ..
+            } => {
+                expressions
+                    .iter()
+                    .any(|e| Self::expr_has_outer_refs(e, outer_schema, inner_tables))
+                    || Self::plan_has_outer_refs(input, outer_schema, inner_tables)
+            }
+            LogicalPlan::Join {
+                left,
+                right,
+                condition,
+                ..
+            } => {
+                condition
+                    .as_ref()
+                    .is_some_and(|c| Self::expr_has_outer_refs(c, outer_schema, inner_tables))
+                    || Self::plan_has_outer_refs(left, outer_schema, inner_tables)
+                    || Self::plan_has_outer_refs(right, outer_schema, inner_tables)
+            }
+            LogicalPlan::Aggregate {
+                input,
+                group_by,
+                aggregates,
+                ..
+            } => {
+                group_by
+                    .iter()
+                    .any(|e| Self::expr_has_outer_refs(e, outer_schema, inner_tables))
+                    || aggregates
+                        .iter()
+                        .any(|e| Self::expr_has_outer_refs(e, outer_schema, inner_tables))
+                    || Self::plan_has_outer_refs(input, outer_schema, inner_tables)
+            }
+            _ => false,
+        }
+    }
+
+    fn expr_has_outer_refs(
+        expr: &Expr,
+        outer_schema: &Schema,
+        inner_tables: &std::collections::HashSet<String>,
+    ) -> bool {
+        match expr {
+            Expr::Column {
+                table: Some(tbl),
+                name,
+                ..
+            } => {
+                if inner_tables.contains(&tbl.to_lowercase()) {
+                    return false;
+                }
+                outer_schema.fields().iter().any(|f| {
+                    f.source_table
+                        .as_ref()
+                        .is_some_and(|src| src.eq_ignore_ascii_case(tbl))
+                        || f.name.eq_ignore_ascii_case(name) && f.source_table.is_none()
+                })
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Self::expr_has_outer_refs(left, outer_schema, inner_tables)
+                    || Self::expr_has_outer_refs(right, outer_schema, inner_tables)
+            }
+            Expr::UnaryOp { expr, .. } => {
+                Self::expr_has_outer_refs(expr, outer_schema, inner_tables)
+            }
+            Expr::ScalarFunction { args, .. } => args
+                .iter()
+                .any(|a| Self::expr_has_outer_refs(a, outer_schema, inner_tables)),
+            Expr::Aggregate { args, filter, .. } => {
+                args.iter()
+                    .any(|a| Self::expr_has_outer_refs(a, outer_schema, inner_tables))
+                    || filter
+                        .as_ref()
+                        .is_some_and(|f| Self::expr_has_outer_refs(f, outer_schema, inner_tables))
+            }
             _ => false,
         }
     }
@@ -476,6 +996,29 @@ impl<'a> PlanExecutor<'a> {
             Value::Geography(_) => Literal::Null,
             Value::Range(_) => Literal::Null,
             Value::Default => Literal::Null,
+        }
+    }
+
+    fn arithmetic_op<F>(left: &Value, right: &Value, op: F) -> Result<Value>
+    where
+        F: Fn(f64, f64) -> f64,
+    {
+        match (left, right) {
+            (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
+            (Value::Int64(a), Value::Int64(b)) => Ok(Value::Int64(op(*a as f64, *b as f64) as i64)),
+            (Value::Float64(a), Value::Float64(b)) => {
+                Ok(Value::Float64(ordered_float::OrderedFloat(op(a.0, b.0))))
+            }
+            (Value::Int64(a), Value::Float64(b)) => Ok(Value::Float64(
+                ordered_float::OrderedFloat(op(*a as f64, b.0)),
+            )),
+            (Value::Float64(a), Value::Int64(b)) => Ok(Value::Float64(
+                ordered_float::OrderedFloat(op(a.0, *b as f64)),
+            )),
+            _ => Err(Error::InvalidQuery(format!(
+                "Cannot perform arithmetic on {:?} and {:?}",
+                left, right
+            ))),
         }
     }
 

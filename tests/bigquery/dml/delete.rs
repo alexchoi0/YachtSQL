@@ -261,7 +261,6 @@ fn test_delete_with_alias() {
 }
 
 #[test]
-#[ignore]
 fn test_delete_with_exists() {
     let mut session = create_session();
 

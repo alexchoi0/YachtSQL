@@ -214,6 +214,20 @@ impl ConcurrentCatalog {
         Ok(())
     }
 
+    pub fn undrop_schema(&self, name: &str, if_not_exists: bool) -> Result<()> {
+        let key = name.to_uppercase();
+        if self.schemas.contains_key(&key) {
+            if if_not_exists {
+                return Ok(());
+            }
+            return Err(Error::invalid_query(format!(
+                "Schema already exists: {}",
+                name
+            )));
+        }
+        Ok(())
+    }
+
     pub fn schema_exists(&self, name: &str) -> bool {
         self.schemas.contains_key(&name.to_uppercase())
     }
@@ -242,15 +256,6 @@ impl ConcurrentCatalog {
 
     pub fn create_table(&self, name: &str, schema: Schema) -> Result<()> {
         let key = name.to_uppercase();
-        if let Some(dot_pos) = key.find('.') {
-            let schema_name = &key[..dot_pos];
-            if !self.schemas.contains_key(schema_name) && !schema_name.is_empty() {
-                return Err(Error::invalid_query(format!(
-                    "Schema not found: {}",
-                    &name[..dot_pos]
-                )));
-            }
-        }
         if self.tables.contains_key(&key) {
             return Err(Error::invalid_query(format!(
                 "Table already exists: {}",
@@ -284,15 +289,6 @@ impl ConcurrentCatalog {
 
     pub fn insert_table(&self, name: &str, table: Table) -> Result<()> {
         let key = name.to_uppercase();
-        if let Some(dot_pos) = key.find('.') {
-            let schema_name = &key[..dot_pos];
-            if !self.schemas.contains_key(schema_name) {
-                return Err(Error::invalid_query(format!(
-                    "Schema not found: {}",
-                    schema_name
-                )));
-            }
-        }
         if self.tables.contains_key(&key) {
             return Err(Error::invalid_query(format!(
                 "Table already exists: {}",
@@ -381,13 +377,23 @@ impl ConcurrentCatalog {
         self.functions.contains_key(&name.to_uppercase())
     }
 
-    pub fn create_procedure(&self, proc: UserProcedure, or_replace: bool) -> Result<()> {
+    pub fn create_procedure(
+        &self,
+        proc: UserProcedure,
+        or_replace: bool,
+        if_not_exists: bool,
+    ) -> Result<()> {
         let key = proc.name.to_uppercase();
-        if self.procedures.contains_key(&key) && !or_replace {
-            return Err(Error::invalid_query(format!(
-                "Procedure already exists: {}",
-                proc.name
-            )));
+        if self.procedures.contains_key(&key) {
+            if if_not_exists {
+                return Ok(());
+            }
+            if !or_replace {
+                return Err(Error::invalid_query(format!(
+                    "Procedure already exists: {}",
+                    proc.name
+                )));
+            }
         }
         self.procedures.insert(key, proc);
         Ok(())

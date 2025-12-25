@@ -601,7 +601,6 @@ fn test_temp_function_string() {
 }
 
 #[test]
-#[ignore]
 fn test_temp_function_complex() {
     let mut session = create_session();
     session

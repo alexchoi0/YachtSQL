@@ -226,7 +226,6 @@ fn test_update_with_from_clause() {
 }
 
 #[test]
-#[ignore]
 fn test_update_with_subquery_in_set() {
     let mut session = create_session();
 
@@ -275,7 +274,6 @@ fn test_update_with_subquery_in_set() {
 }
 
 #[test]
-#[ignore]
 fn test_update_nested_struct_field() {
     let mut session = create_session();
 
@@ -317,7 +315,6 @@ fn test_update_nested_struct_field() {
 }
 
 #[test]
-#[ignore]
 fn test_update_entire_struct() {
     let mut session = create_session();
 
@@ -353,7 +350,6 @@ fn test_update_entire_struct() {
 }
 
 #[test]
-#[ignore]
 fn test_update_with_default_keyword() {
     let mut session = create_session();
 
@@ -579,7 +575,6 @@ fn test_update_with_join_on_clause() {
 }
 
 #[test]
-#[ignore]
 fn test_update_repeated_records_with_array_subquery() {
     let mut session = create_session();
 
@@ -622,7 +617,6 @@ fn test_update_repeated_records_with_array_subquery() {
 }
 
 #[test]
-#[ignore]
 fn test_update_delete_from_repeated_records() {
     let mut session = create_session();
 
@@ -664,7 +658,6 @@ fn test_update_delete_from_repeated_records() {
 }
 
 #[test]
-#[ignore]
 fn test_update_append_second_entry_to_repeated_records() {
     let mut session = create_session();
 

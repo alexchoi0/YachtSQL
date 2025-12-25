@@ -112,6 +112,7 @@ impl<'a> PlanExecutor<'a> {
                 if_not_exists,
             } => Ok(Table::empty(Schema::new())),
             LogicalPlan::DropSchema { .. } => Ok(Table::empty(Schema::new())),
+            LogicalPlan::UndropSchema { .. } => Ok(Table::empty(Schema::new())),
             LogicalPlan::CreateFunction { .. } => Err(Error::UnsupportedFeature(
                 "CreateFunction not yet implemented in IR plan executor".into(),
             )),

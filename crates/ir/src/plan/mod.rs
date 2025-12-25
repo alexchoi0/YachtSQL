@@ -189,12 +189,18 @@ pub enum LogicalPlan {
     CreateSchema {
         name: String,
         if_not_exists: bool,
+        or_replace: bool,
     },
 
     DropSchema {
         name: String,
         if_exists: bool,
         cascade: bool,
+    },
+
+    UndropSchema {
+        name: String,
+        if_not_exists: bool,
     },
 
     AlterSchema {
@@ -210,6 +216,7 @@ pub enum LogicalPlan {
         or_replace: bool,
         if_not_exists: bool,
         is_temp: bool,
+        is_aggregate: bool,
     },
 
     DropFunction {
@@ -222,6 +229,7 @@ pub enum LogicalPlan {
         args: Vec<ProcedureArg>,
         body: Vec<LogicalPlan>,
         or_replace: bool,
+        if_not_exists: bool,
     },
 
     DropProcedure {
@@ -326,6 +334,28 @@ pub enum LogicalPlan {
         resource_name: String,
         grantees: Vec<String>,
     },
+
+    BeginTransaction,
+
+    Commit,
+
+    Rollback,
+
+    TryCatch {
+        try_block: Vec<LogicalPlan>,
+        catch_block: Vec<LogicalPlan>,
+    },
+
+    GapFill {
+        input: Box<LogicalPlan>,
+        ts_column: String,
+        bucket_width: Expr,
+        value_columns: Vec<GapFillColumn>,
+        partitioning_columns: Vec<String>,
+        origin: Option<Expr>,
+        input_schema: PlanSchema,
+        schema: PlanSchema,
+    },
 }
 
 impl LogicalPlan {
@@ -359,6 +389,7 @@ impl LogicalPlan {
             LogicalPlan::DropView { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropSchema { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::UndropSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::AlterSchema { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateFunction { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropFunction { .. } => &EMPTY_SCHEMA,
@@ -383,6 +414,11 @@ impl LogicalPlan {
             LogicalPlan::Assert { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Grant { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Revoke { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::BeginTransaction => &EMPTY_SCHEMA,
+            LogicalPlan::Commit => &EMPTY_SCHEMA,
+            LogicalPlan::Rollback => &EMPTY_SCHEMA,
+            LogicalPlan::TryCatch { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::GapFill { schema, .. } => schema,
         }
     }
 

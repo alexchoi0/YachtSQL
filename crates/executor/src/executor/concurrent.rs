@@ -233,12 +233,17 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             PhysicalPlan::CreateSchema {
                 name,
                 if_not_exists,
-            } => self.execute_create_schema(name, *if_not_exists),
+                or_replace,
+            } => self.execute_create_schema(name, *if_not_exists, *or_replace),
             PhysicalPlan::DropSchema {
                 name,
                 if_exists,
                 cascade,
             } => self.execute_drop_schema(name, *if_exists, *cascade),
+            PhysicalPlan::UndropSchema {
+                name,
+                if_not_exists,
+            } => self.execute_undrop_schema(name, *if_not_exists),
             PhysicalPlan::AlterSchema { name, options } => self.execute_alter_schema(name, options),
             PhysicalPlan::CreateFunction {
                 name,
@@ -265,7 +270,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 args,
                 body,
                 or_replace,
-            } => self.execute_create_procedure(name, args, body, *or_replace),
+                if_not_exists,
+            } => self.execute_create_procedure(name, args, body, *or_replace, *if_not_exists),
             PhysicalPlan::DropProcedure { name, if_exists } => {
                 self.execute_drop_procedure(name, *if_exists)
             }
@@ -355,6 +361,16 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             let mut field = Field::new(&plan_field.name, plan_field.data_type.clone(), mode);
             if let Some(ref table) = plan_field.table {
                 field = field.with_source_table(table.clone());
+            }
+            let source_field = source_table
+                .schema()
+                .fields()
+                .iter()
+                .find(|f| f.name.eq_ignore_ascii_case(&plan_field.name));
+            if let Some(src) = source_field {
+                if let Some(ref collation) = src.collation {
+                    field.collation = Some(collation.clone());
+                }
             }
             new_schema.add_field(field);
         }
@@ -1167,7 +1183,11 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         &mut self,
         name: &str,
         if_not_exists: bool,
+        or_replace: bool,
     ) -> Result<Table> {
+        if or_replace && self.catalog.schema_exists(name) {
+            self.catalog.drop_schema(name, true, true)?;
+        }
         self.catalog.create_schema(name, if_not_exists)?;
         Ok(Table::empty(Schema::new()))
     }
@@ -1179,6 +1199,15 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         cascade: bool,
     ) -> Result<Table> {
         self.catalog.drop_schema(name, if_exists, cascade)?;
+        Ok(Table::empty(Schema::new()))
+    }
+
+    pub(crate) fn execute_undrop_schema(
+        &mut self,
+        name: &str,
+        if_not_exists: bool,
+    ) -> Result<Table> {
+        self.catalog.undrop_schema(name, if_not_exists)?;
         Ok(Table::empty(Schema::new()))
     }
 
@@ -1244,6 +1273,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         args: &[ProcedureArg],
         body: &[PhysicalPlan],
         or_replace: bool,
+        if_not_exists: bool,
     ) -> Result<Table> {
         let proc = UserProcedure {
             name: name.to_string(),
@@ -1255,7 +1285,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 })
                 .collect(),
         };
-        self.catalog.create_procedure(proc, or_replace)?;
+        self.catalog
+            .create_procedure(proc, or_replace, if_not_exists)?;
         Ok(Table::empty(Schema::new()))
     }
 

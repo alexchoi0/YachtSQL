@@ -7,6 +7,7 @@ pub enum Error {
     ParseError(String),
     InvalidQuery(String),
     TableNotFound(String),
+    FunctionNotFound(String),
     ColumnNotFound(String),
     TypeMismatch { expected: String, actual: String },
     SchemaMismatch(String),
@@ -27,6 +28,10 @@ impl Error {
 
     pub fn table_not_found(name: impl Into<String>) -> Self {
         Error::TableNotFound(name.into())
+    }
+
+    pub fn function_not_found(name: impl Into<String>) -> Self {
+        Error::FunctionNotFound(name.into())
     }
 
     pub fn column_not_found(name: impl Into<String>) -> Self {
@@ -67,6 +72,7 @@ impl fmt::Display for Error {
             Error::ParseError(msg) => write!(f, "Parse error: {}", msg),
             Error::InvalidQuery(msg) => write!(f, "Invalid query: {}", msg),
             Error::TableNotFound(name) => write!(f, "Table not found: {}", name),
+            Error::FunctionNotFound(name) => write!(f, "Function not found: {}", name),
             Error::ColumnNotFound(name) => write!(f, "Column not found: {}", name),
             Error::TypeMismatch { expected, actual } => {
                 write!(f, "Type mismatch: expected {}, got {}", expected, actual)

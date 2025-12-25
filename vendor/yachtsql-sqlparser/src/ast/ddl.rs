@@ -386,6 +386,12 @@ pub enum AlterTableOperation {
     SetOptionsParens {
         options: Vec<SqlOption>,
     },
+    /// `SET DEFAULT COLLATE <collation>`
+    ///
+    /// [BigQuery](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#alter_table_set_default_collate)
+    SetDefaultCollate {
+        collate: Expr,
+    },
 }
 
 /// An `ALTER Policy` (`Statement::AlterPolicy`) operation
@@ -522,6 +528,27 @@ impl fmt::Display for AlterConnectorOwner {
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
 pub enum AlterIndexOperation {
     RenameIndex { index_name: ObjectName },
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum AlterViewOperation {
+    SetOptions { options: Vec<SqlOption> },
+    AlterColumn { column_name: Ident, operation: AlterColumnOperation },
+}
+
+impl fmt::Display for AlterViewOperation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AlterViewOperation::SetOptions { options } => {
+                write!(f, "SET OPTIONS ({})", display_comma_separated(options))
+            }
+            AlterViewOperation::AlterColumn { column_name, operation } => {
+                write!(f, "ALTER COLUMN {} {}", column_name, operation)
+            }
+        }
+    }
 }
 
 impl fmt::Display for AlterTableOperation {
@@ -844,6 +871,9 @@ impl fmt::Display for AlterTableOperation {
             AlterTableOperation::SetOptionsParens { options } => {
                 write!(f, "SET ({})", display_comma_separated(options))
             }
+            AlterTableOperation::SetDefaultCollate { collate } => {
+                write!(f, "SET DEFAULT COLLATE {collate}")
+            }
         }
     }
 }
@@ -976,6 +1006,10 @@ pub enum AlterColumnOperation {
         generated_as: Option<GeneratedAs>,
         sequence_options: Option<Vec<SequenceOptions>>,
     },
+    /// `SET OPTIONS (option = value, ...)`
+    ///
+    /// Note: this is a BigQuery-specific operation.
+    SetOptions { options: Vec<SqlOption> },
 }
 
 impl fmt::Display for AlterColumnOperation {
@@ -1024,6 +1058,9 @@ impl fmt::Display for AlterColumnOperation {
                     write!(f, " )")?;
                 }
                 Ok(())
+            }
+            AlterColumnOperation::SetOptions { options } => {
+                write!(f, "SET OPTIONS ({})", display_comma_separated(options))
             }
         }
     }
@@ -2451,6 +2488,7 @@ pub struct CreateTable {
     pub without_rowid: bool,
     pub like: Option<CreateTableLikeKind>,
     pub clone: Option<ObjectName>,
+    pub copy: Option<ObjectName>,
     pub version: Option<TableVersion>,
     // For Hive dialect, the table comment is after the column definitions without `=`,
     // so the `comment` field is optional and different than the comment field in the general options list.
@@ -2592,7 +2630,7 @@ impl fmt::Display for CreateTable {
             Indent(DisplayCommaSeparated(&self.constraints)).fmt(f)?;
             NewLine.fmt(f)?;
             f.write_str(")")?;
-        } else if self.query.is_none() && self.like.is_none() && self.clone.is_none() {
+        } else if self.query.is_none() && self.like.is_none() && self.clone.is_none() && self.copy.is_none() {
             // PostgreSQL allows `CREATE TABLE t ();`, but requires empty parens
             f.write_str(" ()")?;
         } else if let Some(CreateTableLikeKind::Parenthesized(like_in_columns_list)) = &self.like {
@@ -2616,6 +2654,10 @@ impl fmt::Display for CreateTable {
 
         if let Some(c) = &self.clone {
             write!(f, " CLONE {c}")?;
+        }
+
+        if let Some(c) = &self.copy {
+            write!(f, " COPY {c}")?;
         }
 
         if let Some(version) = &self.version {
@@ -2886,6 +2928,26 @@ impl fmt::Display for CreateDomain {
     }
 }
 
+/// SQL SECURITY clause for functions
+///
+/// [BigQuery](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#create_function_statement)
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub enum SqlSecurity {
+    Definer,
+    Invoker,
+}
+
+impl fmt::Display for SqlSecurity {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SqlSecurity::Definer => write!(f, "SQL SECURITY DEFINER"),
+            SqlSecurity::Invoker => write!(f, "SQL SECURITY INVOKER"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
@@ -2897,6 +2959,10 @@ pub struct CreateFunction {
     pub or_replace: bool,
     pub temporary: bool,
     pub if_not_exists: bool,
+    /// True if this is an aggregate function (BigQuery)
+    pub aggregate: bool,
+    /// True if this is a table function (BigQuery)
+    pub table_function: bool,
     pub name: ObjectName,
     pub args: Option<Vec<OperateFunctionArg>>,
     pub return_type: Option<DataType>,
@@ -2950,17 +3016,23 @@ pub struct CreateFunction {
     /// ```
     /// [BigQuery](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#create_a_remote_function)
     pub remote_connection: Option<ObjectName>,
+    /// SQL SECURITY clause (DEFINER or INVOKER)
+    ///
+    /// [BigQuery](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#create_function_statement)
+    pub sql_security: Option<SqlSecurity>,
 }
 
 impl fmt::Display for CreateFunction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "CREATE {or_alter}{or_replace}{temp}FUNCTION {if_not_exists}{name}",
+            "CREATE {or_alter}{or_replace}{temp}{aggregate}{table}FUNCTION {if_not_exists}{name}",
             name = self.name,
             temp = if self.temporary { "TEMPORARY " } else { "" },
             or_alter = if self.or_alter { "OR ALTER " } else { "" },
             or_replace = if self.or_replace { "OR REPLACE " } else { "" },
+            aggregate = if self.aggregate { "AGGREGATE " } else { "" },
+            table = if self.table_function { "TABLE " } else { "" },
             if_not_exists = if self.if_not_exists {
                 "IF NOT EXISTS "
             } else {
@@ -2990,6 +3062,9 @@ impl fmt::Display for CreateFunction {
         }
         if let Some(remote_connection) = &self.remote_connection {
             write!(f, " REMOTE WITH CONNECTION {remote_connection}")?;
+        }
+        if let Some(sql_security) = &self.sql_security {
+            write!(f, " {sql_security}")?;
         }
         if let Some(CreateFunctionBody::AsBeforeOptions(function_body)) = &self.function_body {
             write!(f, " AS {function_body}")?;

@@ -75,6 +75,56 @@ fn coerce_value(value: Value, target_type: &DataType) -> Result<Value> {
     }
 }
 
+fn update_struct_field(current_value: &Value, field_path: &[&str], new_value: Value) -> Value {
+    if field_path.is_empty() {
+        return new_value;
+    }
+
+    let field_name = field_path[0];
+    let remaining_path = &field_path[1..];
+
+    match current_value {
+        Value::Struct(fields) => {
+            let mut new_fields: Vec<(String, Value)> = Vec::with_capacity(fields.len());
+            let mut found = false;
+
+            for (name, val) in fields {
+                if name.eq_ignore_ascii_case(field_name) {
+                    found = true;
+                    if remaining_path.is_empty() {
+                        new_fields.push((name.clone(), new_value.clone()));
+                    } else {
+                        let updated_nested =
+                            update_struct_field(val, remaining_path, new_value.clone());
+                        new_fields.push((name.clone(), updated_nested));
+                    }
+                } else {
+                    new_fields.push((name.clone(), val.clone()));
+                }
+            }
+
+            if !found && remaining_path.is_empty() {
+                new_fields.push((field_name.to_string(), new_value));
+            }
+
+            Value::Struct(new_fields)
+        }
+        _ => current_value.clone(),
+    }
+}
+
+fn parse_assignment_column(column: &str) -> (String, Vec<String>) {
+    let parts: Vec<&str> = column.split('.').collect();
+    if parts.len() > 1 {
+        (
+            parts[0].to_string(),
+            parts[1..].iter().map(|s| s.to_string()).collect(),
+        )
+    } else {
+        (column.to_string(), vec![])
+    }
+}
+
 impl<'a> PlanExecutor<'a> {
     fn evaluate_insert_expr(
         &mut self,
@@ -259,6 +309,20 @@ impl<'a> PlanExecutor<'a> {
 
         let target_schema = table.schema().clone();
 
+        let evaluator_for_defaults = IrEvaluator::new(&target_schema);
+        let empty_record = yachtsql_storage::Record::new();
+        let mut default_values: Vec<Option<Value>> = vec![None; target_schema.field_count()];
+        if let Some(defaults) = self.catalog.get_table_defaults(table_name) {
+            for default in defaults {
+                if let Some(idx) = target_schema.field_index(&default.column_name)
+                    && let Ok(val) =
+                        evaluator_for_defaults.evaluate(&default.default_expr, &empty_record)
+                {
+                    default_values[idx] = Some(val);
+                }
+            }
+        }
+
         match from {
             Some(from_plan) => {
                 let from_data = self.execute_plan(from_plan)?;
@@ -305,11 +369,48 @@ impl<'a> PlanExecutor<'a> {
                         if should_update && !updated_rows.contains_key(&target_idx) {
                             let mut new_row = target_row.clone();
                             for assignment in assignments {
-                                if let Some(col_idx) = target_schema.field_index(&assignment.column)
-                                {
-                                    let new_val =
-                                        evaluator.evaluate(&assignment.value, &combined_record)?;
-                                    new_row[col_idx] = new_val;
+                                let (base_col, field_path) =
+                                    parse_assignment_column(&assignment.column);
+                                if let Some(col_idx) = target_schema.field_index(&base_col) {
+                                    let new_val = match &assignment.value {
+                                        Expr::Default => {
+                                            default_values[col_idx].clone().unwrap_or(Value::Null)
+                                        }
+                                        _ => {
+                                            let val = if Self::expr_contains_subquery(
+                                                &assignment.value,
+                                            ) {
+                                                self.eval_expr_with_subquery(
+                                                    &assignment.value,
+                                                    &combined_schema,
+                                                    &combined_record,
+                                                )?
+                                            } else {
+                                                evaluator
+                                                    .evaluate(&assignment.value, &combined_record)?
+                                            };
+                                            match val {
+                                                Value::Default => default_values[col_idx]
+                                                    .clone()
+                                                    .unwrap_or(Value::Null),
+                                                other => other,
+                                            }
+                                        }
+                                    };
+
+                                    if field_path.is_empty() {
+                                        let target_type =
+                                            &target_schema.fields()[col_idx].data_type;
+                                        new_row[col_idx] = coerce_value(new_val, target_type)?;
+                                    } else {
+                                        let field_refs: Vec<&str> =
+                                            field_path.iter().map(|s| s.as_str()).collect();
+                                        new_row[col_idx] = update_struct_field(
+                                            &new_row[col_idx],
+                                            &field_refs,
+                                            new_val,
+                                        );
+                                    }
                                 }
                             }
                             updated_rows.insert(target_idx, new_row);
@@ -331,15 +432,37 @@ impl<'a> PlanExecutor<'a> {
             None => {
                 let evaluator = IrEvaluator::new(&target_schema);
                 let has_subquery = filter.map(Self::expr_contains_subquery).unwrap_or(false);
+                let assignments_have_subquery = assignments
+                    .iter()
+                    .any(|a| Self::expr_contains_subquery(&a.value));
+
+                let target_schema_with_source = if has_subquery || assignments_have_subquery {
+                    let mut schema = Schema::new();
+                    for field in target_schema.fields() {
+                        let mut new_field = field.clone();
+                        if new_field.source_table.is_none() {
+                            new_field.source_table = Some(table_name.to_string());
+                        }
+                        schema.add_field(new_field);
+                    }
+                    schema
+                } else {
+                    target_schema.clone()
+                };
+
                 let mut new_table = Table::empty(target_schema.clone());
 
                 for record in table.rows()? {
                     let should_update = match filter {
                         Some(expr) => {
                             if has_subquery {
-                                self.eval_expr_with_subquery(expr, &target_schema, &record)?
-                                    .as_bool()
-                                    .unwrap_or(false)
+                                self.eval_expr_with_subquery(
+                                    expr,
+                                    &target_schema_with_source,
+                                    &record,
+                                )?
+                                .as_bool()
+                                .unwrap_or(false)
                             } else {
                                 evaluator
                                     .evaluate(expr, &record)?
@@ -353,9 +476,45 @@ impl<'a> PlanExecutor<'a> {
                     if should_update {
                         let mut new_row = record.values().to_vec();
                         for assignment in assignments {
-                            if let Some(col_idx) = target_schema.field_index(&assignment.column) {
-                                let new_val = evaluator.evaluate(&assignment.value, &record)?;
-                                new_row[col_idx] = new_val;
+                            let (base_col, field_path) =
+                                parse_assignment_column(&assignment.column);
+                            if let Some(col_idx) = target_schema.field_index(&base_col) {
+                                let new_val = match &assignment.value {
+                                    Expr::Default => {
+                                        default_values[col_idx].clone().unwrap_or(Value::Null)
+                                    }
+                                    _ => {
+                                        let val = if Self::expr_contains_subquery(&assignment.value)
+                                        {
+                                            self.eval_expr_with_subquery(
+                                                &assignment.value,
+                                                &target_schema_with_source,
+                                                &record,
+                                            )?
+                                        } else {
+                                            evaluator.evaluate(&assignment.value, &record)?
+                                        };
+                                        match val {
+                                            Value::Default => default_values[col_idx]
+                                                .clone()
+                                                .unwrap_or(Value::Null),
+                                            other => other,
+                                        }
+                                    }
+                                };
+
+                                if field_path.is_empty() {
+                                    let target_type = &target_schema.fields()[col_idx].data_type;
+                                    new_row[col_idx] = coerce_value(new_val, target_type)?;
+                                } else {
+                                    let field_refs: Vec<&str> =
+                                        field_path.iter().map(|s| s.as_str()).collect();
+                                    new_row[col_idx] = update_struct_field(
+                                        &new_row[col_idx],
+                                        &field_refs,
+                                        new_val,
+                                    );
+                                }
                             }
                         }
                         new_table.push_row(new_row)?;
@@ -372,36 +531,67 @@ impl<'a> PlanExecutor<'a> {
     }
 
     pub fn execute_delete(&mut self, table_name: &str, filter: Option<&Expr>) -> Result<Table> {
-        let resolved_filter = match filter {
-            Some(expr) => Some(self.resolve_subqueries_in_expr(expr)?),
-            None => None,
-        };
-
         let table = self
             .catalog
             .get_table(table_name)
             .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?
             .clone();
 
-        let schema = table.schema().clone();
-        let evaluator = IrEvaluator::new(&schema);
-        let mut new_table = Table::empty(schema.clone());
+        let base_schema = table.schema().clone();
+        let has_subquery = filter.map(Self::expr_contains_subquery).unwrap_or(false);
 
-        for record in table.rows()? {
-            let should_delete = match &resolved_filter {
-                Some(expr) => evaluator
-                    .evaluate(expr, &record)?
-                    .as_bool()
-                    .unwrap_or(false),
-                None => true,
+        if has_subquery {
+            let mut schema_with_source = Schema::new();
+            for field in base_schema.fields() {
+                let mut new_field = field.clone();
+                if new_field.source_table.is_none() {
+                    new_field.source_table = Some(table_name.to_string());
+                }
+                schema_with_source.add_field(new_field);
+            }
+
+            let mut new_table = Table::empty(base_schema.clone());
+
+            for record in table.rows()? {
+                let should_delete = match filter {
+                    Some(expr) => self
+                        .eval_expr_with_subquery(expr, &schema_with_source, &record)?
+                        .as_bool()
+                        .unwrap_or(false),
+                    None => true,
+                };
+
+                if !should_delete {
+                    new_table.push_row(record.values().to_vec())?;
+                }
+            }
+
+            self.catalog.replace_table(table_name, new_table)?;
+        } else {
+            let resolved_filter = match filter {
+                Some(expr) => Some(self.resolve_subqueries_in_expr(expr)?),
+                None => None,
             };
 
-            if !should_delete {
-                new_table.push_row(record.values().to_vec())?;
-            }
-        }
+            let evaluator = IrEvaluator::new(&base_schema);
+            let mut new_table = Table::empty(base_schema.clone());
 
-        self.catalog.replace_table(table_name, new_table)?;
+            for record in table.rows()? {
+                let should_delete = match &resolved_filter {
+                    Some(expr) => evaluator
+                        .evaluate(expr, &record)?
+                        .as_bool()
+                        .unwrap_or(false),
+                    None => true,
+                };
+
+                if !should_delete {
+                    new_table.push_row(record.values().to_vec())?;
+                }
+            }
+
+            self.catalog.replace_table(table_name, new_table)?;
+        }
 
         Ok(Table::empty(Schema::new()))
     }
@@ -540,6 +730,7 @@ impl<'a> PlanExecutor<'a> {
 
         let evaluator = IrEvaluator::new(&combined_schema);
         let target_evaluator = IrEvaluator::new(&target_schema);
+        let source_evaluator = IrEvaluator::new(&source_schema);
 
         let target_rows: Vec<Vec<Value>> = target_data
             .rows()?
@@ -614,10 +805,22 @@ impl<'a> PlanExecutor<'a> {
                                 assignments,
                             } => {
                                 let condition_matches = match condition {
-                                    Some(cond) => evaluator
-                                        .evaluate(cond, &combined_record)?
-                                        .as_bool()
-                                        .unwrap_or(false),
+                                    Some(cond) => {
+                                        if Self::expr_contains_subquery(cond) {
+                                            self.eval_expr_with_subquery(
+                                                cond,
+                                                &combined_schema,
+                                                &combined_record,
+                                            )?
+                                            .as_bool()
+                                            .unwrap_or(false)
+                                        } else {
+                                            evaluator
+                                                .evaluate(cond, &combined_record)?
+                                                .as_bool()
+                                                .unwrap_or(false)
+                                        }
+                                    }
                                     None => true,
                                 };
 
@@ -627,8 +830,18 @@ impl<'a> PlanExecutor<'a> {
                                         if let Some(col_idx) =
                                             target_schema.field_index(&assignment.column)
                                         {
-                                            let new_val = evaluator
-                                                .evaluate(&assignment.value, &combined_record)?;
+                                            let new_val = if Self::expr_contains_subquery(
+                                                &assignment.value,
+                                            ) {
+                                                self.eval_expr_with_subquery(
+                                                    &assignment.value,
+                                                    &combined_schema,
+                                                    &combined_record,
+                                                )?
+                                            } else {
+                                                evaluator
+                                                    .evaluate(&assignment.value, &combined_record)?
+                                            };
                                             new_row[col_idx] = new_val;
                                         }
                                     }
@@ -639,10 +852,22 @@ impl<'a> PlanExecutor<'a> {
                             }
                             MergeClause::MatchedDelete { condition } => {
                                 let condition_matches = match condition {
-                                    Some(cond) => evaluator
-                                        .evaluate(cond, &combined_record)?
-                                        .as_bool()
-                                        .unwrap_or(false),
+                                    Some(cond) => {
+                                        if Self::expr_contains_subquery(cond) {
+                                            self.eval_expr_with_subquery(
+                                                cond,
+                                                &combined_schema,
+                                                &combined_record,
+                                            )?
+                                            .as_bool()
+                                            .unwrap_or(false)
+                                        } else {
+                                            evaluator
+                                                .evaluate(cond, &combined_record)?
+                                                .as_bool()
+                                                .unwrap_or(false)
+                                        }
+                                    }
                                     None => true,
                                 };
 
@@ -714,13 +939,6 @@ impl<'a> PlanExecutor<'a> {
 
         for (source_idx, source_row) in source_rows.iter().enumerate() {
             if !source_matched[source_idx] {
-                let target_null_row: Vec<Value> = (0..target_schema.field_count())
-                    .map(|_| Value::Null)
-                    .collect();
-                let mut combined_values = target_null_row;
-                combined_values.extend(source_row.clone());
-                let combined_record =
-                    yachtsql_storage::Record::from_values(combined_values.clone());
                 let source_record = yachtsql_storage::Record::from_values(source_row.clone());
 
                 for clause in clauses {
@@ -731,8 +949,8 @@ impl<'a> PlanExecutor<'a> {
                             values,
                         } => {
                             let condition_matches = match condition {
-                                Some(cond) => evaluator
-                                    .evaluate(cond, &combined_record)?
+                                Some(cond) => source_evaluator
+                                    .evaluate(cond, &source_record)?
                                     .as_bool()
                                     .unwrap_or(false),
                                 None => true,
@@ -748,8 +966,8 @@ impl<'a> PlanExecutor<'a> {
                                         if let Some(col_idx) = target_schema.field_index(col_name)
                                             && i < values.len()
                                         {
-                                            let val =
-                                                evaluator.evaluate(&values[i], &combined_record)?;
+                                            let val = source_evaluator
+                                                .evaluate(&values[i], &source_record)?;
                                             new_row[col_idx] = val;
                                         }
                                     }

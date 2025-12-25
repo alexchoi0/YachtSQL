@@ -437,6 +437,10 @@ pub enum DataType {
     Custom(ObjectName, Vec<String>),
     /// Arrays.
     Array(ArrayElemTypeDef),
+    /// Range type for BigQuery, see [BigQuery].
+    ///
+    /// [BigQuery]: https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#range_type
+    Range(Box<DataType>),
     /// Map, see [ClickHouse].
     ///
     /// [ClickHouse]: https://clickhouse.com/docs/en/sql-reference/data-types/map
@@ -716,6 +720,7 @@ impl fmt::Display for DataType {
                 ArrayElemTypeDef::AngleBracket(t) => write!(f, "ARRAY<{t}>"),
                 ArrayElemTypeDef::Parenthesis(t) => write!(f, "Array({t})"),
             },
+            DataType::Range(inner) => write!(f, "RANGE<{inner}>"),
             DataType::Custom(ty, modifiers) => {
                 if modifiers.is_empty() {
                     write!(f, "{ty}")

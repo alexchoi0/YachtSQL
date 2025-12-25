@@ -14,7 +14,7 @@ use ordered_float::OrderedFloat;
 use rust_decimal::prelude::ToPrimitive;
 use wkt::TryFromWkt;
 use yachtsql_common::error::{Error, Result};
-use yachtsql_common::types::{DataType, IntervalValue, Value};
+use yachtsql_common::types::{DataType, IntervalValue, RangeValue, Value};
 use yachtsql_ir::{
     AggregateFunction, BinaryOp, DateTimeField, Expr, FunctionArg, FunctionBody, Literal,
     ScalarFunction, TrimWhere, UnaryOp, WeekStartDay, WhenClause,
@@ -134,6 +134,9 @@ impl<'a> IrEvaluator<'a> {
             Expr::ScalarFunction { name, args } => self.eval_scalar_function(name, args, record),
             Expr::Aggregate { .. } => Err(Error::InvalidQuery(
                 "Aggregates should be evaluated by aggregate executor".into(),
+            )),
+            Expr::UserDefinedAggregate { .. } => Err(Error::InvalidQuery(
+                "User-defined aggregates should be evaluated by aggregate executor".into(),
             )),
             Expr::Window { .. } => Err(Error::InvalidQuery(
                 "Window functions should be evaluated by window executor".into(),
@@ -392,6 +395,17 @@ impl<'a> IrEvaluator<'a> {
             if let Some(val) = vars.get(&upper_name) {
                 return Ok(val.clone());
             }
+            if let Some(table_name) = table {
+                let upper_table = table_name.to_uppercase();
+                if let Some(Value::Struct(fields)) = vars.get(&upper_table) {
+                    let field_name_lower = name.to_lowercase();
+                    for (field_name, field_value) in fields {
+                        if field_name.to_lowercase() == field_name_lower {
+                            return Ok(field_value.clone());
+                        }
+                    }
+                }
+            }
         }
 
         let idx = self.schema.field_index_qualified(name, table);
@@ -399,6 +413,28 @@ impl<'a> IrEvaluator<'a> {
         match idx {
             Some(i) if i < record.values().len() => Ok(record.values()[i].clone()),
             _ => Err(Error::ColumnNotFound(name.to_string())),
+        }
+    }
+
+    fn get_collation_for_expr(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Column { name, table, .. } => {
+                let upper_col = name.to_uppercase();
+                for field in self.schema.fields() {
+                    if field.name.to_uppercase() == upper_col {
+                        if let Some(src) = &field.source_table {
+                            if let Some(prefix) = table {
+                                if prefix.to_uppercase() != src.to_uppercase() {
+                                    continue;
+                                }
+                            }
+                        }
+                        return field.collation.clone();
+                    }
+                }
+                None
+            }
+            _ => None,
         }
     }
 
@@ -418,8 +454,18 @@ impl<'a> IrEvaluator<'a> {
             BinaryOp::Mul => self.mul_values(&left_val, &right_val),
             BinaryOp::Div => self.div_values(&left_val, &right_val),
             BinaryOp::Mod => self.mod_values(&left_val, &right_val),
-            BinaryOp::Eq => self.eq_values(&left_val, &right_val),
-            BinaryOp::NotEq => self.neq_values(&left_val, &right_val),
+            BinaryOp::Eq => {
+                let collation = self
+                    .get_collation_for_expr(left)
+                    .or_else(|| self.get_collation_for_expr(right));
+                self.eq_values_with_collation(&left_val, &right_val, collation.as_deref())
+            }
+            BinaryOp::NotEq => {
+                let collation = self
+                    .get_collation_for_expr(left)
+                    .or_else(|| self.get_collation_for_expr(right));
+                self.neq_values_with_collation(&left_val, &right_val, collation.as_deref())
+            }
             BinaryOp::Lt => self.compare_values(&left_val, &right_val, |ord| ord.is_lt()),
             BinaryOp::LtEq => self.compare_values(&left_val, &right_val, |ord| ord.is_le()),
             BinaryOp::Gt => self.compare_values(&left_val, &right_val, |ord| ord.is_gt()),
@@ -1346,12 +1392,12 @@ impl<'a> IrEvaluator<'a> {
                     .map_err(|e| Error::InvalidQuery(format!("Invalid BOOL: {}", e)))?;
                 Ok(Value::Bool(b))
             }
+            DataType::Range(inner_type) => parse_range_string(value, inner_type),
             DataType::Unknown
             | DataType::Geography
             | DataType::Struct(_)
             | DataType::Array(_)
-            | DataType::Interval
-            | DataType::Range(_) => {
+            | DataType::Interval => {
                 panic!(
                     "[ir_evaluator::eval_typed_string] Unsupported TypedString for data type: {:?}",
                     data_type
@@ -1729,6 +1775,15 @@ impl<'a> IrEvaluator<'a> {
     }
 
     fn eq_values(&self, left: &Value, right: &Value) -> Result<Value> {
+        self.eq_values_with_collation(left, right, None)
+    }
+
+    fn eq_values_with_collation(
+        &self,
+        left: &Value,
+        right: &Value,
+        collation: Option<&str>,
+    ) -> Result<Value> {
         match (left, right) {
             (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
             (Value::Int64(a), Value::Float64(b)) => {
@@ -1737,11 +1792,23 @@ impl<'a> IrEvaluator<'a> {
             (Value::Float64(a), Value::Int64(b)) => {
                 Ok(Value::Bool((a.0 - *b as f64).abs() < f64::EPSILON))
             }
+            (Value::String(a), Value::String(b)) if matches!(collation, Some("und:ci")) => {
+                Ok(Value::Bool(a.to_lowercase() == b.to_lowercase()))
+            }
             _ => Ok(Value::Bool(left == right)),
         }
     }
 
     fn neq_values(&self, left: &Value, right: &Value) -> Result<Value> {
+        self.neq_values_with_collation(left, right, None)
+    }
+
+    fn neq_values_with_collation(
+        &self,
+        left: &Value,
+        right: &Value,
+        collation: Option<&str>,
+    ) -> Result<Value> {
         match (left, right) {
             (Value::Null, _) | (_, Value::Null) => Ok(Value::Null),
             (Value::Int64(a), Value::Float64(b)) => {
@@ -1749,6 +1816,9 @@ impl<'a> IrEvaluator<'a> {
             }
             (Value::Float64(a), Value::Int64(b)) => {
                 Ok(Value::Bool((a.0 - *b as f64).abs() >= f64::EPSILON))
+            }
+            (Value::String(a), Value::String(b)) if matches!(collation, Some("und:ci")) => {
+                Ok(Value::Bool(a.to_lowercase() != b.to_lowercase()))
             }
             _ => Ok(Value::Bool(left != right)),
         }
@@ -4968,11 +5038,34 @@ impl<'a> IrEvaluator<'a> {
     }
 
     fn fn_normalize(&self, args: &[Value]) -> Result<Value> {
+        use unicode_normalization::UnicodeNormalization;
+
+        let mode = args
+            .get(1)
+            .and_then(|v| {
+                if let Value::String(s) = v {
+                    Some(s.to_uppercase())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| "NFC".to_string());
+
         match args.first() {
             Some(Value::Null) => Ok(Value::Null),
             Some(Value::String(s)) => {
-                use unicode_normalization::UnicodeNormalization;
-                let normalized: String = s.nfc().collect();
+                let normalized: String = match mode.as_str() {
+                    "NFC" => s.nfc().collect(),
+                    "NFKC" => s.nfkc().collect(),
+                    "NFD" => s.nfd().collect(),
+                    "NFKD" => s.nfkd().collect(),
+                    _ => {
+                        return Err(Error::InvalidQuery(format!(
+                            "Invalid normalization mode: {}. Expected NFC, NFKC, NFD, or NFKD",
+                            mode
+                        )));
+                    }
+                };
                 Ok(Value::String(normalized))
             }
             _ => Err(Error::InvalidQuery(
@@ -5044,8 +5137,9 @@ impl<'a> IrEvaluator<'a> {
     fn fn_contains_substr(&self, args: &[Value]) -> Result<Value> {
         match args {
             [Value::Null, _] | [_, Value::Null] => Ok(Value::Null),
-            [Value::String(haystack), Value::String(needle)] => {
+            [haystack_val, Value::String(needle)] => {
                 use unicode_normalization::UnicodeNormalization;
+                let haystack = self.value_to_contains_substr_string(haystack_val);
                 let normalized_haystack: String = haystack.nfkc().collect();
                 let normalized_needle: String = needle.nfkc().collect();
                 let result = normalized_haystack
@@ -5054,8 +5148,43 @@ impl<'a> IrEvaluator<'a> {
                 Ok(Value::Bool(result))
             }
             _ => Err(Error::InvalidQuery(
-                "CONTAINS_SUBSTR requires string arguments".into(),
+                "CONTAINS_SUBSTR requires string second argument".into(),
             )),
+        }
+    }
+
+    fn value_to_contains_substr_string(&self, val: &Value) -> String {
+        match val {
+            Value::Null => "".to_string(),
+            Value::Bool(b) => b.to_string(),
+            Value::Int64(n) => n.to_string(),
+            Value::Float64(f) => f.to_string(),
+            Value::Numeric(d) | Value::BigNumeric(d) => d.to_string(),
+            Value::String(s) => s.clone(),
+            Value::Bytes(b) => String::from_utf8_lossy(b).to_string(),
+            Value::Date(d) => d.to_string(),
+            Value::Time(t) => t.to_string(),
+            Value::DateTime(dt) => dt.to_string(),
+            Value::Timestamp(ts) => ts.to_string(),
+            Value::Json(j) => j.to_string(),
+            Value::Array(arr) => {
+                let elements: Vec<String> = arr
+                    .iter()
+                    .map(|v| self.value_to_contains_substr_string(v))
+                    .collect();
+                format!("[{}]", elements.join(", "))
+            }
+            Value::Struct(fields) => {
+                let elements: Vec<String> = fields
+                    .iter()
+                    .map(|(_, v)| self.value_to_contains_substr_string(v))
+                    .collect();
+                format!("({})", elements.join(", "))
+            }
+            Value::Geography(g) => g.clone(),
+            Value::Interval(i) => format!("{:?}", i),
+            Value::Range(r) => format!("{:?}", r),
+            Value::Default => "DEFAULT".to_string(),
         }
     }
 
@@ -5863,10 +5992,33 @@ impl<'a> IrEvaluator<'a> {
             "DETERMINISTIC_ENCRYPT" => self.fn_deterministic_encrypt(args),
             "DETERMINISTIC_DECRYPT_STRING" => self.fn_deterministic_decrypt_string(args),
             "DETERMINISTIC_DECRYPT_BYTES" => self.fn_deterministic_decrypt_bytes(args),
+            "COLLATE" => self.fn_collate(args),
             _ => Err(Error::UnsupportedFeature(format!(
                 "Scalar function Custom(\"{}\") not yet implemented in IR evaluator",
                 name
             ))),
+        }
+    }
+
+    fn fn_collate(&self, args: &[Value]) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(Error::InvalidQuery(
+                "COLLATE requires exactly 2 arguments".into(),
+            ));
+        }
+        let Value::String(s) = &args[0] else {
+            return Ok(Value::null());
+        };
+        let Value::String(collation) = &args[1] else {
+            return Err(Error::InvalidQuery(
+                "COLLATE second argument must be a string".into(),
+            ));
+        };
+        let collation_lower = collation.to_lowercase();
+        if collation_lower.contains(":ci") {
+            Ok(Value::String(s.to_lowercase()))
+        } else {
+            Ok(Value::String(s.clone()))
         }
     }
 
@@ -8836,10 +8988,23 @@ impl<'a> IrEvaluator<'a> {
                     .map_err(|e| Error::InvalidQuery(format!("JavaScript UDF error: {}", e)))?;
                 Ok(Some(result))
             }
-            FunctionBody::Language { name: lang, .. } => Err(Error::UnsupportedFeature(format!(
-                "Language {} is not supported for UDFs",
-                lang
-            ))),
+            FunctionBody::Language { name: lang, code } => {
+                if lang.to_uppercase() == "PYTHON" {
+                    let param_names: Vec<String> =
+                        udf.parameters.iter().map(|p| p.name.clone()).collect();
+                    let result = crate::py_udf::evaluate_py_function(code, &param_names, args)
+                        .map_err(|e| Error::InvalidQuery(format!("Python UDF error: {}", e)))?;
+                    Ok(Some(result))
+                } else {
+                    Err(Error::UnsupportedFeature(format!(
+                        "Language {} is not supported for UDFs",
+                        lang
+                    )))
+                }
+            }
+            FunctionBody::SqlQuery(_) => Err(Error::InvalidQuery(
+                "Table functions cannot be called as scalar functions".to_string(),
+            )),
         }
     }
 
@@ -9620,6 +9785,69 @@ fn parse_datetime_string(s: &str) -> Result<Value> {
         .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f"))
         .map_err(|e| Error::InvalidQuery(format!("Invalid datetime string: {}", e)))?;
     Ok(Value::DateTime(dt))
+}
+
+fn parse_range_string(s: &str, inner_type: &DataType) -> Result<Value> {
+    let s = s.trim();
+    if s.len() < 2 {
+        return Err(Error::InvalidQuery(format!(
+            "Invalid range string: too short: {}",
+            s
+        )));
+    }
+    let first_char = s.chars().next().unwrap();
+    let last_char = s.chars().last().unwrap();
+    if first_char != '[' && first_char != '(' {
+        return Err(Error::InvalidQuery(format!(
+            "Invalid range string: must start with '[' or '(': {}",
+            s
+        )));
+    }
+    if last_char != ']' && last_char != ')' {
+        return Err(Error::InvalidQuery(format!(
+            "Invalid range string: must end with ']' or ')': {}",
+            s
+        )));
+    }
+    let inner = &s[1..s.len() - 1];
+    let parts: Vec<&str> = inner.splitn(2, ',').collect();
+    if parts.len() != 2 {
+        return Err(Error::InvalidQuery(format!(
+            "Invalid range string: must contain exactly one comma: {}",
+            s
+        )));
+    }
+    let start_str = parts[0].trim();
+    let end_str = parts[1].trim();
+    let start = if start_str.is_empty()
+        || start_str.eq_ignore_ascii_case("NULL")
+        || start_str.eq_ignore_ascii_case("UNBOUNDED")
+    {
+        None
+    } else {
+        Some(parse_range_value(start_str, inner_type)?)
+    };
+    let end = if end_str.is_empty()
+        || end_str.eq_ignore_ascii_case("NULL")
+        || end_str.eq_ignore_ascii_case("UNBOUNDED")
+    {
+        None
+    } else {
+        Some(parse_range_value(end_str, inner_type)?)
+    };
+    Ok(Value::Range(RangeValue::new(start, end)))
+}
+
+fn parse_range_value(s: &str, inner_type: &DataType) -> Result<Value> {
+    match inner_type {
+        DataType::Date => parse_date_string(s),
+        DataType::DateTime => parse_datetime_string(s),
+        DataType::Timestamp => parse_timestamp_string(s),
+        _ => Err(Error::InvalidQuery(format!(
+            "Unsupported range inner type: {:?}",
+            inner_type
+        ))),
+    }
 }
 
 fn parse_interval_string(_s: &str) -> Result<Value> {

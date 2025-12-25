@@ -60,7 +60,7 @@ pub use self::dcl::{
 };
 pub use self::ddl::{
     AlterColumnOperation, AlterConnectorOwner, AlterIndexOperation, AlterPolicyOperation,
-    AlterSchema, AlterSchemaOperation, AlterTableAlgorithm, AlterTableLock, AlterTableOperation,
+    AlterSchema, AlterSchemaOperation, AlterTableAlgorithm, AlterTableLock, AlterTableOperation, AlterViewOperation,
     AlterType, AlterTypeAddValue, AlterTypeAddValuePosition, AlterTypeOperation, AlterTypeRename,
     AlterTypeRenameValue, ClusteredBy, ColumnDef, ColumnOption, ColumnOptionDef, ColumnOptions,
     ColumnPolicy, ColumnPolicyProperty, ConstraintCharacteristics, CreateConnector, CreateDomain,
@@ -68,9 +68,9 @@ pub use self::ddl::{
     DropBehavior, DropTrigger, GeneratedAs, GeneratedExpressionMode, IdentityParameters,
     IdentityProperty, IdentityPropertyFormatKind, IdentityPropertyKind, IdentityPropertyOrder,
     IndexColumn, IndexOption, IndexType, KeyOrIndexDisplay, NullsDistinctOption, Owner, Partition,
-    ProcedureParam, ReferentialAction, RenameTableNameKind, ReplicaIdentity, TableConstraint,
-    TagsColumnOption, UserDefinedTypeCompositeAttributeDef, UserDefinedTypeRepresentation,
-    ViewColumnDef,
+    ProcedureParam, ReferentialAction, RenameTableNameKind, ReplicaIdentity, SqlSecurity,
+    TableConstraint, TagsColumnOption, UserDefinedTypeCompositeAttributeDef,
+    UserDefinedTypeRepresentation, ViewColumnDef,
 };
 pub use self::dml::{Delete, Insert};
 pub use self::operator::{BinaryOperator, UnaryOperator};
@@ -397,16 +397,20 @@ pub struct Array {
 
     /// `true` for  `ARRAY[..]`, `false` for `[..]`
     pub named: bool,
+
+    /// Optional element type for typed array literals like `ARRAY<INT64>[1, 2, 3]`
+    pub element_type: Option<Box<DataType>>,
 }
 
 impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}[{}]",
-            if self.named { "ARRAY" } else { "" },
-            display_comma_separated(&self.elem)
-        )
+        if self.named {
+            write!(f, "ARRAY")?;
+        }
+        if let Some(ref elem_type) = self.element_type {
+            write!(f, "<{}>", elem_type)?;
+        }
+        write!(f, "[{}]", display_comma_separated(&self.elem))
     }
 }
 
@@ -483,6 +487,8 @@ impl fmt::Display for Interval {
 pub struct StructField {
     pub field_name: Option<Ident>,
     pub field_type: DataType,
+    /// Whether the field is NOT NULL
+    pub not_null: bool,
     /// Struct field options.
     /// See [BigQuery](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-definition-language#column_name_and_column_schema)
     pub options: Option<Vec<SqlOption>>,
@@ -495,11 +501,13 @@ impl fmt::Display for StructField {
         } else {
             write!(f, "{}", self.field_type)?;
         }
-        if let Some(options) = &self.options {
-            write!(f, " OPTIONS({})", display_separated(options, ", "))
-        } else {
-            Ok(())
+        if self.not_null {
+            write!(f, " NOT NULL")?;
         }
+        if let Some(options) = &self.options {
+            write!(f, " OPTIONS({})", display_separated(options, ", "))?;
+        }
+        Ok(())
     }
 }
 
@@ -2352,14 +2360,60 @@ impl fmt::Display for WhileStatement {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
 pub struct LoopStatement {
+    pub label: Option<Ident>,
     pub body: Vec<Statement>,
 }
 
 impl fmt::Display for LoopStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(label) = &self.label {
+            write!(f, "{}: ", label)?;
+        }
         write!(f, "LOOP ")?;
         format_statement_list(f, &self.body)?;
         write!(f, " END LOOP")?;
+        if let Some(label) = &self.label {
+            write!(f, " {}", label)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub struct ForStatement {
+    pub variable: Ident,
+    pub query: Box<Query>,
+    pub body: Vec<Statement>,
+}
+
+impl fmt::Display for ForStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "FOR {} IN (", self.variable)?;
+        self.query.fmt(f)?;
+        write!(f, ") DO ")?;
+        format_statement_list(f, &self.body)?;
+        write!(f, " END FOR")?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
+pub struct RepeatStatement {
+    pub body: Vec<Statement>,
+    pub until_condition: Expr,
+}
+
+impl fmt::Display for RepeatStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "REPEAT ")?;
+        format_statement_list(f, &self.body)?;
+        write!(f, " UNTIL ")?;
+        self.until_condition.fmt(f)?;
+        write!(f, " END REPEAT")?;
         Ok(())
     }
 }
@@ -3171,6 +3225,10 @@ pub enum Statement {
     While(WhileStatement),
     /// A `LOOP` statement (BigQuery).
     Loop(LoopStatement),
+    /// A `FOR` statement (BigQuery).
+    For(ForStatement),
+    /// A `REPEAT` statement (BigQuery).
+    Repeat(RepeatStatement),
     /// A `LEAVE` statement (exits a loop or block).
     Leave {
         label: Option<Ident>,
@@ -3302,6 +3360,7 @@ pub enum Statement {
         columns: Vec<ViewColumnDef>,
         query: Box<Query>,
         options: CreateTableOptions,
+        partition_by: Option<Box<Expr>>,
         cluster_by: Vec<Ident>,
         /// Snowflake: Views can have comments in Snowflake.
         /// <https://docs.snowflake.com/en/sql-reference/sql/create-view#syntax>
@@ -3317,6 +3376,16 @@ pub enum Statement {
         to: Option<ObjectName>,
         /// MySQL: Optional parameters for the view algorithm, definer, and security context
         params: Option<CreateViewParams>,
+        /// BigQuery: SQL SECURITY DEFINER/INVOKER
+        sql_security: Option<SqlSecurity>,
+    },
+    /// ```sql
+    /// CREATE MATERIALIZED VIEW REPLICA name AS REPLICA OF source
+    /// ```
+    CreateMaterializedViewReplica {
+        name: ObjectName,
+        source: ObjectName,
+        if_not_exists: bool,
     },
     /// ```sql
     /// CREATE TABLE
@@ -3337,6 +3406,71 @@ pub enum Statement {
     /// `CREATE INDEX`
     /// ```
     CreateIndex(CreateIndex),
+    /// ```sql
+    /// CREATE SEARCH INDEX (BigQuery)
+    /// ```
+    CreateSearchIndex {
+        or_replace: bool,
+        if_not_exists: bool,
+        name: ObjectName,
+        table_name: ObjectName,
+        columns: Vec<Ident>,
+        all_columns: bool,
+        options: Vec<SqlOption>,
+    },
+    /// ```sql
+    /// CREATE VECTOR INDEX (BigQuery)
+    /// ```
+    CreateVectorIndex {
+        or_replace: bool,
+        if_not_exists: bool,
+        name: ObjectName,
+        table_name: ObjectName,
+        column: Ident,
+        storing: Vec<Ident>,
+        options: Vec<SqlOption>,
+    },
+    /// ```sql
+    /// CREATE ROW ACCESS POLICY (BigQuery)
+    /// ```
+    CreateRowAccessPolicy {
+        or_replace: bool,
+        if_not_exists: bool,
+        name: ObjectName,
+        table_name: ObjectName,
+        grant_to: Vec<Expr>,
+        filter_using: Expr,
+    },
+    /// ```sql
+    /// DROP SEARCH INDEX (BigQuery)
+    /// ```
+    DropSearchIndex {
+        if_exists: bool,
+        name: ObjectName,
+        table_name: ObjectName,
+    },
+    /// ```sql
+    /// DROP VECTOR INDEX (BigQuery)
+    /// ```
+    DropVectorIndex {
+        if_exists: bool,
+        name: ObjectName,
+        table_name: ObjectName,
+    },
+    /// ```sql
+    /// DROP ROW ACCESS POLICY (BigQuery)
+    /// ```
+    DropRowAccessPolicy {
+        if_exists: bool,
+        name: ObjectName,
+        table_name: ObjectName,
+    },
+    /// ```sql
+    /// DROP ALL ROW ACCESS POLICIES (BigQuery)
+    /// ```
+    DropAllRowAccessPolicies {
+        table_name: ObjectName,
+    },
     /// ```sql
     /// CREATE ROLE
     /// ```
@@ -3440,6 +3574,41 @@ pub enum Statement {
         columns: Vec<Ident>,
         query: Box<Query>,
         with_options: Vec<SqlOption>,
+    },
+    /// ```sql
+    /// ALTER MATERIALIZED VIEW
+    /// ```
+    AlterMaterializedView {
+        /// Materialized view name
+        #[cfg_attr(feature = "visitor", visit(with = "visit_relation"))]
+        name: ObjectName,
+        options: Vec<SqlOption>,
+        operations: Vec<AlterViewOperation>,
+    },
+    /// ```sql
+    /// ALTER VIEW ... SET OPTIONS / ALTER COLUMN (BigQuery-style)
+    /// ```
+    AlterViewWithOperations {
+        /// View name
+        #[cfg_attr(feature = "visitor", visit(with = "visit_relation"))]
+        name: ObjectName,
+        operations: Vec<AlterViewOperation>,
+    },
+    /// ```sql
+    /// ALTER FUNCTION ... SET OPTIONS (BigQuery)
+    /// ```
+    AlterFunction {
+        #[cfg_attr(feature = "visitor", visit(with = "visit_relation"))]
+        name: ObjectName,
+        options: Vec<SqlOption>,
+    },
+    /// ```sql
+    /// ALTER PROCEDURE ... SET OPTIONS (BigQuery)
+    /// ```
+    AlterProcedure {
+        #[cfg_attr(feature = "visitor", visit(with = "visit_relation"))]
+        name: ObjectName,
+        options: Vec<SqlOption>,
     },
     /// ```sql
     /// ALTER TYPE
@@ -3604,6 +3773,14 @@ pub enum Statement {
     DropConnector {
         if_exists: bool,
         name: Ident,
+    },
+    /// ```sql
+    /// UNDROP SCHEMA schema_name
+    /// ```
+    /// BigQuery-specific statement to restore a dropped schema
+    UndropSchema {
+        if_not_exists: bool,
+        schema_name: ObjectName,
     },
     /// ```sql
     /// DECLARE
@@ -3871,6 +4048,7 @@ pub enum Statement {
         /// `<schema name> | AUTHORIZATION <schema authorization identifier>  | <schema name>  AUTHORIZATION <schema authorization identifier>`
         schema_name: SchemaName,
         if_not_exists: bool,
+        or_replace: bool,
         /// Schema properties.
         ///
         /// ```sql
@@ -3950,9 +4128,11 @@ pub enum Statement {
     /// ```
     CreateProcedure {
         or_alter: bool,
+        if_not_exists: bool,
         name: ObjectName,
         params: Option<Vec<ProcedureParam>>,
         language: Option<Ident>,
+        options: Option<Vec<SqlOption>>,
         body: ConditionalStatements,
     },
     /// ```sql
@@ -4620,6 +4800,12 @@ impl fmt::Display for Statement {
             Statement::Loop(stmt) => {
                 write!(f, "{stmt}")
             }
+            Statement::For(stmt) => {
+                write!(f, "{stmt}")
+            }
+            Statement::Repeat(stmt) => {
+                write!(f, "{stmt}")
+            }
             Statement::Leave { label } => {
                 write!(f, "LEAVE")?;
                 if let Some(l) = label {
@@ -4943,14 +5129,17 @@ impl fmt::Display for Statement {
             Statement::CreateProcedure {
                 name,
                 or_alter,
+                if_not_exists,
                 params,
                 language,
+                options,
                 body,
             } => {
                 write!(
                     f,
-                    "CREATE {or_alter}PROCEDURE {name}",
+                    "CREATE {or_alter}PROCEDURE {if_not_exists}{name}",
                     or_alter = if *or_alter { "OR ALTER " } else { "" },
+                    if_not_exists = if *if_not_exists { "IF NOT EXISTS " } else { "" },
                     name = name
                 )?;
 
@@ -4962,6 +5151,12 @@ impl fmt::Display for Statement {
 
                 if let Some(language) = language {
                     write!(f, " LANGUAGE {language}")?;
+                }
+
+                if let Some(opts) = options {
+                    if !opts.is_empty() {
+                        write!(f, " OPTIONS ({})", display_comma_separated(opts))?;
+                    }
                 }
 
                 write!(f, " AS {body}")
@@ -4997,6 +5192,7 @@ impl fmt::Display for Statement {
                 materialized,
                 secure,
                 options,
+                partition_by,
                 cluster_by,
                 comment,
                 with_no_schema_binding,
@@ -5005,6 +5201,7 @@ impl fmt::Display for Statement {
                 to,
                 params,
                 name_before_not_exists,
+                sql_security,
             } => {
                 write!(
                     f,
@@ -5048,11 +5245,17 @@ impl fmt::Display for Statement {
                         value::escape_single_quote_string(comment)
                     )?;
                 }
+                if let Some(partition_by) = partition_by {
+                    write!(f, " PARTITION BY {partition_by}")?;
+                }
                 if !cluster_by.is_empty() {
-                    write!(f, " CLUSTER BY ({})", display_comma_separated(cluster_by))?;
+                    write!(f, " CLUSTER BY {}", display_comma_separated(cluster_by))?;
                 }
                 if matches!(options, CreateTableOptions::Options(_)) {
                     write!(f, " {options}")?;
+                }
+                if let Some(security) = sql_security {
+                    write!(f, " {security}")?;
                 }
                 f.write_str(" AS")?;
                 SpaceOrNewline.fmt(f)?;
@@ -5061,6 +5264,17 @@ impl fmt::Display for Statement {
                     write!(f, " WITH NO SCHEMA BINDING")?;
                 }
                 Ok(())
+            }
+            Statement::CreateMaterializedViewReplica {
+                name,
+                source,
+                if_not_exists,
+            } => {
+                write!(f, "CREATE MATERIALIZED VIEW REPLICA ")?;
+                if *if_not_exists {
+                    write!(f, "IF NOT EXISTS ")?;
+                }
+                write!(f, "{name} AS REPLICA OF {source}")
             }
             Statement::CreateTable(create_table) => create_table.fmt(f),
             Statement::LoadData {
@@ -5112,6 +5326,108 @@ impl fmt::Display for Statement {
                 Ok(())
             }
             Statement::CreateIndex(create_index) => create_index.fmt(f),
+            Statement::CreateSearchIndex {
+                or_replace,
+                if_not_exists,
+                name,
+                table_name,
+                columns,
+                all_columns,
+                options,
+            } => {
+                write!(
+                    f,
+                    "CREATE {or_replace}SEARCH INDEX {if_not_exists}{name} ON {table_name}",
+                    or_replace = if *or_replace { "OR REPLACE " } else { "" },
+                    if_not_exists = if *if_not_exists { "IF NOT EXISTS " } else { "" },
+                )?;
+                if *all_columns {
+                    write!(f, " (ALL COLUMNS)")?;
+                } else if !columns.is_empty() {
+                    write!(f, " ({})", display_comma_separated(columns))?;
+                }
+                if !options.is_empty() {
+                    write!(f, " OPTIONS ({})", display_comma_separated(options))?;
+                }
+                Ok(())
+            }
+            Statement::CreateVectorIndex {
+                or_replace,
+                if_not_exists,
+                name,
+                table_name,
+                column,
+                storing,
+                options,
+            } => {
+                write!(
+                    f,
+                    "CREATE {or_replace}VECTOR INDEX {if_not_exists}{name} ON {table_name} ({column})",
+                    or_replace = if *or_replace { "OR REPLACE " } else { "" },
+                    if_not_exists = if *if_not_exists { "IF NOT EXISTS " } else { "" },
+                )?;
+                if !storing.is_empty() {
+                    write!(f, " STORING ({})", display_comma_separated(storing))?;
+                }
+                if !options.is_empty() {
+                    write!(f, " OPTIONS ({})", display_comma_separated(options))?;
+                }
+                Ok(())
+            }
+            Statement::CreateRowAccessPolicy {
+                or_replace,
+                if_not_exists,
+                name,
+                table_name,
+                grant_to,
+                filter_using,
+            } => {
+                write!(
+                    f,
+                    "CREATE {or_replace}ROW ACCESS POLICY {if_not_exists}{name} ON {table_name}",
+                    or_replace = if *or_replace { "OR REPLACE " } else { "" },
+                    if_not_exists = if *if_not_exists { "IF NOT EXISTS " } else { "" },
+                )?;
+                write!(f, " GRANT TO ({})", display_comma_separated(grant_to))?;
+                write!(f, " FILTER USING ({filter_using})")?;
+                Ok(())
+            }
+            Statement::DropSearchIndex {
+                if_exists,
+                name,
+                table_name,
+            } => {
+                write!(
+                    f,
+                    "DROP SEARCH INDEX {if_exists}{name} ON {table_name}",
+                    if_exists = if *if_exists { "IF EXISTS " } else { "" },
+                )
+            }
+            Statement::DropVectorIndex {
+                if_exists,
+                name,
+                table_name,
+            } => {
+                write!(
+                    f,
+                    "DROP VECTOR INDEX {if_exists}{name} ON {table_name}",
+                    if_exists = if *if_exists { "IF EXISTS " } else { "" },
+                )
+            }
+            Statement::DropRowAccessPolicy {
+                if_exists,
+                name,
+                table_name,
+            } => {
+                write!(
+                    f,
+                    "DROP ROW ACCESS POLICY {if_exists}{name} ON {table_name}",
+                    if_exists = if *if_exists { "IF EXISTS " } else { "" },
+                )
+            }
+            Statement::DropAllRowAccessPolicies { table_name } => {
+                write!(f, "DROP ALL ROW ACCESS POLICIES ON {table_name}")
+            }
             Statement::CreateExtension {
                 name,
                 if_not_exists,
@@ -5382,6 +5698,29 @@ impl fmt::Display for Statement {
                 }
                 write!(f, " AS {query}")
             }
+            Statement::AlterMaterializedView { name, options, operations } => {
+                write!(f, "ALTER MATERIALIZED VIEW {name}")?;
+                if !options.is_empty() {
+                    write!(f, " SET OPTIONS ({})", display_comma_separated(options))?;
+                }
+                for operation in operations {
+                    write!(f, " {}", operation)?;
+                }
+                Ok(())
+            }
+            Statement::AlterViewWithOperations { name, operations } => {
+                write!(f, "ALTER VIEW {name}")?;
+                for operation in operations {
+                    write!(f, " {}", operation)?;
+                }
+                Ok(())
+            }
+            Statement::AlterFunction { name, options } => {
+                write!(f, "ALTER FUNCTION {name} SET OPTIONS ({})", display_comma_separated(options))
+            }
+            Statement::AlterProcedure { name, options } => {
+                write!(f, "ALTER PROCEDURE {name} SET OPTIONS ({})", display_comma_separated(options))
+            }
             Statement::AlterType(AlterType { name, operation }) => {
                 write!(f, "ALTER TYPE {name} {operation}")
             }
@@ -5554,6 +5893,17 @@ impl fmt::Display for Statement {
                     f,
                     "DROP CONNECTOR {if_exists}{name}",
                     if_exists = if *if_exists { "IF EXISTS " } else { "" }
+                )?;
+                Ok(())
+            }
+            Statement::UndropSchema {
+                if_not_exists,
+                schema_name,
+            } => {
+                write!(
+                    f,
+                    "UNDROP SCHEMA {if_not_exists}{schema_name}",
+                    if_not_exists = if *if_not_exists { "IF NOT EXISTS " } else { "" }
                 )?;
                 Ok(())
             }
@@ -5780,6 +6130,7 @@ impl fmt::Display for Statement {
             Statement::CreateSchema {
                 schema_name,
                 if_not_exists,
+                or_replace,
                 with,
                 options,
                 default_collate_spec,
@@ -5787,7 +6138,8 @@ impl fmt::Display for Statement {
             } => {
                 write!(
                     f,
-                    "CREATE SCHEMA {if_not_exists}{name}",
+                    "CREATE {or_replace}SCHEMA {if_not_exists}{name}",
+                    or_replace = if *or_replace { "OR REPLACE " } else { "" },
                     if_not_exists = if *if_not_exists { "IF NOT EXISTS " } else { "" },
                     name = schema_name
                 )?;
@@ -7367,6 +7719,8 @@ pub enum FunctionArgExpr {
     QualifiedWildcard(ObjectName),
     /// An unqualified `*`
     Wildcard,
+    /// A table reference, e.g. `TABLE table_name` in function arguments
+    TableRef(ObjectName),
 }
 
 impl From<Expr> for FunctionArgExpr {
@@ -7385,6 +7739,7 @@ impl fmt::Display for FunctionArgExpr {
             FunctionArgExpr::Expr(expr) => write!(f, "{expr}"),
             FunctionArgExpr::QualifiedWildcard(prefix) => write!(f, "{prefix}.*"),
             FunctionArgExpr::Wildcard => f.write_str("*"),
+            FunctionArgExpr::TableRef(name) => write!(f, "TABLE {name}"),
         }
     }
 }

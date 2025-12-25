@@ -58,7 +58,16 @@ impl<'a> PlanExecutor<'a> {
             Value::Array(elements) => {
                 for (idx, elem) in elements.iter().enumerate() {
                     let mut row = base_values.to_vec();
-                    row.push(elem.clone());
+                    match elem {
+                        Value::Struct(struct_fields) => {
+                            for (_, value) in struct_fields {
+                                row.push(value.clone());
+                            }
+                        }
+                        _ => {
+                            row.push(elem.clone());
+                        }
+                    }
                     if unnest_col.with_offset {
                         row.push(Value::Int64(idx as i64));
                     }

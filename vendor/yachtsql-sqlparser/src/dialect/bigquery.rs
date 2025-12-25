@@ -172,4 +172,8 @@ impl Dialect for BigQueryDialect {
     fn supports_repeat_until_end_repeat(&self) -> bool {
         true
     }
+
+    fn supports_lambda_functions(&self) -> bool {
+        true
+    }
 }

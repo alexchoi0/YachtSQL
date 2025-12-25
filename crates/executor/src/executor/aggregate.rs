@@ -353,6 +353,13 @@ fn extract_agg_arg(
                 evaluator.evaluate(&args[0], record)
             }
         }
+        Expr::UserDefinedAggregate { args, .. } => {
+            if args.is_empty() {
+                Ok(Value::Null)
+            } else {
+                evaluator.evaluate(&args[0], record)
+            }
+        }
         Expr::Alias { expr, .. } => extract_agg_arg(evaluator, expr, record),
         Expr::Literal(_)
         | Expr::Column { .. }
@@ -415,6 +422,19 @@ fn extract_conditional_agg_args(
                 Ok((Value::Null, false))
             }
         }
+        Expr::UserDefinedAggregate { args, .. } => {
+            if args.len() >= 2 {
+                let value = evaluator.evaluate(&args[0], record)?;
+                let condition_val = evaluator.evaluate(&args[1], record)?;
+                let condition = condition_val.as_bool().unwrap_or(false);
+                Ok((value, condition))
+            } else if args.len() == 1 {
+                let value = evaluator.evaluate(&args[0], record)?;
+                Ok((value, true))
+            } else {
+                Ok((Value::Null, false))
+            }
+        }
         Expr::Alias { expr, .. } => extract_conditional_agg_args(evaluator, expr, record),
         Expr::Literal(_)
         | Expr::Column { .. }
@@ -464,7 +484,7 @@ fn extract_bivariate_args(
     record: &yachtsql_storage::Record,
 ) -> Result<(Value, Value)> {
     match agg_expr {
-        Expr::Aggregate { args, .. } => {
+        Expr::Aggregate { args, .. } | Expr::UserDefinedAggregate { args, .. } => {
             if args.len() >= 2 {
                 let x = evaluator.evaluate(&args[0], record)?;
                 let y = evaluator.evaluate(&args[1], record)?;
@@ -530,6 +550,7 @@ fn extract_order_by_keys(
             }
             Ok(keys)
         }
+        Expr::UserDefinedAggregate { .. } => Ok(Vec::new()),
         Expr::Alias { expr, .. } => extract_order_by_keys(evaluator, expr, record),
         Expr::Literal(_)
         | Expr::Column { .. }
@@ -576,6 +597,7 @@ fn extract_order_by_keys(
 fn has_order_by(agg_expr: &Expr) -> bool {
     match agg_expr {
         Expr::Aggregate { order_by, .. } => !order_by.is_empty(),
+        Expr::UserDefinedAggregate { .. } => false,
         Expr::Alias { expr, .. } => has_order_by(expr),
         Expr::Literal(_)
         | Expr::Column { .. }
@@ -622,6 +644,7 @@ fn has_order_by(agg_expr: &Expr) -> bool {
 fn get_agg_func(expr: &Expr) -> Option<&AggregateFunction> {
     match expr {
         Expr::Aggregate { func, .. } => Some(func),
+        Expr::UserDefinedAggregate { .. } => None,
         Expr::Alias { expr, .. } => get_agg_func(expr),
         Expr::Literal(_)
         | Expr::Column { .. }
@@ -668,6 +691,7 @@ fn get_agg_func(expr: &Expr) -> Option<&AggregateFunction> {
 fn is_distinct_aggregate(expr: &Expr) -> bool {
     match expr {
         Expr::Aggregate { distinct, .. } => *distinct,
+        Expr::UserDefinedAggregate { distinct, .. } => *distinct,
         Expr::Alias { expr, .. } => is_distinct_aggregate(expr),
         Expr::Literal(_)
         | Expr::Column { .. }
@@ -722,6 +746,7 @@ fn extract_agg_limit(expr: &Expr) -> Option<usize> {
 fn has_ignore_nulls(expr: &Expr) -> bool {
     match expr {
         Expr::Aggregate { ignore_nulls, .. } => *ignore_nulls,
+        Expr::UserDefinedAggregate { .. } => false,
         Expr::Alias { expr, .. } => has_ignore_nulls(expr),
         Expr::Literal(_)
         | Expr::Column { .. }
@@ -767,7 +792,7 @@ fn has_ignore_nulls(expr: &Expr) -> bool {
 
 fn extract_int_arg(expr: &Expr, index: usize) -> Option<i64> {
     match expr {
-        Expr::Aggregate { args, .. } => {
+        Expr::Aggregate { args, .. } | Expr::UserDefinedAggregate { args, .. } => {
             if args.len() > index
                 && let Expr::Literal(yachtsql_ir::Literal::Int64(n)) = &args[index]
             {
@@ -867,6 +892,7 @@ fn extract_string_agg_separator(expr: &Expr) -> String {
         | Expr::Lambda { .. }
         | Expr::AtTimeZone { .. }
         | Expr::JsonAccess { .. }
+        | Expr::UserDefinedAggregate { .. }
         | Expr::Default => ",".to_string(),
     }
 }

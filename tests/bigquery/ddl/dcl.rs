@@ -1,7 +1,6 @@
 use crate::common::create_session;
 
 #[test]
-#[ignore]
 fn test_grant_role_on_schema() {
     let mut session = create_session();
     session
@@ -16,7 +15,6 @@ fn test_grant_role_on_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_multiple_roles_on_schema() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA test_schema").unwrap();
@@ -30,7 +28,6 @@ fn test_grant_multiple_roles_on_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_role_on_table() {
     let mut session = create_session();
     session
@@ -45,7 +42,6 @@ fn test_grant_role_on_table() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_to_group() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA group_schema").unwrap();
@@ -58,7 +54,6 @@ fn test_grant_to_group() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_to_service_account() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA service_schema").unwrap();
@@ -71,7 +66,6 @@ fn test_grant_to_service_account() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_to_domain() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA domain_schema").unwrap();
@@ -84,7 +78,6 @@ fn test_grant_to_domain() {
 }
 
 #[test]
-#[ignore]
 fn test_revoke_role_from_schema() {
     let mut session = create_session();
     session
@@ -99,7 +92,6 @@ fn test_revoke_role_from_schema() {
 }
 
 #[test]
-#[ignore]
 fn test_revoke_role_from_table() {
     let mut session = create_session();
     session
@@ -114,7 +106,6 @@ fn test_revoke_role_from_table() {
 }
 
 #[test]
-#[ignore]
 fn test_revoke_multiple_roles() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA multi_revoke").unwrap();
@@ -128,25 +119,21 @@ fn test_revoke_multiple_roles() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_on_fully_qualified_table() {
     let mut session = create_session();
+    session.execute_sql("CREATE SCHEMA fq_test_schema").unwrap();
     session
-        .execute_sql("CREATE SCHEMA project.dataset")
-        .unwrap();
-    session
-        .execute_sql("CREATE TABLE project.dataset.orders (id INT64, amount FLOAT64)")
+        .execute_sql("CREATE TABLE fq_test_schema.orders (id INT64, amount FLOAT64)")
         .unwrap();
 
     let result = session.execute_sql(
-        r#"GRANT `roles/bigquery.dataViewer` ON TABLE `project.dataset`.orders
+        r#"GRANT `roles/bigquery.dataViewer` ON TABLE fq_test_schema.orders
            TO "user:analyst@example.com""#,
     );
     assert!(result.is_ok());
 }
 
 #[test]
-#[ignore]
 fn test_revoke_from_multiple_users() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA shared_schema").unwrap();
@@ -159,7 +146,6 @@ fn test_revoke_from_multiple_users() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_admin_role() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA admin_test").unwrap();
@@ -172,7 +158,6 @@ fn test_grant_admin_role() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_job_user_role() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA jobs_schema").unwrap();
@@ -185,7 +170,6 @@ fn test_grant_job_user_role() {
 }
 
 #[test]
-#[ignore]
 fn test_revoke_from_special_group() {
     let mut session = create_session();
     session.execute_sql("CREATE SCHEMA public_schema").unwrap();
@@ -198,7 +182,6 @@ fn test_revoke_from_special_group() {
 }
 
 #[test]
-#[ignore]
 fn test_grant_then_revoke() {
     let mut session = create_session();
     session

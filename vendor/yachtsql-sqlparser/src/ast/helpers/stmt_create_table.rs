@@ -84,6 +84,7 @@ pub struct CreateTableBuilder {
     pub without_rowid: bool,
     pub like: Option<CreateTableLikeKind>,
     pub clone: Option<ObjectName>,
+    pub copy: Option<ObjectName>,
     pub version: Option<TableVersion>,
     pub comment: Option<CommentDef>,
     pub on_commit: Option<OnCommit>,
@@ -140,6 +141,7 @@ impl CreateTableBuilder {
             without_rowid: false,
             like: None,
             clone: None,
+            copy: None,
             version: None,
             comment: None,
             on_commit: None,
@@ -264,6 +266,11 @@ impl CreateTableBuilder {
     // Different name to allow the object to be cloned
     pub fn clone_clause(mut self, clone: Option<ObjectName>) -> Self {
         self.clone = clone;
+        self
+    }
+
+    pub fn copy_clause(mut self, copy: Option<ObjectName>) -> Self {
+        self.copy = copy;
         self
     }
 
@@ -453,6 +460,7 @@ impl CreateTableBuilder {
             without_rowid: self.without_rowid,
             like: self.like,
             clone: self.clone,
+            copy: self.copy,
             version: self.version,
             comment: self.comment,
             on_commit: self.on_commit,
@@ -517,6 +525,7 @@ impl TryFrom<Statement> for CreateTableBuilder {
                 without_rowid,
                 like,
                 clone,
+                copy,
                 version,
                 comment,
                 on_commit,
@@ -567,6 +576,7 @@ impl TryFrom<Statement> for CreateTableBuilder {
                 without_rowid,
                 like,
                 clone,
+                copy,
                 version,
                 comment,
                 on_commit,
