@@ -169,14 +169,17 @@ fn collect_union_terms(
         | LogicalPlan::ExportData { .. }
         | LogicalPlan::Declare { .. }
         | LogicalPlan::SetVariable { .. }
+        | LogicalPlan::SetMultipleVariables { .. }
         | LogicalPlan::If { .. }
         | LogicalPlan::While { .. }
         | LogicalPlan::Loop { .. }
+        | LogicalPlan::Block { .. }
         | LogicalPlan::For { .. }
         | LogicalPlan::Return { .. }
         | LogicalPlan::Raise { .. }
-        | LogicalPlan::Break
-        | LogicalPlan::Continue
+        | LogicalPlan::ExecuteImmediate { .. }
+        | LogicalPlan::Break { .. }
+        | LogicalPlan::Continue { .. }
         | LogicalPlan::AlterSchema { .. }
         | LogicalPlan::CreateProcedure { .. }
         | LogicalPlan::DropProcedure { .. }
@@ -250,6 +253,7 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
         LogicalPlan::ExportData { query, .. } => references_table(query, table_name),
         LogicalPlan::Declare { .. } => false,
         LogicalPlan::SetVariable { .. } => false,
+        LogicalPlan::SetMultipleVariables { .. } => false,
         LogicalPlan::If {
             then_branch,
             else_branch,
@@ -262,14 +266,16 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
         }
         LogicalPlan::While { body, .. } => body.iter().any(|p| references_table(p, table_name)),
         LogicalPlan::Loop { body, .. } => body.iter().any(|p| references_table(p, table_name)),
+        LogicalPlan::Block { body, .. } => body.iter().any(|p| references_table(p, table_name)),
         LogicalPlan::For { query, body, .. } => {
             references_table(query, table_name)
                 || body.iter().any(|p| references_table(p, table_name))
         }
         LogicalPlan::Return { .. } => false,
         LogicalPlan::Raise { .. } => false,
-        LogicalPlan::Break => false,
-        LogicalPlan::Continue => false,
+        LogicalPlan::ExecuteImmediate { .. } => false,
+        LogicalPlan::Break { .. } => false,
+        LogicalPlan::Continue { .. } => false,
         LogicalPlan::AlterSchema { .. } => false,
         LogicalPlan::CreateProcedure { .. } => false,
         LogicalPlan::DropProcedure { .. } => false,
@@ -288,7 +294,9 @@ fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
             try_block,
             catch_block,
         } => {
-            try_block.iter().any(|p| references_table(p, table_name))
+            try_block
+                .iter()
+                .any(|(p, _)| references_table(p, table_name))
                 || catch_block.iter().any(|p| references_table(p, table_name))
         }
         LogicalPlan::GapFill { input, .. } => references_table(input, table_name),

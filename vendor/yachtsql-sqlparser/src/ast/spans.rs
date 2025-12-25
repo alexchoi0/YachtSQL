@@ -845,7 +845,7 @@ impl Spanned for IfStatement {
 
 impl Spanned for WhileStatement {
     fn span(&self) -> Span {
-        let WhileStatement { while_block } = self;
+        let WhileStatement { while_block, label: _ } = self;
 
         while_block.span()
     }

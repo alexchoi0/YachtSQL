@@ -18,6 +18,7 @@ impl<'a> PlanExecutor<'a> {
         } else {
             let evaluator = IrEvaluator::new(&schema)
                 .with_variables(&self.variables)
+                .with_system_variables(self.session.system_variables())
                 .with_user_functions(&self.user_function_defs);
             let mut result = Table::empty(schema.clone());
 
@@ -112,6 +113,7 @@ impl<'a> PlanExecutor<'a> {
                         };
                         let evaluator = IrEvaluator::new(outer_schema)
                             .with_variables(&self.variables)
+                            .with_system_variables(self.session.system_variables())
                             .with_user_functions(&self.user_function_defs);
                         evaluator.evaluate(&simplified_expr, outer_record)
                     }
@@ -141,12 +143,14 @@ impl<'a> PlanExecutor<'a> {
                     .collect::<Result<_>>()?;
                 let evaluator = IrEvaluator::new(outer_schema)
                     .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables())
                     .with_user_functions(&self.user_function_defs);
                 evaluator.eval_scalar_function_with_values(name, &arg_vals)
             }
             _ => {
                 let evaluator = IrEvaluator::new(outer_schema)
                     .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables())
                     .with_user_functions(&self.user_function_defs);
                 evaluator.evaluate(expr, outer_record)
             }
@@ -280,158 +284,14 @@ impl<'a> PlanExecutor<'a> {
         outer_schema: &Schema,
         outer_record: &Record,
     ) -> Result<LogicalPlan> {
-        match plan {
-            LogicalPlan::Scan {
-                table_name,
-                schema,
-                projection,
-            } => Ok(LogicalPlan::Scan {
-                table_name: table_name.clone(),
-                schema: schema.clone(),
-                projection: projection.clone(),
-            }),
-            LogicalPlan::Filter { input, predicate } => {
-                let new_input =
-                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
-                let new_predicate =
-                    self.substitute_outer_refs_in_expr(predicate, outer_schema, outer_record)?;
-                Ok(LogicalPlan::Filter {
-                    input: Box::new(new_input),
-                    predicate: new_predicate,
-                })
-            }
-            LogicalPlan::Project {
-                input,
-                expressions,
-                schema,
-            } => {
-                let new_input =
-                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
-                let new_expressions = expressions
-                    .iter()
-                    .map(|e| self.substitute_outer_refs_in_expr(e, outer_schema, outer_record))
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(LogicalPlan::Project {
-                    input: Box::new(new_input),
-                    expressions: new_expressions,
-                    schema: schema.clone(),
-                })
-            }
-            LogicalPlan::Join {
-                left,
-                right,
-                join_type,
-                condition,
-                schema,
-            } => {
-                let new_left =
-                    self.substitute_outer_refs_in_plan(left, outer_schema, outer_record)?;
-                let new_right =
-                    self.substitute_outer_refs_in_plan(right, outer_schema, outer_record)?;
-                let new_condition = condition
-                    .as_ref()
-                    .map(|c| self.substitute_outer_refs_in_expr(c, outer_schema, outer_record))
-                    .transpose()?;
-                Ok(LogicalPlan::Join {
-                    left: Box::new(new_left),
-                    right: Box::new(new_right),
-                    join_type: *join_type,
-                    condition: new_condition,
-                    schema: schema.clone(),
-                })
-            }
-            LogicalPlan::Unnest {
-                input,
-                columns,
-                schema,
-            } => {
-                let new_input =
-                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
-                let new_columns = columns
-                    .iter()
-                    .map(|c| {
-                        let new_expr = self.substitute_outer_refs_in_expr(
-                            &c.expr,
-                            outer_schema,
-                            outer_record,
-                        )?;
-                        Ok(UnnestColumn {
-                            expr: new_expr,
-                            alias: c.alias.clone(),
-                            with_offset: c.with_offset,
-                            offset_alias: c.offset_alias.clone(),
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(LogicalPlan::Unnest {
-                    input: Box::new(new_input),
-                    columns: new_columns,
-                    schema: schema.clone(),
-                })
-            }
-            LogicalPlan::Limit {
-                input,
-                limit,
-                offset,
-            } => {
-                let new_input =
-                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
-                Ok(LogicalPlan::Limit {
-                    input: Box::new(new_input),
-                    limit: *limit,
-                    offset: *offset,
-                })
-            }
-            LogicalPlan::Sort { input, sort_exprs } => {
-                let new_input =
-                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
-                let new_sort_exprs = sort_exprs
-                    .iter()
-                    .map(|se| {
-                        let new_expr = self.substitute_outer_refs_in_expr(
-                            &se.expr,
-                            outer_schema,
-                            outer_record,
-                        )?;
-                        Ok(SortExpr {
-                            expr: new_expr,
-                            asc: se.asc,
-                            nulls_first: se.nulls_first,
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(LogicalPlan::Sort {
-                    input: Box::new(new_input),
-                    sort_exprs: new_sort_exprs,
-                })
-            }
-            LogicalPlan::Aggregate {
-                input,
-                group_by,
-                aggregates,
-                schema,
-                grouping_sets,
-            } => {
-                let new_input =
-                    self.substitute_outer_refs_in_plan(input, outer_schema, outer_record)?;
-                let new_group_by = group_by
-                    .iter()
-                    .map(|e| self.substitute_outer_refs_in_expr(e, outer_schema, outer_record))
-                    .collect::<Result<Vec<_>>>()?;
-                let new_aggregates = aggregates
-                    .iter()
-                    .map(|e| self.substitute_outer_refs_in_expr(e, outer_schema, outer_record))
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(LogicalPlan::Aggregate {
-                    input: Box::new(new_input),
-                    group_by: new_group_by,
-                    aggregates: new_aggregates,
-                    schema: schema.clone(),
-                    grouping_sets: grouping_sets.clone(),
-                })
-            }
-            other => Ok(other.clone()),
-        }
+        let mut inner_tables = std::collections::HashSet::new();
+        Self::collect_plan_tables(plan, &mut inner_tables);
+        self.substitute_outer_refs_in_plan_with_inner_tables(
+            plan,
+            outer_schema,
+            outer_record,
+            &inner_tables,
+        )
     }
 
     fn substitute_outer_refs_in_expr(
@@ -642,6 +502,132 @@ impl<'a> PlanExecutor<'a> {
                     schema: schema.clone(),
                 })
             }
+            LogicalPlan::Join {
+                left,
+                right,
+                join_type,
+                condition,
+                schema,
+            } => {
+                let new_left = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    left,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_right = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    right,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_condition = condition
+                    .as_ref()
+                    .map(|c| {
+                        self.substitute_outer_refs_in_expr_with_inner_tables(
+                            c,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )
+                    })
+                    .transpose()?;
+                Ok(LogicalPlan::Join {
+                    left: Box::new(new_left),
+                    right: Box::new(new_right),
+                    join_type: *join_type,
+                    condition: new_condition,
+                    schema: schema.clone(),
+                })
+            }
+            LogicalPlan::Limit {
+                input,
+                limit,
+                offset,
+            } => {
+                let new_input = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    input,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                Ok(LogicalPlan::Limit {
+                    input: Box::new(new_input),
+                    limit: *limit,
+                    offset: *offset,
+                })
+            }
+            LogicalPlan::Sort { input, sort_exprs } => {
+                let new_input = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    input,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_sort_exprs = sort_exprs
+                    .iter()
+                    .map(|se| {
+                        let new_expr = self.substitute_outer_refs_in_expr_with_inner_tables(
+                            &se.expr,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )?;
+                        Ok(SortExpr {
+                            expr: new_expr,
+                            asc: se.asc,
+                            nulls_first: se.nulls_first,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(LogicalPlan::Sort {
+                    input: Box::new(new_input),
+                    sort_exprs: new_sort_exprs,
+                })
+            }
+            LogicalPlan::Aggregate {
+                input,
+                group_by,
+                aggregates,
+                schema,
+                grouping_sets,
+            } => {
+                let new_input = self.substitute_outer_refs_in_plan_with_inner_tables(
+                    input,
+                    outer_schema,
+                    outer_record,
+                    inner_tables,
+                )?;
+                let new_group_by = group_by
+                    .iter()
+                    .map(|e| {
+                        self.substitute_outer_refs_in_expr_with_inner_tables(
+                            e,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let new_aggregates = aggregates
+                    .iter()
+                    .map(|e| {
+                        self.substitute_outer_refs_in_expr_with_inner_tables(
+                            e,
+                            outer_schema,
+                            outer_record,
+                            inner_tables,
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(LogicalPlan::Aggregate {
+                    input: Box::new(new_input),
+                    group_by: new_group_by,
+                    aggregates: new_aggregates,
+                    schema: schema.clone(),
+                    grouping_sets: grouping_sets.clone(),
+                })
+            }
             other => Ok(other.clone()),
         }
     }
@@ -831,21 +817,61 @@ impl<'a> PlanExecutor<'a> {
 
     fn collect_plan_tables(plan: &LogicalPlan, tables: &mut std::collections::HashSet<String>) {
         match plan {
-            LogicalPlan::Scan { table_name, .. } => {
+            LogicalPlan::Scan {
+                table_name, schema, ..
+            } => {
                 tables.insert(table_name.to_lowercase());
+                for field in &schema.fields {
+                    if let Some(ref tbl) = field.table {
+                        tables.insert(tbl.to_lowercase());
+                    }
+                }
             }
             LogicalPlan::Filter { input, .. } => Self::collect_plan_tables(input, tables),
-            LogicalPlan::Project { input, .. } => Self::collect_plan_tables(input, tables),
-            LogicalPlan::Aggregate { input, .. } => Self::collect_plan_tables(input, tables),
-            LogicalPlan::Join { left, right, .. } => {
+            LogicalPlan::Project { input, schema, .. } => {
+                Self::collect_plan_tables(input, tables);
+                for field in &schema.fields {
+                    if let Some(ref tbl) = field.table {
+                        tables.insert(tbl.to_lowercase());
+                    }
+                }
+            }
+            LogicalPlan::Aggregate { input, schema, .. } => {
+                Self::collect_plan_tables(input, tables);
+                for field in &schema.fields {
+                    if let Some(ref tbl) = field.table {
+                        tables.insert(tbl.to_lowercase());
+                    }
+                }
+            }
+            LogicalPlan::Join {
+                left,
+                right,
+                schema,
+                ..
+            } => {
                 Self::collect_plan_tables(left, tables);
                 Self::collect_plan_tables(right, tables);
+                for field in &schema.fields {
+                    if let Some(ref tbl) = field.table {
+                        tables.insert(tbl.to_lowercase());
+                    }
+                }
             }
-            LogicalPlan::Unnest { input, columns, .. } => {
+            LogicalPlan::Unnest {
+                input,
+                columns,
+                schema,
+            } => {
                 Self::collect_plan_tables(input, tables);
                 for col in columns {
                     if let Some(alias) = &col.alias {
                         tables.insert(alias.to_lowercase());
+                    }
+                }
+                for field in &schema.fields {
+                    if let Some(ref tbl) = field.table {
+                        tables.insert(tbl.to_lowercase());
                     }
                 }
             }

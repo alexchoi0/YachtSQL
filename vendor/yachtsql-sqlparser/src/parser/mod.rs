@@ -702,8 +702,15 @@ impl<'a> Parser<'a> {
                     if self.dialect.supports_loop_end_loop() && self.peek_token() == Token::Colon {
                         let label = Ident::new(w.value.clone());
                         self.expect_token(&Token::Colon)?;
-                        self.expect_keyword_is(Keyword::LOOP)?;
-                        self.parse_loop(Some(label))
+                        if self.parse_keyword(Keyword::LOOP) {
+                            self.parse_loop(Some(label))
+                        } else if self.parse_keyword(Keyword::WHILE) {
+                            self.parse_while_with_label(Some(label))
+                        } else if self.parse_keyword(Keyword::BEGIN) {
+                            self.parse_begin_with_label(Some(label))
+                        } else {
+                            self.expected("LOOP, WHILE, or BEGIN after label", self.peek_token())
+                        }
                     } else {
                         self.expected("an SQL statement", next_token)
                     }
@@ -799,13 +806,20 @@ impl<'a> Parser<'a> {
     /// See [Statement::While]
     fn parse_while(&mut self) -> Result<Statement, ParserError> {
         self.expect_keyword_is(Keyword::WHILE)?;
+        self.parse_while_with_label(None)
+    }
 
+    /// Parse a `WHILE` statement with an optional label.
+    fn parse_while_with_label(&mut self, label: Option<Ident>) -> Result<Statement, ParserError> {
         if self.dialect.supports_while_do_end_while() {
             let condition = self.parse_expr()?;
             self.expect_keyword_is(Keyword::DO)?;
             let statements = self.parse_statement_list(&[Keyword::END])?;
             self.expect_keyword_is(Keyword::END)?;
             self.expect_keyword_is(Keyword::WHILE)?;
+            if label.is_some() {
+                let _ = self.parse_identifier();
+            }
 
             let while_block = ConditionalStatementBlock {
                 start_token: AttachedToken::empty(),
@@ -813,12 +827,12 @@ impl<'a> Parser<'a> {
                 then_token: None,
                 conditional_statements: ConditionalStatements::Sequence { statements },
             };
-            return Ok(Statement::While(WhileStatement { while_block }));
+            return Ok(Statement::While(WhileStatement { label, while_block }));
         }
 
         let while_block = self.parse_conditional_statement_block(&[Keyword::END])?;
 
-        Ok(Statement::While(WhileStatement { while_block }))
+        Ok(Statement::While(WhileStatement { label, while_block }))
     }
 
     /// Parse a `LOOP` statement.
@@ -2413,7 +2427,21 @@ impl<'a> Parser<'a> {
         if self.dialect.supports_group_by_expr() {
             if self.parse_keywords(&[Keyword::GROUPING, Keyword::SETS]) {
                 self.expect_token(&Token::LParen)?;
-                let result = self.parse_comma_separated(|p| p.parse_tuple(false, true))?;
+                let result = self.parse_comma_separated(|p| {
+                    if p.parse_keyword(Keyword::ROLLUP) {
+                        p.expect_token(&Token::LParen)?;
+                        let rollup_exprs = p.parse_comma_separated(|p2| p2.parse_tuple(true, true))?;
+                        p.expect_token(&Token::RParen)?;
+                        Ok(vec![Expr::Rollup(rollup_exprs)])
+                    } else if p.parse_keyword(Keyword::CUBE) {
+                        p.expect_token(&Token::LParen)?;
+                        let cube_exprs = p.parse_comma_separated(|p2| p2.parse_tuple(true, true))?;
+                        p.expect_token(&Token::RParen)?;
+                        Ok(vec![Expr::Cube(cube_exprs)])
+                    } else {
+                        p.parse_tuple(false, true)
+                    }
+                })?;
                 self.expect_token(&Token::RParen)?;
                 Ok(Expr::GroupingSets(result))
             } else if self.parse_keyword(Keyword::CUBE) {
@@ -5346,7 +5374,7 @@ impl<'a> Parser<'a> {
             if self.parse_keyword(Keyword::TABLE) {
                 self.expect_token(&Token::Lt)?;
                 let mut columns = vec![];
-                let mut trailing_bracket: MatchedTrailingBracket = false.into();
+                let mut trailing_bracket: MatchedTrailingBracket;
                 loop {
                     let name = self.parse_identifier()?;
                     let (data_type, tb) = self.parse_data_type_helper()?;
@@ -11530,7 +11558,17 @@ impl<'a> Parser<'a> {
             if self.parse_keywords(&[Keyword::GROUPING, Keyword::SETS]) {
                 self.expect_token(&Token::LParen)?;
                 let result = self.parse_comma_separated(|p| {
-                    if p.peek_token_ref().token == Token::LParen {
+                    if p.parse_keyword(Keyword::ROLLUP) {
+                        p.expect_token(&Token::LParen)?;
+                        let rollup_exprs = p.parse_comma_separated(|p2| p2.parse_tuple(true, true))?;
+                        p.expect_token(&Token::RParen)?;
+                        Ok(vec![Expr::Rollup(rollup_exprs)])
+                    } else if p.parse_keyword(Keyword::CUBE) {
+                        p.expect_token(&Token::LParen)?;
+                        let cube_exprs = p.parse_comma_separated(|p2| p2.parse_tuple(true, true))?;
+                        p.expect_token(&Token::RParen)?;
+                        Ok(vec![Expr::Cube(cube_exprs)])
+                    } else if p.peek_token_ref().token == Token::LParen {
                         p.parse_tuple(true, true)
                     } else {
                         Ok(vec![p.parse_expr()?])
@@ -17073,6 +17111,7 @@ impl<'a> Parser<'a> {
             statements: vec![],
             exception: None,
             has_end_keyword: false,
+            label: None,
         })
     }
 
@@ -17105,6 +17144,45 @@ impl<'a> Parser<'a> {
             statements: vec![],
             exception: None,
             has_end_keyword: false,
+            label: None,
+        })
+    }
+
+    pub fn parse_begin_with_label(&mut self, label: Option<Ident>) -> Result<Statement, ParserError> {
+        let statements = self.parse_statement_list(&[Keyword::EXCEPTION, Keyword::END])?;
+
+        let exception = if self.parse_keyword(Keyword::EXCEPTION) {
+            let mut when = Vec::new();
+            while !self.peek_keyword(Keyword::END) {
+                self.expect_keyword(Keyword::WHEN)?;
+                let mut idents = Vec::new();
+                while !self.parse_keyword(Keyword::THEN) {
+                    let ident = self.parse_identifier()?;
+                    idents.push(ident);
+                    self.maybe_parse(|p| p.expect_keyword(Keyword::OR))?;
+                }
+                let statements = self.parse_statement_list(&[Keyword::WHEN, Keyword::END])?;
+                when.push(ExceptionWhen { idents, statements });
+            }
+            Some(when)
+        } else {
+            None
+        };
+
+        self.expect_keyword(Keyword::END)?;
+        if label.is_some() {
+            let _ = self.parse_identifier();
+        }
+
+        Ok(Statement::StartTransaction {
+            begin: true,
+            statements,
+            exception,
+            has_end_keyword: true,
+            transaction: None,
+            modifier: None,
+            modes: Default::default(),
+            label,
         })
     }
 
@@ -17150,6 +17228,7 @@ impl<'a> Parser<'a> {
             transaction: None,
             modifier: None,
             modes: Default::default(),
+            label: None,
         })
     }
 

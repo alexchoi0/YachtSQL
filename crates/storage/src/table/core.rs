@@ -492,6 +492,21 @@ impl Table {
         }
     }
 
+    pub fn with_reordered_schema(&self, new_schema: Schema, column_indices: &[usize]) -> Table {
+        let source_columns: Vec<_> = self.columns.values().collect();
+        let mut new_columns = IndexMap::new();
+        for (new_field, &idx) in new_schema.fields().iter().zip(column_indices.iter()) {
+            if idx < source_columns.len() {
+                new_columns.insert(new_field.name.clone(), source_columns[idx].clone());
+            }
+        }
+        Table {
+            schema: new_schema,
+            columns: new_columns,
+            row_count: self.row_count,
+        }
+    }
+
     pub fn to_query_result(&self) -> Result<yachtsql_common::QueryResult> {
         use yachtsql_common::{ColumnInfo, QueryResult, Row};
 

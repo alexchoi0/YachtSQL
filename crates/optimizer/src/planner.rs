@@ -477,6 +477,13 @@ impl PhysicalPlanner {
                 value: value.clone(),
             }),
 
+            LogicalPlan::SetMultipleVariables { names, value } => {
+                Ok(OptimizedLogicalPlan::SetMultipleVariables {
+                    names: names.clone(),
+                    value: value.clone(),
+                })
+            }
+
             LogicalPlan::If {
                 condition,
                 then_branch,
@@ -502,7 +509,11 @@ impl PhysicalPlanner {
                 })
             }
 
-            LogicalPlan::While { condition, body } => {
+            LogicalPlan::While {
+                condition,
+                body,
+                label,
+            } => {
                 let body = body
                     .iter()
                     .map(|p| self.plan(p))
@@ -510,6 +521,7 @@ impl PhysicalPlanner {
                 Ok(OptimizedLogicalPlan::While {
                     condition: condition.clone(),
                     body,
+                    label: label.clone(),
                 })
             }
 
@@ -519,6 +531,17 @@ impl PhysicalPlanner {
                     .map(|p| self.plan(p))
                     .collect::<Result<Vec<_>>>()?;
                 Ok(OptimizedLogicalPlan::Loop {
+                    body,
+                    label: label.clone(),
+                })
+            }
+
+            LogicalPlan::Block { body, label } => {
+                let body = body
+                    .iter()
+                    .map(|p| self.plan(p))
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(OptimizedLogicalPlan::Block {
                     body,
                     label: label.clone(),
                 })
@@ -564,9 +587,23 @@ impl PhysicalPlanner {
                 level: *level,
             }),
 
-            LogicalPlan::Break => Ok(OptimizedLogicalPlan::Break),
+            LogicalPlan::ExecuteImmediate {
+                sql_expr,
+                into_variables,
+                using_params,
+            } => Ok(OptimizedLogicalPlan::ExecuteImmediate {
+                sql_expr: sql_expr.clone(),
+                into_variables: into_variables.clone(),
+                using_params: using_params.clone(),
+            }),
 
-            LogicalPlan::Continue => Ok(OptimizedLogicalPlan::Continue),
+            LogicalPlan::Break { label } => Ok(OptimizedLogicalPlan::Break {
+                label: label.clone(),
+            }),
+
+            LogicalPlan::Continue { label } => Ok(OptimizedLogicalPlan::Continue {
+                label: label.clone(),
+            }),
 
             LogicalPlan::CreateSnapshot {
                 snapshot_name,
@@ -625,7 +662,7 @@ impl PhysicalPlanner {
             } => {
                 let try_block = try_block
                     .iter()
-                    .map(|p| self.plan(p))
+                    .map(|(p, sql)| Ok((self.plan(p)?, sql.clone())))
                     .collect::<Result<Vec<_>>>()?;
                 let catch_block = catch_block
                     .iter()
@@ -1026,6 +1063,9 @@ impl OptimizedLogicalPlan {
             OptimizedLogicalPlan::SetVariable { name, value } => {
                 LogicalPlan::SetVariable { name, value }
             }
+            OptimizedLogicalPlan::SetMultipleVariables { names, value } => {
+                LogicalPlan::SetMultipleVariables { names, value }
+            }
             OptimizedLogicalPlan::If {
                 condition,
                 then_branch,
@@ -1035,11 +1075,20 @@ impl OptimizedLogicalPlan {
                 then_branch: then_branch.into_iter().map(|p| p.into_logical()).collect(),
                 else_branch: else_branch.map(|b| b.into_iter().map(|p| p.into_logical()).collect()),
             },
-            OptimizedLogicalPlan::While { condition, body } => LogicalPlan::While {
+            OptimizedLogicalPlan::While {
+                condition,
+                body,
+                label,
+            } => LogicalPlan::While {
                 condition,
                 body: body.into_iter().map(|p| p.into_logical()).collect(),
+                label,
             },
             OptimizedLogicalPlan::Loop { body, label } => LogicalPlan::Loop {
+                body: body.into_iter().map(|p| p.into_logical()).collect(),
+                label,
+            },
+            OptimizedLogicalPlan::Block { body, label } => LogicalPlan::Block {
                 body: body.into_iter().map(|p| p.into_logical()).collect(),
                 label,
             },
@@ -1061,8 +1110,17 @@ impl OptimizedLogicalPlan {
             },
             OptimizedLogicalPlan::Return { value } => LogicalPlan::Return { value },
             OptimizedLogicalPlan::Raise { message, level } => LogicalPlan::Raise { message, level },
-            OptimizedLogicalPlan::Break => LogicalPlan::Break,
-            OptimizedLogicalPlan::Continue => LogicalPlan::Continue,
+            OptimizedLogicalPlan::ExecuteImmediate {
+                sql_expr,
+                into_variables,
+                using_params,
+            } => LogicalPlan::ExecuteImmediate {
+                sql_expr,
+                into_variables,
+                using_params,
+            },
+            OptimizedLogicalPlan::Break { label } => LogicalPlan::Break { label },
+            OptimizedLogicalPlan::Continue { label } => LogicalPlan::Continue { label },
             OptimizedLogicalPlan::CreateSnapshot {
                 snapshot_name,
                 source_name,
@@ -1111,7 +1169,10 @@ impl OptimizedLogicalPlan {
                 try_block,
                 catch_block,
             } => LogicalPlan::TryCatch {
-                try_block: try_block.into_iter().map(|p| p.into_logical()).collect(),
+                try_block: try_block
+                    .into_iter()
+                    .map(|(p, sql)| (p.into_logical(), sql))
+                    .collect(),
                 catch_block: catch_block.into_iter().map(|p| p.into_logical()).collect(),
             },
             OptimizedLogicalPlan::GapFill {

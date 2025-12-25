@@ -345,7 +345,6 @@ fn test_partial_cube() {
 }
 
 #[test]
-#[ignore = "BUG: Parser does not support ROLLUP inside GROUPING SETS"]
 fn test_mixed_grouping() {
     let mut session = create_session();
     setup_sales_table(&mut session);

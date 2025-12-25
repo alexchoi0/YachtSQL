@@ -102,7 +102,6 @@ fn test_cte_with_star() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_struct_offset_star() {
     let mut session = create_session();
 
@@ -543,7 +542,6 @@ fn test_logical_and() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_select_as_struct() {
     let mut session = create_session();
     session
@@ -559,7 +557,10 @@ fn test_array_select_as_struct() {
         )
         .unwrap();
 
+    eprintln!("Result: {:?}", result);
     let records = result.to_records().unwrap();
+    eprintln!("Records: {:?}", records);
+    eprintln!("First value: {:?}", records[0].values()[0]);
     let arr = records[0].values()[0].as_array().unwrap();
     assert_eq!(arr.len(), 2);
     let s0 = arr[0].as_struct().unwrap();
@@ -1092,7 +1093,6 @@ fn test_scalar_subquery_in_where_clause() {
 }
 
 #[test]
-#[ignore = "Scalar subquery in CASE not yet supported"]
 fn test_scalar_subquery_in_case() {
     let mut session = create_session();
     setup_players_mascots(&mut session);
@@ -1133,7 +1133,6 @@ fn test_array_subquery_with_limit() {
 }
 
 #[test]
-#[ignore = "IN subquery in SELECT expression not yet supported"]
 fn test_in_subquery_exists() {
     let mut session = create_session();
     setup_players_mascots(&mut session);
@@ -1146,7 +1145,6 @@ fn test_in_subquery_exists() {
 }
 
 #[test]
-#[ignore = "IN subquery in SELECT expression not yet supported"]
 fn test_in_subquery_not_exists() {
     let mut session = create_session();
     setup_players_mascots(&mut session);
@@ -1159,7 +1157,6 @@ fn test_in_subquery_not_exists() {
 }
 
 #[test]
-#[ignore = "NOT IN subquery in SELECT expression not yet supported"]
 fn test_not_in_subquery() {
     let mut session = create_session();
     setup_players_mascots(&mut session);
@@ -1172,7 +1169,6 @@ fn test_not_in_subquery() {
 }
 
 #[test]
-#[ignore = "IN subquery in SELECT expression not yet supported"]
 fn test_in_subquery_empty_result() {
     let mut session = create_session();
     setup_players_mascots(&mut session);
@@ -1303,7 +1299,6 @@ fn test_not_exists_subquery_in_select() {
 }
 
 #[test]
-#[ignore = "IN UNNEST(ARRAY(...)) in SELECT expression not yet supported"]
 fn test_in_unnest_array_subquery() {
     let mut session = create_session();
     setup_players_mascots(&mut session);
@@ -1382,7 +1377,6 @@ fn test_doc_example_array_subquery_red_team() {
 }
 
 #[test]
-#[ignore = "IN subquery in SELECT expression not yet supported"]
 fn test_doc_example_in_subquery() {
     let mut session = create_session();
     setup_players_mascots(&mut session);

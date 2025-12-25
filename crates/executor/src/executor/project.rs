@@ -26,6 +26,7 @@ impl<'a> PlanExecutor<'a> {
         } else {
             let evaluator = IrEvaluator::new(&input_schema)
                 .with_variables(&self.variables)
+                .with_system_variables(self.session.system_variables())
                 .with_user_functions(&self.user_function_defs);
             let result_schema = plan_schema_to_schema(schema);
             let mut result = Table::empty(result_schema);
@@ -80,6 +81,29 @@ impl<'a> PlanExecutor<'a> {
                 Ok(Value::Bool(if *negated { !has_rows } else { has_rows }))
             }
             Expr::ArraySubquery(plan) => self.eval_array_subquery(plan, schema, record),
+            Expr::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => {
+                let val = self.eval_expr_with_subqueries(expr, schema, record)?;
+                let in_result = self.eval_value_in_subquery(&val, subquery, schema, record)?;
+                Ok(Value::Bool(if *negated { !in_result } else { in_result }))
+            }
+            Expr::InUnnest {
+                expr,
+                array_expr,
+                negated,
+            } => {
+                let val = self.eval_expr_with_subqueries(expr, schema, record)?;
+                let array_val = self.eval_expr_with_subqueries(array_expr, schema, record)?;
+                let in_result = if let Value::Array(arr) = array_val {
+                    arr.contains(&val)
+                } else {
+                    false
+                };
+                Ok(Value::Bool(if *negated { !in_result } else { in_result }))
+            }
             Expr::BinaryOp { left, op, right } => {
                 let left_val = self.eval_expr_with_subqueries(left, schema, record)?;
                 let right_val = self.eval_expr_with_subqueries(right, schema, record)?;
@@ -96,6 +120,7 @@ impl<'a> PlanExecutor<'a> {
                     .collect::<Result<_>>()?;
                 let evaluator = IrEvaluator::new(schema)
                     .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables())
                     .with_user_functions(&self.user_function_defs);
                 evaluator.eval_scalar_function_with_values(name, &arg_vals)
             }
@@ -107,9 +132,43 @@ impl<'a> PlanExecutor<'a> {
                 let val = self.eval_expr_with_subqueries(inner, schema, record)?;
                 IrEvaluator::cast_value(val, data_type, *safe)
             }
+            Expr::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
+                let operand_val = operand
+                    .as_ref()
+                    .map(|e| self.eval_expr_with_subqueries(e, schema, record))
+                    .transpose()?;
+
+                for clause in when_clauses {
+                    let condition_val = if let Some(op_val) = &operand_val {
+                        let cond_val =
+                            self.eval_expr_with_subqueries(&clause.condition, schema, record)?;
+                        Value::Bool(op_val == &cond_val)
+                    } else {
+                        self.eval_expr_with_subqueries(&clause.condition, schema, record)?
+                    };
+
+                    if matches!(condition_val, Value::Bool(true)) {
+                        return self.eval_expr_with_subqueries(&clause.result, schema, record);
+                    }
+                }
+
+                if let Some(else_expr) = else_result {
+                    self.eval_expr_with_subqueries(else_expr, schema, record)
+                } else {
+                    Ok(Value::Null)
+                }
+            }
+            Expr::Alias { expr: inner, .. } => {
+                self.eval_expr_with_subqueries(inner, schema, record)
+            }
             _ => {
                 let evaluator = IrEvaluator::new(schema)
                     .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables())
                     .with_user_functions(&self.user_function_defs);
                 evaluator.evaluate(expr, record)
             }
@@ -189,6 +248,31 @@ impl<'a> PlanExecutor<'a> {
         }
 
         Ok(Value::Array(array_values))
+    }
+
+    fn eval_value_in_subquery(
+        &mut self,
+        value: &Value,
+        plan: &LogicalPlan,
+        outer_schema: &Schema,
+        outer_record: &Record,
+    ) -> Result<bool> {
+        if matches!(value, Value::Null) {
+            return Ok(false);
+        }
+
+        let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
+        let physical = optimize(&substituted)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
+        let result_table = self.execute_plan(&executor_plan)?;
+
+        for record in result_table.rows()? {
+            let values = record.values();
+            if !values.is_empty() && &values[0] == value {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     fn eval_binary_op_values(&self, left: Value, op: BinaryOp, right: Value) -> Result<Value> {
@@ -282,7 +366,11 @@ impl<'a> PlanExecutor<'a> {
             Expr::Subquery(_)
             | Expr::ScalarSubquery(_)
             | Expr::ArraySubquery(_)
-            | Expr::Exists { .. } => true,
+            | Expr::Exists { .. }
+            | Expr::InSubquery { .. } => true,
+            Expr::InUnnest { array_expr, .. } => {
+                Self::expr_contains_subquery_or_scalar_subquery(array_expr)
+            }
             Expr::BinaryOp { left, right, .. } => {
                 Self::expr_contains_subquery_or_scalar_subquery(left)
                     || Self::expr_contains_subquery_or_scalar_subquery(right)

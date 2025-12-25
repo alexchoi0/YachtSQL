@@ -53,4 +53,8 @@ impl Session {
     pub fn variables(&self) -> &HashMap<String, Value> {
         &self.variables
     }
+
+    pub fn system_variables(&self) -> &HashMap<String, Value> {
+        &self.system_variables
+    }
 }

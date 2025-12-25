@@ -273,6 +273,11 @@ pub enum OptimizedLogicalPlan {
         value: Expr,
     },
 
+    SetMultipleVariables {
+        names: Vec<String>,
+        value: Expr,
+    },
+
     If {
         condition: Expr,
         then_branch: Vec<OptimizedLogicalPlan>,
@@ -282,9 +287,15 @@ pub enum OptimizedLogicalPlan {
     While {
         condition: Expr,
         body: Vec<OptimizedLogicalPlan>,
+        label: Option<String>,
     },
 
     Loop {
+        body: Vec<OptimizedLogicalPlan>,
+        label: Option<String>,
+    },
+
+    Block {
         body: Vec<OptimizedLogicalPlan>,
         label: Option<String>,
     },
@@ -309,9 +320,19 @@ pub enum OptimizedLogicalPlan {
         level: RaiseLevel,
     },
 
-    Break,
+    ExecuteImmediate {
+        sql_expr: Expr,
+        into_variables: Vec<String>,
+        using_params: Vec<(Expr, Option<String>)>,
+    },
 
-    Continue,
+    Break {
+        label: Option<String>,
+    },
+
+    Continue {
+        label: Option<String>,
+    },
 
     CreateSnapshot {
         snapshot_name: String,
@@ -350,7 +371,7 @@ pub enum OptimizedLogicalPlan {
     Rollback,
 
     TryCatch {
-        try_block: Vec<OptimizedLogicalPlan>,
+        try_block: Vec<(OptimizedLogicalPlan, Option<String>)>,
         catch_block: Vec<OptimizedLogicalPlan>,
     },
 
@@ -413,15 +434,18 @@ impl OptimizedLogicalPlan {
             OptimizedLogicalPlan::LoadData { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Declare { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::SetVariable { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::SetMultipleVariables { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::If { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::While { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Loop { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::Block { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Repeat { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::For { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Return { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Raise { .. } => &EMPTY_SCHEMA,
-            OptimizedLogicalPlan::Break => &EMPTY_SCHEMA,
-            OptimizedLogicalPlan::Continue => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::ExecuteImmediate { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::Break { .. } => &EMPTY_SCHEMA,
+            OptimizedLogicalPlan::Continue { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::CreateSnapshot { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::DropSnapshot { .. } => &EMPTY_SCHEMA,
             OptimizedLogicalPlan::Assert { .. } => &EMPTY_SCHEMA,

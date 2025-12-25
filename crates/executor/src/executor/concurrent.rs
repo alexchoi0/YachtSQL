@@ -292,13 +292,21 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 default,
             } => self.execute_declare(name, data_type, default.as_ref()),
             PhysicalPlan::SetVariable { name, value } => self.execute_set_variable(name, value),
+            PhysicalPlan::SetMultipleVariables { names, value } => {
+                self.execute_set_multiple_variables(names, value)
+            }
             PhysicalPlan::If {
                 condition,
                 then_branch,
                 else_branch,
             } => self.execute_if(condition, then_branch, else_branch.as_deref()),
-            PhysicalPlan::While { condition, body } => self.execute_while(condition, body),
+            PhysicalPlan::While {
+                condition,
+                body,
+                label,
+            } => self.execute_while(condition, body, label.as_deref()),
             PhysicalPlan::Loop { body, label } => self.execute_loop(body, label.as_deref()),
+            PhysicalPlan::Block { body, label } => self.execute_block(body, label.as_deref()),
             PhysicalPlan::Repeat {
                 body,
                 until_condition,
@@ -312,8 +320,20 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 Err(Error::InvalidQuery("RETURN outside of function".into()))
             }
             PhysicalPlan::Raise { message, level } => self.execute_raise(message.as_ref(), *level),
-            PhysicalPlan::Break => Err(Error::InvalidQuery("BREAK outside of loop".into())),
-            PhysicalPlan::Continue => Err(Error::InvalidQuery("CONTINUE outside of loop".into())),
+            PhysicalPlan::Break { label } => {
+                let msg = match label {
+                    Some(lbl) => format!("BREAK:{}", lbl),
+                    None => "BREAK outside of loop".to_string(),
+                };
+                Err(Error::InvalidQuery(msg))
+            }
+            PhysicalPlan::Continue { label } => {
+                let msg = match label {
+                    Some(lbl) => format!("CONTINUE:{}", lbl),
+                    None => "CONTINUE outside of loop".to_string(),
+                };
+                Err(Error::InvalidQuery(msg))
+            }
             PhysicalPlan::CreateSnapshot {
                 snapshot_name,
                 source_name,
@@ -352,6 +372,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         planned_schema: &PlanSchema,
     ) -> Table {
         let mut new_schema = Schema::new();
+        let mut column_indices = Vec::new();
         for plan_field in &planned_schema.fields {
             let mode = if plan_field.nullable {
                 FieldMode::Nullable
@@ -362,19 +383,20 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             if let Some(ref table) = plan_field.table {
                 field = field.with_source_table(table.clone());
             }
-            let source_field = source_table
+            let source_field_idx = source_table
                 .schema()
                 .fields()
                 .iter()
-                .find(|f| f.name.eq_ignore_ascii_case(&plan_field.name));
-            if let Some(src) = source_field {
-                if let Some(ref collation) = src.collation {
+                .position(|f| f.name.eq_ignore_ascii_case(&plan_field.name));
+            if let Some(idx) = source_field_idx {
+                if let Some(ref collation) = source_table.schema().fields()[idx].collation {
                     field.collation = Some(collation.clone());
                 }
+                column_indices.push(idx);
             }
             new_schema.add_field(field);
         }
-        source_table.with_schema(new_schema)
+        source_table.with_reordered_schema(new_schema, &column_indices)
     }
 
     fn execute_assert(&mut self, condition: &Expr, message: Option<&Expr>) -> Result<Table> {
@@ -1366,6 +1388,44 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         Ok(Table::empty(Schema::new()))
     }
 
+    pub(crate) fn execute_set_multiple_variables(
+        &mut self,
+        names: &[String],
+        value: &Expr,
+    ) -> Result<Table> {
+        let empty_schema = Schema::new();
+        let evaluator = IrEvaluator::new(&empty_schema)
+            .with_variables(&self.variables)
+            .with_user_functions(&self.user_function_defs);
+        let val = evaluator.evaluate(value, &Record::new())?;
+
+        let field_values = match val {
+            Value::Struct(fields) => fields,
+            _ => {
+                return Err(Error::invalid_query(
+                    "SET multiple variables requires a STRUCT value",
+                ));
+            }
+        };
+
+        if field_values.len() != names.len() {
+            return Err(Error::invalid_query(format!(
+                "SET: number of struct fields ({}) doesn't match number of variables ({})",
+                field_values.len(),
+                names.len()
+            )));
+        }
+
+        for (i, name) in names.iter().enumerate() {
+            let field_val = field_values[i].1.clone();
+            let upper_name = name.to_uppercase();
+            self.variables.insert(upper_name.clone(), field_val.clone());
+            self.session.set_variable(name, field_val);
+        }
+
+        Ok(Table::empty(Schema::new()))
+    }
+
     pub(crate) fn execute_if(
         &mut self,
         condition: &Expr,
@@ -1395,13 +1455,14 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         &mut self,
         condition: &Expr,
         body: &[PhysicalPlan],
+        label: Option<&str>,
     ) -> Result<Table> {
         let empty_schema = Schema::new();
         let mut result = Table::empty(Schema::new());
         let mut iterations = 0;
         const MAX_ITERATIONS: usize = 10000;
 
-        loop {
+        'outer: loop {
             let evaluator = IrEvaluator::new(&empty_schema)
                 .with_variables(&self.variables)
                 .with_user_functions(&self.user_function_defs);
@@ -1412,7 +1473,32 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             }
 
             for stmt in body {
-                result = self.execute_plan(stmt)?;
+                match self.execute_plan(stmt) {
+                    Ok(r) => result = r,
+                    Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
+                        if msg == "BREAK outside of loop" {
+                            return Ok(Table::empty(Schema::new()));
+                        }
+                        if let Some(lbl) = label {
+                            if msg == format!("BREAK:{}", lbl) {
+                                return Ok(Table::empty(Schema::new()));
+                            }
+                        }
+                        return Err(Error::InvalidQuery(msg));
+                    }
+                    Err(Error::InvalidQuery(msg)) if msg.contains("CONTINUE") => {
+                        if msg == "CONTINUE outside of loop" {
+                            continue 'outer;
+                        }
+                        if let Some(lbl) = label {
+                            if msg == format!("CONTINUE:{}", lbl) {
+                                continue 'outer;
+                            }
+                        }
+                        return Err(Error::InvalidQuery(msg));
+                    }
+                    Err(e) => return Err(e),
+                }
             }
 
             iterations += 1;
@@ -1429,15 +1515,31 @@ impl<'a> ConcurrentPlanExecutor<'a> {
     pub(crate) fn execute_loop(
         &mut self,
         body: &[PhysicalPlan],
-        _label: Option<&str>,
+        label: Option<&str>,
     ) -> Result<Table> {
         let mut result = Table::empty(Schema::new());
         let mut iterations = 0;
         const MAX_ITERATIONS: usize = 10000;
 
-        loop {
+        'outer: loop {
             for stmt in body {
-                result = self.execute_plan(stmt)?;
+                match self.execute_plan(stmt) {
+                    Ok(r) => result = r,
+                    Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
+                        if let Some(lbl) = label {
+                            if msg.contains(&format!("BREAK:{}", lbl))
+                                || msg == "BREAK outside of loop"
+                            {
+                                return Ok(Table::empty(Schema::new()));
+                            }
+                        }
+                        return Ok(Table::empty(Schema::new()));
+                    }
+                    Err(Error::InvalidQuery(msg)) if msg.contains("CONTINUE") => {
+                        continue 'outer;
+                    }
+                    Err(e) => return Err(e),
+                }
             }
 
             iterations += 1;
@@ -1445,6 +1547,31 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 return Err(Error::invalid_query("LOOP exceeded maximum iterations"));
             }
         }
+    }
+
+    pub(crate) fn execute_block(
+        &mut self,
+        body: &[PhysicalPlan],
+        label: Option<&str>,
+    ) -> Result<Table> {
+        let mut last_result = Table::empty(Schema::new());
+        for plan in body {
+            match self.execute_plan(plan) {
+                Ok(result) => {
+                    last_result = result;
+                }
+                Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
+                    if let Some(lbl) = label {
+                        if msg == format!("BREAK:{}", lbl) {
+                            return Ok(last_result);
+                        }
+                    }
+                    return Err(Error::InvalidQuery(msg));
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(last_result)
     }
 
     pub(crate) fn execute_repeat(
@@ -1457,9 +1584,18 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         let mut iterations = 0;
         const MAX_ITERATIONS: usize = 10000;
 
-        loop {
+        'outer: loop {
             for stmt in body {
-                result = self.execute_plan(stmt)?;
+                match self.execute_plan(stmt) {
+                    Ok(r) => result = r,
+                    Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
+                        return Ok(Table::empty(Schema::new()));
+                    }
+                    Err(Error::InvalidQuery(msg)) if msg.contains("CONTINUE") => {
+                        continue 'outer;
+                    }
+                    Err(e) => return Err(e),
+                }
             }
 
             let evaluator = IrEvaluator::new(&empty_schema)
@@ -1524,7 +1660,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         };
 
         match level {
-            RaiseLevel::Exception => Err(Error::InvalidQuery(msg)),
+            RaiseLevel::Exception => Err(Error::raised_exception(msg)),
             RaiseLevel::Warning => Ok(Table::empty(Schema::new())),
             RaiseLevel::Notice => Ok(Table::empty(Schema::new())),
         }

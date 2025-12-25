@@ -315,13 +315,21 @@ impl<'a> PlanExecutor<'a> {
                 default,
             } => self.execute_declare(name, data_type, default.as_ref()),
             PhysicalPlan::SetVariable { name, value } => self.execute_set_variable(name, value),
+            PhysicalPlan::SetMultipleVariables { names, value } => {
+                self.execute_set_multiple_variables(names, value)
+            }
             PhysicalPlan::If {
                 condition,
                 then_branch,
                 else_branch,
             } => self.execute_if(condition, then_branch, else_branch.as_deref()),
-            PhysicalPlan::While { condition, body } => self.execute_while(condition, body),
+            PhysicalPlan::While {
+                condition,
+                body,
+                label,
+            } => self.execute_while(condition, body, label.as_deref()),
             PhysicalPlan::Loop { body, label } => self.execute_loop(body, label.as_deref()),
+            PhysicalPlan::Block { body, label } => self.execute_block(body, label.as_deref()),
             PhysicalPlan::Repeat {
                 body,
                 until_condition,
@@ -335,8 +343,25 @@ impl<'a> PlanExecutor<'a> {
                 Err(Error::InvalidQuery("RETURN outside of function".into()))
             }
             PhysicalPlan::Raise { message, level } => self.execute_raise(message.as_ref(), *level),
-            PhysicalPlan::Break => Err(Error::InvalidQuery("BREAK outside of loop".into())),
-            PhysicalPlan::Continue => Err(Error::InvalidQuery("CONTINUE outside of loop".into())),
+            PhysicalPlan::ExecuteImmediate {
+                sql_expr,
+                into_variables,
+                using_params,
+            } => self.execute_execute_immediate(sql_expr, into_variables, using_params),
+            PhysicalPlan::Break { label } => {
+                let msg = match label {
+                    Some(lbl) => format!("BREAK:{}", lbl),
+                    None => "BREAK outside of loop".to_string(),
+                };
+                Err(Error::InvalidQuery(msg))
+            }
+            PhysicalPlan::Continue { label } => {
+                let msg = match label {
+                    Some(lbl) => format!("CONTINUE:{}", lbl),
+                    None => "CONTINUE outside of loop".to_string(),
+                };
+                Err(Error::InvalidQuery(msg))
+            }
             PhysicalPlan::CreateSnapshot {
                 snapshot_name,
                 source_name,
@@ -401,17 +426,27 @@ impl<'a> PlanExecutor<'a> {
 
     fn execute_try_catch(
         &mut self,
-        try_block: &[PhysicalPlan],
+        try_block: &[(PhysicalPlan, Option<String>)],
         catch_block: &[PhysicalPlan],
     ) -> Result<Table> {
         let mut last_result = Table::empty(Schema::new());
 
-        for plan in try_block {
+        for (plan, source_sql) in try_block {
             match self.execute_plan(plan) {
                 Ok(result) => {
                     last_result = result;
                 }
-                Err(_) => {
+                Err(e) => {
+                    let error_message = e.to_string();
+                    let stmt_text = source_sql.clone().unwrap_or_else(|| format!("{:?}", plan));
+                    let error_struct = Value::Struct(vec![
+                        ("message".to_string(), Value::String(error_message.clone())),
+                        ("statement_text".to_string(), Value::String(stmt_text)),
+                    ]);
+                    self.variables
+                        .insert("@@ERROR".to_string(), error_struct.clone());
+                    self.session.set_system_variable("@@error", error_struct);
+
                     for catch_plan in catch_block {
                         last_result = self.execute_plan(catch_plan)?;
                     }
@@ -427,15 +462,26 @@ impl<'a> PlanExecutor<'a> {
         use yachtsql_storage::Record;
 
         let empty_schema = Schema::new();
-        let evaluator = IrEvaluator::new(&empty_schema)
-            .with_variables(&self.variables)
-            .with_user_functions(&self.user_function_defs);
         let empty_record = Record::new();
-        let result = evaluator.evaluate(condition, &empty_record)?;
+
+        let result = if Self::assert_expr_contains_subquery(condition) {
+            self.eval_assert_expr_with_subqueries(condition, &empty_schema, &empty_record)?
+        } else {
+            let evaluator = IrEvaluator::new(&empty_schema)
+                .with_variables(&self.variables)
+                .with_system_variables(self.session.system_variables())
+                .with_user_functions(&self.user_function_defs);
+            evaluator.evaluate(condition, &empty_record)?
+        };
+
         match result {
             Value::Bool(true) => Ok(Table::empty(Schema::new())),
             Value::Bool(false) => {
                 let msg = if let Some(msg_expr) = message {
+                    let evaluator = IrEvaluator::new(&empty_schema)
+                        .with_variables(&self.variables)
+                        .with_system_variables(self.session.system_variables())
+                        .with_user_functions(&self.user_function_defs);
                     let msg_val = evaluator.evaluate(msg_expr, &empty_record)?;
                     match msg_val {
                         Value::String(s) => s,
@@ -449,6 +495,78 @@ impl<'a> PlanExecutor<'a> {
             _ => Err(Error::InvalidQuery(
                 "ASSERT condition must evaluate to a boolean".into(),
             )),
+        }
+    }
+
+    fn assert_expr_contains_subquery(expr: &Expr) -> bool {
+        match expr {
+            Expr::Subquery(_)
+            | Expr::ScalarSubquery(_)
+            | Expr::ArraySubquery(_)
+            | Expr::Exists { .. }
+            | Expr::InSubquery { .. } => true,
+            Expr::BinaryOp { left, right, .. } => {
+                Self::assert_expr_contains_subquery(left)
+                    || Self::assert_expr_contains_subquery(right)
+            }
+            Expr::UnaryOp { expr, .. } => Self::assert_expr_contains_subquery(expr),
+            Expr::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
+                operand
+                    .as_ref()
+                    .is_some_and(|o| Self::assert_expr_contains_subquery(o))
+                    || when_clauses.iter().any(|w| {
+                        Self::assert_expr_contains_subquery(&w.condition)
+                            || Self::assert_expr_contains_subquery(&w.result)
+                    })
+                    || else_result
+                        .as_ref()
+                        .is_some_and(|e| Self::assert_expr_contains_subquery(e))
+            }
+            _ => false,
+        }
+    }
+
+    fn eval_assert_expr_with_subqueries(
+        &mut self,
+        expr: &Expr,
+        schema: &Schema,
+        record: &yachtsql_storage::Record,
+    ) -> Result<Value> {
+        use yachtsql_optimizer::optimize;
+
+        match expr {
+            Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => {
+                let physical = optimize(plan)?;
+                let executor_plan = PhysicalPlan::from_physical(&physical);
+                let result_table = self.execute_plan(&executor_plan)?;
+                if result_table.is_empty() {
+                    return Ok(Value::Null);
+                }
+                let rows: Vec<_> = result_table.rows()?.into_iter().collect();
+                if rows.is_empty() || rows[0].values().is_empty() {
+                    return Ok(Value::Null);
+                }
+                Ok(rows[0].values()[0].clone())
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.eval_assert_expr_with_subqueries(left, schema, record)?;
+                let right_val = self.eval_assert_expr_with_subqueries(right, schema, record)?;
+                let evaluator = IrEvaluator::new(schema)
+                    .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables());
+                evaluator.eval_binary_op_with_values(*op, left_val, right_val)
+            }
+            _ => {
+                let evaluator = IrEvaluator::new(schema)
+                    .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables())
+                    .with_user_functions(&self.user_function_defs);
+                evaluator.evaluate(expr, record)
+            }
         }
     }
 
@@ -521,6 +639,7 @@ impl<'a> PlanExecutor<'a> {
 
         let evaluator = IrEvaluator::new(storage_schema)
             .with_variables(&self.variables)
+            .with_system_variables(self.session.system_variables())
             .with_user_functions(&self.user_function_defs);
         let empty_record = Record::new();
 

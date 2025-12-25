@@ -96,15 +96,18 @@ fn is_cacheable_plan(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::LoadData { .. }
         | OptimizedLogicalPlan::Declare { .. }
         | OptimizedLogicalPlan::SetVariable { .. }
+        | OptimizedLogicalPlan::SetMultipleVariables { .. }
         | OptimizedLogicalPlan::If { .. }
         | OptimizedLogicalPlan::While { .. }
         | OptimizedLogicalPlan::Loop { .. }
+        | OptimizedLogicalPlan::Block { .. }
         | OptimizedLogicalPlan::Repeat { .. }
         | OptimizedLogicalPlan::For { .. }
         | OptimizedLogicalPlan::Return { .. }
         | OptimizedLogicalPlan::Raise { .. }
-        | OptimizedLogicalPlan::Break
-        | OptimizedLogicalPlan::Continue
+        | OptimizedLogicalPlan::ExecuteImmediate { .. }
+        | OptimizedLogicalPlan::Break { .. }
+        | OptimizedLogicalPlan::Continue { .. }
         | OptimizedLogicalPlan::CreateSnapshot { .. }
         | OptimizedLogicalPlan::DropSnapshot { .. }
         | OptimizedLogicalPlan::Assert { .. }
@@ -166,15 +169,18 @@ fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::LoadData { .. }
         | OptimizedLogicalPlan::Declare { .. }
         | OptimizedLogicalPlan::SetVariable { .. }
+        | OptimizedLogicalPlan::SetMultipleVariables { .. }
         | OptimizedLogicalPlan::If { .. }
         | OptimizedLogicalPlan::While { .. }
         | OptimizedLogicalPlan::Loop { .. }
+        | OptimizedLogicalPlan::Block { .. }
         | OptimizedLogicalPlan::Repeat { .. }
         | OptimizedLogicalPlan::For { .. }
         | OptimizedLogicalPlan::Return { .. }
         | OptimizedLogicalPlan::Raise { .. }
-        | OptimizedLogicalPlan::Break
-        | OptimizedLogicalPlan::Continue
+        | OptimizedLogicalPlan::ExecuteImmediate { .. }
+        | OptimizedLogicalPlan::Break { .. }
+        | OptimizedLogicalPlan::Continue { .. }
         | OptimizedLogicalPlan::Assert { .. }
         | OptimizedLogicalPlan::Grant { .. }
         | OptimizedLogicalPlan::Revoke { .. }
@@ -245,7 +251,15 @@ impl SessionExecutor {
     pub fn execute_sql(&mut self, sql: &str) -> yachtsql_common::error::Result<Table> {
         if let Some(cached_plan) = self.shared.get_cached_plan(sql) {
             let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
-            return executor.execute(&cached_plan);
+            return match executor.execute(&cached_plan) {
+                Ok(result) => Ok(result),
+                Err(yachtsql_common::error::Error::InvalidQuery(msg))
+                    if msg == "RETURN outside of function" =>
+                {
+                    Ok(Table::empty(yachtsql_storage::Schema::new()))
+                }
+                Err(e) => Err(e),
+            };
         }
 
         let logical = yachtsql_parser::parse_and_plan(sql, &self.catalog)?;
@@ -256,7 +270,15 @@ impl SessionExecutor {
         }
 
         let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
-        let result = executor.execute(&physical)?;
+        let result = match executor.execute(&physical) {
+            Ok(result) => result,
+            Err(yachtsql_common::error::Error::InvalidQuery(msg))
+                if msg == "RETURN outside of function" =>
+            {
+                Table::empty(yachtsql_storage::Schema::new())
+            }
+            Err(e) => return Err(e),
+        };
 
         if invalidates_cache(&physical) {
             self.shared.invalidate_cache();
@@ -311,7 +333,15 @@ impl QueryExecutor {
         if let Some(cached_plan) = self.plan_cache.get(sql) {
             let plan = cached_plan.clone();
             let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
-            return executor.execute(&plan);
+            return match executor.execute(&plan) {
+                Ok(result) => Ok(result),
+                Err(yachtsql_common::error::Error::InvalidQuery(msg))
+                    if msg == "RETURN outside of function" =>
+                {
+                    Ok(Table::empty(yachtsql_storage::Schema::new()))
+                }
+                Err(e) => Err(e),
+            };
         }
 
         let logical = yachtsql_parser::parse_and_plan(sql, &self.catalog)?;
@@ -322,7 +352,15 @@ impl QueryExecutor {
         }
 
         let mut executor = PlanExecutor::new(&mut self.catalog, &mut self.session);
-        let result = executor.execute(&physical)?;
+        let result = match executor.execute(&physical) {
+            Ok(result) => result,
+            Err(yachtsql_common::error::Error::InvalidQuery(msg))
+                if msg == "RETURN outside of function" =>
+            {
+                Table::empty(yachtsql_storage::Schema::new())
+            }
+            Err(e) => return Err(e),
+        };
 
         if invalidates_cache(&physical) {
             self.plan_cache.clear();

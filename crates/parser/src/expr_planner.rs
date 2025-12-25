@@ -181,6 +181,9 @@ impl ExprPlanner {
                 conditions,
                 else_result.as_deref(),
                 schema,
+                subquery_planner,
+                named_windows,
+                udf_resolver,
             ),
 
             ast::Expr::Cast {
@@ -924,7 +927,7 @@ impl ExprPlanner {
         })
     }
 
-    fn resolve_compound_identifier(parts: &[ast::Ident], schema: &PlanSchema) -> Result<Expr> {
+    pub fn resolve_compound_identifier(parts: &[ast::Ident], schema: &PlanSchema) -> Result<Expr> {
         if parts.is_empty() {
             return Err(Error::InvalidQuery("Empty compound identifier".into()));
         }
@@ -935,6 +938,20 @@ impl ExprPlanner {
         }
 
         let first_part = &parts[0].value;
+
+        if first_part.starts_with('@') {
+            let mut expr = Expr::Variable {
+                name: first_part.clone(),
+            };
+            for part in &parts[1..] {
+                expr = Expr::StructAccess {
+                    expr: Box::new(expr),
+                    field: part.value.clone(),
+                };
+            }
+            return Ok(expr);
+        }
+
         if let Some((idx, field)) = schema.field_by_name(first_part) {
             match &field.data_type {
                 DataType::Struct(_) => {
@@ -970,6 +987,49 @@ impl ExprPlanner {
             }
         }
 
+        if parts.len() >= 3 {
+            let table_alias = &parts[0].value;
+            let col_name = &parts[1].value;
+            for (idx, field) in schema.fields.iter().enumerate() {
+                if field.name.eq_ignore_ascii_case(col_name)
+                    && field
+                        .table
+                        .as_ref()
+                        .is_some_and(|t| t.eq_ignore_ascii_case(table_alias))
+                {
+                    if let DataType::Struct(_) = &field.data_type {
+                        let mut expr = Expr::Column {
+                            table: Some(table_alias.clone()),
+                            name: col_name.clone(),
+                            index: Some(idx),
+                        };
+                        for part in &parts[2..] {
+                            expr = Expr::StructAccess {
+                                expr: Box::new(expr),
+                                field: part.value.clone(),
+                            };
+                        }
+                        return Ok(expr);
+                    }
+                    if let DataType::Json = &field.data_type {
+                        let base = Expr::Column {
+                            table: Some(table_alias.clone()),
+                            name: col_name.clone(),
+                            index: Some(idx),
+                        };
+                        let path: Vec<JsonPathElement> = parts[2..]
+                            .iter()
+                            .map(|p| JsonPathElement::Key(p.value.clone()))
+                            .collect();
+                        return Ok(Expr::JsonAccess {
+                            expr: Box::new(base),
+                            path,
+                        });
+                    }
+                }
+            }
+        }
+
         let (table, name) = (
             Some(
                 parts[..parts.len() - 1]
@@ -980,6 +1040,7 @@ impl ExprPlanner {
             ),
             parts.last().map(|p| p.value.clone()).unwrap_or_default(),
         );
+
         Self::resolve_column(&name, table.as_deref(), schema)
     }
 
@@ -2134,21 +2195,36 @@ impl ExprPlanner {
         conditions: &[ast::CaseWhen],
         else_result: Option<&ast::Expr>,
         schema: &PlanSchema,
+        subquery_planner: Option<SubqueryPlannerFn>,
+        named_windows: &[ast::NamedWindowDefinition],
+        udf_resolver: Option<UdfResolverFn>,
     ) -> Result<Expr> {
         let operand = operand
-            .map(|e| Self::plan_expr(e, schema))
+            .map(|e| Self::plan_expr_full(e, schema, subquery_planner, named_windows, udf_resolver))
             .transpose()?
             .map(Box::new);
 
         let mut when_clauses = Vec::new();
         for cw in conditions {
-            let condition = Self::plan_expr(&cw.condition, schema)?;
-            let result = Self::plan_expr(&cw.result, schema)?;
+            let condition = Self::plan_expr_full(
+                &cw.condition,
+                schema,
+                subquery_planner,
+                named_windows,
+                udf_resolver,
+            )?;
+            let result = Self::plan_expr_full(
+                &cw.result,
+                schema,
+                subquery_planner,
+                named_windows,
+                udf_resolver,
+            )?;
             when_clauses.push(WhenClause { condition, result });
         }
 
         let else_result = else_result
-            .map(|e| Self::plan_expr(e, schema))
+            .map(|e| Self::plan_expr_full(e, schema, subquery_planner, named_windows, udf_resolver))
             .transpose()?
             .map(Box::new);
 

@@ -1630,6 +1630,10 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
             name: name.clone(),
             value: value.clone(),
         },
+        PhysicalPlan::SetMultipleVariables { names, value } => LogicalPlan::SetMultipleVariables {
+            names: names.clone(),
+            value: value.clone(),
+        },
         PhysicalPlan::If {
             condition,
             then_branch,
@@ -1644,11 +1648,20 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
                 .as_ref()
                 .map(|b| b.iter().map(executor_plan_to_logical_plan).collect()),
         },
-        PhysicalPlan::While { condition, body } => LogicalPlan::While {
+        PhysicalPlan::While {
+            condition,
+            body,
+            label,
+        } => LogicalPlan::While {
             condition: condition.clone(),
             body: body.iter().map(executor_plan_to_logical_plan).collect(),
+            label: label.clone(),
         },
         PhysicalPlan::Loop { body, label } => LogicalPlan::Loop {
+            body: body.iter().map(executor_plan_to_logical_plan).collect(),
+            label: label.clone(),
+        },
+        PhysicalPlan::Block { body, label } => LogicalPlan::Block {
             body: body.iter().map(executor_plan_to_logical_plan).collect(),
             label: label.clone(),
         },
@@ -1668,8 +1681,21 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
             message: message.clone(),
             level: *level,
         },
-        PhysicalPlan::Break => LogicalPlan::Break,
-        PhysicalPlan::Continue => LogicalPlan::Continue,
+        PhysicalPlan::ExecuteImmediate {
+            sql_expr,
+            into_variables,
+            using_params,
+        } => LogicalPlan::ExecuteImmediate {
+            sql_expr: sql_expr.clone(),
+            into_variables: into_variables.clone(),
+            using_params: using_params.clone(),
+        },
+        PhysicalPlan::Break { label } => LogicalPlan::Break {
+            label: label.clone(),
+        },
+        PhysicalPlan::Continue { label } => LogicalPlan::Continue {
+            label: label.clone(),
+        },
         PhysicalPlan::CreateSnapshot {
             snapshot_name,
             source_name,
@@ -1751,7 +1777,7 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
         } => LogicalPlan::TryCatch {
             try_block: try_block
                 .iter()
-                .map(executor_plan_to_logical_plan)
+                .map(|(p, sql)| (executor_plan_to_logical_plan(p), sql.clone()))
                 .collect(),
             catch_block: catch_block
                 .iter()

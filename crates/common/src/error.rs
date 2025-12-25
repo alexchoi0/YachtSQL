@@ -6,6 +6,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     ParseError(String),
     InvalidQuery(String),
+    RaisedException(String),
     TableNotFound(String),
     FunctionNotFound(String),
     ColumnNotFound(String),
@@ -24,6 +25,10 @@ impl Error {
 
     pub fn invalid_query(msg: impl Into<String>) -> Self {
         Error::InvalidQuery(msg.into())
+    }
+
+    pub fn raised_exception(msg: impl Into<String>) -> Self {
+        Error::RaisedException(msg.into())
     }
 
     pub fn table_not_found(name: impl Into<String>) -> Self {
@@ -71,6 +76,7 @@ impl fmt::Display for Error {
         match self {
             Error::ParseError(msg) => write!(f, "Parse error: {}", msg),
             Error::InvalidQuery(msg) => write!(f, "Invalid query: {}", msg),
+            Error::RaisedException(msg) => write!(f, "{}", msg),
             Error::TableNotFound(name) => write!(f, "Table not found: {}", name),
             Error::FunctionNotFound(name) => write!(f, "Function not found: {}", name),
             Error::ColumnNotFound(name) => write!(f, "Column not found: {}", name),

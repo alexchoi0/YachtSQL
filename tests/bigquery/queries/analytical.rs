@@ -1184,7 +1184,6 @@ fn test_data_quality_checks() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_complex_nested_ctes_with_array_agg_limit() {
     let mut session = create_session();
     session
@@ -1585,7 +1584,6 @@ fn test_multi_level_cte_with_correlated_subquery() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_array_agg_with_order_and_limit_in_subquery() {
     let mut session = create_session();
     session
@@ -1834,7 +1832,6 @@ fn test_complex_window_with_array_agg_ordered() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_nested_aggregates_with_scalar_subqueries() {
     let mut session = create_session();
     session
@@ -2259,7 +2256,6 @@ fn test_recursive_like_hierarchy_with_arrays() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_time_series_with_gaps_and_array_agg() {
     let mut session = create_session();
     session
@@ -2401,7 +2397,7 @@ fn test_time_series_with_gaps_and_array_agg() {
                 1,
                 2,
                 "normal",
-                n("19.0"),
+                n("19"),
                 ["normal", "normal", "cold", "cold", "normal"],
                 [20.0, 19.5, 18.0, 17.5, 19.0]
             ],
@@ -2734,7 +2730,6 @@ fn test_unnest_with_complex_cte_and_array_operations() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_cross_join_with_nested_structs() {
     let mut session = create_session();
     session
@@ -2840,14 +2835,13 @@ fn test_unnest_cross_join_with_nested_structs() {
         result,
         [
             [1, "Alice", 2, 1250.0, "silver, black"],
-            [2, "Bob", 2, 950.0, ""],
+            [2, "Bob", 2, 950.0, null],
             [3, "Charlie", 1, 600.0, "gray"],
         ]
     );
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_with_window_functions_and_array_subquery() {
     let mut session = create_session();
     session
@@ -3089,7 +3083,6 @@ fn test_unnest_multi_array_correlation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_unnest_with_lateral_join_simulation() {
     let mut session = create_session();
     session
@@ -3210,7 +3203,6 @@ fn test_unnest_with_lateral_join_simulation() {
 }
 
 #[test]
-#[ignore = "Implement me!"]
 fn test_deep_nested_unnest_with_aggregations() {
     let mut session = create_session();
     session

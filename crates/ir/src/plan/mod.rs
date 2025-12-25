@@ -265,6 +265,11 @@ pub enum LogicalPlan {
         value: Expr,
     },
 
+    SetMultipleVariables {
+        names: Vec<String>,
+        value: Expr,
+    },
+
     If {
         condition: Expr,
         then_branch: Vec<LogicalPlan>,
@@ -274,9 +279,15 @@ pub enum LogicalPlan {
     While {
         condition: Expr,
         body: Vec<LogicalPlan>,
+        label: Option<String>,
     },
 
     Loop {
+        body: Vec<LogicalPlan>,
+        label: Option<String>,
+    },
+
+    Block {
         body: Vec<LogicalPlan>,
         label: Option<String>,
     },
@@ -301,9 +312,19 @@ pub enum LogicalPlan {
         level: RaiseLevel,
     },
 
-    Break,
+    ExecuteImmediate {
+        sql_expr: Expr,
+        into_variables: Vec<String>,
+        using_params: Vec<(Expr, Option<String>)>,
+    },
 
-    Continue,
+    Break {
+        label: Option<String>,
+    },
+
+    Continue {
+        label: Option<String>,
+    },
 
     CreateSnapshot {
         snapshot_name: String,
@@ -342,7 +363,7 @@ pub enum LogicalPlan {
     Rollback,
 
     TryCatch {
-        try_block: Vec<LogicalPlan>,
+        try_block: Vec<(LogicalPlan, Option<String>)>,
         catch_block: Vec<LogicalPlan>,
     },
 
@@ -400,15 +421,18 @@ impl LogicalPlan {
             LogicalPlan::LoadData { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Declare { .. } => &EMPTY_SCHEMA,
             LogicalPlan::SetVariable { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::SetMultipleVariables { .. } => &EMPTY_SCHEMA,
             LogicalPlan::If { .. } => &EMPTY_SCHEMA,
             LogicalPlan::While { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Loop { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Block { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Repeat { .. } => &EMPTY_SCHEMA,
             LogicalPlan::For { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Return { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Raise { .. } => &EMPTY_SCHEMA,
-            LogicalPlan::Break => &EMPTY_SCHEMA,
-            LogicalPlan::Continue => &EMPTY_SCHEMA,
+            LogicalPlan::ExecuteImmediate { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Break { .. } => &EMPTY_SCHEMA,
+            LogicalPlan::Continue { .. } => &EMPTY_SCHEMA,
             LogicalPlan::CreateSnapshot { .. } => &EMPTY_SCHEMA,
             LogicalPlan::DropSnapshot { .. } => &EMPTY_SCHEMA,
             LogicalPlan::Assert { .. } => &EMPTY_SCHEMA,

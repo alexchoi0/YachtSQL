@@ -61,7 +61,6 @@ fn test_export_data_parquet() {
 }
 
 #[test]
-#[ignore = "AVRO export not yet implemented"]
 fn test_export_data_avro() {
     let mut session = create_session();
     session

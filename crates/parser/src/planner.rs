@@ -176,31 +176,56 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::StartTransaction {
                 statements,
                 exception,
+                label,
                 ..
             } => {
                 if !statements.is_empty() || exception.is_some() {
-                    let try_block: Vec<LogicalPlan> = statements
-                        .iter()
-                        .map(|stmt| self.plan_statement(stmt))
-                        .collect::<Result<Vec<_>>>()?;
+                    let block_label = label.as_ref().map(|l| l.value.clone());
 
                     if let Some(exception_whens) = exception {
+                        let try_block: Vec<(LogicalPlan, Option<String>)> = statements
+                            .iter()
+                            .map(|stmt| {
+                                let sql_text = format!("{}", stmt).trim().to_string();
+                                let plan = self.plan_statement(stmt)?;
+                                Ok((plan, Some(sql_text)))
+                            })
+                            .collect::<Result<Vec<_>>>()?;
+
                         let catch_block: Vec<LogicalPlan> = exception_whens
                             .iter()
                             .flat_map(|ew| &ew.statements)
                             .map(|stmt| self.plan_statement(stmt))
                             .collect::<Result<Vec<_>>>()?;
 
-                        Ok(LogicalPlan::TryCatch {
-                            try_block,
-                            catch_block,
-                        })
+                        if block_label.is_some() {
+                            Ok(LogicalPlan::Block {
+                                body: vec![LogicalPlan::TryCatch {
+                                    try_block,
+                                    catch_block,
+                                }],
+                                label: block_label,
+                            })
+                        } else {
+                            Ok(LogicalPlan::TryCatch {
+                                try_block,
+                                catch_block,
+                            })
+                        }
                     } else {
-                        Ok(LogicalPlan::If {
-                            condition: yachtsql_ir::Expr::Literal(yachtsql_ir::Literal::Bool(true)),
-                            then_branch: try_block,
-                            else_branch: None,
-                        })
+                        let body: Vec<LogicalPlan> = statements
+                            .iter()
+                            .map(|stmt| self.plan_statement(stmt))
+                            .collect::<Result<Vec<_>>>()?;
+
+                        if block_label.is_some() {
+                            Ok(LogicalPlan::Block {
+                                body,
+                                label: block_label,
+                            })
+                        } else {
+                            Ok(LogicalPlan::Block { body, label: None })
+                        }
                     }
                 } else {
                     Ok(LogicalPlan::BeginTransaction)
@@ -244,8 +269,18 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             Statement::For(for_stmt) => self.plan_for(for_stmt),
             Statement::Case(case_stmt) => self.plan_case(case_stmt),
             Statement::Repeat(repeat_stmt) => self.plan_repeat(repeat_stmt),
-            Statement::Leave { .. } | Statement::Break { .. } => Ok(LogicalPlan::Break),
-            Statement::Iterate { .. } | Statement::Continue { .. } => Ok(LogicalPlan::Continue),
+            Statement::Leave { label } => Ok(LogicalPlan::Break {
+                label: label.as_ref().map(|i| i.value.clone()),
+            }),
+            Statement::Break { label } => Ok(LogicalPlan::Break {
+                label: label.as_ref().map(|i| i.value.clone()),
+            }),
+            Statement::Iterate { label } => Ok(LogicalPlan::Continue {
+                label: label.as_ref().map(|i| i.value.clone()),
+            }),
+            Statement::Continue { label } => Ok(LogicalPlan::Continue {
+                label: label.as_ref().map(|i| i.value.clone()),
+            }),
             Statement::Grant {
                 privileges,
                 objects,
@@ -259,6 +294,27 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 ..
             } => self.plan_revoke(privileges, objects.as_ref(), grantees),
             Statement::Raise(raise_stmt) => self.plan_raise(raise_stmt),
+            Statement::Execute {
+                parameters,
+                immediate,
+                into,
+                using,
+                ..
+            } => {
+                if !*immediate {
+                    return Err(Error::unsupported("Only EXECUTE IMMEDIATE is supported"));
+                }
+                self.plan_execute_immediate(parameters, into, using)
+            }
+            Statement::Return(return_stmt) => {
+                let value = match &return_stmt.value {
+                    Some(ast::ReturnStatementValue::Expr(expr)) => {
+                        Some(ExprPlanner::plan_expr(expr, &PlanSchema::new())?)
+                    }
+                    None => None,
+                };
+                Ok(LogicalPlan::Return { value })
+            }
             _ => Err(Error::unsupported(format!(
                 "Unsupported statement: {:?}",
                 stmt
@@ -272,7 +328,8 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             .iter()
             .map(|s| self.plan_statement(s))
             .collect::<Result<Vec<_>>>()?;
-        Ok(LogicalPlan::Loop { body, label: None })
+        let label = loop_stmt.label.as_ref().map(|l| l.value.clone());
+        Ok(LogicalPlan::Loop { body, label })
     }
 
     fn plan_for(&self, for_stmt: &ast::ForStatement) -> Result<LogicalPlan> {
@@ -325,6 +382,40 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         Ok(LogicalPlan::Raise {
             message,
             level: RaiseLevel::Exception,
+        })
+    }
+
+    fn plan_execute_immediate(
+        &self,
+        parameters: &[ast::Expr],
+        into_vars: &[ast::Ident],
+        using_params: &[ast::ExprWithAlias],
+    ) -> Result<LogicalPlan> {
+        let empty_schema = PlanSchema::new();
+
+        let sql_expr = if let Some(first_param) = parameters.first() {
+            ExprPlanner::plan_expr(first_param, &empty_schema)?
+        } else {
+            return Err(Error::parse_error(
+                "EXECUTE IMMEDIATE requires a SQL string",
+            ));
+        };
+
+        let into_variables: Vec<String> = into_vars.iter().map(|i| i.value.clone()).collect();
+
+        let using_params_ir: Vec<(Expr, Option<String>)> = using_params
+            .iter()
+            .map(|p| {
+                let expr = ExprPlanner::plan_expr(&p.expr, &empty_schema)?;
+                let alias = p.alias.as_ref().map(|a| a.value.clone());
+                Ok((expr, alias))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(LogicalPlan::ExecuteImmediate {
+            sql_expr,
+            into_variables,
+            using_params: using_params_ir,
         })
     }
 
@@ -385,10 +476,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         let cond_expr = ExprPlanner::plan_expr(condition, &empty_schema)?;
 
         let body = self.plan_statement_sequence(&while_stmt.while_block.conditional_statements)?;
+        let label = while_stmt.label.as_ref().map(|i| i.value.clone());
 
         Ok(LogicalPlan::While {
             condition: cond_expr,
             body,
+            label,
         })
     }
 
@@ -473,7 +566,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             None
         };
 
-        let mut plan = self.plan_set_expr(&query.body)?;
+        let mut plan = self.plan_set_expr_with_order(&query.body, query.order_by.as_ref())?;
 
         if let Some(ref order_by) = query.order_by {
             plan = match plan {
@@ -707,8 +800,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
     }
 
     fn plan_set_expr(&self, set_expr: &SetExpr) -> Result<LogicalPlan> {
+        self.plan_set_expr_with_order(set_expr, None)
+    }
+
+    fn plan_set_expr_with_order(
+        &self,
+        set_expr: &SetExpr,
+        order_by: Option<&ast::OrderBy>,
+    ) -> Result<LogicalPlan> {
         match set_expr {
-            SetExpr::Select(select) => self.plan_select(select),
+            SetExpr::Select(select) => self.plan_select_with_order(select, order_by),
             SetExpr::Values(values) => self.plan_values(values),
             SetExpr::Query(query) => self.plan_query(query),
             SetExpr::SetOperation {
@@ -752,7 +853,11 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         }
     }
 
-    fn plan_select(&self, select: &ast::Select) -> Result<LogicalPlan> {
+    fn plan_select_with_order(
+        &self,
+        select: &ast::Select,
+        order_by: Option<&ast::OrderBy>,
+    ) -> Result<LogicalPlan> {
         let mut plan = self.plan_from(&select.from)?;
 
         if let Some(ref selection) = select.selection {
@@ -773,7 +878,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             !matches!(select.group_by, ast::GroupByExpr::Expressions(ref e, _) if e.is_empty());
 
         if has_aggregates || has_group_by {
-            plan = self.plan_aggregate(plan, select)?;
+            plan = self.plan_aggregate_with_order(plan, select, order_by)?;
         } else {
             if let Some(ref qualify) = select.qualify {
                 let predicate = ExprPlanner::plan_expr(qualify, plan.schema())?;
@@ -1362,30 +1467,55 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         }
                     }
                 }
-                ast::SelectItem::QualifiedWildcard(kind, _) => {
-                    let table_name = match kind {
-                        ast::SelectItemQualifiedWildcardKind::ObjectName(obj_name) => {
-                            object_name_to_raw_string(obj_name).to_uppercase()
-                        }
-                        ast::SelectItemQualifiedWildcardKind::Expr(_) => {
-                            return Err(Error::unsupported("Expression qualified wildcard"));
-                        }
-                    };
-                    for (i, field) in input.schema().fields.iter().enumerate() {
-                        if field
-                            .table
-                            .as_ref()
-                            .is_some_and(|t| t.to_uppercase() == table_name)
-                        {
-                            expressions.push(Expr::Column {
-                                table: field.table.clone(),
-                                name: field.name.clone(),
-                                index: Some(i),
-                            });
-                            fields.push(field.clone());
+                ast::SelectItem::QualifiedWildcard(kind, _) => match kind {
+                    ast::SelectItemQualifiedWildcardKind::ObjectName(obj_name) => {
+                        let table_name = object_name_to_raw_string(obj_name).to_uppercase();
+                        for (i, field) in input.schema().fields.iter().enumerate() {
+                            if field
+                                .table
+                                .as_ref()
+                                .is_some_and(|t| t.to_uppercase() == table_name)
+                            {
+                                expressions.push(Expr::Column {
+                                    table: field.table.clone(),
+                                    name: field.name.clone(),
+                                    index: Some(i),
+                                });
+                                fields.push(field.clone());
+                            }
                         }
                     }
-                }
+                    ast::SelectItemQualifiedWildcardKind::Expr(expr) => {
+                        let planned_expr = ExprPlanner::plan_expr_with_udf_resolver(
+                            expr,
+                            input.schema(),
+                            Some(&subquery_planner),
+                            named_windows,
+                            Some(&udf_resolver),
+                        )?;
+                        let expr_type = self.infer_expr_type(&planned_expr, input.schema());
+                        match expr_type {
+                            DataType::Struct(struct_fields) => {
+                                for struct_field in struct_fields {
+                                    expressions.push(Expr::StructAccess {
+                                        expr: Box::new(planned_expr.clone()),
+                                        field: struct_field.name.clone(),
+                                    });
+                                    fields.push(PlanField::new(
+                                        struct_field.name.clone(),
+                                        struct_field.data_type.clone(),
+                                    ));
+                                }
+                            }
+                            _ => {
+                                return Err(Error::invalid_query(format!(
+                                    "Cannot use .* on non-struct type: {:?}",
+                                    expr_type
+                                )));
+                            }
+                        }
+                    }
+                },
             }
         }
 
@@ -1617,7 +1747,12 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         }
     }
 
-    fn plan_aggregate(&self, input: LogicalPlan, select: &ast::Select) -> Result<LogicalPlan> {
+    fn plan_aggregate_with_order(
+        &self,
+        input: LogicalPlan,
+        select: &ast::Select,
+        order_by: Option<&ast::OrderBy>,
+    ) -> Result<LogicalPlan> {
         let mut group_by_exprs = Vec::new();
         let mut aggregate_exprs = Vec::new();
         let mut agg_fields = Vec::new();
@@ -1677,6 +1812,35 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         ast::Expr::GroupingSets(sets_exprs) => {
                             has_grouping_modifier = true;
                             for set_vec in sets_exprs {
+                                if set_vec.len() == 1 {
+                                    match &set_vec[0] {
+                                        ast::Expr::Rollup(rollup_exprs) => {
+                                            let flat_exprs: Vec<ast::Expr> =
+                                                rollup_exprs.iter().flatten().cloned().collect();
+                                            let indices = self.add_group_exprs_to_index_map(
+                                                &mut all_exprs,
+                                                &mut expr_indices,
+                                                &flat_exprs,
+                                            );
+                                            let rollup_sets = self.expand_rollup_indices(&indices);
+                                            sets.extend(rollup_sets);
+                                            continue;
+                                        }
+                                        ast::Expr::Cube(cube_exprs) => {
+                                            let flat_exprs: Vec<ast::Expr> =
+                                                cube_exprs.iter().flatten().cloned().collect();
+                                            let indices = self.add_group_exprs_to_index_map(
+                                                &mut all_exprs,
+                                                &mut expr_indices,
+                                                &flat_exprs,
+                                            );
+                                            let cube_sets = self.expand_cube_indices(&indices);
+                                            sets.extend(cube_sets);
+                                            continue;
+                                        }
+                                        _ => {}
+                                    }
+                                }
                                 let indices = self.add_group_exprs_to_index_map(
                                     &mut all_exprs,
                                     &mut expr_indices,
@@ -1799,8 +1963,15 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                                     &mut agg_fields,
                                     input.schema(),
                                     group_by_count,
+                                    &group_by_exprs,
                                 );
                             let data_type = self.infer_expr_type(&planned, input.schema());
+                            if Self::expr_has_window(&replaced_expr) {
+                                window_expr_indices.push(final_projection_exprs.len());
+                                if let Some(wf) = Self::extract_window_function(&replaced_expr) {
+                                    window_funcs.push(wf);
+                                }
+                            }
                             final_projection_exprs.push(replaced_expr);
                             final_projection_fields.push(PlanField::new(output_name, data_type));
                         }
@@ -1819,6 +1990,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             &mut agg_fields,
                             input.schema(),
                             group_by_count,
+                            &group_by_exprs,
                         );
                         let data_type = self.infer_expr_type(&planned, input.schema());
                         window_expr_indices.push(final_projection_exprs.len());
@@ -1913,6 +2085,16 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         if let Some(ref having) = select.having {
             Self::collect_having_aggregates(
                 having,
+                input.schema(),
+                &mut agg_canonical_names,
+                &mut aggregate_exprs,
+                &mut agg_fields,
+            )?;
+        }
+
+        if let Some(order_by) = order_by {
+            Self::collect_order_by_aggregates(
+                order_by,
                 input.schema(),
                 &mut agg_canonical_names,
                 &mut aggregate_exprs,
@@ -2047,6 +2229,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn extract_aggregates_from_expr(
         &self,
         expr: &Expr,
@@ -2055,6 +2238,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         agg_fields: &mut Vec<PlanField>,
         input_schema: &PlanSchema,
         group_by_count: usize,
+        group_by_exprs: &[Expr],
     ) -> (Expr, Vec<String>) {
         let mut extracted = Vec::new();
         let replaced = self.replace_aggregates_with_columns(
@@ -2065,6 +2249,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             input_schema,
             group_by_count,
             &mut extracted,
+            group_by_exprs,
         );
         (replaced, extracted)
     }
@@ -2079,7 +2264,19 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
         input_schema: &PlanSchema,
         group_by_count: usize,
         extracted: &mut Vec<String>,
+        group_by_exprs: &[Expr],
     ) -> Expr {
+        if let Some(idx) = group_by_exprs.iter().position(|gbe| expr == gbe) {
+            return Expr::Column {
+                table: agg_fields.get(idx).and_then(|f| f.table.clone()),
+                name: agg_fields
+                    .get(idx)
+                    .map(|f| f.name.clone())
+                    .unwrap_or_default(),
+                index: Some(idx),
+            };
+        }
+
         match expr {
             Expr::Aggregate { .. } => {
                 let canonical = Self::canonical_planned_agg_name(expr);
@@ -2110,6 +2307,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 let new_right = self.replace_aggregates_with_columns(
                     right,
@@ -2119,6 +2317,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::BinaryOp {
                     left: Box::new(new_left),
@@ -2135,6 +2334,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::UnaryOp {
                     op: *op,
@@ -2153,6 +2353,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         )
                     })
                     .collect();
@@ -2174,6 +2375,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::Cast {
                     expr: Box::new(new_inner),
@@ -2195,6 +2397,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         input_schema,
                         group_by_count,
                         extracted,
+                        group_by_exprs,
                     ))
                 });
                 let new_whens: Vec<yachtsql_ir::WhenClause> = when_clauses
@@ -2208,6 +2411,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         ),
                         result: self.replace_aggregates_with_columns(
                             &w.result,
@@ -2217,6 +2421,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         ),
                     })
                     .collect();
@@ -2229,6 +2434,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                         input_schema,
                         group_by_count,
                         extracted,
+                        group_by_exprs,
                     ))
                 });
                 Expr::Case {
@@ -2246,6 +2452,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::Alias {
                     expr: Box::new(new_inner),
@@ -2270,6 +2477,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         )
                     })
                     .collect();
@@ -2284,6 +2492,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         )
                     })
                     .collect();
@@ -2298,6 +2507,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         ),
                         asc: se.asc,
                         nulls_first: se.nulls_first,
@@ -2323,6 +2533,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::IsNull {
                     expr: Box::new(new_inner),
@@ -2343,6 +2554,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 let new_low = self.replace_aggregates_with_columns(
                     low,
@@ -2352,6 +2564,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 let new_high = self.replace_aggregates_with_columns(
                     high,
@@ -2361,6 +2574,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::Between {
                     expr: Box::new(new_inner),
@@ -2382,6 +2596,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 let new_list: Vec<Expr> = list
                     .iter()
@@ -2394,6 +2609,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         )
                     })
                     .collect();
@@ -2417,6 +2633,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 let new_pattern = self.replace_aggregates_with_columns(
                     pattern,
@@ -2426,6 +2643,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::Like {
                     expr: Box::new(new_inner),
@@ -2453,6 +2671,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         )
                     })
                     .collect();
@@ -2467,6 +2686,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         )
                     })
                     .collect();
@@ -2481,6 +2701,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                             input_schema,
                             group_by_count,
                             extracted,
+                            group_by_exprs,
                         ),
                         asc: se.asc,
                         nulls_first: se.nulls_first,
@@ -2504,6 +2725,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 let new_index = self.replace_aggregates_with_columns(
                     index,
@@ -2513,6 +2735,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     input_schema,
                     group_by_count,
                     extracted,
+                    group_by_exprs,
                 );
                 Expr::ArrayAccess {
                     array: Box::new(new_array),
@@ -2601,6 +2824,91 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 }
             }
             Expr::Aggregate { .. } => Self::canonical_planned_agg_name(expr),
+            Expr::BinaryOp { left, op, right } => {
+                let op_str = match op {
+                    BinaryOp::Add => "+",
+                    BinaryOp::Sub => "-",
+                    BinaryOp::Mul => "*",
+                    BinaryOp::Div => "/",
+                    BinaryOp::Mod => "%",
+                    BinaryOp::Eq => "=",
+                    BinaryOp::NotEq => "!=",
+                    BinaryOp::Lt => "<",
+                    BinaryOp::LtEq => "<=",
+                    BinaryOp::Gt => ">",
+                    BinaryOp::GtEq => ">=",
+                    BinaryOp::And => "AND",
+                    BinaryOp::Or => "OR",
+                    BinaryOp::BitwiseAnd => "&",
+                    BinaryOp::BitwiseOr => "|",
+                    BinaryOp::BitwiseXor => "^",
+                    BinaryOp::ShiftLeft => "<<",
+                    BinaryOp::ShiftRight => ">>",
+                    BinaryOp::Concat => "||",
+                };
+                format!(
+                    "({}{}{})",
+                    Self::canonical_planned_expr_name(left),
+                    op_str,
+                    Self::canonical_planned_expr_name(right)
+                )
+            }
+            Expr::UnaryOp { op, expr: inner } => {
+                let op_str = match op {
+                    yachtsql_ir::UnaryOp::Not => "NOT ",
+                    yachtsql_ir::UnaryOp::Minus => "-",
+                    yachtsql_ir::UnaryOp::Plus => "+",
+                    yachtsql_ir::UnaryOp::BitwiseNot => "~",
+                };
+                format!("{}{}", op_str, Self::canonical_planned_expr_name(inner))
+            }
+            Expr::Literal(lit) => match lit {
+                Literal::Null => "NULL".to_string(),
+                Literal::Bool(b) => b.to_string().to_uppercase(),
+                Literal::Int64(n) => n.to_string(),
+                Literal::Float64(f) => format!("{}", f),
+                Literal::String(s) => format!("'{}'", s),
+                Literal::Bytes(b) => format!("b'{}'", String::from_utf8_lossy(b)),
+                Literal::Date(d) => format!("DATE'{}'", d),
+                Literal::Datetime(dt) => format!("DATETIME'{}'", dt),
+                Literal::Time(t) => format!("TIME'{}'", t),
+                Literal::Timestamp(ts) => format!("TIMESTAMP'{}'", ts),
+                Literal::Interval { .. } => "INTERVAL".to_string(),
+                Literal::Numeric(n) => format!("NUMERIC'{}'", n),
+                Literal::BigNumeric(n) => format!("BIGNUMERIC'{}'", n),
+                Literal::Json(j) => format!("JSON'{}'", j),
+                Literal::Array(_) => "ARRAY".to_string(),
+                Literal::Struct(_) => "STRUCT".to_string(),
+            },
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                safe,
+            } => {
+                let type_str = format!("{:?}", data_type).to_uppercase();
+                if *safe {
+                    format!(
+                        "SAFE_CAST({} AS {})",
+                        Self::canonical_planned_expr_name(inner),
+                        type_str
+                    )
+                } else {
+                    format!(
+                        "CAST({} AS {})",
+                        Self::canonical_planned_expr_name(inner),
+                        type_str
+                    )
+                }
+            }
+            Expr::ScalarFunction { name, args } => {
+                let args_str = args
+                    .iter()
+                    .map(|a| Self::canonical_planned_expr_name(a))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("{:?}({})", name, args_str).to_uppercase()
+            }
+            Expr::Alias { expr: inner, .. } => Self::canonical_planned_expr_name(inner),
             _ => format!("{:?}", expr).to_uppercase(),
         }
     }
@@ -2634,6 +2942,68 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             }
             ast::Expr::Nested(inner) => {
                 Self::collect_having_aggregates(inner, input_schema, agg_names, agg_exprs, fields)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn collect_order_by_aggregates(
+        order_by: &ast::OrderBy,
+        input_schema: &PlanSchema,
+        agg_names: &mut Vec<String>,
+        agg_exprs: &mut Vec<Expr>,
+        fields: &mut Vec<PlanField>,
+    ) -> Result<()> {
+        match &order_by.kind {
+            ast::OrderByKind::Expressions(exprs) => {
+                for order_expr in exprs {
+                    Self::collect_expr_aggregates(
+                        &order_expr.expr,
+                        input_schema,
+                        agg_names,
+                        agg_exprs,
+                        fields,
+                    )?;
+                }
+            }
+            ast::OrderByKind::All(_) => {}
+        }
+        Ok(())
+    }
+
+    fn collect_expr_aggregates(
+        expr: &ast::Expr,
+        input_schema: &PlanSchema,
+        agg_names: &mut Vec<String>,
+        agg_exprs: &mut Vec<Expr>,
+        fields: &mut Vec<PlanField>,
+    ) -> Result<()> {
+        match expr {
+            ast::Expr::Function(func)
+                if Self::is_aggregate_function_name(&func.name.to_string()) =>
+            {
+                let planned = ExprPlanner::plan_expr(expr, input_schema)?;
+                let canonical = Self::canonical_planned_agg_name(&planned);
+                if !agg_names.contains(&canonical) {
+                    let data_type = Self::compute_expr_type(&planned, input_schema);
+                    fields.push(PlanField::new(canonical.clone(), data_type));
+                    agg_exprs.push(planned);
+                    agg_names.push(canonical);
+                }
+            }
+            ast::Expr::BinaryOp { left, right, .. } => {
+                Self::collect_expr_aggregates(left, input_schema, agg_names, agg_exprs, fields)?;
+                Self::collect_expr_aggregates(right, input_schema, agg_names, agg_exprs, fields)?;
+            }
+            ast::Expr::UnaryOp { expr: inner, .. } => {
+                Self::collect_expr_aggregates(inner, input_schema, agg_names, agg_exprs, fields)?;
+            }
+            ast::Expr::Nested(inner) => {
+                Self::collect_expr_aggregates(inner, input_schema, agg_names, agg_exprs, fields)?;
+            }
+            ast::Expr::Cast { expr: inner, .. } => {
+                Self::collect_expr_aggregates(inner, input_schema, agg_names, agg_exprs, fields)?;
             }
             _ => {}
         }
@@ -2995,7 +3365,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             } else {
                 let planned = ExprPlanner::plan_expr(&order_expr.expr, input.schema())
                     .or_else(|_| ExprPlanner::plan_expr(&order_expr.expr, projection_schema))?;
-                Self::resolve_order_by_aliases_in_ir(planned, projection_schema)
+                Self::resolve_order_by_with_aggregates(planned, input.schema(), projection_schema)
             };
 
             let asc = order_expr.options.asc.unwrap_or(true);
@@ -3011,6 +3381,29 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             input: Box::new(input),
             sort_exprs,
         })
+    }
+
+    fn resolve_order_by_with_aggregates(
+        expr: Expr,
+        input_schema: &PlanSchema,
+        projection_schema: &PlanSchema,
+    ) -> Expr {
+        match &expr {
+            Expr::Aggregate { .. } => {
+                let canonical = Self::canonical_planned_agg_name(&expr);
+                for (idx, field) in input_schema.fields.iter().enumerate() {
+                    if field.name.to_uppercase() == canonical {
+                        return Expr::Column {
+                            table: None,
+                            name: field.name.clone(),
+                            index: Some(idx),
+                        };
+                    }
+                }
+                Self::resolve_order_by_aliases_in_ir(expr, projection_schema)
+            }
+            _ => Self::resolve_order_by_aliases_in_ir(expr, projection_schema),
+        }
     }
 
     fn resolve_order_by_aliases_in_ir(expr: Expr, projection_schema: &PlanSchema) -> Expr {
@@ -4151,6 +4544,18 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 })
             }
             ast::Set::ParenthesizedAssignments { variables, values } => {
+                if values.len() == 1 && variables.len() > 1 {
+                    let empty_schema = PlanSchema::new();
+                    let subquery_planner = |subquery: &ast::Query| self.plan_query(subquery);
+                    let value = ExprPlanner::plan_expr_with_subquery(
+                        &values[0],
+                        &empty_schema,
+                        Some(&subquery_planner),
+                    )?;
+                    let names: Vec<String> = variables.iter().map(|v| v.to_string()).collect();
+                    return Ok(LogicalPlan::SetMultipleVariables { names, value });
+                }
+
                 if variables.len() != values.len() {
                     return Err(Error::parse_error(
                         "SET: number of variables must match number of values",
@@ -4186,14 +4591,38 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
 
     fn plan_set_value(&self, expr: &ast::Expr) -> Result<Expr> {
         match expr {
-            ast::Expr::Identifier(ident) => Ok(Expr::Literal(Literal::String(ident.value.clone()))),
-            ast::Expr::CompoundIdentifier(idents) => {
-                let name = idents
-                    .iter()
-                    .map(|i| i.value.as_str())
-                    .collect::<Vec<_>>()
-                    .join(".");
-                Ok(Expr::Literal(Literal::String(name)))
+            ast::Expr::Identifier(ident) => {
+                if ident.value.starts_with('@') {
+                    Ok(Expr::Variable {
+                        name: ident.value.clone(),
+                    })
+                } else {
+                    Ok(Expr::Literal(Literal::String(ident.value.clone())))
+                }
+            }
+            ast::Expr::CompoundIdentifier(idents) if !idents.is_empty() => {
+                if idents[0].value.starts_with('@') {
+                    let empty_schema = PlanSchema::new();
+                    ExprPlanner::resolve_compound_identifier(idents, &empty_schema)
+                } else if idents.len() >= 2 {
+                    let mut expr = Expr::Variable {
+                        name: idents[0].value.clone(),
+                    };
+                    for part in &idents[1..] {
+                        expr = Expr::StructAccess {
+                            expr: Box::new(expr),
+                            field: part.value.clone(),
+                        };
+                    }
+                    Ok(expr)
+                } else {
+                    let name = idents
+                        .iter()
+                        .map(|i| i.value.as_str())
+                        .collect::<Vec<_>>()
+                        .join(".");
+                    Ok(Expr::Literal(Literal::String(name)))
+                }
             }
             _ => {
                 let empty_schema = PlanSchema::new();
@@ -5395,6 +5824,22 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
             }
             Expr::StructAccess { expr, field } => {
                 Self::resolve_struct_field_type(expr, field, schema)
+            }
+            Expr::ArraySubquery(plan) => {
+                let subquery_schema = plan.schema();
+                if subquery_schema.fields.len() == 1 {
+                    DataType::Array(Box::new(subquery_schema.fields[0].data_type.clone()))
+                } else {
+                    let struct_fields: Vec<yachtsql_common::types::StructField> = subquery_schema
+                        .fields
+                        .iter()
+                        .map(|f| yachtsql_common::types::StructField {
+                            name: f.name.clone(),
+                            data_type: f.data_type.clone(),
+                        })
+                        .collect();
+                    DataType::Array(Box::new(DataType::Struct(struct_fields)))
+                }
             }
             _ => DataType::Unknown,
         }

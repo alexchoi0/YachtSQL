@@ -27,8 +27,9 @@ impl<'a> PlanExecutor<'a> {
             match param.mode {
                 ProcedureArgMode::In => {
                     let value = if let Some(arg_expr) = args.get(i) {
-                        let evaluator =
-                            IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                        let evaluator = IrEvaluator::new(&empty_schema)
+                            .with_variables(&self.variables)
+                            .with_system_variables(self.session.system_variables());
                         evaluator.evaluate(arg_expr, &empty_record)?
                     } else {
                         default_value_for_type(&param.data_type)
@@ -47,8 +48,9 @@ impl<'a> PlanExecutor<'a> {
                 }
                 ProcedureArgMode::InOut => {
                     let value = if let Some(arg_expr) = args.get(i) {
-                        let evaluator =
-                            IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                        let evaluator = IrEvaluator::new(&empty_schema)
+                            .with_variables(&self.variables)
+                            .with_system_variables(self.session.system_variables());
                         evaluator.evaluate(arg_expr, &empty_record)?
                     } else {
                         default_value_for_type(&param.data_type)
@@ -92,8 +94,23 @@ impl<'a> PlanExecutor<'a> {
             Some(expr) => {
                 let empty_schema = Schema::new();
                 let empty_record = Record::from_values(vec![]);
-                let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
-                evaluator.evaluate(expr, &empty_record)?
+                let evaluator = IrEvaluator::new(&empty_schema)
+                    .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables());
+                let mut evaluated = evaluator.evaluate(expr, &empty_record)?;
+
+                if let (DataType::Struct(type_fields), Value::Struct(value_fields)) =
+                    (data_type, &evaluated)
+                {
+                    let named_fields: Vec<(String, Value)> = type_fields
+                        .iter()
+                        .zip(value_fields.iter())
+                        .map(|(type_field, (_, v))| (type_field.name.clone(), v.clone()))
+                        .collect();
+                    evaluated = Value::Struct(named_fields);
+                }
+
+                evaluated
             }
             None => default_value_for_type(data_type),
         };
@@ -113,7 +130,9 @@ impl<'a> PlanExecutor<'a> {
                 self.eval_scalar_subquery_for_set(plan)?
             }
             _ => {
-                let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                let evaluator = IrEvaluator::new(&empty_schema)
+                    .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables());
                 evaluator.evaluate(value, &empty_record)?
             }
         };
@@ -125,10 +144,91 @@ impl<'a> PlanExecutor<'a> {
             self.catalog.set_search_path(vec![schema_name.to_string()]);
         }
 
-        self.variables.insert(upper_name, val.clone());
-        self.session.set_variable(name, val);
+        if name.starts_with("@@") {
+            self.session.set_system_variable(name, val);
+        } else {
+            self.variables.insert(upper_name, val.clone());
+            self.session.set_variable(name, val);
+        }
 
         Ok(Table::empty(Schema::new()))
+    }
+
+    pub fn execute_set_multiple_variables(
+        &mut self,
+        names: &[String],
+        value: &Expr,
+    ) -> Result<Table> {
+        let field_values: Vec<(String, Value)> = match value {
+            Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => {
+                self.eval_row_as_struct_for_set(plan)?
+            }
+            _ => {
+                let empty_schema = Schema::new();
+                let empty_record = Record::from_values(vec![]);
+                let evaluator = IrEvaluator::new(&empty_schema)
+                    .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables());
+                let val = evaluator.evaluate(value, &empty_record)?;
+                match val {
+                    Value::Struct(fields) => fields,
+                    _ => {
+                        return Err(Error::invalid_query(
+                            "SET multiple variables requires a STRUCT value",
+                        ));
+                    }
+                }
+            }
+        };
+
+        if field_values.len() != names.len() {
+            return Err(Error::invalid_query(format!(
+                "SET: number of struct fields ({}) doesn't match number of variables ({})",
+                field_values.len(),
+                names.len()
+            )));
+        }
+
+        for (i, name) in names.iter().enumerate() {
+            let field_val = field_values[i].1.clone();
+            let upper_name = name.to_uppercase();
+            self.variables.insert(upper_name.clone(), field_val.clone());
+            self.session.set_variable(name, field_val);
+        }
+
+        Ok(Table::empty(Schema::new()))
+    }
+
+    fn eval_row_as_struct_for_set(
+        &mut self,
+        plan: &yachtsql_ir::LogicalPlan,
+    ) -> Result<Vec<(String, Value)>> {
+        let physical = optimize(plan)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
+        let result_table = self.execute_plan(&executor_plan)?;
+
+        if result_table.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let rows: Vec<_> = result_table.rows()?.into_iter().collect();
+        if rows.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let first_row = &rows[0];
+        let values = first_row.values();
+
+        let schema = result_table.schema();
+        let fields = schema.fields();
+
+        let result: Vec<(String, Value)> = fields
+            .iter()
+            .zip(values.iter())
+            .map(|(f, v)| (f.name.clone(), v.clone()))
+            .collect();
+
+        Ok(result)
     }
 
     fn eval_scalar_subquery_for_set(&mut self, plan: &yachtsql_ir::LogicalPlan) -> Result<Value> {
@@ -203,8 +303,9 @@ impl<'a> PlanExecutor<'a> {
                         Ok(Value::Bool(l || r))
                     }
                     _ => {
-                        let evaluator =
-                            IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                        let evaluator = IrEvaluator::new(&empty_schema)
+                            .with_variables(&self.variables)
+                            .with_system_variables(self.session.system_variables());
                         evaluator.evaluate(expr, &empty_record)
                     }
                 }
@@ -217,14 +318,21 @@ impl<'a> PlanExecutor<'a> {
                 Ok(Value::Bool(!val.as_bool().unwrap_or(false)))
             }
             _ => {
-                let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                let evaluator = IrEvaluator::new(&empty_schema)
+                    .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables());
                 evaluator.evaluate(expr, &empty_record)
             }
         }
     }
 
-    pub fn execute_while(&mut self, condition: &Expr, body: &[PhysicalPlan]) -> Result<Table> {
-        loop {
+    pub fn execute_while(
+        &mut self,
+        condition: &Expr,
+        body: &[PhysicalPlan],
+        label: Option<&str>,
+    ) -> Result<Table> {
+        'outer: loop {
             let cond_val = self.evaluate_scripting_expr(condition)?;
             if !cond_val.as_bool().unwrap_or(false) {
                 break;
@@ -234,10 +342,26 @@ impl<'a> PlanExecutor<'a> {
                 match self.execute_plan(plan) {
                     Ok(_) => {}
                     Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
-                        return Ok(Table::empty(Schema::new()));
+                        if msg == "BREAK outside of loop" {
+                            return Ok(Table::empty(Schema::new()));
+                        }
+                        if let Some(lbl) = label
+                            && msg == format!("BREAK:{}", lbl)
+                        {
+                            return Ok(Table::empty(Schema::new()));
+                        }
+                        return Err(Error::InvalidQuery(msg));
                     }
                     Err(Error::InvalidQuery(msg)) if msg.contains("CONTINUE") => {
-                        break;
+                        if msg == "CONTINUE outside of loop" {
+                            continue 'outer;
+                        }
+                        if let Some(lbl) = label
+                            && msg == format!("CONTINUE:{}", lbl)
+                        {
+                            continue 'outer;
+                        }
+                        return Err(Error::InvalidQuery(msg));
                     }
                     Err(e) => return Err(e),
                 }
@@ -247,21 +371,61 @@ impl<'a> PlanExecutor<'a> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub fn execute_loop(&mut self, body: &[PhysicalPlan], _label: Option<&str>) -> Result<Table> {
-        loop {
+    pub fn execute_loop(&mut self, body: &[PhysicalPlan], label: Option<&str>) -> Result<Table> {
+        'outer: loop {
             for plan in body {
                 match self.execute_plan(plan) {
                     Ok(_) => {}
                     Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
-                        return Ok(Table::empty(Schema::new()));
+                        if msg == "BREAK outside of loop" {
+                            return Ok(Table::empty(Schema::new()));
+                        }
+                        if let Some(lbl) = label
+                            && msg == format!("BREAK:{}", lbl)
+                        {
+                            return Ok(Table::empty(Schema::new()));
+                        }
+                        return Err(Error::InvalidQuery(msg));
                     }
                     Err(Error::InvalidQuery(msg)) if msg.contains("CONTINUE") => {
-                        break;
+                        if msg == "CONTINUE outside of loop" {
+                            continue 'outer;
+                        }
+                        if let Some(lbl) = label
+                            && msg == format!("CONTINUE:{}", lbl)
+                        {
+                            continue 'outer;
+                        }
+                        return Err(Error::InvalidQuery(msg));
                     }
                     Err(e) => return Err(e),
                 }
             }
         }
+    }
+
+    pub fn execute_block(&mut self, body: &[PhysicalPlan], label: Option<&str>) -> Result<Table> {
+        let mut last_result = Table::empty(Schema::new());
+        for plan in body {
+            match self.execute_plan(plan) {
+                Ok(result) => {
+                    last_result = result;
+                }
+                Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
+                    if let Some(lbl) = label
+                        && msg == format!("BREAK:{}", lbl)
+                    {
+                        return Ok(last_result);
+                    }
+                    return Err(Error::InvalidQuery(msg));
+                }
+                Err(Error::InvalidQuery(msg)) if msg == "RETURN outside of function" => {
+                    return Ok(last_result);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(last_result)
     }
 
     pub fn execute_repeat(
@@ -286,7 +450,9 @@ impl<'a> PlanExecutor<'a> {
                 }
             }
 
-            let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+            let evaluator = IrEvaluator::new(&empty_schema)
+                .with_variables(&self.variables)
+                .with_system_variables(self.session.system_variables());
             let cond_val = evaluator.evaluate(until_condition, &empty_record)?;
             if cond_val.as_bool().unwrap_or(false) {
                 break;
@@ -339,7 +505,9 @@ impl<'a> PlanExecutor<'a> {
             Some(expr) => {
                 let empty_schema = Schema::new();
                 let empty_record = Record::from_values(vec![]);
-                let evaluator = IrEvaluator::new(&empty_schema).with_variables(&self.variables);
+                let evaluator = IrEvaluator::new(&empty_schema)
+                    .with_variables(&self.variables)
+                    .with_system_variables(self.session.system_variables());
                 evaluator
                     .evaluate(expr, &empty_record)?
                     .as_str()
@@ -350,9 +518,129 @@ impl<'a> PlanExecutor<'a> {
         };
 
         match level {
-            RaiseLevel::Exception => Err(Error::InvalidQuery(msg)),
+            RaiseLevel::Exception => Err(Error::raised_exception(msg)),
             RaiseLevel::Warning | RaiseLevel::Notice => Ok(Table::empty(Schema::new())),
         }
+    }
+
+    pub fn execute_execute_immediate(
+        &mut self,
+        sql_expr: &Expr,
+        into_variables: &[String],
+        using_params: &[(Expr, Option<String>)],
+    ) -> Result<Table> {
+        let empty_schema = Schema::new();
+        let empty_record = Record::from_values(vec![]);
+
+        let sql_string = {
+            let evaluator = IrEvaluator::new(&empty_schema)
+                .with_variables(&self.variables)
+                .with_system_variables(self.session.system_variables());
+            let sql_value = evaluator.evaluate(sql_expr, &empty_record)?;
+            sql_value
+                .as_str()
+                .ok_or_else(|| Error::InvalidQuery("EXECUTE IMMEDIATE requires a string".into()))?
+                .to_string()
+        };
+
+        let mut named_params: Vec<(String, Value)> = Vec::new();
+        let mut positional_values: Vec<Value> = Vec::new();
+        for (param_expr, alias) in using_params {
+            let evaluator = IrEvaluator::new(&empty_schema)
+                .with_variables(&self.variables)
+                .with_system_variables(self.session.system_variables());
+            let value = evaluator.evaluate(param_expr, &empty_record)?;
+            positional_values.push(value.clone());
+            if let Some(name) = alias {
+                named_params.push((name.to_uppercase(), value));
+            }
+        }
+
+        for (upper_name, value) in &named_params {
+            self.variables.insert(upper_name.clone(), value.clone());
+            self.session.set_variable(upper_name, value.clone());
+        }
+
+        let processed_sql = self.substitute_parameters(&sql_string, &positional_values);
+
+        let result = self.execute_dynamic_sql(&processed_sql)?;
+
+        if !into_variables.is_empty() && !result.is_empty() {
+            let rows: Vec<_> = result.rows()?.into_iter().collect();
+            if !rows.is_empty() {
+                let first_row = &rows[0];
+                let values = first_row.values();
+                for (i, var_name) in into_variables.iter().enumerate() {
+                    if let Some(val) = values.get(i) {
+                        let upper_name = var_name.to_uppercase();
+                        self.variables.insert(upper_name.clone(), val.clone());
+                        self.session.set_variable(&upper_name, val.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn substitute_parameters(&self, sql: &str, positional_values: &[Value]) -> String {
+        let mut positional_idx = 0;
+
+        let chars: Vec<char> = sql.chars().collect();
+        let mut output = String::new();
+        let mut i = 0;
+
+        while i < chars.len() {
+            if chars[i] == '?' {
+                if let Some(val) = positional_values.get(positional_idx) {
+                    output.push_str(&self.value_to_sql_literal(val));
+                    positional_idx += 1;
+                } else {
+                    output.push(chars[i]);
+                }
+                i += 1;
+            } else if chars[i] == '@' {
+                let start = i;
+                i += 1;
+                let mut name = String::new();
+                while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                    name.push(chars[i]);
+                    i += 1;
+                }
+                let upper_name = name.to_uppercase();
+                if let Some(val) = self.variables.get(&upper_name) {
+                    output.push_str(&self.value_to_sql_literal(val));
+                } else {
+                    for c in chars[start..i].iter() {
+                        output.push(*c);
+                    }
+                }
+            } else {
+                output.push(chars[i]);
+                i += 1;
+            }
+        }
+
+        output
+    }
+
+    fn value_to_sql_literal(&self, value: &Value) -> String {
+        match value {
+            Value::Null => "NULL".to_string(),
+            Value::Bool(b) => b.to_string().to_uppercase(),
+            Value::Int64(i) => i.to_string(),
+            Value::Float64(f) => f.to_string(),
+            Value::String(s) => format!("'{}'", s.replace('\'', "''")),
+            Value::Bytes(b) => format!("X'{}'", hex::encode(b)),
+            _ => format!("{:?}", value),
+        }
+    }
+
+    fn execute_dynamic_sql(&mut self, sql: &str) -> Result<Table> {
+        let logical_plan = yachtsql_parser::parse_and_plan(sql, self.catalog)?;
+        let physical = optimize(&logical_plan)?;
+        let executor_plan = PhysicalPlan::from_physical(&physical);
+        self.execute_plan(&executor_plan)
     }
 }
 

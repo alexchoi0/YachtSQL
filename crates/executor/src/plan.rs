@@ -300,6 +300,11 @@ pub enum PhysicalPlan {
         value: Expr,
     },
 
+    SetMultipleVariables {
+        names: Vec<String>,
+        value: Expr,
+    },
+
     If {
         condition: Expr,
         then_branch: Vec<PhysicalPlan>,
@@ -309,9 +314,15 @@ pub enum PhysicalPlan {
     While {
         condition: Expr,
         body: Vec<PhysicalPlan>,
+        label: Option<String>,
     },
 
     Loop {
+        body: Vec<PhysicalPlan>,
+        label: Option<String>,
+    },
+
+    Block {
         body: Vec<PhysicalPlan>,
         label: Option<String>,
     },
@@ -336,9 +347,19 @@ pub enum PhysicalPlan {
         level: RaiseLevel,
     },
 
-    Break,
+    ExecuteImmediate {
+        sql_expr: Expr,
+        into_variables: Vec<String>,
+        using_params: Vec<(Expr, Option<String>)>,
+    },
 
-    Continue,
+    Break {
+        label: Option<String>,
+    },
+
+    Continue {
+        label: Option<String>,
+    },
 
     CreateSnapshot {
         snapshot_name: String,
@@ -377,7 +398,7 @@ pub enum PhysicalPlan {
     Rollback,
 
     TryCatch {
-        try_block: Vec<PhysicalPlan>,
+        try_block: Vec<(PhysicalPlan, Option<String>)>,
         catch_block: Vec<PhysicalPlan>,
     },
 
@@ -788,6 +809,13 @@ impl PhysicalPlan {
                 value: value.clone(),
             },
 
+            OptimizedLogicalPlan::SetMultipleVariables { names, value } => {
+                PhysicalPlan::SetMultipleVariables {
+                    names: names.clone(),
+                    value: value.clone(),
+                }
+            }
+
             OptimizedLogicalPlan::If {
                 condition,
                 then_branch,
@@ -800,12 +828,22 @@ impl PhysicalPlan {
                     .map(|b| b.iter().map(Self::from_physical).collect()),
             },
 
-            OptimizedLogicalPlan::While { condition, body } => PhysicalPlan::While {
+            OptimizedLogicalPlan::While {
+                condition,
+                body,
+                label,
+            } => PhysicalPlan::While {
                 condition: condition.clone(),
                 body: body.iter().map(Self::from_physical).collect(),
+                label: label.clone(),
             },
 
             OptimizedLogicalPlan::Loop { body, label } => PhysicalPlan::Loop {
+                body: body.iter().map(Self::from_physical).collect(),
+                label: label.clone(),
+            },
+
+            OptimizedLogicalPlan::Block { body, label } => PhysicalPlan::Block {
                 body: body.iter().map(Self::from_physical).collect(),
                 label: label.clone(),
             },
@@ -837,9 +875,23 @@ impl PhysicalPlan {
                 level: *level,
             },
 
-            OptimizedLogicalPlan::Break => PhysicalPlan::Break,
+            OptimizedLogicalPlan::ExecuteImmediate {
+                sql_expr,
+                into_variables,
+                using_params,
+            } => PhysicalPlan::ExecuteImmediate {
+                sql_expr: sql_expr.clone(),
+                into_variables: into_variables.clone(),
+                using_params: using_params.clone(),
+            },
 
-            OptimizedLogicalPlan::Continue => PhysicalPlan::Continue,
+            OptimizedLogicalPlan::Break { label } => PhysicalPlan::Break {
+                label: label.clone(),
+            },
+
+            OptimizedLogicalPlan::Continue { label } => PhysicalPlan::Continue {
+                label: label.clone(),
+            },
 
             OptimizedLogicalPlan::CreateSnapshot {
                 snapshot_name,
@@ -896,7 +948,10 @@ impl PhysicalPlan {
                 try_block,
                 catch_block,
             } => PhysicalPlan::TryCatch {
-                try_block: try_block.iter().map(PhysicalPlan::from_physical).collect(),
+                try_block: try_block
+                    .iter()
+                    .map(|(p, sql)| (PhysicalPlan::from_physical(p), sql.clone()))
+                    .collect(),
                 catch_block: catch_block
                     .iter()
                     .map(PhysicalPlan::from_physical)
@@ -1074,6 +1129,7 @@ impl PhysicalPlan {
 
             PhysicalPlan::While { body, .. }
             | PhysicalPlan::Loop { body, .. }
+            | PhysicalPlan::Block { body, .. }
             | PhysicalPlan::Repeat { body, .. } => {
                 for stmt in body {
                     stmt.collect_accesses(accesses);
@@ -1099,10 +1155,12 @@ impl PhysicalPlan {
             | PhysicalPlan::Call { .. }
             | PhysicalPlan::Declare { .. }
             | PhysicalPlan::SetVariable { .. }
+            | PhysicalPlan::SetMultipleVariables { .. }
             | PhysicalPlan::Return { .. }
             | PhysicalPlan::Raise { .. }
-            | PhysicalPlan::Break
-            | PhysicalPlan::Continue
+            | PhysicalPlan::ExecuteImmediate { .. }
+            | PhysicalPlan::Break { .. }
+            | PhysicalPlan::Continue { .. }
             | PhysicalPlan::DropSnapshot { .. }
             | PhysicalPlan::Assert { .. }
             | PhysicalPlan::Grant { .. }

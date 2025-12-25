@@ -2345,12 +2345,16 @@ impl fmt::Display for IfStatement {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "visitor", derive(Visit, VisitMut))]
 pub struct WhileStatement {
+    pub label: Option<Ident>,
     pub while_block: ConditionalStatementBlock,
 }
 
 impl fmt::Display for WhileStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let WhileStatement { while_block } = self;
+        let WhileStatement { label, while_block } = self;
+        if let Some(l) = label {
+            write!(f, "{}: ", l)?;
+        }
         write!(f, "{while_block}")?;
         Ok(())
     }
@@ -4006,6 +4010,8 @@ pub enum Statement {
         exception: Option<Vec<ExceptionWhen>>,
         /// TRUE if the statement has an `END` keyword.
         has_end_keyword: bool,
+        /// Optional label for the BEGIN block (e.g., `my_block: BEGIN ... END my_block`)
+        label: Option<Ident>,
     },
     /// ```sql
     /// COMMENT ON ...
@@ -6065,7 +6071,11 @@ impl fmt::Display for Statement {
                 statements,
                 exception,
                 has_end_keyword,
+                label,
             } => {
+                if let Some(lbl) = label {
+                    write!(f, "{}: ", lbl)?;
+                }
                 if *syntax_begin {
                     if let Some(modifier) = *modifier {
                         write!(f, "BEGIN {modifier}")?;

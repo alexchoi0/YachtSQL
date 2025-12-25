@@ -741,6 +741,8 @@ impl Ord for Value {
             (Value::Bool(a), Value::Bool(b)) => a.cmp(b),
             (Value::Int64(a), Value::Int64(b)) => a.cmp(b),
             (Value::Float64(a), Value::Float64(b)) => a.cmp(b),
+            (Value::Int64(a), Value::Float64(b)) => ordered_float::OrderedFloat(*a as f64).cmp(b),
+            (Value::Float64(a), Value::Int64(b)) => a.cmp(&ordered_float::OrderedFloat(*b as f64)),
             (Value::Numeric(a), Value::Numeric(b)) => a.cmp(b),
             (Value::String(a), Value::String(b)) => a.cmp(b),
             (Value::Bytes(a), Value::Bytes(b)) => a.cmp(b),

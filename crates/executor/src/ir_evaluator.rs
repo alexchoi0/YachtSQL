@@ -29,6 +29,7 @@ pub struct UserFunctionDef {
 pub struct IrEvaluator<'a> {
     schema: &'a Schema,
     variables: Option<&'a HashMap<String, Value>>,
+    system_variables: Option<&'a HashMap<String, Value>>,
     user_functions: Option<&'a HashMap<String, UserFunctionDef>>,
 }
 
@@ -37,12 +38,18 @@ impl<'a> IrEvaluator<'a> {
         Self {
             schema,
             variables: None,
+            system_variables: None,
             user_functions: None,
         }
     }
 
     pub fn with_variables(mut self, variables: &'a HashMap<String, Value>) -> Self {
         self.variables = Some(variables);
+        self
+    }
+
+    pub fn with_system_variables(mut self, system_variables: &'a HashMap<String, Value>) -> Self {
+        self.system_variables = Some(system_variables);
         self
     }
 
@@ -243,6 +250,17 @@ impl<'a> IrEvaluator<'a> {
                 Err(Error::InvalidQuery(format!("Unbound parameter: {}", name)))
             }
             Expr::Variable { name } => {
+                if name.starts_with("@@") {
+                    if let Some(sys_vars) = self.system_variables {
+                        if let Some(val) = sys_vars.get(name) {
+                            return Ok(val.clone());
+                        }
+                    }
+                    return Err(Error::InvalidQuery(format!(
+                        "System variable '{}' not found",
+                        name
+                    )));
+                }
                 if let Some(vars) = self.variables {
                     let upper_name = name.to_uppercase();
                     if let Some(val) = vars.get(&upper_name) {
@@ -435,6 +453,35 @@ impl<'a> IrEvaluator<'a> {
                 None
             }
             _ => None,
+        }
+    }
+
+    pub fn eval_binary_op_with_values(
+        &self,
+        op: BinaryOp,
+        left_val: Value,
+        right_val: Value,
+    ) -> Result<Value> {
+        match op {
+            BinaryOp::Add => self.add_values(&left_val, &right_val),
+            BinaryOp::Sub => self.sub_values(&left_val, &right_val),
+            BinaryOp::Mul => self.mul_values(&left_val, &right_val),
+            BinaryOp::Div => self.div_values(&left_val, &right_val),
+            BinaryOp::Mod => self.mod_values(&left_val, &right_val),
+            BinaryOp::Eq => self.eq_values(&left_val, &right_val),
+            BinaryOp::NotEq => self.neq_values(&left_val, &right_val),
+            BinaryOp::Lt => self.compare_values(&left_val, &right_val, |ord| ord.is_lt()),
+            BinaryOp::LtEq => self.compare_values(&left_val, &right_val, |ord| ord.is_le()),
+            BinaryOp::Gt => self.compare_values(&left_val, &right_val, |ord| ord.is_gt()),
+            BinaryOp::GtEq => self.compare_values(&left_val, &right_val, |ord| ord.is_ge()),
+            BinaryOp::And => self.and_values(&left_val, &right_val),
+            BinaryOp::Or => self.or_values(&left_val, &right_val),
+            BinaryOp::Concat => self.concat_values(&left_val, &right_val),
+            BinaryOp::BitwiseAnd => self.bitwise_and(&left_val, &right_val),
+            BinaryOp::BitwiseOr => self.bitwise_or(&left_val, &right_val),
+            BinaryOp::BitwiseXor => self.bitwise_xor(&left_val, &right_val),
+            BinaryOp::ShiftLeft => self.shift_left(&left_val, &right_val),
+            BinaryOp::ShiftRight => self.shift_right(&left_val, &right_val),
         }
     }
 
