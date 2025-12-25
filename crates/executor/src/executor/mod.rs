@@ -133,6 +133,14 @@ impl<'a> PlanExecutor<'a> {
                 right,
                 schema,
             } => self.execute_cross_join(left, right, schema),
+            PhysicalPlan::HashJoin {
+                left,
+                right,
+                join_type,
+                left_keys,
+                right_keys,
+                schema,
+            } => self.execute_hash_join(left, right, join_type, left_keys, right_keys, schema),
             PhysicalPlan::HashAggregate {
                 input,
                 group_by,

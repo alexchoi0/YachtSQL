@@ -78,6 +78,15 @@ pub enum PhysicalPlan {
         schema: PlanSchema,
     },
 
+    HashJoin {
+        left: Box<PhysicalPlan>,
+        right: Box<PhysicalPlan>,
+        join_type: JoinType,
+        left_keys: Vec<Expr>,
+        right_keys: Vec<Expr>,
+        schema: PlanSchema,
+    },
+
     HashAggregate {
         input: Box<PhysicalPlan>,
         group_by: Vec<Expr>,
@@ -473,6 +482,22 @@ impl PhysicalPlan {
             } => PhysicalPlan::CrossJoin {
                 left: Box::new(Self::from_physical(left)),
                 right: Box::new(Self::from_physical(right)),
+                schema: schema.clone(),
+            },
+
+            OptimizedLogicalPlan::HashJoin {
+                left,
+                right,
+                join_type,
+                left_keys,
+                right_keys,
+                schema,
+            } => PhysicalPlan::HashJoin {
+                left: Box::new(Self::from_physical(left)),
+                right: Box::new(Self::from_physical(right)),
+                join_type: *join_type,
+                left_keys: left_keys.clone(),
+                right_keys: right_keys.clone(),
                 schema: schema.clone(),
             },
 
@@ -988,6 +1013,7 @@ impl PhysicalPlan {
             PhysicalPlan::Project { schema, .. } => Some(schema),
             PhysicalPlan::NestedLoopJoin { schema, .. } => Some(schema),
             PhysicalPlan::CrossJoin { schema, .. } => Some(schema),
+            PhysicalPlan::HashJoin { schema, .. } => Some(schema),
             PhysicalPlan::HashAggregate { schema, .. } => Some(schema),
             PhysicalPlan::Sort { input, .. } => input.schema(),
             PhysicalPlan::Limit { input, .. } => input.schema(),
@@ -1035,6 +1061,7 @@ impl PhysicalPlan {
 
             PhysicalPlan::NestedLoopJoin { left, right, .. }
             | PhysicalPlan::CrossJoin { left, right, .. }
+            | PhysicalPlan::HashJoin { left, right, .. }
             | PhysicalPlan::Intersect { left, right, .. }
             | PhysicalPlan::Except { left, right, .. } => {
                 left.collect_accesses(accesses);

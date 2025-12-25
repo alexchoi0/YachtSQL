@@ -1,9 +1,96 @@
 use yachtsql_common::error::Result;
-use yachtsql_ir::{JoinType, LogicalPlan, SetOperationType};
+use yachtsql_ir::{BinaryOp, Expr, JoinType, LogicalPlan, SetOperationType};
 
 use crate::optimized_logical_plan::{OptimizedLogicalPlan, SampleType};
 
 pub struct PhysicalPlanner;
+
+fn extract_equi_join_keys(
+    condition: &Expr,
+    left_schema_len: usize,
+) -> Option<(Vec<Expr>, Vec<Expr>)> {
+    let mut left_keys = Vec::new();
+    let mut right_keys = Vec::new();
+
+    if !collect_equi_keys(condition, left_schema_len, &mut left_keys, &mut right_keys) {
+        return None;
+    }
+
+    if left_keys.is_empty() {
+        return None;
+    }
+
+    Some((left_keys, right_keys))
+}
+
+fn collect_equi_keys(
+    expr: &Expr,
+    left_schema_len: usize,
+    left_keys: &mut Vec<Expr>,
+    right_keys: &mut Vec<Expr>,
+) -> bool {
+    match expr {
+        Expr::BinaryOp { left, op, right } => match op {
+            BinaryOp::And => {
+                collect_equi_keys(left, left_schema_len, left_keys, right_keys)
+                    && collect_equi_keys(right, left_schema_len, left_keys, right_keys)
+            }
+            BinaryOp::Eq => {
+                let left_side = classify_expr_side(left, left_schema_len);
+                let right_side = classify_expr_side(right, left_schema_len);
+
+                match (left_side, right_side) {
+                    (Some(ExprSide::Left), Some(ExprSide::Right)) => {
+                        left_keys.push((**left).clone());
+                        right_keys.push(adjust_right_expr(right, left_schema_len));
+                        true
+                    }
+                    (Some(ExprSide::Right), Some(ExprSide::Left)) => {
+                        left_keys.push((**right).clone());
+                        right_keys.push(adjust_right_expr(left, left_schema_len));
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+#[derive(PartialEq)]
+enum ExprSide {
+    Left,
+    Right,
+}
+
+fn classify_expr_side(expr: &Expr, left_schema_len: usize) -> Option<ExprSide> {
+    match expr {
+        Expr::Column {
+            index: Some(idx), ..
+        } => {
+            if *idx < left_schema_len {
+                Some(ExprSide::Left)
+            } else {
+                Some(ExprSide::Right)
+            }
+        }
+        Expr::Column { index: None, .. } => None,
+        _ => None,
+    }
+}
+
+fn adjust_right_expr(expr: &Expr, left_schema_len: usize) -> Expr {
+    match expr {
+        Expr::Column { table, name, index } => Expr::Column {
+            table: table.clone(),
+            name: name.clone(),
+            index: index.map(|i| i.saturating_sub(left_schema_len)),
+        },
+        other => other.clone(),
+    }
+}
 
 impl PhysicalPlanner {
     pub fn new() -> Self {
@@ -41,9 +128,9 @@ impl PhysicalPlanner {
             }
 
             LogicalPlan::Filter { input, predicate } => {
-                let input = self.plan(input)?;
+                let optimized_input = self.plan(input)?;
                 Ok(OptimizedLogicalPlan::Filter {
-                    input: Box::new(input),
+                    input: Box::new(optimized_input),
                     predicate: predicate.clone(),
                 })
             }
@@ -85,21 +172,46 @@ impl PhysicalPlanner {
                 condition,
                 schema,
             } => {
-                let left = self.plan(left)?;
-                let right = self.plan(right)?;
+                let left_schema_len = left.schema().fields.len();
+                let optimized_left = self.plan(left)?;
+                let optimized_right = self.plan(right)?;
                 match join_type {
                     JoinType::Cross => Ok(OptimizedLogicalPlan::CrossJoin {
-                        left: Box::new(left),
-                        right: Box::new(right),
+                        left: Box::new(optimized_left),
+                        right: Box::new(optimized_right),
                         schema: schema.clone(),
                     }),
-                    _ => Ok(OptimizedLogicalPlan::NestedLoopJoin {
-                        left: Box::new(left),
-                        right: Box::new(right),
-                        join_type: *join_type,
-                        condition: condition.clone(),
-                        schema: schema.clone(),
-                    }),
+                    JoinType::Inner => {
+                        if let Some(cond) = condition
+                            && let Some((left_keys, right_keys)) =
+                                extract_equi_join_keys(cond, left_schema_len)
+                        {
+                            return Ok(OptimizedLogicalPlan::HashJoin {
+                                left: Box::new(optimized_left),
+                                right: Box::new(optimized_right),
+                                join_type: *join_type,
+                                left_keys,
+                                right_keys,
+                                schema: schema.clone(),
+                            });
+                        }
+                        Ok(OptimizedLogicalPlan::NestedLoopJoin {
+                            left: Box::new(optimized_left),
+                            right: Box::new(optimized_right),
+                            join_type: *join_type,
+                            condition: condition.clone(),
+                            schema: schema.clone(),
+                        })
+                    }
+                    JoinType::Left | JoinType::Right | JoinType::Full => {
+                        Ok(OptimizedLogicalPlan::NestedLoopJoin {
+                            left: Box::new(optimized_left),
+                            right: Box::new(optimized_right),
+                            join_type: *join_type,
+                            condition: condition.clone(),
+                            schema: schema.clone(),
+                        })
+                    }
                 }
             }
 
@@ -115,14 +227,7 @@ impl PhysicalPlanner {
                 input,
                 limit,
                 offset,
-            } => {
-                let input = self.plan(input)?;
-                Ok(OptimizedLogicalPlan::Limit {
-                    input: Box::new(input),
-                    limit: *limit,
-                    offset: *offset,
-                })
-            }
+            } => self.plan_limit(input, *limit, *offset),
 
             LogicalPlan::Distinct { input } => {
                 let input = self.plan(input)?;
@@ -695,6 +800,39 @@ impl PhysicalPlanner {
             }),
         }
     }
+
+    fn plan_limit(
+        &self,
+        input: &LogicalPlan,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<OptimizedLogicalPlan> {
+        match (input, limit, offset) {
+            (
+                LogicalPlan::Sort {
+                    input: sort_input,
+                    sort_exprs,
+                },
+                Some(limit_val),
+                None,
+            ) => {
+                let optimized_input = self.plan(sort_input)?;
+                Ok(OptimizedLogicalPlan::TopN {
+                    input: Box::new(optimized_input),
+                    sort_exprs: sort_exprs.clone(),
+                    limit: limit_val,
+                })
+            }
+            _ => {
+                let optimized_input = self.plan(input)?;
+                Ok(OptimizedLogicalPlan::Limit {
+                    input: Box::new(optimized_input),
+                    limit,
+                    offset,
+                })
+            }
+        }
+    }
 }
 
 impl Default for PhysicalPlanner {
@@ -767,6 +905,44 @@ impl OptimizedLogicalPlan {
                 condition: None,
                 schema,
             },
+            OptimizedLogicalPlan::HashJoin {
+                left,
+                right,
+                join_type,
+                left_keys,
+                right_keys,
+                schema,
+            } => {
+                let condition = if left_keys.len() == 1 {
+                    Some(Expr::BinaryOp {
+                        left: Box::new(left_keys.into_iter().next().unwrap()),
+                        op: BinaryOp::Eq,
+                        right: Box::new(right_keys.into_iter().next().unwrap()),
+                    })
+                } else {
+                    let equalities: Vec<Expr> = left_keys
+                        .into_iter()
+                        .zip(right_keys)
+                        .map(|(l, r)| Expr::BinaryOp {
+                            left: Box::new(l),
+                            op: BinaryOp::Eq,
+                            right: Box::new(r),
+                        })
+                        .collect();
+                    equalities.into_iter().reduce(|acc, e| Expr::BinaryOp {
+                        left: Box::new(acc),
+                        op: BinaryOp::And,
+                        right: Box::new(e),
+                    })
+                };
+                LogicalPlan::Join {
+                    left: Box::new(left.into_logical()),
+                    right: Box::new(right.into_logical()),
+                    join_type,
+                    condition,
+                    schema,
+                }
+            }
             OptimizedLogicalPlan::HashAggregate {
                 input,
                 group_by,

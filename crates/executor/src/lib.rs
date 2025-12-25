@@ -58,6 +58,7 @@ fn is_cacheable_plan(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::Project { .. }
         | OptimizedLogicalPlan::NestedLoopJoin { .. }
         | OptimizedLogicalPlan::CrossJoin { .. }
+        | OptimizedLogicalPlan::HashJoin { .. }
         | OptimizedLogicalPlan::HashAggregate { .. }
         | OptimizedLogicalPlan::Sort { .. }
         | OptimizedLogicalPlan::Limit { .. }
@@ -146,6 +147,7 @@ fn invalidates_cache(plan: &OptimizedLogicalPlan) -> bool {
         | OptimizedLogicalPlan::Project { .. }
         | OptimizedLogicalPlan::NestedLoopJoin { .. }
         | OptimizedLogicalPlan::CrossJoin { .. }
+        | OptimizedLogicalPlan::HashJoin { .. }
         | OptimizedLogicalPlan::HashAggregate { .. }
         | OptimizedLogicalPlan::Sort { .. }
         | OptimizedLogicalPlan::Limit { .. }

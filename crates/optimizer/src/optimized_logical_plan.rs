@@ -51,6 +51,15 @@ pub enum OptimizedLogicalPlan {
         schema: PlanSchema,
     },
 
+    HashJoin {
+        left: Box<OptimizedLogicalPlan>,
+        right: Box<OptimizedLogicalPlan>,
+        join_type: JoinType,
+        left_keys: Vec<Expr>,
+        right_keys: Vec<Expr>,
+        schema: PlanSchema,
+    },
+
     HashAggregate {
         input: Box<OptimizedLogicalPlan>,
         group_by: Vec<Expr>,
@@ -397,6 +406,7 @@ impl OptimizedLogicalPlan {
             OptimizedLogicalPlan::Project { schema, .. } => schema,
             OptimizedLogicalPlan::NestedLoopJoin { schema, .. } => schema,
             OptimizedLogicalPlan::CrossJoin { schema, .. } => schema,
+            OptimizedLogicalPlan::HashJoin { schema, .. } => schema,
             OptimizedLogicalPlan::HashAggregate { schema, .. } => schema,
             OptimizedLogicalPlan::Sort { input, .. } => input.schema(),
             OptimizedLogicalPlan::Limit { input, .. } => input.schema(),

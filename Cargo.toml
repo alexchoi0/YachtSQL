@@ -131,5 +131,9 @@ members = [
 ]
 resolver = "2"
 
+[[bench]]
+name = "optimizer_bench"
+harness = false
+
 [patch.crates-io]
 yachtsql-sqlparser = { path = "vendor/yachtsql-sqlparser" }

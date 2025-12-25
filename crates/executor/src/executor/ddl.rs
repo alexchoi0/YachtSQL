@@ -1326,6 +1326,46 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
             condition: None,
             schema: schema.clone(),
         },
+        PhysicalPlan::HashJoin {
+            left,
+            right,
+            join_type,
+            left_keys,
+            right_keys,
+            schema,
+        } => {
+            let condition = if left_keys.len() == 1 {
+                Some(yachtsql_ir::Expr::BinaryOp {
+                    left: Box::new(left_keys[0].clone()),
+                    op: yachtsql_ir::BinaryOp::Eq,
+                    right: Box::new(right_keys[0].clone()),
+                })
+            } else {
+                let equalities: Vec<yachtsql_ir::Expr> = left_keys
+                    .iter()
+                    .zip(right_keys.iter())
+                    .map(|(l, r)| yachtsql_ir::Expr::BinaryOp {
+                        left: Box::new(l.clone()),
+                        op: yachtsql_ir::BinaryOp::Eq,
+                        right: Box::new(r.clone()),
+                    })
+                    .collect();
+                equalities
+                    .into_iter()
+                    .reduce(|acc, e| yachtsql_ir::Expr::BinaryOp {
+                        left: Box::new(acc),
+                        op: yachtsql_ir::BinaryOp::And,
+                        right: Box::new(e),
+                    })
+            };
+            LogicalPlan::Join {
+                left: Box::new(executor_plan_to_logical_plan(left)),
+                right: Box::new(executor_plan_to_logical_plan(right)),
+                join_type: *join_type,
+                condition,
+                schema: schema.clone(),
+            }
+        }
         PhysicalPlan::HashAggregate {
             input,
             group_by,
