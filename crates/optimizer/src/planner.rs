@@ -913,11 +913,24 @@ impl OptimizedLogicalPlan {
                 right_keys,
                 schema,
             } => {
+                let left_schema_len = left.schema().fields.len();
+                let restore_right_index = |expr: Expr| -> Expr {
+                    match expr {
+                        Expr::Column { table, name, index } => Expr::Column {
+                            table,
+                            name,
+                            index: index.map(|i| i + left_schema_len),
+                        },
+                        other => other,
+                    }
+                };
                 let condition = if left_keys.len() == 1 {
                     Some(Expr::BinaryOp {
                         left: Box::new(left_keys.into_iter().next().unwrap()),
                         op: BinaryOp::Eq,
-                        right: Box::new(right_keys.into_iter().next().unwrap()),
+                        right: Box::new(restore_right_index(
+                            right_keys.into_iter().next().unwrap(),
+                        )),
                     })
                 } else {
                     let equalities: Vec<Expr> = left_keys
@@ -926,7 +939,7 @@ impl OptimizedLogicalPlan {
                         .map(|(l, r)| Expr::BinaryOp {
                             left: Box::new(l),
                             op: BinaryOp::Eq,
-                            right: Box::new(r),
+                            right: Box::new(restore_right_index(r)),
                         })
                         .collect();
                     equalities.into_iter().reduce(|acc, e| Expr::BinaryOp {
