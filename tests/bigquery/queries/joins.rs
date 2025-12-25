@@ -714,3 +714,363 @@ fn test_join_three_tables() {
 
     assert_table_eq!(result, [["Alice", "Widget"], ["Bob", "Gadget"],]);
 }
+
+#[test]
+fn test_hash_join_null_keys_do_not_match() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE t1 (id INT64, val STRING)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE t2 (id INT64, val STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO t1 VALUES (1, 'A'), (NULL, 'B'), (3, 'C')")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO t2 VALUES (1, 'X'), (NULL, 'Y'), (3, 'Z')")
+        .unwrap();
+
+    let result = session
+        .execute_sql("SELECT t1.val, t2.val FROM t1 INNER JOIN t2 ON t1.id = t2.id ORDER BY t1.val")
+        .unwrap();
+
+    assert_table_eq!(result, [["A", "X"], ["C", "Z"],]);
+}
+
+#[test]
+fn test_hash_join_multiple_keys() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE sales (region STRING, product STRING, amount INT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE targets (region STRING, product STRING, target INT64)")
+        .unwrap();
+    session
+        .execute_sql(
+            "INSERT INTO sales VALUES ('East', 'Widget', 100), ('West', 'Widget', 150), ('East', 'Gadget', 200)",
+        )
+        .unwrap();
+    session
+        .execute_sql(
+            "INSERT INTO targets VALUES ('East', 'Widget', 90), ('West', 'Widget', 140), ('East', 'Gadget', 180)",
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT s.region, s.product, s.amount, t.target
+             FROM sales s
+             INNER JOIN targets t ON s.region = t.region AND s.product = t.product
+             ORDER BY s.region, s.product",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["East", "Gadget", 200, 180],
+            ["East", "Widget", 100, 90],
+            ["West", "Widget", 150, 140],
+        ]
+    );
+}
+
+#[test]
+fn test_hash_join_duplicate_keys() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE orders_dup (id INT64, customer_id INT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE customers_dup (id INT64, name STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO orders_dup VALUES (1, 1), (2, 1), (3, 2)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO customers_dup VALUES (1, 'Alice'), (2, 'Bob')")
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT o.id, c.name
+             FROM orders_dup o
+             INNER JOIN customers_dup c ON o.customer_id = c.id
+             ORDER BY o.id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "Alice"], [2, "Alice"], [3, "Bob"],]);
+}
+
+#[test]
+fn test_hash_join_many_to_many() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE left_many (key INT64, left_val STRING)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE right_many (key INT64, right_val STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO left_many VALUES (1, 'L1'), (1, 'L2'), (2, 'L3')")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO right_many VALUES (1, 'R1'), (1, 'R2'), (2, 'R3')")
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT l.left_val, r.right_val
+             FROM left_many l
+             INNER JOIN right_many r ON l.key = r.key
+             ORDER BY l.left_val, r.right_val",
+        )
+        .unwrap();
+
+    assert_table_eq!(
+        result,
+        [
+            ["L1", "R1"],
+            ["L1", "R2"],
+            ["L2", "R1"],
+            ["L2", "R2"],
+            ["L3", "R3"],
+        ]
+    );
+}
+
+#[test]
+fn test_hash_join_cte_to_cte() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE events (user_id INT64, event_type STRING, event_date DATE)")
+        .unwrap();
+    session
+        .execute_sql(
+            "INSERT INTO events VALUES
+             (1, 'login', '2024-01-01'),
+             (1, 'purchase', '2024-01-02'),
+             (2, 'login', '2024-01-01'),
+             (2, 'login', '2024-01-03'),
+             (3, 'login', '2024-01-05')",
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "WITH first_login AS (
+                SELECT user_id, MIN(event_date) AS first_date
+                FROM events
+                WHERE event_type = 'login'
+                GROUP BY user_id
+             ),
+             purchases AS (
+                SELECT user_id, event_date AS purchase_date
+                FROM events
+                WHERE event_type = 'purchase'
+             )
+             SELECT fl.user_id, CAST(fl.first_date AS STRING), CAST(p.purchase_date AS STRING)
+             FROM first_login fl
+             INNER JOIN purchases p ON fl.user_id = p.user_id
+             ORDER BY fl.user_id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "2024-01-01", "2024-01-02"],]);
+}
+
+#[test]
+fn test_hash_join_cte_referencing_another_cte() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE logins (user_id INT64, login_date DATE)")
+        .unwrap();
+    session
+        .execute_sql(
+            "INSERT INTO logins VALUES
+             (1, '2024-01-01'),
+             (1, '2024-01-08'),
+             (1, '2024-01-15'),
+             (2, '2024-01-01'),
+             (2, '2024-01-10')",
+        )
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "WITH first_login AS (
+                SELECT user_id, MIN(login_date) AS first_date
+                FROM logins
+                GROUP BY user_id
+             ),
+             weekly_activity AS (
+                SELECT l.user_id, f.first_date, l.login_date
+                FROM logins l
+                INNER JOIN first_login f ON l.user_id = f.user_id
+             )
+             SELECT user_id, COUNT(*) AS login_count
+             FROM weekly_activity
+             GROUP BY user_id
+             ORDER BY user_id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[1, 3], [2, 2],]);
+}
+
+#[test]
+fn test_hash_join_large_dataset() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE large_left (id INT64, val INT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE large_right (id INT64, val INT64)")
+        .unwrap();
+
+    for i in (0..100).step_by(10) {
+        let values: Vec<String> = (i..i + 10)
+            .map(|x| format!("({}, {})", x, x * 10))
+            .collect();
+        session
+            .execute_sql(&format!(
+                "INSERT INTO large_left VALUES {}",
+                values.join(", ")
+            ))
+            .unwrap();
+        session
+            .execute_sql(&format!(
+                "INSERT INTO large_right VALUES {}",
+                values.join(", ")
+            ))
+            .unwrap();
+    }
+
+    let result = session
+        .execute_sql(
+            "SELECT COUNT(*) AS cnt, SUM(l.val) AS left_sum, SUM(r.val) AS right_sum
+             FROM large_left l
+             INNER JOIN large_right r ON l.id = r.id",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [[100, 49500, 49500],]);
+}
+
+#[test]
+fn test_hash_join_string_keys() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE products_str (code STRING, name STRING)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE inventory_str (code STRING, quantity INT64)")
+        .unwrap();
+    session
+        .execute_sql(
+            "INSERT INTO products_str VALUES ('ABC', 'Widget'), ('DEF', 'Gadget'), ('GHI', 'Gizmo')",
+        )
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO inventory_str VALUES ('ABC', 100), ('DEF', 50), ('XYZ', 200)")
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT p.name, i.quantity
+             FROM products_str p
+             INNER JOIN inventory_str i ON p.code = i.code
+             ORDER BY p.name",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["Gadget", 50], ["Widget", 100],]);
+}
+
+#[test]
+fn test_hash_join_float_keys() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE measurements (reading FLOAT64, label STRING)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE thresholds (threshold FLOAT64, status STRING)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO measurements VALUES (1.5, 'A'), (2.5, 'B'), (3.5, 'C')")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO thresholds VALUES (1.5, 'Low'), (2.5, 'Medium'), (3.5, 'High')")
+        .unwrap();
+
+    let result = session
+        .execute_sql(
+            "SELECT m.label, t.status
+             FROM measurements m
+             INNER JOIN thresholds t ON m.reading = t.threshold
+             ORDER BY m.label",
+        )
+        .unwrap();
+
+    assert_table_eq!(result, [["A", "Low"], ["B", "Medium"], ["C", "High"],]);
+}
+
+#[test]
+fn test_hash_join_no_matches() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE set_a (id INT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE set_b (id INT64)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO set_a VALUES (1), (2), (3)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO set_b VALUES (4), (5), (6)")
+        .unwrap();
+
+    let result = session
+        .execute_sql("SELECT a.id, b.id FROM set_a a INNER JOIN set_b b ON a.id = b.id")
+        .unwrap();
+
+    assert_eq!(result.row_count(), 0);
+}
+
+#[test]
+fn test_hash_join_preserves_column_order() {
+    let mut session = create_session();
+
+    session
+        .execute_sql("CREATE TABLE t_left (a INT64, b STRING, c FLOAT64)")
+        .unwrap();
+    session
+        .execute_sql("CREATE TABLE t_right (x INT64, y STRING, z FLOAT64)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO t_left VALUES (1, 'hello', 1.5)")
+        .unwrap();
+    session
+        .execute_sql("INSERT INTO t_right VALUES (1, 'world', 2.5)")
+        .unwrap();
+
+    let result = session
+        .execute_sql("SELECT * FROM t_left INNER JOIN t_right ON t_left.a = t_right.x")
+        .unwrap();
+
+    assert_table_eq!(result, [[1, "hello", 1.5, 1, "world", 2.5],]);
+}
