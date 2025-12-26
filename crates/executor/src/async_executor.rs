@@ -1,7 +1,9 @@
 use std::num::NonZeroUsize;
 use std::sync::{Arc, RwLock};
 
+use lazy_static::lazy_static;
 use lru::LruCache;
+use regex::Regex;
 use yachtsql_common::error::Result;
 use yachtsql_optimizer::OptimizedLogicalPlan;
 use yachtsql_storage::Table;
@@ -12,6 +14,14 @@ use crate::executor::concurrent::ConcurrentPlanExecutor;
 use crate::plan::PhysicalPlan;
 
 const PLAN_CACHE_SIZE: usize = 10000;
+
+fn preprocess_range_types(sql: &str) -> String {
+    lazy_static! {
+        static ref RANGE_TYPE_RE: Regex =
+            Regex::new(r"(?i)\bRANGE\s*<\s*(DATE|DATETIME|TIMESTAMP)\s*>").unwrap();
+    }
+    RANGE_TYPE_RE.replace_all(sql, "RANGE_$1").to_string()
+}
 
 fn default_plan_cache() -> LruCache<String, OptimizedLogicalPlan> {
     LruCache::new(NonZeroUsize::new(PLAN_CACHE_SIZE).unwrap())
@@ -93,20 +103,21 @@ impl AsyncQueryExecutor {
     }
 
     pub async fn execute_sql(&self, sql: &str) -> Result<Table> {
+        let sql = preprocess_range_types(sql);
         let cached = {
             let mut cache = self.plan_cache.write().unwrap();
-            cache.get(sql).cloned()
+            cache.get(&sql).cloned()
         };
 
         let physical = match cached {
             Some(plan) => plan,
             None => {
-                let logical = yachtsql_parser::parse_and_plan(sql, self)?;
+                let logical = yachtsql_parser::parse_and_plan(&sql, self)?;
                 let physical = yachtsql_optimizer::optimize(&logical)?;
 
                 if is_cacheable_plan(&physical) {
                     let mut cache = self.plan_cache.write().unwrap();
-                    cache.put(sql.to_string(), physical.clone());
+                    cache.put(sql.clone(), physical.clone());
                 }
 
                 physical

@@ -4894,10 +4894,7 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                 DataType::Array(Box::new(element_type))
             }
             ast::DataType::Interval { .. } => DataType::Interval,
-            ast::DataType::Range(inner) => {
-                let inner_type = Self::convert_sql_type(inner);
-                DataType::Range(Box::new(inner_type))
-            }
+            ast::DataType::Range(inner) => DataType::Range(Box::new(Self::convert_sql_type(inner))),
             ast::DataType::Custom(name, modifiers) => {
                 let type_name = object_name_to_raw_string(name).to_uppercase();
                 match type_name.as_str() {
@@ -5653,6 +5650,15 @@ impl<'a, C: CatalogProvider> Planner<'a, C> {
                     | ScalarFunction::JustifyDays
                     | ScalarFunction::JustifyHours
                     | ScalarFunction::JustifyInterval => DataType::Interval,
+
+                    ScalarFunction::Range => {
+                        if let Some(first_arg) = args.first() {
+                            let element_type = Self::compute_expr_type(first_arg, schema);
+                            DataType::Range(Box::new(element_type))
+                        } else {
+                            DataType::Range(Box::new(DataType::Unknown))
+                        }
+                    }
 
                     ScalarFunction::Coalesce
                     | ScalarFunction::IfNull

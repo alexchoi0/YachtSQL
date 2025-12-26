@@ -11063,6 +11063,12 @@ impl<'a> Parser<'a> {
                 Keyword::RANGE_TIMESTAMP => {
                     Ok(DataType::Range(Box::new(DataType::Timestamp(None, TimezoneInfo::None))))
                 }
+                Keyword::RANGE => {
+                    self.expect_token(&Token::Lt)?;
+                    let (inside_type, _trailing_bracket) = self.parse_data_type_helper()?;
+                    trailing_bracket = self.expect_closing_angle_bracket(_trailing_bracket)?;
+                    Ok(DataType::Range(Box::new(inside_type)))
+                }
                 Keyword::DATETIME => Ok(DataType::Datetime(self.parse_optional_precision()?)),
                 Keyword::DATETIME64 => {
                     self.prev_token();
