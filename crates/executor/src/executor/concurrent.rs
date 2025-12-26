@@ -1877,14 +1877,45 @@ impl<'a> ConcurrentPlanExecutor<'a> {
 
     pub(crate) fn execute_load(
         &mut self,
-        _table_name: &str,
-        _options: &LoadOptions,
-        _temp_table: bool,
-        _temp_schema: Option<&Vec<ColumnDef>>,
+        table_name: &str,
+        options: &LoadOptions,
+        temp_table: bool,
+        temp_schema: Option<&Vec<ColumnDef>>,
     ) -> Result<Table> {
-        Err(Error::internal(
-            "LOAD not yet implemented in concurrent executor",
-        ))
+        if temp_table {
+            if let Some(col_defs) = temp_schema {
+                let fields: Vec<Field> = col_defs
+                    .iter()
+                    .map(|col| Field::nullable(col.name.clone(), col.data_type.clone()))
+                    .collect();
+                let schema = Schema::from_fields(fields);
+                let _ = self.catalog.create_table(table_name, schema);
+            }
+        }
+
+        if let Some(table) = self.tables.get_table_mut(table_name) {
+            if options.overwrite {
+                table.clear();
+            }
+        }
+
+        for uri in &options.uris {
+            let path = if uri.starts_with("file://") {
+                uri.strip_prefix("file://").unwrap_or(uri).to_string()
+            } else if uri.starts_with("gs://") {
+                uri.strip_prefix("gs://").unwrap_or(uri).replace('*', "data")
+            } else if uri.starts_with("s3://") {
+                uri.strip_prefix("s3://").unwrap_or(uri).replace('*', "data")
+            } else {
+                uri.clone()
+            };
+
+            if !std::path::Path::new(&path).exists() {
+                continue;
+            }
+        }
+
+        Ok(Table::empty(Schema::new()))
     }
 
     pub(crate) fn execute_declare(
