@@ -1770,10 +1770,81 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_call(&mut self, _procedure_name: &str, _args: &[Expr]) -> Result<Table> {
-        Err(Error::internal(
-            "CALL not yet implemented in concurrent executor",
-        ))
+    pub(crate) fn execute_call(&mut self, procedure_name: &str, args: &[Expr]) -> Result<Table> {
+        use yachtsql_ir::ProcedureArgMode;
+
+        let proc = self
+            .catalog
+            .get_procedure(procedure_name)
+            .ok_or_else(|| Error::InvalidQuery(format!("Procedure not found: {}", procedure_name)))?
+            .clone();
+
+        let empty_schema = Schema::new();
+        let empty_record = Record::new();
+
+        let mut out_var_mappings: Vec<(String, String)> = Vec::new();
+
+        for (i, param) in proc.parameters.iter().enumerate() {
+            let param_name = param.name.to_uppercase();
+
+            match param.mode {
+                ProcedureArgMode::In => {
+                    let value = if let Some(arg_expr) = args.get(i) {
+                        let evaluator = IrEvaluator::new(&empty_schema)
+                            .with_variables(&self.variables)
+                            .with_user_functions(&self.user_function_defs);
+                        evaluator.evaluate(arg_expr, &empty_record)?
+                    } else {
+                        default_value_for_type(&param.data_type)
+                    };
+                    self.variables.insert(param_name.clone(), value.clone());
+                    self.session.set_variable(&param_name, value);
+                }
+                ProcedureArgMode::Out => {
+                    let value = default_value_for_type(&param.data_type);
+                    self.variables.insert(param_name.clone(), value.clone());
+                    self.session.set_variable(&param_name, value);
+
+                    if let Some(Expr::Variable { name }) = args.get(i) {
+                        out_var_mappings.push((param_name.clone(), name.clone()));
+                    }
+                }
+                ProcedureArgMode::InOut => {
+                    let value = if let Some(arg_expr) = args.get(i) {
+                        let evaluator = IrEvaluator::new(&empty_schema)
+                            .with_variables(&self.variables)
+                            .with_user_functions(&self.user_function_defs);
+                        evaluator.evaluate(arg_expr, &empty_record)?
+                    } else {
+                        default_value_for_type(&param.data_type)
+                    };
+                    self.variables.insert(param_name.clone(), value.clone());
+                    self.session.set_variable(&param_name, value);
+
+                    if let Some(Expr::Variable { name }) = args.get(i) {
+                        out_var_mappings.push((param_name.clone(), name.clone()));
+                    }
+                }
+            }
+        }
+
+        let mut last_result = Table::empty(Schema::new());
+
+        for body_plan in &proc.body {
+            let physical_plan = yachtsql_optimizer::optimize(body_plan)?;
+            let executor_plan = PhysicalPlan::from_physical(&physical_plan);
+            last_result = self.execute_plan(&executor_plan)?;
+        }
+
+        for (param_name, var_name) in out_var_mappings {
+            if let Some(value) = self.variables.get(&param_name).cloned() {
+                let var_name_upper = var_name.to_uppercase();
+                self.variables.insert(var_name_upper.clone(), value.clone());
+                self.session.set_variable(&var_name_upper, value);
+            }
+        }
+
+        Ok(last_result)
     }
 
     pub(crate) fn execute_export(
