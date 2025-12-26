@@ -63,12 +63,25 @@ impl<'a> TableLockSet<'a> {
         }
         None
     }
+
+    pub fn snapshot_write_locked_tables(&self) -> HashMap<String, Table> {
+        let mut snapshot = HashMap::new();
+        for (name, guard) in &self.write_guards {
+            snapshot.insert(name.clone(), (*guard).clone());
+        }
+        snapshot
+    }
 }
 
 impl Default for TableLockSet<'_> {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionSnapshot {
+    pub tables: HashMap<String, Table>,
 }
 
 #[derive(Debug)]
@@ -83,6 +96,7 @@ pub struct ConcurrentCatalog {
     schema_metadata: DashMap<String, SchemaMetadata>,
     search_path: RwLock<Vec<String>>,
     dropped_schemas: DashMap<String, DroppedSchemaData>,
+    transaction_snapshot: RwLock<Option<TransactionSnapshot>>,
 }
 
 impl ConcurrentCatalog {
@@ -98,7 +112,67 @@ impl ConcurrentCatalog {
             schema_metadata: DashMap::new(),
             search_path: RwLock::new(Vec::new()),
             dropped_schemas: DashMap::new(),
+            transaction_snapshot: RwLock::new(None),
         }
+    }
+
+    pub fn begin_transaction(&self) {
+        let mut tables_snapshot = HashMap::new();
+        for entry in self.tables.iter() {
+            if let Ok(table) = entry.value().try_read() {
+                tables_snapshot.insert(entry.key().clone(), table.clone());
+            }
+        }
+        *self.transaction_snapshot.write().unwrap() = Some(TransactionSnapshot {
+            tables: tables_snapshot,
+        });
+    }
+
+    pub fn begin_transaction_with_tables(&self, table_names: &[String]) {
+        let mut tables_snapshot = HashMap::new();
+        for name in table_names {
+            let key = name.to_uppercase();
+            if let Some(handle) = self.tables.get(&key) {
+                if let Ok(table) = handle.try_read() {
+                    tables_snapshot.insert(key, table.clone());
+                }
+            }
+        }
+        *self.transaction_snapshot.write().unwrap() = Some(TransactionSnapshot {
+            tables: tables_snapshot,
+        });
+    }
+
+    pub fn snapshot_table(&self, name: &str, table_data: Table) {
+        let mut snapshot_guard = self.transaction_snapshot.write().unwrap();
+        if let Some(ref mut snapshot) = *snapshot_guard {
+            snapshot.tables.insert(name.to_uppercase(), table_data);
+        } else {
+            let mut tables = HashMap::new();
+            tables.insert(name.to_uppercase(), table_data);
+            *snapshot_guard = Some(TransactionSnapshot { tables });
+        }
+    }
+
+    pub fn commit(&self) {
+        *self.transaction_snapshot.write().unwrap() = None;
+    }
+
+    pub fn rollback(&self) {
+        let snapshot = self.transaction_snapshot.write().unwrap().take();
+        if let Some(snapshot) = snapshot {
+            for (name, table_data) in snapshot.tables {
+                if let Some(handle) = self.tables.get(&name) {
+                    if let Ok(mut table) = handle.try_write() {
+                        *table = table_data;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn take_transaction_snapshot(&self) -> Option<TransactionSnapshot> {
+        self.transaction_snapshot.write().unwrap().take()
     }
 
     fn resolve_table_name(&self, name: &str) -> String {

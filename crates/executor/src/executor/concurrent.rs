@@ -483,9 +483,22 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             } => self.execute_execute_immediate(sql_expr, into_variables, using_params),
             PhysicalPlan::Grant { .. } => Ok(Table::empty(Schema::new())),
             PhysicalPlan::Revoke { .. } => Ok(Table::empty(Schema::new())),
-            PhysicalPlan::BeginTransaction => Ok(Table::empty(Schema::new())),
-            PhysicalPlan::Commit => Ok(Table::empty(Schema::new())),
-            PhysicalPlan::Rollback => Ok(Table::empty(Schema::new())),
+            PhysicalPlan::BeginTransaction => {
+                self.catalog.begin_transaction();
+                let locked_snapshots = self.tables.snapshot_write_locked_tables();
+                for (name, table_data) in locked_snapshots {
+                    self.catalog.snapshot_table(&name, table_data);
+                }
+                Ok(Table::empty(Schema::new()))
+            }
+            PhysicalPlan::Commit => {
+                self.catalog.commit();
+                Ok(Table::empty(Schema::new()))
+            }
+            PhysicalPlan::Rollback => {
+                self.rollback_transaction();
+                Ok(Table::empty(Schema::new()))
+            }
             PhysicalPlan::TryCatch {
                 try_block,
                 catch_block,
@@ -3049,6 +3062,40 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             .catalog
             .get_procedure_body(procedure_name)
             .unwrap_or_default();
+
+        for body_plan in &body_plans {
+            let accesses = body_plan.extract_table_accesses();
+            for (table_name, access_type) in accesses.accesses.iter() {
+                let upper_name = table_name.to_uppercase();
+                let already_locked = self.tables.get_table(&upper_name).is_some();
+                if !already_locked
+                    && let Some(handle) = self.catalog.get_table_handle(table_name)
+                {
+                    match access_type {
+                        crate::plan::AccessType::Read => {
+                            if let Ok(guard) = handle.read() {
+                                unsafe {
+                                    let static_guard: std::sync::RwLockReadGuard<'static, Table> =
+                                        std::mem::transmute(guard);
+                                    self.tables.add_read(upper_name.clone(), static_guard);
+                                }
+                            }
+                        }
+                        crate::plan::AccessType::Write
+                        | crate::plan::AccessType::WriteOptional => {
+                            if let Ok(guard) = handle.write() {
+                                unsafe {
+                                    let static_guard: std::sync::RwLockWriteGuard<'static, Table> =
+                                        std::mem::transmute(guard);
+                                    self.tables.add_write(upper_name.clone(), static_guard);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         for body_plan in &body_plans {
             last_result = self.execute_plan(body_plan)?;
         }
@@ -3062,6 +3109,17 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
 
         Ok(last_result)
+    }
+
+    fn rollback_transaction(&mut self) {
+        if let Some(snapshot) = self.catalog.take_transaction_snapshot() {
+            for (name, table_data) in snapshot.tables {
+                if let Some(table) = self.tables.get_table_mut(&name) {
+                    *table = table_data;
+                }
+            }
+        }
+        self.catalog.rollback();
     }
 
     pub(crate) fn execute_export(
