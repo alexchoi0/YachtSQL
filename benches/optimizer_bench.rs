@@ -65,39 +65,25 @@ fn setup_session_with_data(row_count: usize) -> yachtsql::YachtSQLSession {
 }
 
 fn bench_topn_queries(c: &mut Criterion) {
-    let mut session = setup_session_with_data(1000);
-
     let mut group = c.benchmark_group("topn");
 
-    group.bench_function("order_by_limit_10", |b| {
-        b.iter(|| {
-            black_box(
-                session
-                    .execute_sql("SELECT * FROM users ORDER BY salary DESC LIMIT 10")
-                    .unwrap(),
-            )
-        })
-    });
+    for row_count in [1000, 10000, 50000] {
+        let mut session = setup_session_with_data(row_count);
 
-    group.bench_function("order_by_limit_100", |b| {
-        b.iter(|| {
-            black_box(
-                session
-                    .execute_sql("SELECT * FROM users ORDER BY salary DESC LIMIT 100")
-                    .unwrap(),
-            )
-        })
-    });
+        group.bench_function(format!("{}_rows_limit_20", row_count), |b| {
+            b.iter(|| {
+                black_box(
+                    session
+                        .execute_sql("SELECT * FROM users ORDER BY salary DESC LIMIT 20")
+                        .unwrap(),
+                )
+            })
+        });
 
-    group.bench_function("order_by_multiple_cols_limit", |b| {
-        b.iter(|| {
-            black_box(
-                session
-                    .execute_sql("SELECT * FROM users ORDER BY department, salary DESC LIMIT 20")
-                    .unwrap(),
-            )
-        })
-    });
+        group.bench_function(format!("{}_rows_scan_only", row_count), |b| {
+            b.iter(|| black_box(session.execute_sql("SELECT * FROM users").unwrap()))
+        });
+    }
 
     group.finish();
 }
