@@ -2597,6 +2597,16 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         or_replace: bool,
         query: Option<&PhysicalPlan>,
     ) -> Result<Table> {
+        if let Some(dot_idx) = table_name.find('.') {
+            let schema_name = &table_name[..dot_idx];
+            if self.catalog.is_schema_dropped(schema_name) {
+                return Err(Error::invalid_query(format!(
+                    "Schema not found: {}",
+                    schema_name
+                )));
+            }
+        }
+
         if self.catalog.table_exists(table_name) {
             if if_not_exists {
                 return Ok(Table::empty(Schema::new()));

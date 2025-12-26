@@ -75,6 +75,7 @@ pub struct ConcurrentCatalog {
     schemas: DashMap<String, ()>,
     schema_metadata: DashMap<String, SchemaMetadata>,
     search_path: RwLock<Vec<String>>,
+    dropped_schemas: DashMap<String, ()>,
 }
 
 impl ConcurrentCatalog {
@@ -89,6 +90,7 @@ impl ConcurrentCatalog {
             schemas: DashMap::new(),
             schema_metadata: DashMap::new(),
             search_path: RwLock::new(Vec::new()),
+            dropped_schemas: DashMap::new(),
         }
     }
 
@@ -170,6 +172,7 @@ impl ConcurrentCatalog {
                 name
             )));
         }
+        self.dropped_schemas.remove(&key);
         self.schemas.insert(key.clone(), ());
         self.schema_metadata.insert(key, SchemaMetadata::default());
         Ok(())
@@ -191,6 +194,7 @@ impl ConcurrentCatalog {
                 name
             )));
         }
+        self.dropped_schemas.remove(&key);
         self.schemas.insert(key.clone(), ());
         self.schema_metadata.insert(key, SchemaMetadata { options });
         Ok(())
@@ -226,7 +230,12 @@ impl ConcurrentCatalog {
 
         self.schemas.remove(&key);
         self.schema_metadata.remove(&key);
+        self.dropped_schemas.insert(key, ());
         Ok(())
+    }
+
+    pub fn is_schema_dropped(&self, name: &str) -> bool {
+        self.dropped_schemas.contains_key(&name.to_uppercase())
     }
 
     pub fn undrop_schema(&self, name: &str, if_not_exists: bool) -> Result<()> {
@@ -240,6 +249,17 @@ impl ConcurrentCatalog {
                 name
             )));
         }
+        if !self.dropped_schemas.contains_key(&key) {
+            if if_not_exists {
+                return Ok(());
+            }
+            return Err(Error::invalid_query(format!(
+                "Schema not found in drop history: {}",
+                name
+            )));
+        }
+        self.dropped_schemas.remove(&key);
+        self.schemas.insert(key, ());
         Ok(())
     }
 
