@@ -89,11 +89,12 @@ fn bench_topn_queries(c: &mut Criterion) {
 }
 
 fn bench_filter_queries(c: &mut Criterion) {
-    let mut session = setup_session_with_data(1000);
+    let row_count = 1000;
+    let mut session = setup_session_with_data(row_count);
 
     let mut group = c.benchmark_group("filter");
 
-    group.bench_function("single_filter", |b| {
+    group.bench_function(format!("{row_count}_rows_single_filter"), |b| {
         b.iter(|| {
             black_box(
                 session
@@ -103,7 +104,7 @@ fn bench_filter_queries(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("multiple_filters_and", |b| {
+    group.bench_function(format!("{row_count}_rows_multiple_filters_and"), |b| {
         b.iter(|| {
             black_box(
                 session
@@ -115,7 +116,7 @@ fn bench_filter_queries(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("filter_with_order_limit", |b| {
+    group.bench_function(format!("{row_count}_rows_filter_with_order_limit"), |b| {
         b.iter(|| {
             black_box(
                 session
@@ -131,11 +132,12 @@ fn bench_filter_queries(c: &mut Criterion) {
 }
 
 fn bench_join_queries(c: &mut Criterion) {
-    let mut session = setup_session_with_data(500);
+    let row_count = 500;
+    let mut session = setup_session_with_data(row_count);
 
     let mut group = c.benchmark_group("join");
 
-    group.bench_function("inner_join_basic", |b| {
+    group.bench_function(format!("{row_count}_rows_inner_join_basic"), |b| {
         b.iter(|| {
             black_box(
                 session
@@ -150,7 +152,7 @@ fn bench_join_queries(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("join_with_filter_on_left", |b| {
+    group.bench_function(format!("{row_count}_rows_join_with_filter_on_left"), |b| {
         b.iter(|| {
             black_box(
                 session
@@ -166,7 +168,7 @@ fn bench_join_queries(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("join_with_filter_on_right", |b| {
+    group.bench_function(format!("{row_count}_rows_join_with_filter_on_right"), |b| {
         b.iter(|| {
             black_box(
                 session
@@ -182,7 +184,7 @@ fn bench_join_queries(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("join_with_filter_on_both", |b| {
+    group.bench_function(format!("{row_count}_rows_join_with_filter_on_both"), |b| {
         b.iter(|| {
             black_box(
                 session
@@ -202,28 +204,32 @@ fn bench_join_queries(c: &mut Criterion) {
 }
 
 fn bench_complex_queries(c: &mut Criterion) {
-    let mut session = setup_session_with_data(500);
+    let row_count = 500;
+    let mut session = setup_session_with_data(row_count);
 
     let mut group = c.benchmark_group("complex");
 
-    group.bench_function("aggregate_with_filter_order_limit", |b| {
-        b.iter(|| {
-            black_box(
-                session
-                    .execute_sql(
-                        "SELECT department, AVG(salary) as avg_salary, COUNT(*) as cnt
+    group.bench_function(
+        format!("{row_count}_rows_aggregate_with_filter_order_limit"),
+        |b| {
+            b.iter(|| {
+                black_box(
+                    session
+                        .execute_sql(
+                            "SELECT department, AVG(salary) as avg_salary, COUNT(*) as cnt
                          FROM users
                          WHERE age > 25
                          GROUP BY department
                          ORDER BY avg_salary DESC
                          LIMIT 3",
-                    )
-                    .unwrap(),
-            )
-        })
-    });
+                        )
+                        .unwrap(),
+                )
+            })
+        },
+    );
 
-    group.bench_function("subquery_in_filter", |b| {
+    group.bench_function(format!("{row_count}_rows_subquery_in_filter"), |b| {
         b.iter(|| {
             black_box(
                 session
