@@ -1267,6 +1267,22 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         let target_schema = target.schema().clone();
         let fields = target_schema.fields().to_vec();
 
+        let evaluator = IrEvaluator::new(&target_schema)
+            .with_variables(&self.variables)
+            .with_user_functions(&self.user_function_defs);
+        let empty_record = Record::new();
+
+        let mut default_values: Vec<Option<Value>> = vec![None; target_schema.field_count()];
+        if let Some(defaults) = self.catalog.get_table_defaults(table_name) {
+            for default in defaults {
+                if let Some(idx) = target_schema.field_index(&default.column_name) {
+                    if let Ok(val) = evaluator.evaluate(&default.default_expr, &empty_record) {
+                        default_values[idx] = Some(val);
+                    }
+                }
+            }
+        }
+
         let source_table = self.execute_plan(source)?;
 
         let target = self
@@ -1286,7 +1302,10 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 }
                 target.push_row(coerced_row)?;
             } else {
-                let mut row = vec![Value::Null; target_schema.field_count()];
+                let mut row: Vec<Value> = default_values
+                    .iter()
+                    .map(|opt| opt.clone().unwrap_or(Value::Null))
+                    .collect();
                 for (i, col_name) in columns.iter().enumerate() {
                     if let Some(col_idx) = target_schema.field_index(col_name) {
                         if i < record.values().len() && col_idx < fields.len() {
@@ -1443,13 +1462,24 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
 
         let mut schema = Schema::new();
+        let mut defaults = Vec::new();
         for col in columns {
             let mode = if col.nullable {
                 FieldMode::Nullable
             } else {
                 FieldMode::Required
             };
-            schema.add_field(Field::new(&col.name, col.data_type.clone(), mode));
+            let mut field = Field::new(&col.name, col.data_type.clone(), mode);
+            if let Some(ref collation) = col.collation {
+                field = field.with_collation(collation);
+            }
+            schema.add_field(field);
+            if let Some(ref default_expr) = col.default_value {
+                defaults.push(ColumnDefault {
+                    column_name: col.name.clone(),
+                    default_expr: default_expr.clone(),
+                });
+            }
         }
 
         if or_replace && self.catalog.table_exists(table_name) {
@@ -1457,6 +1487,10 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 .create_or_replace_table(table_name, Table::new(schema));
         } else {
             self.catalog.create_table(table_name, schema)?;
+        }
+
+        if !defaults.is_empty() {
+            self.catalog.set_table_defaults(table_name, defaults);
         }
 
         Ok(Table::empty(Schema::new()))
