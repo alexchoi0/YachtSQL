@@ -37,14 +37,163 @@ impl<'a> PlanExecutor<'a> {
         let schema = input.schema().clone();
         let mut result = Table::empty(schema.clone());
 
+        let outer_col_indices = Self::collect_outer_column_indices_from_expr(predicate, &schema);
+        let mut subquery_cache: std::collections::HashMap<Vec<Value>, Value> =
+            std::collections::HashMap::new();
+
         for record in input.rows()? {
-            let val = self.eval_expr_with_subquery(predicate, &schema, &record)?;
+            let cache_key: Vec<Value> = outer_col_indices
+                .iter()
+                .map(|&idx| record.values().get(idx).cloned().unwrap_or(Value::Null))
+                .collect();
+
+            let val = if let Some(cached) = subquery_cache.get(&cache_key) {
+                cached.clone()
+            } else {
+                let computed = self.eval_expr_with_subquery(predicate, &schema, &record)?;
+                subquery_cache.insert(cache_key, computed.clone());
+                computed
+            };
+
             if val.as_bool().unwrap_or(false) {
                 result.push_row(record.values().to_vec())?;
             }
         }
 
         Ok(result)
+    }
+
+    fn collect_outer_column_indices_from_expr(expr: &Expr, schema: &Schema) -> Vec<usize> {
+        let mut indices = Vec::new();
+        Self::collect_column_indices_recursive(expr, schema, &mut indices);
+        indices.sort_unstable();
+        indices.dedup();
+        indices
+    }
+
+    fn collect_column_indices_recursive(expr: &Expr, schema: &Schema, indices: &mut Vec<usize>) {
+        match expr {
+            Expr::Column { name, index, .. } => {
+                if let Some(idx) = index {
+                    indices.push(*idx);
+                } else if let Some(idx) = schema.field_index(name) {
+                    indices.push(idx);
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Self::collect_column_indices_recursive(left, schema, indices);
+                Self::collect_column_indices_recursive(right, schema, indices);
+            }
+            Expr::UnaryOp { expr, .. } => {
+                Self::collect_column_indices_recursive(expr, schema, indices);
+            }
+            Expr::ScalarFunction { args, .. } => {
+                for arg in args {
+                    Self::collect_column_indices_recursive(arg, schema, indices);
+                }
+            }
+            Expr::Exists { subquery, .. } => {
+                Self::collect_column_indices_from_plan(subquery, schema, indices);
+            }
+            Expr::InSubquery { expr, subquery, .. } => {
+                Self::collect_column_indices_recursive(expr, schema, indices);
+                Self::collect_column_indices_from_plan(subquery, schema, indices);
+            }
+            Expr::Subquery(plan) | Expr::ScalarSubquery(plan) | Expr::ArraySubquery(plan) => {
+                Self::collect_column_indices_from_plan(plan, schema, indices);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_column_indices_from_plan(
+        plan: &LogicalPlan,
+        outer_schema: &Schema,
+        indices: &mut Vec<usize>,
+    ) {
+        match plan {
+            LogicalPlan::Filter { input, predicate } => {
+                Self::collect_outer_refs_from_expr(predicate, outer_schema, indices);
+                Self::collect_column_indices_from_plan(input, outer_schema, indices);
+            }
+            LogicalPlan::Project {
+                input, expressions, ..
+            } => {
+                for expr in expressions {
+                    Self::collect_outer_refs_from_expr(expr, outer_schema, indices);
+                }
+                Self::collect_column_indices_from_plan(input, outer_schema, indices);
+            }
+            LogicalPlan::Aggregate {
+                input,
+                group_by,
+                aggregates,
+                ..
+            } => {
+                for expr in group_by {
+                    Self::collect_outer_refs_from_expr(expr, outer_schema, indices);
+                }
+                for expr in aggregates {
+                    Self::collect_outer_refs_from_expr(expr, outer_schema, indices);
+                }
+                Self::collect_column_indices_from_plan(input, outer_schema, indices);
+            }
+            LogicalPlan::Join {
+                left,
+                right,
+                condition,
+                ..
+            } => {
+                if let Some(cond) = condition {
+                    Self::collect_outer_refs_from_expr(cond, outer_schema, indices);
+                }
+                Self::collect_column_indices_from_plan(left, outer_schema, indices);
+                Self::collect_column_indices_from_plan(right, outer_schema, indices);
+            }
+            LogicalPlan::Sort { input, .. }
+            | LogicalPlan::Limit { input, .. }
+            | LogicalPlan::Distinct { input, .. } => {
+                Self::collect_column_indices_from_plan(input, outer_schema, indices);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_outer_refs_from_expr(expr: &Expr, outer_schema: &Schema, indices: &mut Vec<usize>) {
+        match expr {
+            Expr::Column { name, .. } => {
+                if let Some(idx) = outer_schema.field_index(name) {
+                    indices.push(idx);
+                }
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                Self::collect_outer_refs_from_expr(left, outer_schema, indices);
+                Self::collect_outer_refs_from_expr(right, outer_schema, indices);
+            }
+            Expr::UnaryOp { expr, .. } => {
+                Self::collect_outer_refs_from_expr(expr, outer_schema, indices);
+            }
+            Expr::ScalarFunction { args, .. } => {
+                for arg in args {
+                    Self::collect_outer_refs_from_expr(arg, outer_schema, indices);
+                }
+            }
+            Expr::Aggregate { args, filter, .. } => {
+                for arg in args {
+                    Self::collect_outer_refs_from_expr(arg, outer_schema, indices);
+                }
+                if let Some(f) = filter {
+                    Self::collect_outer_refs_from_expr(f, outer_schema, indices);
+                }
+            }
+            Expr::Cast { expr, .. } => {
+                Self::collect_outer_refs_from_expr(expr, outer_schema, indices);
+            }
+            Expr::IsNull { expr, .. } => {
+                Self::collect_outer_refs_from_expr(expr, outer_schema, indices);
+            }
+            _ => {}
+        }
     }
 
     pub fn eval_expr_with_subquery(
@@ -68,57 +217,73 @@ impl<'a> PlanExecutor<'a> {
                 let is_in = in_list.contains(&value);
                 Ok(Value::Bool(if *negated { !is_in } else { is_in }))
             }
-            Expr::BinaryOp { left, op, right } => {
-                let left_val = self.eval_expr_with_subquery(left, outer_schema, outer_record)?;
-                let right_val = self.eval_expr_with_subquery(right, outer_schema, outer_record)?;
-
-                match op {
-                    BinaryOp::And => {
-                        let l = left_val.as_bool().unwrap_or(false);
-                        let r = right_val.as_bool().unwrap_or(false);
-                        Ok(Value::Bool(l && r))
+            Expr::BinaryOp { left, op, right } => match op {
+                BinaryOp::And => {
+                    let left_val =
+                        self.eval_expr_with_subquery(left, outer_schema, outer_record)?;
+                    if !left_val.as_bool().unwrap_or(false) {
+                        return Ok(Value::Bool(false));
                     }
-                    BinaryOp::Or => {
-                        let l = left_val.as_bool().unwrap_or(false);
-                        let r = right_val.as_bool().unwrap_or(false);
-                        Ok(Value::Bool(l || r))
+                    let right_val =
+                        self.eval_expr_with_subquery(right, outer_schema, outer_record)?;
+                    Ok(Value::Bool(right_val.as_bool().unwrap_or(false)))
+                }
+                BinaryOp::Or => {
+                    let left_val =
+                        self.eval_expr_with_subquery(left, outer_schema, outer_record)?;
+                    if left_val.as_bool().unwrap_or(false) {
+                        return Ok(Value::Bool(true));
                     }
-                    BinaryOp::Eq => Ok(Value::Bool(Self::values_equal(&left_val, &right_val))),
-                    BinaryOp::NotEq => Ok(Value::Bool(!Self::values_equal(&left_val, &right_val))),
-                    BinaryOp::Lt => Ok(Value::Bool(
-                        Self::compare_values(&left_val, &right_val) == std::cmp::Ordering::Less,
-                    )),
-                    BinaryOp::LtEq => Ok(Value::Bool(matches!(
-                        Self::compare_values(&left_val, &right_val),
-                        std::cmp::Ordering::Less | std::cmp::Ordering::Equal
-                    ))),
-                    BinaryOp::Gt => Ok(Value::Bool(
-                        Self::compare_values(&left_val, &right_val) == std::cmp::Ordering::Greater,
-                    )),
-                    BinaryOp::GtEq => Ok(Value::Bool(matches!(
-                        Self::compare_values(&left_val, &right_val),
-                        std::cmp::Ordering::Greater | std::cmp::Ordering::Equal
-                    ))),
-                    BinaryOp::Add => Self::arithmetic_op(&left_val, &right_val, |a, b| a + b),
-                    BinaryOp::Sub => Self::arithmetic_op(&left_val, &right_val, |a, b| a - b),
-                    BinaryOp::Mul => Self::arithmetic_op(&left_val, &right_val, |a, b| a * b),
-                    BinaryOp::Div => Self::arithmetic_op(&left_val, &right_val, |a, b| a / b),
-                    _ => {
-                        let new_left = Self::value_to_literal(left_val);
-                        let new_right = Self::value_to_literal(right_val);
-                        let simplified_expr = Expr::BinaryOp {
-                            left: Box::new(Expr::Literal(new_left)),
-                            op: *op,
-                            right: Box::new(Expr::Literal(new_right)),
-                        };
-                        let evaluator = IrEvaluator::new(outer_schema)
-                            .with_variables(&self.variables)
-                            .with_system_variables(self.session.system_variables())
-                            .with_user_functions(&self.user_function_defs);
-                        evaluator.evaluate(&simplified_expr, outer_record)
+                    let right_val =
+                        self.eval_expr_with_subquery(right, outer_schema, outer_record)?;
+                    Ok(Value::Bool(right_val.as_bool().unwrap_or(false)))
+                }
+                _ => {
+                    let left_val =
+                        self.eval_expr_with_subquery(left, outer_schema, outer_record)?;
+                    let right_val =
+                        self.eval_expr_with_subquery(right, outer_schema, outer_record)?;
+                    match op {
+                        BinaryOp::Eq => Ok(Value::Bool(Self::values_equal(&left_val, &right_val))),
+                        BinaryOp::NotEq => {
+                            Ok(Value::Bool(!Self::values_equal(&left_val, &right_val)))
+                        }
+                        BinaryOp::Lt => Ok(Value::Bool(
+                            Self::compare_values(&left_val, &right_val) == std::cmp::Ordering::Less,
+                        )),
+                        BinaryOp::LtEq => Ok(Value::Bool(matches!(
+                            Self::compare_values(&left_val, &right_val),
+                            std::cmp::Ordering::Less | std::cmp::Ordering::Equal
+                        ))),
+                        BinaryOp::Gt => Ok(Value::Bool(
+                            Self::compare_values(&left_val, &right_val)
+                                == std::cmp::Ordering::Greater,
+                        )),
+                        BinaryOp::GtEq => Ok(Value::Bool(matches!(
+                            Self::compare_values(&left_val, &right_val),
+                            std::cmp::Ordering::Greater | std::cmp::Ordering::Equal
+                        ))),
+                        BinaryOp::Add => Self::arithmetic_op(&left_val, &right_val, |a, b| a + b),
+                        BinaryOp::Sub => Self::arithmetic_op(&left_val, &right_val, |a, b| a - b),
+                        BinaryOp::Mul => Self::arithmetic_op(&left_val, &right_val, |a, b| a * b),
+                        BinaryOp::Div => Self::arithmetic_op(&left_val, &right_val, |a, b| a / b),
+                        _ => {
+                            let new_left = Self::value_to_literal(left_val);
+                            let new_right = Self::value_to_literal(right_val);
+                            let simplified_expr = Expr::BinaryOp {
+                                left: Box::new(Expr::Literal(new_left)),
+                                op: *op,
+                                right: Box::new(Expr::Literal(new_right)),
+                            };
+                            let evaluator = IrEvaluator::new(outer_schema)
+                                .with_variables(&self.variables)
+                                .with_system_variables(self.session.system_variables())
+                                .with_user_functions(&self.user_function_defs);
+                            evaluator.evaluate(&simplified_expr, outer_record)
+                        }
                     }
                 }
-            }
+            },
             Expr::UnaryOp {
                 op: yachtsql_ir::UnaryOp::Not,
                 expr: inner,
