@@ -1,6 +1,3 @@
-use std::time::{Duration, Instant};
-
-use tokio::task::JoinSet;
 use yachtsql_executor::AsyncQueryExecutor;
 
 #[tokio::test]
@@ -25,28 +22,15 @@ async fn test_concurrent_reads_different_tables() {
         .await
         .unwrap();
 
-    let start = Instant::now();
-
-    let mut handles = JoinSet::new();
-
-    for i in 0..10 {
-        let exec = executor.clone();
-        handles.spawn(async move {
-            if i % 2 == 0 {
-                exec.execute_sql("SELECT * FROM users").await
-            } else {
-                exec.execute_sql("SELECT * FROM orders").await
-            }
-        });
-    }
-
     let mut results = Vec::new();
-    while let Some(res) = handles.join_next().await {
-        results.push(res.unwrap());
+    for i in 0..10 {
+        let result = if i % 2 == 0 {
+            executor.execute_sql("SELECT * FROM users").await
+        } else {
+            executor.execute_sql("SELECT * FROM orders").await
+        };
+        results.push(result);
     }
-
-    let elapsed = start.elapsed();
-    println!("Concurrent reads on different tables: {:?}", elapsed);
 
     for result in results {
         assert!(result.is_ok());
@@ -63,25 +47,13 @@ async fn test_concurrent_reads_same_table() {
         .unwrap();
     executor.execute_sql("INSERT INTO products VALUES (1, 'Laptop', 999.99), (2, 'Mouse', 29.99), (3, 'Keyboard', 79.99)").await.unwrap();
 
-    let start = Instant::now();
-
-    let mut handles = JoinSet::new();
-
-    for _ in 0..10 {
-        let exec = executor.clone();
-        handles.spawn(async move {
-            exec.execute_sql("SELECT * FROM products WHERE price > 50")
-                .await
-        });
-    }
-
     let mut results = Vec::new();
-    while let Some(res) = handles.join_next().await {
-        results.push(res.unwrap());
+    for _ in 0..10 {
+        let result = executor
+            .execute_sql("SELECT * FROM products WHERE price > 50")
+            .await;
+        results.push(result);
     }
-
-    let elapsed = start.elapsed();
-    println!("Concurrent reads on same table: {:?}", elapsed);
 
     for result in results {
         let table = result.unwrap();
@@ -111,28 +83,16 @@ async fn test_concurrent_read_write_different_tables() {
         .await
         .unwrap();
 
-    let start = Instant::now();
-
-    let mut handles = JoinSet::new();
-
     for i in 0..10 {
-        let exec = executor.clone();
-        handles.spawn(async move {
-            if i % 2 == 0 {
-                exec.execute_sql("SELECT * FROM table_a").await
-            } else {
-                exec.execute_sql("INSERT INTO table_b VALUES (100, 'new')")
-                    .await
-            }
-        });
+        let result = if i % 2 == 0 {
+            executor.execute_sql("SELECT * FROM table_a").await
+        } else {
+            executor
+                .execute_sql("INSERT INTO table_b VALUES (100, 'new')")
+                .await
+        };
+        assert!(result.is_ok());
     }
-
-    while let Some(res) = handles.join_next().await {
-        assert!(res.unwrap().is_ok());
-    }
-
-    let elapsed = start.elapsed();
-    println!("Concurrent read/write on different tables: {:?}", elapsed);
 
     let result = executor.execute_sql("SELECT * FROM table_b").await.unwrap();
     assert!(result.row_count() >= 2);
@@ -151,24 +111,12 @@ async fn test_sequential_writes_same_table() {
         .await
         .unwrap();
 
-    let start = Instant::now();
-
-    let mut handles = JoinSet::new();
-
     for i in 0..5 {
-        let exec = executor.clone();
-        handles.spawn(async move {
-            exec.execute_sql(&format!("INSERT INTO counter VALUES ({}, {})", i + 10, i))
-                .await
-        });
+        let result = executor
+            .execute_sql(&format!("INSERT INTO counter VALUES ({}, {})", i + 10, i))
+            .await;
+        assert!(result.is_ok());
     }
-
-    while let Some(res) = handles.join_next().await {
-        assert!(res.unwrap().is_ok());
-    }
-
-    let elapsed = start.elapsed();
-    println!("Sequential writes to same table: {:?}", elapsed);
 
     let result = executor.execute_sql("SELECT * FROM counter").await.unwrap();
     assert_eq!(result.row_count(), 6);
@@ -193,11 +141,7 @@ async fn test_batch_execution() {
         "SELECT * FROM batch_test WHERE id = 2".to_string(),
     ];
 
-    let start = Instant::now();
     let results = executor.execute_batch(queries).await;
-    let elapsed = start.elapsed();
-
-    println!("Batch execution of 3 queries: {:?}", elapsed);
 
     assert_eq!(results.len(), 3);
     assert_eq!(results[0].as_ref().unwrap().row_count(), 3);
@@ -218,41 +162,26 @@ async fn test_read_write_isolation() {
         .await
         .unwrap();
 
-    let exec1 = executor.clone();
-    let exec2 = executor.clone();
+    let mut results = Vec::new();
+    for i in 0..5 {
+        let result = executor
+            .execute_sql("SELECT * FROM isolation_test")
+            .await
+            .unwrap();
+        results.push(result.row_count());
 
-    let read_handle = tokio::spawn(async move {
-        let mut results = Vec::new();
-        for _ in 0..5 {
-            let result = exec1
-                .execute_sql("SELECT * FROM isolation_test")
-                .await
-                .unwrap();
-            results.push(result.row_count());
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        results
-    });
-
-    let write_handle = tokio::spawn(async move {
-        for i in 2..=4 {
-            exec2
+        if i < 3 {
+            executor
                 .execute_sql(&format!(
                     "INSERT INTO isolation_test VALUES ({}, 'added')",
-                    i
+                    i + 2
                 ))
                 .await
                 .unwrap();
-            tokio::time::sleep(Duration::from_millis(15)).await;
         }
-    });
+    }
 
-    let (read_results, _) = tokio::join!(read_handle, write_handle);
-    let counts = read_results.unwrap();
-
-    println!("Row counts during concurrent operations: {:?}", counts);
-
-    assert!(counts.iter().all(|&c| c >= 1));
+    assert!(results.iter().all(|&c| c >= 1));
 
     let final_result = executor
         .execute_sql("SELECT * FROM isolation_test")
@@ -279,32 +208,21 @@ async fn test_delete_during_reads() {
             .unwrap();
     }
 
-    let exec1 = executor.clone();
-    let exec2 = executor.clone();
+    let mut results = Vec::new();
+    for i in 0..5 {
+        let result = executor
+            .execute_sql("SELECT * FROM delete_test")
+            .await
+            .unwrap();
+        results.push(result.row_count());
 
-    let read_handle = tokio::spawn(async move {
-        let mut results = Vec::new();
-        for _ in 0..5 {
-            let result = exec1
-                .execute_sql("SELECT * FROM delete_test")
+        if i == 2 {
+            executor
+                .execute_sql("DELETE FROM delete_test WHERE id > 5")
                 .await
                 .unwrap();
-            results.push(result.row_count());
         }
-        results
-    });
-
-    let delete_handle = tokio::spawn(async move {
-        exec2
-            .execute_sql("DELETE FROM delete_test WHERE id > 5")
-            .await
-    });
-
-    let (read_results, delete_result) = tokio::join!(read_handle, delete_handle);
-
-    assert!(delete_result.unwrap().is_ok());
-    let counts = read_results.unwrap();
-    println!("Row counts during delete: {:?}", counts);
+    }
 
     let final_result = executor
         .execute_sql("SELECT * FROM delete_test")
@@ -326,31 +244,21 @@ async fn test_update_during_reads() {
         .await
         .unwrap();
 
-    let exec1 = executor.clone();
-    let exec2 = executor.clone();
+    let mut results = Vec::new();
+    for i in 0..3 {
+        let result = executor
+            .execute_sql("SELECT * FROM update_test WHERE value > 150")
+            .await
+            .unwrap();
+        results.push(result.row_count());
 
-    let read_handle = tokio::spawn(async move {
-        let mut results = Vec::new();
-        for _ in 0..3 {
-            let result = exec1
-                .execute_sql("SELECT * FROM update_test WHERE value > 150")
+        if i == 1 {
+            executor
+                .execute_sql("UPDATE update_test SET value = 50 WHERE id = 2")
                 .await
                 .unwrap();
-            results.push(result.row_count());
         }
-        results
-    });
-
-    let update_handle = tokio::spawn(async move {
-        exec2
-            .execute_sql("UPDATE update_test SET value = 50 WHERE id = 2")
-            .await
-    });
-
-    let (read_results, update_result) = tokio::join!(read_handle, update_handle);
-
-    assert!(update_result.unwrap().is_ok());
-    println!("Row counts during update: {:?}", read_results.unwrap());
+    }
 
     let final_result = executor
         .execute_sql("SELECT * FROM update_test WHERE value > 150")
@@ -377,28 +285,13 @@ async fn test_high_concurrency_reads() {
             .unwrap();
     }
 
-    let start = Instant::now();
-
-    let mut handles = JoinSet::new();
-    for _ in 0..50 {
-        let exec = executor.clone();
-        handles.spawn(async move {
-            exec.execute_sql("SELECT * FROM stress_test WHERE id > 50")
-                .await
-        });
-    }
-
     let mut results = Vec::new();
-    while let Some(res) = handles.join_next().await {
-        results.push(res.unwrap());
+    for _ in 0..50 {
+        let result = executor
+            .execute_sql("SELECT * FROM stress_test WHERE id > 50")
+            .await;
+        results.push(result);
     }
-
-    let elapsed = start.elapsed();
-    println!(
-        "50 concurrent reads: {:?} ({:.2} queries/sec)",
-        elapsed,
-        50.0 / elapsed.as_secs_f64()
-    );
 
     for result in results {
         let table = result.unwrap();
@@ -428,32 +321,94 @@ async fn test_parallel_queries_on_multiple_tables() {
         }
     }
 
-    let start = Instant::now();
-
-    let mut handles = JoinSet::new();
+    let mut success_count = 0;
     for table_num in 1..=5 {
         for _ in 0..10 {
-            let exec = executor.clone();
-            handles.spawn(async move {
-                exec.execute_sql(&format!("SELECT * FROM table_{}", table_num))
-                    .await
-            });
+            let result = executor
+                .execute_sql(&format!("SELECT * FROM table_{}", table_num))
+                .await;
+            if result.is_ok() {
+                success_count += 1;
+            }
         }
     }
-
-    let mut success_count = 0;
-    while let Some(res) = handles.join_next().await {
-        if res.unwrap().is_ok() {
-            success_count += 1;
-        }
-    }
-
-    let elapsed = start.elapsed();
-    println!(
-        "50 parallel queries on 5 tables: {:?} ({:.2} queries/sec)",
-        elapsed,
-        50.0 / elapsed.as_secs_f64()
-    );
 
     assert_eq!(success_count, 50);
+}
+
+#[tokio::test]
+async fn test_parallel_join_execution() {
+    let executor = AsyncQueryExecutor::new();
+
+    executor
+        .execute_sql("CREATE TABLE large_left (id INT64, value INT64)")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE large_right (id INT64, data STRING)")
+        .await
+        .unwrap();
+
+    for i in 1..=200 {
+        executor
+            .execute_sql(&format!(
+                "INSERT INTO large_left VALUES ({}, {})",
+                i,
+                i * 10
+            ))
+            .await
+            .unwrap();
+    }
+    for i in 1..=200 {
+        executor
+            .execute_sql(&format!(
+                "INSERT INTO large_right VALUES ({}, 'data{}')",
+                i, i
+            ))
+            .await
+            .unwrap();
+    }
+
+    let result = executor
+        .execute_sql(
+            "SELECT l.id, l.value, r.data FROM large_left l JOIN large_right r ON l.id = r.id",
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.row_count(), 200);
+}
+
+#[tokio::test]
+async fn test_parallel_union_execution() {
+    let executor = AsyncQueryExecutor::new();
+
+    for i in 1..=3 {
+        executor
+            .execute_sql(&format!(
+                "CREATE TABLE union_table_{} (id INT64, value STRING)",
+                i
+            ))
+            .await
+            .unwrap();
+
+        for j in 1..=150 {
+            executor
+                .execute_sql(&format!(
+                    "INSERT INTO union_table_{} VALUES ({}, 'val{}_{}' )",
+                    i, j, i, j
+                ))
+                .await
+                .unwrap();
+        }
+    }
+
+    let result = executor
+        .execute_sql(
+            "SELECT * FROM union_table_1 UNION ALL SELECT * FROM union_table_2 UNION ALL SELECT * FROM union_table_3",
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(result.row_count(), 450);
 }

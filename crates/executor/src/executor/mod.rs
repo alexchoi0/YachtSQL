@@ -126,11 +126,13 @@ impl<'a> PlanExecutor<'a> {
                 join_type,
                 condition,
                 schema,
+                ..
             } => self.execute_nested_loop_join(left, right, join_type, condition.as_ref(), schema),
             PhysicalPlan::CrossJoin {
                 left,
                 right,
                 schema,
+                ..
             } => self.execute_cross_join(left, right, schema),
             PhysicalPlan::HashJoin {
                 left,
@@ -139,6 +141,7 @@ impl<'a> PlanExecutor<'a> {
                 left_keys,
                 right_keys,
                 schema,
+                ..
             } => self.execute_hash_join(left, right, join_type, left_keys, right_keys, schema),
             PhysicalPlan::HashAggregate {
                 input,
@@ -165,25 +168,28 @@ impl<'a> PlanExecutor<'a> {
                 inputs,
                 all,
                 schema,
+                ..
             } => self.execute_union(inputs, *all, schema),
             PhysicalPlan::Intersect {
                 left,
                 right,
                 all,
                 schema,
+                ..
             } => self.execute_intersect(left, right, *all, schema),
             PhysicalPlan::Except {
                 left,
                 right,
                 all,
                 schema,
+                ..
             } => self.execute_except(left, right, *all, schema),
             PhysicalPlan::Window {
                 input,
                 window_exprs,
                 schema,
             } => self.execute_window(input, window_exprs, schema),
-            PhysicalPlan::WithCte { ctes, body } => self.execute_cte(ctes, body),
+            PhysicalPlan::WithCte { ctes, body, .. } => self.execute_cte(ctes, body),
             PhysicalPlan::Unnest {
                 input,
                 columns,

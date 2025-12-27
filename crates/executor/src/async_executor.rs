@@ -124,13 +124,17 @@ impl AsyncQueryExecutor {
             }
         };
 
-        let executor_plan = PhysicalPlan::from_physical(&physical);
+        let mut executor_plan = PhysicalPlan::from_physical(&physical);
+        executor_plan.populate_row_counts(&self.catalog);
         let accesses = executor_plan.extract_table_accesses();
 
-        let tables = self.catalog.acquire_table_locks(&accesses)?;
+        let mut tables = self.catalog.acquire_table_locks(&accesses)?;
+        tables.set_catalog(Arc::clone(&self.catalog));
 
-        let mut executor = ConcurrentPlanExecutor::new(&self.catalog, &self.session, tables);
-        let result = executor.execute_plan(&executor_plan)?;
+        let executor = ConcurrentPlanExecutor::new(&self.catalog, &self.session, tables);
+        let result = executor.execute_plan(&executor_plan).await?;
+
+        executor.tables.commit_writes();
 
         if invalidates_cache(&physical) {
             let mut cache = self.plan_cache.write().unwrap();
@@ -141,24 +145,11 @@ impl AsyncQueryExecutor {
     }
 
     pub async fn execute_batch(&self, queries: Vec<String>) -> Vec<Result<Table>> {
-        use futures::future::join_all;
-        use tokio::task::spawn;
-
-        let futures: Vec<_> = queries
-            .into_iter()
-            .map(|sql| {
-                let executor = self.clone();
-                spawn(async move { executor.execute_sql(&sql).await })
-            })
-            .collect();
-
-        let results = join_all(futures).await;
+        let mut results = Vec::with_capacity(queries.len());
+        for sql in queries {
+            results.push(self.execute_sql(&sql).await);
+        }
         results
-            .into_iter()
-            .map(|r| {
-                r.unwrap_or_else(|e| Err(yachtsql_common::error::Error::internal(e.to_string())))
-            })
-            .collect()
     }
 
     pub fn catalog(&self) -> &ConcurrentCatalog {

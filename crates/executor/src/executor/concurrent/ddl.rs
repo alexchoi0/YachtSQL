@@ -11,7 +11,7 @@ use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
 impl ConcurrentPlanExecutor<'_> {
-    pub(crate) fn execute_truncate(&mut self, table_name: &str) -> Result<Table> {
+    pub(crate) fn execute_truncate(&self, table_name: &str) -> Result<Table> {
         let table = self
             .tables
             .get_table_mut(table_name)
@@ -20,8 +20,8 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_create_table(
-        &mut self,
+    pub(crate) async fn execute_create_table(
+        &self,
         table_name: &str,
         columns: &[ColumnDef],
         if_not_exists: bool,
@@ -51,7 +51,7 @@ impl ConcurrentPlanExecutor<'_> {
         }
 
         if let Some(query_plan) = query {
-            let result = self.execute_plan(query_plan)?;
+            let result = self.execute_plan(query_plan).await?;
             let schema = result.schema().clone();
             if or_replace && self.catalog.table_exists(table_name) {
                 self.catalog.create_or_replace_table(table_name, result);
@@ -108,7 +108,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_drop_tables(
-        &mut self,
+        &self,
         table_names: &[String],
         if_exists: bool,
     ) -> Result<Table> {
@@ -123,7 +123,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_alter_table(
-        &mut self,
+        &self,
         table_name: &str,
         operation: &AlterTableOp,
         if_exists: bool,
@@ -141,13 +141,14 @@ impl ConcurrentPlanExecutor<'_> {
                 column,
                 if_not_exists,
             } => {
-                let table = self
-                    .tables
-                    .get_table_mut(table_name)
-                    .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
-
-                if *if_not_exists && table.schema().field(&column.name).is_some() {
-                    return Ok(Table::empty(Schema::new()));
+                {
+                    let table = self
+                        .tables
+                        .get_table(table_name)
+                        .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
+                    if *if_not_exists && table.schema().field(&column.name).is_some() {
+                        return Ok(Table::empty(Schema::new()));
+                    }
                 }
 
                 let field = if column.nullable {
@@ -156,13 +157,23 @@ impl ConcurrentPlanExecutor<'_> {
                     Field::required(column.name.clone(), column.data_type.clone())
                 };
 
-                let default_value = column.default_value.as_ref().and_then(|expr| {
-                    let empty_schema = Schema::new();
-                    let evaluator = IrEvaluator::new(&empty_schema)
-                        .with_variables(&self.variables)
-                        .with_user_functions(&self.user_function_defs);
-                    evaluator.evaluate(expr, &Record::new()).ok()
-                });
+                let default_value = match column.default_value.as_ref() {
+                    Some(expr) => {
+                        let empty_schema = Schema::new();
+                        let vars = self.get_variables();
+                        let udf = self.get_user_functions();
+                        let evaluator = IrEvaluator::new(&empty_schema)
+                            .with_variables(&vars)
+                            .with_user_functions(&udf);
+                        evaluator.evaluate(expr, &Record::new()).ok()
+                    }
+                    None => None,
+                };
+
+                let table = self
+                    .tables
+                    .get_table_mut(table_name)
+                    .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
 
                 use yachtsql_storage::TableSchemaOps;
                 table.add_column(field, default_value)?;
@@ -191,6 +202,22 @@ impl ConcurrentPlanExecutor<'_> {
                 self.catalog.rename_table(table_name, new_name)?;
             }
             AlterTableOp::AlterColumn { name, action } => {
+                let evaluated_default = match action {
+                    yachtsql_ir::AlterColumnAction::SetDefault { default } => {
+                        let empty_schema = Schema::new();
+                        let vars = self.get_variables();
+                        let udf = self.get_user_functions();
+                        let evaluator = IrEvaluator::new(&empty_schema)
+                            .with_variables(&vars)
+                            .with_user_functions(&udf);
+                        Some((
+                            evaluator.evaluate(default, &Record::new())?,
+                            default.clone(),
+                        ))
+                    }
+                    _ => None,
+                };
+
                 let table = self
                     .tables
                     .get_table_mut(table_name)
@@ -203,12 +230,8 @@ impl ConcurrentPlanExecutor<'_> {
                     yachtsql_ir::AlterColumnAction::DropNotNull => {
                         table.set_column_nullable(name)?;
                     }
-                    yachtsql_ir::AlterColumnAction::SetDefault { default } => {
-                        let empty_schema = Schema::new();
-                        let evaluator = IrEvaluator::new(&empty_schema)
-                            .with_variables(&self.variables)
-                            .with_user_functions(&self.user_function_defs);
-                        let value = evaluator.evaluate(default, &Record::new())?;
+                    yachtsql_ir::AlterColumnAction::SetDefault { default: _ } => {
+                        let (value, default_expr) = evaluated_default.unwrap();
                         table.set_column_default(name, value)?;
 
                         let mut defaults = self
@@ -218,7 +241,7 @@ impl ConcurrentPlanExecutor<'_> {
                         defaults.retain(|d| d.column_name.to_uppercase() != name.to_uppercase());
                         defaults.push(ColumnDefault {
                             column_name: name.clone(),
-                            default_expr: default.clone(),
+                            default_expr,
                         });
                         self.catalog.set_table_defaults(table_name, defaults);
                     }
@@ -251,7 +274,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_create_view(
-        &mut self,
+        &self,
         name: &str,
         query_sql: &str,
         column_aliases: &[String],
@@ -268,13 +291,13 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_drop_view(&mut self, name: &str, if_exists: bool) -> Result<Table> {
+    pub(crate) fn execute_drop_view(&self, name: &str, if_exists: bool) -> Result<Table> {
         self.catalog.drop_view(name, if_exists)?;
         Ok(Table::empty(Schema::new()))
     }
 
     pub(crate) fn execute_create_schema(
-        &mut self,
+        &self,
         name: &str,
         if_not_exists: bool,
         or_replace: bool,
@@ -287,7 +310,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_drop_schema(
-        &mut self,
+        &self,
         name: &str,
         if_exists: bool,
         cascade: bool,
@@ -296,17 +319,13 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_undrop_schema(
-        &mut self,
-        name: &str,
-        if_not_exists: bool,
-    ) -> Result<Table> {
+    pub(crate) fn execute_undrop_schema(&self, name: &str, if_not_exists: bool) -> Result<Table> {
         self.catalog.undrop_schema(name, if_not_exists)?;
         Ok(Table::empty(Schema::new()))
     }
 
     pub(crate) fn execute_alter_schema(
-        &mut self,
+        &self,
         name: &str,
         options: &[(String, String)],
     ) -> Result<Table> {
@@ -316,7 +335,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_create_function(
-        &mut self,
+        &self,
         name: &str,
         args: &[FunctionArg],
         return_type: &DataType,
@@ -349,7 +368,7 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_drop_function(&mut self, name: &str, if_exists: bool) -> Result<Table> {
+    pub(crate) fn execute_drop_function(&self, name: &str, if_exists: bool) -> Result<Table> {
         if !self.catalog.function_exists(name) && !if_exists {
             return Err(Error::invalid_query(format!(
                 "Function not found: {}",
@@ -364,7 +383,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_create_procedure(
-        &mut self,
+        &self,
         name: &str,
         args: &[ProcedureArg],
         body: &[PhysicalPlan],
@@ -385,7 +404,7 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_drop_procedure(&mut self, name: &str, if_exists: bool) -> Result<Table> {
+    pub(crate) fn execute_drop_procedure(&self, name: &str, if_exists: bool) -> Result<Table> {
         if !self.catalog.procedure_exists(name) && !if_exists {
             return Err(Error::invalid_query(format!(
                 "Procedure not found: {}",
@@ -399,7 +418,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_create_snapshot(
-        &mut self,
+        &self,
         snapshot_name: &str,
         source_name: &str,
         if_not_exists: bool,
@@ -425,7 +444,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_drop_snapshot(
-        &mut self,
+        &self,
         snapshot_name: &str,
         if_exists: bool,
     ) -> Result<Table> {

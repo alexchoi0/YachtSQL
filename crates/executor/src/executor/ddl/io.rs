@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write as IoWrite};
+use std::io::{BufRead, BufReader, Write};
 use std::sync::Arc;
 
 use arrow::array::{
@@ -9,24 +9,24 @@ use arrow::array::{
 };
 use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::Datelike;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, Value};
 use yachtsql_ir::{ColumnDef, ExportFormat, ExportOptions, LoadFormat, LoadOptions};
-use yachtsql_storage::{Field, Schema, Table};
+use yachtsql_storage::{Field, FieldMode, Schema, Table};
 
-use super::ConcurrentPlanExecutor;
+use super::PlanExecutor;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
-    pub(crate) async fn execute_export(
-        &self,
+impl<'a> PlanExecutor<'a> {
+    pub fn execute_export(
+        &mut self,
         options: &ExportOptions,
         query: &PhysicalPlan,
     ) -> Result<Table> {
-        let data = self.execute_plan(query).await?;
+        let data = self.execute_plan(query)?;
 
         let is_cloud_uri = options.uri.starts_with("gs://")
             || options.uri.starts_with("s3://")
@@ -307,55 +307,15 @@ impl ConcurrentPlanExecutor<'_> {
                     }
                     Arc::new(builder.finish())
                 }
-                DataType::String
-                | DataType::Unknown
-                | DataType::Numeric(_)
-                | DataType::BigNumeric
-                | DataType::Json
-                | DataType::Geography
-                | DataType::Interval
-                | DataType::Range(_)
-                | DataType::Struct(_)
-                | DataType::Array(_) => {
-                    let mut builder = StringBuilder::new();
-                    for record in data.rows()? {
-                        let val = &record.values()[col_idx];
-                        if val.is_null() {
-                            builder.append_null();
-                        } else {
-                            builder.append_value(format!("{}", val));
-                        }
-                    }
-                    Arc::new(builder.finish())
-                }
                 DataType::Date => {
                     let mut builder = Date32Builder::new();
                     for record in data.rows()? {
                         let val = &record.values()[col_idx];
-                        match val {
-                            Value::Date(d) => {
-                                let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
-                                let days = d.signed_duration_since(epoch).num_days() as i32;
-                                builder.append_value(days);
-                            }
-                            Value::Null
-                            | Value::Bool(_)
-                            | Value::Int64(_)
-                            | Value::Float64(_)
-                            | Value::Numeric(_)
-                            | Value::BigNumeric(_)
-                            | Value::String(_)
-                            | Value::Bytes(_)
-                            | Value::Time(_)
-                            | Value::DateTime(_)
-                            | Value::Timestamp(_)
-                            | Value::Json(_)
-                            | Value::Array(_)
-                            | Value::Struct(_)
-                            | Value::Geography(_)
-                            | Value::Interval(_)
-                            | Value::Range(_)
-                            | Value::Default => builder.append_null(),
+                        if let Value::Date(d) = val {
+                            let days = d.num_days_from_ce() - 719163;
+                            builder.append_value(days);
+                        } else {
+                            builder.append_null();
                         }
                     }
                     Arc::new(builder.finish())
@@ -365,24 +325,23 @@ impl ConcurrentPlanExecutor<'_> {
                     for record in data.rows()? {
                         let val = &record.values()[col_idx];
                         match val {
+                            Value::Null => builder.append_null(),
                             Value::DateTime(dt) => {
                                 let micros = dt.and_utc().timestamp_micros();
                                 builder.append_value(micros);
                             }
                             Value::Timestamp(ts) => {
-                                let micros = ts.timestamp_micros();
-                                builder.append_value(micros);
+                                builder.append_value(ts.timestamp_micros());
                             }
-                            Value::Null
-                            | Value::Bool(_)
+                            Value::Bool(_)
                             | Value::Int64(_)
                             | Value::Float64(_)
-                            | Value::Numeric(_)
-                            | Value::BigNumeric(_)
                             | Value::String(_)
-                            | Value::Bytes(_)
                             | Value::Date(_)
                             | Value::Time(_)
+                            | Value::Numeric(_)
+                            | Value::BigNumeric(_)
+                            | Value::Bytes(_)
                             | Value::Json(_)
                             | Value::Array(_)
                             | Value::Struct(_)
@@ -394,14 +353,41 @@ impl ConcurrentPlanExecutor<'_> {
                     }
                     Arc::new(builder.finish())
                 }
-                DataType::Time | DataType::Bytes => {
+                DataType::Unknown
+                | DataType::Numeric(_)
+                | DataType::BigNumeric
+                | DataType::String
+                | DataType::Bytes
+                | DataType::Time
+                | DataType::Geography
+                | DataType::Json
+                | DataType::Struct(_)
+                | DataType::Array(_)
+                | DataType::Interval
+                | DataType::Range(_) => {
                     let mut builder = StringBuilder::new();
                     for record in data.rows()? {
                         let val = &record.values()[col_idx];
-                        if val.is_null() {
-                            builder.append_null();
-                        } else {
-                            builder.append_value(format!("{}", val));
+                        match val {
+                            Value::Null => builder.append_null(),
+                            Value::Bool(b) => builder.append_value(b.to_string()),
+                            Value::Int64(n) => builder.append_value(n.to_string()),
+                            Value::Float64(f) => builder.append_value(f.0.to_string()),
+                            Value::String(s) => builder.append_value(s),
+                            Value::Date(d) => builder.append_value(d.to_string()),
+                            Value::DateTime(dt) => builder.append_value(dt.to_string()),
+                            Value::Timestamp(ts) => builder.append_value(ts.to_rfc3339()),
+                            Value::Time(t) => builder.append_value(t.to_string()),
+                            Value::Numeric(n) => builder.append_value(n.to_string()),
+                            Value::BigNumeric(n) => builder.append_value(n.to_string()),
+                            Value::Bytes(b) => builder.append_value(hex::encode(b)),
+                            Value::Json(j) => builder.append_value(j.to_string()),
+                            Value::Array(a) => builder.append_value(format!("{:?}", a)),
+                            Value::Struct(s) => builder.append_value(format!("{:?}", s)),
+                            Value::Geography(g) => builder.append_value(g),
+                            Value::Interval(i) => builder.append_value(format!("{:?}", i)),
+                            Value::Range(r) => builder.append_value(format!("{:?}", r)),
+                            Value::Default => builder.append_value("DEFAULT"),
                         }
                     }
                     Arc::new(builder.finish())
@@ -413,43 +399,40 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(arrays)
     }
 
-    pub(crate) fn execute_load(
-        &self,
+    pub fn execute_load(
+        &mut self,
         table_name: &str,
         options: &LoadOptions,
         temp_table: bool,
         temp_schema: Option<&Vec<ColumnDef>>,
     ) -> Result<Table> {
-        if temp_table && let Some(col_defs) = temp_schema {
-            let fields: Vec<Field> = col_defs
+        if temp_table && let Some(schema_def) = temp_schema {
+            let fields: Vec<Field> = schema_def
                 .iter()
-                .map(|col| Field::nullable(col.name.clone(), col.data_type.clone()))
+                .map(|col| {
+                    let mode = if col.nullable {
+                        FieldMode::Nullable
+                    } else {
+                        FieldMode::Required
+                    };
+                    Field::new(&col.name, col.data_type.clone(), mode)
+                })
                 .collect();
             let schema = Schema::from_fields(fields);
-            let _ = self.catalog.create_table(table_name, schema);
-            let handle = self
-                .catalog
-                .get_table_handle(table_name)
-                .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
-            {
-                let table = handle.write().clone();
-                self.tables
-                    .add_write_table(table_name.to_uppercase(), table);
-            }
+            let table = Table::empty(schema);
+            self.catalog.insert_table(table_name, table)?;
         }
 
-        let schema = self
-            .tables
-            .get_table(table_name)
-            .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?
-            .schema()
-            .clone();
+        let table = self
+            .catalog
+            .get_table_mut(table_name)
+            .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
 
-        if options.overwrite
-            && let Some(t) = self.tables.get_table_mut(table_name)
-        {
-            t.clear();
+        if options.overwrite {
+            table.clear();
         }
+
+        let schema = table.schema().clone();
 
         for uri in &options.uris {
             let (path, is_cloud_uri) = if uri.starts_with("file://") {
@@ -484,7 +467,7 @@ impl ConcurrentPlanExecutor<'_> {
             };
 
             let table = self
-                .tables
+                .catalog
                 .get_table_mut(table_name)
                 .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
 
@@ -497,7 +480,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     fn load_parquet(&self, path: &str, schema: &Schema) -> Result<Vec<Vec<Value>>> {
-        use arrow::array::AsArray;
+        use arrow::array::Array;
 
         let file = File::open(path)
             .map_err(|e| Error::internal(format!("Failed to open file '{}': {}", path, e)))?;
@@ -537,6 +520,7 @@ impl ConcurrentPlanExecutor<'_> {
 
             for row_idx in 0..batch.num_rows() {
                 let mut row_values = Vec::with_capacity(target_columns.len());
+
                 for (col_idx, parquet_col_idx) in column_mapping.iter().enumerate() {
                     let value = match parquet_col_idx {
                         Some(pci) => {
@@ -560,7 +544,7 @@ impl ConcurrentPlanExecutor<'_> {
         row_idx: usize,
         target_type: &DataType,
     ) -> Result<Value> {
-        use arrow::array::AsArray;
+        use arrow::array::{Array, AsArray};
 
         if array.is_null(row_idx) {
             return Ok(Value::null());
@@ -665,6 +649,7 @@ impl ConcurrentPlanExecutor<'_> {
                     .iter()
                     .find(|(k, _)| k.eq_ignore_ascii_case(col_name))
                     .map(|(_, v)| v);
+
                 let value = match json_val {
                     Some(v) => self.json_to_value(v, &target_types[i])?,
                     None => Value::null(),
@@ -708,7 +693,7 @@ impl ConcurrentPlanExecutor<'_> {
                 }
                 DataType::Timestamp => {
                     let ts = chrono::DateTime::parse_from_rfc3339(s)
-                        .map(|d| d.with_timezone(&Utc))
+                        .map(|d| d.with_timezone(&chrono::Utc))
                         .map_err(|e| Error::internal(format!("Invalid timestamp: {}", e)))?;
                     Ok(Value::timestamp(ts))
                 }
@@ -841,44 +826,25 @@ impl ConcurrentPlanExecutor<'_> {
 
         match target_type {
             DataType::Bool => {
-                let b = matches!(s.to_uppercase().as_str(), "TRUE" | "1" | "YES");
-                Ok(Value::bool_val(b))
+                let lower = s.to_lowercase();
+                Ok(Value::bool_val(lower == "true" || lower == "1"))
             }
             DataType::Int64 => {
                 let n = s
                     .parse::<i64>()
-                    .map_err(|_| Error::internal(format!("Invalid integer: {}", s)))?;
+                    .map_err(|e| Error::internal(format!("Invalid int64: {}", e)))?;
                 Ok(Value::int64(n))
             }
             DataType::Float64 => {
                 let f = s
                     .parse::<f64>()
-                    .map_err(|_| Error::internal(format!("Invalid float: {}", s)))?;
+                    .map_err(|e| Error::internal(format!("Invalid float64: {}", e)))?;
                 Ok(Value::float64(f))
             }
             DataType::Date => {
                 let date = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                    .map_err(|e| Error::internal(format!("Invalid date '{}': {}", s, e)))?;
+                    .map_err(|e| Error::internal(format!("Invalid date: {}", e)))?;
                 Ok(Value::date(date))
-            }
-            DataType::DateTime => {
-                let dt = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
-                    .or_else(|_| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S"))
-                    .map_err(|e| Error::internal(format!("Invalid datetime '{}': {}", s, e)))?;
-                Ok(Value::datetime(dt))
-            }
-            DataType::Timestamp => {
-                let ts = chrono::DateTime::parse_from_rfc3339(s)
-                    .map(|d| d.with_timezone(&Utc))
-                    .or_else(|_| {
-                        chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
-                            .or_else(|_| {
-                                chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
-                            })
-                            .map(|dt| dt.and_utc())
-                    })
-                    .map_err(|e| Error::internal(format!("Invalid timestamp '{}': {}", s, e)))?;
-                Ok(Value::timestamp(ts))
             }
             _ => Ok(Value::string(s.to_string())),
         }

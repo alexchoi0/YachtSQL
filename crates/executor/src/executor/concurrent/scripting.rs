@@ -9,7 +9,7 @@ use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
 impl ConcurrentPlanExecutor<'_> {
-    pub(crate) fn execute_call(&mut self, procedure_name: &str, args: &[Expr]) -> Result<Table> {
+    pub(crate) async fn execute_call(&self, procedure_name: &str, args: &[Expr]) -> Result<Table> {
         use yachtsql_ir::ProcedureArgMode;
 
         let proc = self
@@ -29,19 +29,27 @@ impl ConcurrentPlanExecutor<'_> {
             match param.mode {
                 ProcedureArgMode::In => {
                     let value = if let Some(arg_expr) = args.get(i) {
+                        let vars = self.get_variables();
+                        let udf = self.get_user_functions();
                         let evaluator = IrEvaluator::new(&empty_schema)
-                            .with_variables(&self.variables)
-                            .with_user_functions(&self.user_function_defs);
+                            .with_variables(&vars)
+                            .with_user_functions(&udf);
                         evaluator.evaluate(arg_expr, &empty_record)?
                     } else {
                         default_value_for_type(&param.data_type)
                     };
-                    self.variables.insert(param_name.clone(), value.clone());
+                    self.variables
+                        .write()
+                        .unwrap()
+                        .insert(param_name.clone(), value.clone());
                     self.session.set_variable(&param_name, value);
                 }
                 ProcedureArgMode::Out => {
                     let value = default_value_for_type(&param.data_type);
-                    self.variables.insert(param_name.clone(), value.clone());
+                    self.variables
+                        .write()
+                        .unwrap()
+                        .insert(param_name.clone(), value.clone());
                     self.session.set_variable(&param_name, value);
 
                     if let Some(Expr::Variable { name }) = args.get(i) {
@@ -50,14 +58,19 @@ impl ConcurrentPlanExecutor<'_> {
                 }
                 ProcedureArgMode::InOut => {
                     let value = if let Some(arg_expr) = args.get(i) {
+                        let vars = self.get_variables();
+                        let udf = self.get_user_functions();
                         let evaluator = IrEvaluator::new(&empty_schema)
-                            .with_variables(&self.variables)
-                            .with_user_functions(&self.user_function_defs);
+                            .with_variables(&vars)
+                            .with_user_functions(&udf);
                         evaluator.evaluate(arg_expr, &empty_record)?
                     } else {
                         default_value_for_type(&param.data_type)
                     };
-                    self.variables.insert(param_name.clone(), value.clone());
+                    self.variables
+                        .write()
+                        .unwrap()
+                        .insert(param_name.clone(), value.clone());
                     self.session.set_variable(&param_name, value);
 
                     if let Some(Expr::Variable { name }) = args.get(i) {
@@ -82,21 +95,15 @@ impl ConcurrentPlanExecutor<'_> {
                 if !already_locked && let Some(handle) = self.catalog.get_table_handle(table_name) {
                     match access_type {
                         crate::plan::AccessType::Read => {
-                            if let Ok(guard) = handle.read() {
-                                unsafe {
-                                    let static_guard: std::sync::RwLockReadGuard<'static, Table> =
-                                        std::mem::transmute(guard);
-                                    self.tables.add_read(upper_name.clone(), static_guard);
-                                }
+                            if let Some(guard) = handle.try_read() {
+                                self.tables
+                                    .add_read_table(upper_name.clone(), guard.clone());
                             }
                         }
                         crate::plan::AccessType::Write | crate::plan::AccessType::WriteOptional => {
-                            if let Ok(guard) = handle.write() {
-                                unsafe {
-                                    let static_guard: std::sync::RwLockWriteGuard<'static, Table> =
-                                        std::mem::transmute(guard);
-                                    self.tables.add_write(upper_name.clone(), static_guard);
-                                }
+                            if let Some(guard) = handle.try_write() {
+                                self.tables
+                                    .add_write_table(upper_name.clone(), guard.clone());
                             }
                         }
                     }
@@ -105,13 +112,17 @@ impl ConcurrentPlanExecutor<'_> {
         }
 
         for body_plan in &body_plans {
-            last_result = self.execute_plan(body_plan)?;
+            last_result = self.execute_plan(body_plan).await?;
         }
 
         for (param_name, var_name) in out_var_mappings {
-            if let Some(value) = self.variables.get(&param_name).cloned() {
+            let value = self.variables.read().unwrap().get(&param_name).cloned();
+            if let Some(value) = value {
                 let var_name_upper = var_name.to_uppercase();
-                self.variables.insert(var_name_upper.clone(), value.clone());
+                self.variables
+                    .write()
+                    .unwrap()
+                    .insert(var_name_upper.clone(), value.clone());
                 self.session.set_variable(&var_name_upper, value);
             }
         }
@@ -119,7 +130,7 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(last_result)
     }
 
-    pub(crate) fn rollback_transaction(&mut self) {
+    pub(crate) fn rollback_transaction(&self) {
         if let Some(mut snapshot) = self.catalog.take_transaction_snapshot() {
             let mut restored_tables = Vec::new();
             for (name, table_data) in &snapshot.tables {
@@ -133,7 +144,7 @@ impl ConcurrentPlanExecutor<'_> {
             }
             for (name, table_data) in snapshot.tables {
                 if let Some(handle) = self.catalog.get_table_handle(&name)
-                    && let Ok(mut table) = handle.try_write()
+                    && let Some(mut table) = handle.try_write()
                 {
                     *table = table_data;
                 }
@@ -142,17 +153,20 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     pub(crate) fn execute_declare(
-        &mut self,
+        &self,
         name: &str,
         data_type: &DataType,
         default: Option<&Expr>,
     ) -> Result<Table> {
         let value = if let Some(expr) = default {
             let empty_schema = Schema::new();
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
             let mut evaluated = evaluator.evaluate(expr, &Record::new())?;
 
             if let (DataType::Struct(type_fields), Value::Struct(value_fields)) =
@@ -169,24 +183,31 @@ impl ConcurrentPlanExecutor<'_> {
         } else {
             default_value_for_type(data_type)
         };
-        self.variables.insert(name.to_uppercase(), value.clone());
+        self.variables
+            .write()
+            .unwrap()
+            .insert(name.to_uppercase(), value.clone());
         self.session.set_variable(name, value);
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_set_variable(&mut self, name: &str, value: &Expr) -> Result<Table> {
+    pub(crate) async fn execute_set_variable(&self, name: &str, value: &Expr) -> Result<Table> {
         let empty_schema = Schema::new();
         let empty_record = Record::new();
 
         let val = match value {
             Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => {
-                self.eval_scalar_subquery(plan, &empty_schema, &empty_record)?
+                self.eval_scalar_subquery(plan, &empty_schema, &empty_record)
+                    .await?
             }
             _ => {
+                let vars = self.get_variables();
+                let sys_vars = self.get_system_variables();
+                let udf = self.get_user_functions();
                 let evaluator = IrEvaluator::new(&empty_schema)
-                    .with_variables(&self.variables)
-                    .with_system_variables(&self.system_variables)
-                    .with_user_functions(&self.user_function_defs);
+                    .with_variables(&vars)
+                    .with_system_variables(&sys_vars)
+                    .with_user_functions(&udf);
                 evaluator.evaluate(value, &empty_record)?
             }
         };
@@ -201,14 +222,19 @@ impl ConcurrentPlanExecutor<'_> {
         if name.starts_with("@@") {
             self.session.set_system_variable(name, val);
         } else {
-            self.variables.insert(upper_name, val.clone());
+            {
+                self.variables
+                    .write()
+                    .unwrap()
+                    .insert(upper_name, val.clone());
+            }
             self.session.set_variable(name, val);
         }
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_set_multiple_variables(
-        &mut self,
+    pub(crate) async fn execute_set_multiple_variables(
+        &self,
         names: &[String],
         value: &Expr,
     ) -> Result<Table> {
@@ -217,7 +243,7 @@ impl ConcurrentPlanExecutor<'_> {
 
         let field_values: Vec<(String, Value)> = match value {
             Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => {
-                let result = self.eval_scalar_subquery_as_row(plan)?;
+                let result = self.eval_scalar_subquery_as_row(plan).await?;
                 match result {
                     Value::Struct(fields) => fields,
                     _ => {
@@ -228,10 +254,13 @@ impl ConcurrentPlanExecutor<'_> {
                 }
             }
             _ => {
+                let vars = self.get_variables();
+                let sys_vars = self.get_system_variables();
+                let udf = self.get_user_functions();
                 let evaluator = IrEvaluator::new(&empty_schema)
-                    .with_variables(&self.variables)
-                    .with_system_variables(&self.system_variables)
-                    .with_user_functions(&self.user_function_defs);
+                    .with_variables(&vars)
+                    .with_system_variables(&sys_vars)
+                    .with_user_functions(&udf);
                 let val = evaluator.evaluate(value, &empty_record)?;
 
                 match val {
@@ -256,15 +285,18 @@ impl ConcurrentPlanExecutor<'_> {
         for (i, name) in names.iter().enumerate() {
             let field_val = field_values[i].1.clone();
             let upper_name = name.to_uppercase();
-            self.variables.insert(upper_name.clone(), field_val.clone());
+            self.variables
+                .write()
+                .unwrap()
+                .insert(upper_name.clone(), field_val.clone());
             self.session.set_variable(name, field_val);
         }
 
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_if(
-        &mut self,
+    pub(crate) async fn execute_if(
+        &self,
         condition: &Expr,
         then_branch: &[PhysicalPlan],
         else_branch: Option<&[PhysicalPlan]>,
@@ -273,12 +305,16 @@ impl ConcurrentPlanExecutor<'_> {
         let empty_record = Record::new();
 
         let cond = if Self::expr_contains_subquery(condition) {
-            self.eval_expr_with_subqueries(condition, &empty_schema, &empty_record)?
+            self.eval_expr_with_subqueries(condition, &empty_schema, &empty_record)
+                .await?
         } else {
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
             evaluator.evaluate(condition, &empty_record)?
         };
 
@@ -290,13 +326,13 @@ impl ConcurrentPlanExecutor<'_> {
 
         let mut result = Table::empty(Schema::new());
         for stmt in branch {
-            result = self.execute_plan(stmt)?;
+            result = self.execute_plan(stmt).await?;
         }
         Ok(result)
     }
 
-    pub(crate) fn execute_while(
-        &mut self,
+    pub(crate) async fn execute_while(
+        &self,
         condition: &Expr,
         body: &[PhysicalPlan],
         label: Option<&str>,
@@ -307,18 +343,23 @@ impl ConcurrentPlanExecutor<'_> {
         const MAX_ITERATIONS: usize = 10000;
 
         'outer: loop {
-            let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
-            let cond = evaluator.evaluate(condition, &Record::new())?;
+            let cond = {
+                let vars = self.get_variables();
+                let sys_vars = self.get_system_variables();
+                let udf = self.get_user_functions();
+                let evaluator = IrEvaluator::new(&empty_schema)
+                    .with_variables(&vars)
+                    .with_system_variables(&sys_vars)
+                    .with_user_functions(&udf);
+                evaluator.evaluate(condition, &Record::new())?
+            };
 
             if !cond.as_bool().unwrap_or(false) {
                 break;
             }
 
             for stmt in body {
-                match self.execute_plan(stmt) {
+                match self.execute_plan(stmt).await {
                     Ok(r) => result = r,
                     Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
                         if msg == "BREAK outside of loop" {
@@ -361,8 +402,8 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     #[allow(unused_assignments)]
-    pub(crate) fn execute_loop(
-        &mut self,
+    pub(crate) async fn execute_loop(
+        &self,
         body: &[PhysicalPlan],
         label: Option<&str>,
     ) -> Result<Table> {
@@ -372,7 +413,7 @@ impl ConcurrentPlanExecutor<'_> {
 
         'outer: loop {
             for stmt in body {
-                match self.execute_plan(stmt) {
+                match self.execute_plan(stmt).await {
                     Ok(r) => result = r,
                     Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
                         if let Some(lbl) = label
@@ -400,14 +441,14 @@ impl ConcurrentPlanExecutor<'_> {
         }
     }
 
-    pub(crate) fn execute_block(
-        &mut self,
+    pub(crate) async fn execute_block(
+        &self,
         body: &[PhysicalPlan],
         label: Option<&str>,
     ) -> Result<Table> {
         let mut last_result = Table::empty(Schema::new());
         for plan in body {
-            match self.execute_plan(plan) {
+            match self.execute_plan(plan).await {
                 Ok(result) => {
                     last_result = result;
                 }
@@ -428,8 +469,8 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(last_result)
     }
 
-    pub(crate) fn execute_repeat(
-        &mut self,
+    pub(crate) async fn execute_repeat(
+        &self,
         body: &[PhysicalPlan],
         until_condition: &Expr,
     ) -> Result<Table> {
@@ -440,7 +481,7 @@ impl ConcurrentPlanExecutor<'_> {
 
         'outer: loop {
             for stmt in body {
-                match self.execute_plan(stmt) {
+                match self.execute_plan(stmt).await {
                     Ok(r) => result = r,
                     Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
                         return Ok(Table::empty(Schema::new()));
@@ -455,10 +496,13 @@ impl ConcurrentPlanExecutor<'_> {
                 }
             }
 
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
             let cond = evaluator.evaluate(until_condition, &Record::new())?;
 
             if cond.as_bool().unwrap_or(false) {
@@ -476,13 +520,13 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(result)
     }
 
-    pub(crate) fn execute_for(
-        &mut self,
+    pub(crate) async fn execute_for(
+        &self,
         variable: &str,
         query: &PhysicalPlan,
         body: &[PhysicalPlan],
     ) -> Result<Table> {
-        let query_result = self.execute_plan(query)?;
+        let query_result = self.execute_plan(query).await?;
         let schema_fields = query_result.schema().fields();
         let mut result = Table::empty(Schema::new());
 
@@ -495,11 +539,13 @@ impl ConcurrentPlanExecutor<'_> {
                 .collect();
             let row_value = Value::Struct(struct_fields);
             self.variables
+                .write()
+                .unwrap()
                 .insert(variable.to_uppercase(), row_value.clone());
             self.session.set_variable(variable, row_value);
 
             for stmt in body {
-                match self.execute_plan(stmt) {
+                match self.execute_plan(stmt).await {
                     Ok(r) => result = r,
                     Err(Error::InvalidQuery(msg)) if msg.contains("BREAK") => {
                         return Ok(Table::empty(Schema::new()));
@@ -518,17 +564,16 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(result)
     }
 
-    pub(crate) fn execute_raise(
-        &mut self,
-        message: Option<&Expr>,
-        level: RaiseLevel,
-    ) -> Result<Table> {
+    pub(crate) fn execute_raise(&self, message: Option<&Expr>, level: RaiseLevel) -> Result<Table> {
         let msg = if let Some(expr) = message {
             let empty_schema = Schema::new();
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
             let val = evaluator.evaluate(expr, &Record::new())?;
             match val {
                 Value::String(s) => s,
@@ -545,15 +590,15 @@ impl ConcurrentPlanExecutor<'_> {
         }
     }
 
-    pub(crate) fn execute_try_catch(
-        &mut self,
+    pub(crate) async fn execute_try_catch(
+        &self,
         try_block: &[(PhysicalPlan, Option<String>)],
         catch_block: &[PhysicalPlan],
     ) -> Result<Table> {
         let mut last_result = Table::empty(Schema::new());
 
         for (plan, source_sql) in try_block {
-            match self.execute_plan(plan) {
+            match self.execute_plan(plan).await {
                 Ok(result) => {
                     last_result = result;
                 }
@@ -568,13 +613,17 @@ impl ConcurrentPlanExecutor<'_> {
                         ("statement_text".to_string(), Value::String(stmt_text)),
                     ]);
                     self.variables
+                        .write()
+                        .unwrap()
                         .insert("@@ERROR".to_string(), error_struct.clone());
                     self.system_variables
+                        .write()
+                        .unwrap()
                         .insert("@@error".to_string(), error_struct.clone());
                     self.session.set_system_variable("@@error", error_struct);
 
                     for catch_plan in catch_block {
-                        match self.execute_plan(catch_plan) {
+                        match self.execute_plan(catch_plan).await {
                             Ok(result) => last_result = result,
                             Err(Error::InvalidQuery(msg))
                                 if msg == "RETURN outside of function" =>
@@ -592,8 +641,8 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(last_result)
     }
 
-    pub(crate) fn execute_execute_immediate(
-        &mut self,
+    pub(crate) async fn execute_execute_immediate(
+        &self,
         sql_expr: &Expr,
         into_variables: &[String],
         using_params: &[(Expr, Option<String>)],
@@ -602,10 +651,13 @@ impl ConcurrentPlanExecutor<'_> {
         let empty_record = Record::new();
 
         let sql_string = {
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
             let sql_value = evaluator.evaluate(sql_expr, &empty_record)?;
             sql_value
                 .as_str()
@@ -616,10 +668,13 @@ impl ConcurrentPlanExecutor<'_> {
         let mut named_params: Vec<(String, Value)> = Vec::new();
         let mut positional_values: Vec<Value> = Vec::new();
         for (param_expr, alias) in using_params {
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
             let value = evaluator.evaluate(param_expr, &empty_record)?;
             positional_values.push(value.clone());
             if let Some(name) = alias {
@@ -628,13 +683,16 @@ impl ConcurrentPlanExecutor<'_> {
         }
 
         for (upper_name, value) in &named_params {
-            self.variables.insert(upper_name.clone(), value.clone());
+            self.variables
+                .write()
+                .unwrap()
+                .insert(upper_name.clone(), value.clone());
             self.session.set_variable(upper_name, value.clone());
         }
 
         let processed_sql = self.substitute_parameters(&sql_string, &positional_values);
 
-        let result = self.execute_dynamic_sql(&processed_sql)?;
+        let result = self.execute_dynamic_sql(&processed_sql).await?;
 
         if !into_variables.is_empty() && !result.is_empty() {
             let rows: Vec<_> = result.rows()?.into_iter().collect();
@@ -644,7 +702,10 @@ impl ConcurrentPlanExecutor<'_> {
                 for (i, var_name) in into_variables.iter().enumerate() {
                     if let Some(val) = values.get(i) {
                         let upper_name = var_name.to_uppercase();
-                        self.variables.insert(upper_name.clone(), val.clone());
+                        self.variables
+                            .write()
+                            .unwrap()
+                            .insert(upper_name.clone(), val.clone());
                         self.session.set_variable(&upper_name, val.clone());
                     }
                 }
@@ -677,7 +738,7 @@ impl ConcurrentPlanExecutor<'_> {
                 }
                 let param_name: String = chars[start..i].iter().collect();
                 let upper_name = param_name[1..].to_uppercase();
-                if let Some(val) = self.variables.get(&upper_name) {
+                if let Some(val) = self.variables.read().unwrap().get(&upper_name) {
                     output.push_str(&self.value_to_sql_literal(val));
                 } else {
                     output.push_str(&param_name);
@@ -706,7 +767,7 @@ impl ConcurrentPlanExecutor<'_> {
         }
     }
 
-    fn execute_dynamic_sql(&mut self, sql: &str) -> Result<Table> {
+    async fn execute_dynamic_sql(&self, sql: &str) -> Result<Table> {
         let logical_plan = yachtsql_parser::parse_and_plan(sql, self.catalog)?;
         let physical = optimize(&logical_plan)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
@@ -718,27 +779,17 @@ impl ConcurrentPlanExecutor<'_> {
             if !already_locked && let Some(handle) = self.catalog.get_table_handle(table_name) {
                 match access_type {
                     crate::plan::AccessType::Read => {
-                        if let Ok(guard) = handle.read() {
-                            unsafe {
-                                let static_guard: std::sync::RwLockReadGuard<'static, Table> =
-                                    std::mem::transmute(guard);
-                                self.tables.add_read(upper_name.clone(), static_guard);
-                            }
-                        }
+                        let table = handle.read().clone();
+                        self.tables.add_read_table(upper_name.clone(), table);
                     }
                     crate::plan::AccessType::Write | crate::plan::AccessType::WriteOptional => {
-                        if let Ok(guard) = handle.write() {
-                            unsafe {
-                                let static_guard: std::sync::RwLockWriteGuard<'static, Table> =
-                                    std::mem::transmute(guard);
-                                self.tables.add_write(upper_name.clone(), static_guard);
-                            }
-                        }
+                        let table = handle.write().clone();
+                        self.tables.add_write_table(upper_name.clone(), table);
                     }
                 }
             }
         }
 
-        self.execute_plan(&executor_plan)
+        self.execute_plan(&executor_plan).await
     }
 }

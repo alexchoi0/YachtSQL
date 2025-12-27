@@ -8,6 +8,8 @@ use yachtsql_ir::{
 };
 use yachtsql_optimizer::{OptimizedLogicalPlan, SampleType};
 
+const PARALLEL_ROW_THRESHOLD: u64 = 5000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessType {
     Read,
@@ -52,6 +54,7 @@ pub enum PhysicalPlan {
         table_name: String,
         schema: PlanSchema,
         projection: Option<Vec<usize>>,
+        row_count: Option<u64>,
     },
 
     Sample {
@@ -77,12 +80,14 @@ pub enum PhysicalPlan {
         join_type: JoinType,
         condition: Option<Expr>,
         schema: PlanSchema,
+        parallel: bool,
     },
 
     CrossJoin {
         left: Box<PhysicalPlan>,
         right: Box<PhysicalPlan>,
         schema: PlanSchema,
+        parallel: bool,
     },
 
     HashJoin {
@@ -92,6 +97,7 @@ pub enum PhysicalPlan {
         left_keys: Vec<Expr>,
         right_keys: Vec<Expr>,
         schema: PlanSchema,
+        parallel: bool,
     },
 
     HashAggregate {
@@ -127,6 +133,7 @@ pub enum PhysicalPlan {
         inputs: Vec<PhysicalPlan>,
         all: bool,
         schema: PlanSchema,
+        parallel: bool,
     },
 
     Intersect {
@@ -134,6 +141,7 @@ pub enum PhysicalPlan {
         right: Box<PhysicalPlan>,
         all: bool,
         schema: PlanSchema,
+        parallel: bool,
     },
 
     Except {
@@ -141,6 +149,7 @@ pub enum PhysicalPlan {
         right: Box<PhysicalPlan>,
         all: bool,
         schema: PlanSchema,
+        parallel: bool,
     },
 
     Window {
@@ -163,6 +172,7 @@ pub enum PhysicalPlan {
     WithCte {
         ctes: Vec<CteDefinition>,
         body: Box<PhysicalPlan>,
+        parallel_ctes: Vec<usize>,
     },
 
     Values {
@@ -442,6 +452,7 @@ impl PhysicalPlan {
                 table_name: table_name.clone(),
                 schema: schema.clone(),
                 projection: projection.clone(),
+                row_count: None,
             },
 
             OptimizedLogicalPlan::Sample {
@@ -475,23 +486,35 @@ impl PhysicalPlan {
                 join_type,
                 condition,
                 schema,
-            } => PhysicalPlan::NestedLoopJoin {
-                left: Box::new(Self::from_physical(left)),
-                right: Box::new(Self::from_physical(right)),
-                join_type: *join_type,
-                condition: condition.clone(),
-                schema: schema.clone(),
-            },
+            } => {
+                let left_plan = Box::new(Self::from_physical(left));
+                let right_plan = Box::new(Self::from_physical(right));
+                let parallel = Self::should_parallelize(&left_plan, &right_plan);
+                PhysicalPlan::NestedLoopJoin {
+                    left: left_plan,
+                    right: right_plan,
+                    join_type: *join_type,
+                    condition: condition.clone(),
+                    schema: schema.clone(),
+                    parallel,
+                }
+            }
 
             OptimizedLogicalPlan::CrossJoin {
                 left,
                 right,
                 schema,
-            } => PhysicalPlan::CrossJoin {
-                left: Box::new(Self::from_physical(left)),
-                right: Box::new(Self::from_physical(right)),
-                schema: schema.clone(),
-            },
+            } => {
+                let left_plan = Box::new(Self::from_physical(left));
+                let right_plan = Box::new(Self::from_physical(right));
+                let parallel = Self::should_parallelize(&left_plan, &right_plan);
+                PhysicalPlan::CrossJoin {
+                    left: left_plan,
+                    right: right_plan,
+                    schema: schema.clone(),
+                    parallel,
+                }
+            }
 
             OptimizedLogicalPlan::HashJoin {
                 left,
@@ -500,14 +523,20 @@ impl PhysicalPlan {
                 left_keys,
                 right_keys,
                 schema,
-            } => PhysicalPlan::HashJoin {
-                left: Box::new(Self::from_physical(left)),
-                right: Box::new(Self::from_physical(right)),
-                join_type: *join_type,
-                left_keys: left_keys.clone(),
-                right_keys: right_keys.clone(),
-                schema: schema.clone(),
-            },
+            } => {
+                let left_plan = Box::new(Self::from_physical(left));
+                let right_plan = Box::new(Self::from_physical(right));
+                let parallel = Self::should_parallelize(&left_plan, &right_plan);
+                PhysicalPlan::HashJoin {
+                    left: left_plan,
+                    right: right_plan,
+                    join_type: *join_type,
+                    left_keys: left_keys.clone(),
+                    right_keys: right_keys.clone(),
+                    schema: schema.clone(),
+                    parallel,
+                }
+            }
 
             OptimizedLogicalPlan::HashAggregate {
                 input,
@@ -556,35 +585,52 @@ impl PhysicalPlan {
                 inputs,
                 all,
                 schema,
-            } => PhysicalPlan::Union {
-                inputs: inputs.iter().map(Self::from_physical).collect(),
-                all: *all,
-                schema: schema.clone(),
-            },
+            } => {
+                let input_plans: Vec<_> = inputs.iter().map(Self::from_physical).collect();
+                let parallel = Self::should_parallelize_union(&input_plans);
+                PhysicalPlan::Union {
+                    inputs: input_plans,
+                    all: *all,
+                    schema: schema.clone(),
+                    parallel,
+                }
+            }
 
             OptimizedLogicalPlan::Intersect {
                 left,
                 right,
                 all,
                 schema,
-            } => PhysicalPlan::Intersect {
-                left: Box::new(Self::from_physical(left)),
-                right: Box::new(Self::from_physical(right)),
-                all: *all,
-                schema: schema.clone(),
-            },
+            } => {
+                let left_plan = Box::new(Self::from_physical(left));
+                let right_plan = Box::new(Self::from_physical(right));
+                let parallel = Self::should_parallelize(&left_plan, &right_plan);
+                PhysicalPlan::Intersect {
+                    left: left_plan,
+                    right: right_plan,
+                    all: *all,
+                    schema: schema.clone(),
+                    parallel,
+                }
+            }
 
             OptimizedLogicalPlan::Except {
                 left,
                 right,
                 all,
                 schema,
-            } => PhysicalPlan::Except {
-                left: Box::new(Self::from_physical(left)),
-                right: Box::new(Self::from_physical(right)),
-                all: *all,
-                schema: schema.clone(),
-            },
+            } => {
+                let left_plan = Box::new(Self::from_physical(left));
+                let right_plan = Box::new(Self::from_physical(right));
+                let parallel = Self::should_parallelize(&left_plan, &right_plan);
+                PhysicalPlan::Except {
+                    left: left_plan,
+                    right: right_plan,
+                    all: *all,
+                    schema: schema.clone(),
+                    parallel,
+                }
+            }
 
             OptimizedLogicalPlan::Window {
                 input,
@@ -611,10 +657,27 @@ impl PhysicalPlan {
                 predicate: predicate.clone(),
             },
 
-            OptimizedLogicalPlan::WithCte { ctes, body } => PhysicalPlan::WithCte {
-                ctes: ctes.clone(),
-                body: Box::new(Self::from_physical(body)),
-            },
+            OptimizedLogicalPlan::WithCte { ctes, body } => {
+                let parallel_ctes: Vec<usize> = ctes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, cte)| !cte.recursive)
+                    .filter(|(_, cte)| {
+                        if let Ok(optimized) = yachtsql_optimizer::optimize(&cte.query) {
+                            let plan = PhysicalPlan::from_physical(&optimized);
+                            plan.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+                        } else {
+                            false
+                        }
+                    })
+                    .map(|(i, _)| i)
+                    .collect();
+                PhysicalPlan::WithCte {
+                    ctes: ctes.clone(),
+                    body: Box::new(Self::from_physical(body)),
+                    parallel_ctes,
+                }
+            }
 
             OptimizedLogicalPlan::Values { values, schema } => PhysicalPlan::Values {
                 values: values.clone(),
@@ -1095,7 +1158,7 @@ impl PhysicalPlan {
                 }
             }
 
-            PhysicalPlan::WithCte { ctes, body } => {
+            PhysicalPlan::WithCte { ctes, body, .. } => {
                 for cte in ctes {
                     cte_names.insert(cte.name.to_uppercase());
                     if let Ok(physical_cte) = yachtsql_optimizer::optimize(&cte.query) {
@@ -1242,6 +1305,230 @@ impl PhysicalPlan {
             | PhysicalPlan::Values { .. }
             | PhysicalPlan::Empty { .. }
             | PhysicalPlan::GapFill { .. } => {}
+        }
+    }
+
+    pub fn estimate_rows(&self) -> u64 {
+        match self {
+            PhysicalPlan::TableScan { row_count, .. } => row_count.unwrap_or(1000),
+            PhysicalPlan::Values { values, .. } => values.len() as u64,
+            PhysicalPlan::Empty { .. } => 0,
+            PhysicalPlan::Filter { input, .. } => input.estimate_rows() / 2,
+            PhysicalPlan::Project { input, .. } => input.estimate_rows(),
+            PhysicalPlan::Sample { sample_value, .. } => *sample_value as u64,
+            PhysicalPlan::NestedLoopJoin { left, right, .. } => {
+                left.estimate_rows().saturating_mul(right.estimate_rows())
+            }
+            PhysicalPlan::HashJoin { left, right, .. } => {
+                std::cmp::max(left.estimate_rows(), right.estimate_rows())
+            }
+            PhysicalPlan::CrossJoin { left, right, .. } => {
+                left.estimate_rows().saturating_mul(right.estimate_rows())
+            }
+            PhysicalPlan::HashAggregate {
+                input, group_by, ..
+            } => {
+                if group_by.is_empty() {
+                    1
+                } else {
+                    std::cmp::max(1, input.estimate_rows() / 10)
+                }
+            }
+            PhysicalPlan::Sort { input, .. } => input.estimate_rows(),
+            PhysicalPlan::Limit { limit, input, .. } => {
+                std::cmp::min(limit.unwrap_or(usize::MAX) as u64, input.estimate_rows())
+            }
+            PhysicalPlan::TopN { limit, input, .. } => {
+                std::cmp::min(*limit as u64, input.estimate_rows())
+            }
+            PhysicalPlan::Distinct { input } => std::cmp::max(1, input.estimate_rows() / 2),
+            PhysicalPlan::Union { inputs, .. } => inputs.iter().map(|p| p.estimate_rows()).sum(),
+            PhysicalPlan::Intersect { left, right, .. } => {
+                std::cmp::min(left.estimate_rows(), right.estimate_rows())
+            }
+            PhysicalPlan::Except { left, .. } => left.estimate_rows(),
+            PhysicalPlan::Window { input, .. } => input.estimate_rows(),
+            PhysicalPlan::Unnest { input, .. } => input.estimate_rows().saturating_mul(10),
+            PhysicalPlan::Qualify { input, .. } => std::cmp::max(1, input.estimate_rows() / 2),
+            PhysicalPlan::WithCte { body, .. } => body.estimate_rows(),
+            PhysicalPlan::GapFill { input, .. } => input.estimate_rows().saturating_mul(2),
+            _ => 1,
+        }
+    }
+
+    fn is_memory_bound(&self) -> bool {
+        match self {
+            PhysicalPlan::TableScan { .. } => true,
+            PhysicalPlan::Filter { input, .. }
+            | PhysicalPlan::Project { input, .. }
+            | PhysicalPlan::Limit { input, .. }
+            | PhysicalPlan::Sample { input, .. } => input.is_memory_bound(),
+            _ => false,
+        }
+    }
+
+    fn should_parallelize(left: &Self, right: &Self) -> bool {
+        if left.is_memory_bound() && right.is_memory_bound() {
+            return false;
+        }
+        left.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+            && right.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+    }
+
+    fn should_parallelize_union(inputs: &[Self]) -> bool {
+        let non_memory_bound = inputs.iter().filter(|p| !p.is_memory_bound()).count();
+        if non_memory_bound < 2 {
+            return false;
+        }
+        inputs.len() >= 2
+            && inputs
+                .iter()
+                .filter(|p| p.estimate_rows() >= PARALLEL_ROW_THRESHOLD)
+                .count()
+                >= 2
+    }
+
+    pub fn populate_row_counts(&mut self, catalog: &crate::concurrent_catalog::ConcurrentCatalog) {
+        match self {
+            PhysicalPlan::TableScan {
+                table_name,
+                row_count,
+                ..
+            } => {
+                if let Some(handle) = catalog.get_table_handle(table_name) {
+                    *row_count = Some(handle.read().row_count() as u64);
+                }
+            }
+            PhysicalPlan::Filter { input, .. }
+            | PhysicalPlan::Project { input, .. }
+            | PhysicalPlan::Sort { input, .. }
+            | PhysicalPlan::Limit { input, .. }
+            | PhysicalPlan::TopN { input, .. }
+            | PhysicalPlan::Distinct { input }
+            | PhysicalPlan::Window { input, .. }
+            | PhysicalPlan::Unnest { input, .. }
+            | PhysicalPlan::Qualify { input, .. }
+            | PhysicalPlan::Sample { input, .. }
+            | PhysicalPlan::GapFill { input, .. } => {
+                input.populate_row_counts(catalog);
+            }
+            PhysicalPlan::HashAggregate { input, .. } => {
+                input.populate_row_counts(catalog);
+            }
+            PhysicalPlan::NestedLoopJoin {
+                left,
+                right,
+                parallel,
+                ..
+            }
+            | PhysicalPlan::CrossJoin {
+                left,
+                right,
+                parallel,
+                ..
+            }
+            | PhysicalPlan::HashJoin {
+                left,
+                right,
+                parallel,
+                ..
+            } => {
+                left.populate_row_counts(catalog);
+                right.populate_row_counts(catalog);
+                *parallel = Self::should_parallelize(left, right);
+            }
+            PhysicalPlan::Union {
+                inputs, parallel, ..
+            } => {
+                for input in inputs.iter_mut() {
+                    input.populate_row_counts(catalog);
+                }
+                *parallel = Self::should_parallelize_union(inputs);
+            }
+            PhysicalPlan::Intersect {
+                left,
+                right,
+                parallel,
+                ..
+            }
+            | PhysicalPlan::Except {
+                left,
+                right,
+                parallel,
+                ..
+            } => {
+                left.populate_row_counts(catalog);
+                right.populate_row_counts(catalog);
+                *parallel = Self::should_parallelize(left, right);
+            }
+            PhysicalPlan::WithCte {
+                ctes,
+                body,
+                parallel_ctes,
+            } => {
+                body.populate_row_counts(catalog);
+                *parallel_ctes = ctes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, cte)| !cte.recursive)
+                    .filter(|(_, cte)| {
+                        if let Ok(optimized) = yachtsql_optimizer::optimize(&cte.query) {
+                            let mut plan = PhysicalPlan::from_physical(&optimized);
+                            plan.populate_row_counts(catalog);
+                            plan.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+                        } else {
+                            false
+                        }
+                    })
+                    .map(|(i, _)| i)
+                    .collect();
+            }
+            PhysicalPlan::Values { .. }
+            | PhysicalPlan::Empty { .. }
+            | PhysicalPlan::CreateTable { .. }
+            | PhysicalPlan::DropTable { .. }
+            | PhysicalPlan::AlterTable { .. }
+            | PhysicalPlan::Truncate { .. }
+            | PhysicalPlan::Insert { .. }
+            | PhysicalPlan::Update { .. }
+            | PhysicalPlan::Delete { .. }
+            | PhysicalPlan::Merge { .. }
+            | PhysicalPlan::CreateView { .. }
+            | PhysicalPlan::DropView { .. }
+            | PhysicalPlan::CreateSchema { .. }
+            | PhysicalPlan::DropSchema { .. }
+            | PhysicalPlan::UndropSchema { .. }
+            | PhysicalPlan::AlterSchema { .. }
+            | PhysicalPlan::CreateFunction { .. }
+            | PhysicalPlan::DropFunction { .. }
+            | PhysicalPlan::CreateProcedure { .. }
+            | PhysicalPlan::DropProcedure { .. }
+            | PhysicalPlan::Call { .. }
+            | PhysicalPlan::SetVariable { .. }
+            | PhysicalPlan::SetMultipleVariables { .. }
+            | PhysicalPlan::BeginTransaction
+            | PhysicalPlan::Commit
+            | PhysicalPlan::Rollback
+            | PhysicalPlan::ExportData { .. }
+            | PhysicalPlan::LoadData { .. }
+            | PhysicalPlan::CreateSnapshot { .. }
+            | PhysicalPlan::DropSnapshot { .. }
+            | PhysicalPlan::Grant { .. }
+            | PhysicalPlan::Revoke { .. }
+            | PhysicalPlan::Raise { .. }
+            | PhysicalPlan::Block { .. }
+            | PhysicalPlan::If { .. }
+            | PhysicalPlan::While { .. }
+            | PhysicalPlan::Loop { .. }
+            | PhysicalPlan::Repeat { .. }
+            | PhysicalPlan::For { .. }
+            | PhysicalPlan::Declare { .. }
+            | PhysicalPlan::Return { .. }
+            | PhysicalPlan::ExecuteImmediate { .. }
+            | PhysicalPlan::Break { .. }
+            | PhysicalPlan::Continue { .. }
+            | PhysicalPlan::TryCatch { .. }
+            | PhysicalPlan::Assert { .. } => {}
         }
     }
 }

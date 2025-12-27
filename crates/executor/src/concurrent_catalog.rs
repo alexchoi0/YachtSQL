@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, Mutex};
 
 use dashmap::DashMap;
+use parking_lot::RwLock;
 use yachtsql_common::error::{Error, Result};
 use yachtsql_ir::Expr;
 use yachtsql_storage::{Schema, Table};
@@ -18,62 +19,85 @@ pub struct DroppedSchemaData {
     pub table_defaults: Vec<(String, Vec<ColumnDefault>)>,
 }
 
-pub struct TableLockSet<'a> {
-    read_guards: Vec<(String, RwLockReadGuard<'a, Table>)>,
-    write_guards: Vec<(String, RwLockWriteGuard<'a, Table>)>,
+pub struct TableLockSet {
+    read_tables: Mutex<HashMap<String, Table>>,
+    write_tables: Mutex<HashMap<String, Table>>,
+    catalog: Option<Arc<ConcurrentCatalog>>,
 }
 
-impl<'a> TableLockSet<'a> {
+unsafe impl Send for TableLockSet {}
+unsafe impl Sync for TableLockSet {}
+
+impl TableLockSet {
     pub fn new() -> Self {
         Self {
-            read_guards: Vec::new(),
-            write_guards: Vec::new(),
+            read_tables: Mutex::new(HashMap::new()),
+            write_tables: Mutex::new(HashMap::new()),
+            catalog: None,
         }
     }
 
-    pub fn add_read(&mut self, name: String, guard: RwLockReadGuard<'a, Table>) {
-        self.read_guards.push((name, guard));
+    pub fn with_catalog(catalog: Arc<ConcurrentCatalog>) -> Self {
+        Self {
+            read_tables: Mutex::new(HashMap::new()),
+            write_tables: Mutex::new(HashMap::new()),
+            catalog: Some(catalog),
+        }
     }
 
-    pub fn add_write(&mut self, name: String, guard: RwLockWriteGuard<'a, Table>) {
-        self.write_guards.push((name, guard));
+    pub fn set_catalog(&mut self, catalog: Arc<ConcurrentCatalog>) {
+        self.catalog = Some(catalog);
     }
 
-    pub fn get_table(&self, name: &str) -> Option<&Table> {
+    pub fn add_read_table(&self, name: String, table: Table) {
+        self.read_tables.lock().unwrap().insert(name, table);
+    }
+
+    pub fn add_write_table(&self, name: String, table: Table) {
+        self.write_tables.lock().unwrap().insert(name, table);
+    }
+
+    pub fn get_table(&self, name: &str) -> Option<Table> {
         let upper = name.to_uppercase();
-        for (n, guard) in &self.write_guards {
-            if n == &upper {
-                return Some(&**guard);
-            }
+        if let Some(table) = self.write_tables.lock().unwrap().get(&upper) {
+            return Some(table.clone());
         }
-        for (n, guard) in &self.read_guards {
-            if n == &upper {
-                return Some(&**guard);
-            }
+        if let Some(table) = self.read_tables.lock().unwrap().get(&upper) {
+            return Some(table.clone());
         }
         None
     }
 
-    pub fn get_table_mut(&mut self, name: &str) -> Option<&mut Table> {
+    #[allow(clippy::mut_from_ref)]
+    pub fn get_table_mut(&self, name: &str) -> Option<&mut Table> {
         let upper = name.to_uppercase();
-        for (n, guard) in &mut self.write_guards {
-            if n == &upper {
-                return Some(&mut **guard);
-            }
+        let mut write_tables = self.write_tables.lock().unwrap();
+        if write_tables.contains_key(&upper) {
+            return Some(unsafe { &mut *(write_tables.get_mut(&upper).unwrap() as *mut Table) });
         }
         None
+    }
+
+    pub fn update_table(&self, name: &str, table: Table) {
+        let upper = name.to_uppercase();
+        self.write_tables.lock().unwrap().insert(upper, table);
     }
 
     pub fn snapshot_write_locked_tables(&self) -> HashMap<String, Table> {
-        let mut snapshot = HashMap::new();
-        for (name, guard) in &self.write_guards {
-            snapshot.insert(name.clone(), (*guard).clone());
+        self.write_tables.lock().unwrap().clone()
+    }
+
+    pub fn commit_writes(&self) {
+        if let Some(ref catalog) = self.catalog {
+            let write_tables = self.write_tables.lock().unwrap();
+            for (name, table) in write_tables.iter() {
+                catalog.update_table(name, table.clone());
+            }
         }
-        snapshot
     }
 }
 
-impl Default for TableLockSet<'_> {
+impl Default for TableLockSet {
     fn default() -> Self {
         Self::new()
     }
@@ -119,11 +143,11 @@ impl ConcurrentCatalog {
     pub fn begin_transaction(&self) {
         let mut tables_snapshot = HashMap::new();
         for entry in self.tables.iter() {
-            if let Ok(table) = entry.value().try_read() {
+            if let Some(table) = entry.value().try_read() {
                 tables_snapshot.insert(entry.key().clone(), table.clone());
             }
         }
-        *self.transaction_snapshot.write().unwrap() = Some(TransactionSnapshot {
+        *self.transaction_snapshot.write() = Some(TransactionSnapshot {
             tables: tables_snapshot,
         });
     }
@@ -133,18 +157,18 @@ impl ConcurrentCatalog {
         for name in table_names {
             let key = name.to_uppercase();
             if let Some(handle) = self.tables.get(&key)
-                && let Ok(table) = handle.try_read()
+                && let Some(table) = handle.try_read()
             {
                 tables_snapshot.insert(key, table.clone());
             }
         }
-        *self.transaction_snapshot.write().unwrap() = Some(TransactionSnapshot {
+        *self.transaction_snapshot.write() = Some(TransactionSnapshot {
             tables: tables_snapshot,
         });
     }
 
     pub fn snapshot_table(&self, name: &str, table_data: Table) {
-        let mut snapshot_guard = self.transaction_snapshot.write().unwrap();
+        let mut snapshot_guard = self.transaction_snapshot.write();
         if let Some(ref mut snapshot) = *snapshot_guard {
             snapshot.tables.insert(name.to_uppercase(), table_data);
         } else {
@@ -155,15 +179,15 @@ impl ConcurrentCatalog {
     }
 
     pub fn commit(&self) {
-        *self.transaction_snapshot.write().unwrap() = None;
+        *self.transaction_snapshot.write() = None;
     }
 
     pub fn rollback(&self) {
-        let snapshot = self.transaction_snapshot.write().unwrap().take();
+        let snapshot = self.transaction_snapshot.write().take();
         if let Some(snapshot) = snapshot {
             for (name, table_data) in snapshot.tables {
                 if let Some(handle) = self.tables.get(&name)
-                    && let Ok(mut table) = handle.try_write()
+                    && let Some(mut table) = handle.try_write()
                 {
                     *table = table_data;
                 }
@@ -172,7 +196,7 @@ impl ConcurrentCatalog {
     }
 
     pub fn take_transaction_snapshot(&self) -> Option<TransactionSnapshot> {
-        self.transaction_snapshot.write().unwrap().take()
+        self.transaction_snapshot.write().take()
     }
 
     fn resolve_table_name(&self, name: &str) -> String {
@@ -180,7 +204,7 @@ impl ConcurrentCatalog {
         if key.contains('.') || self.tables.contains_key(&key) {
             return key;
         }
-        let search_path = self.search_path.read().unwrap();
+        let search_path = self.search_path.read();
         for schema in search_path.iter() {
             let qualified = format!("{}.{}", schema, key);
             if self.tables.contains_key(&qualified) {
@@ -195,8 +219,8 @@ impl ConcurrentCatalog {
         self.tables.get(&key).map(|r| r.clone())
     }
 
-    pub fn acquire_table_locks(&self, accesses: &TableAccessSet) -> Result<TableLockSet<'static>> {
-        let mut locks = TableLockSet::new();
+    pub fn acquire_table_locks(&self, accesses: &TableAccessSet) -> Result<TableLockSet> {
+        let locks = TableLockSet::new();
 
         for (table_name, access_type) in &accesses.accesses {
             let resolved = self.resolve_table_name(table_name);
@@ -206,35 +230,23 @@ impl ConcurrentCatalog {
                 AccessType::WriteOptional => {
                     if let Some(handle) = handle_opt {
                         let handle = handle.clone();
-                        let guard = handle.write().map_err(|_| {
-                            Error::internal(format!("Lock poisoned for table: {}", table_name))
-                        })?;
-                        let guard: RwLockWriteGuard<'static, Table> =
-                            unsafe { std::mem::transmute(guard) };
-                        locks.add_write(resolved, guard);
+                        let table = handle.write().clone();
+                        locks.add_write_table(resolved, table);
                     }
                 }
                 AccessType::Read => {
                     let handle = handle_opt
                         .ok_or_else(|| Error::TableNotFound(table_name.clone()))?
                         .clone();
-                    let guard = handle.read().map_err(|_| {
-                        Error::internal(format!("Lock poisoned for table: {}", table_name))
-                    })?;
-                    let guard: RwLockReadGuard<'static, Table> =
-                        unsafe { std::mem::transmute(guard) };
-                    locks.add_read(resolved, guard);
+                    let table = handle.read().clone();
+                    locks.add_read_table(resolved, table);
                 }
                 AccessType::Write => {
                     let handle = handle_opt
                         .ok_or_else(|| Error::TableNotFound(table_name.clone()))?
                         .clone();
-                    let guard = handle.write().map_err(|_| {
-                        Error::internal(format!("Lock poisoned for table: {}", table_name))
-                    })?;
-                    let guard: RwLockWriteGuard<'static, Table> =
-                        unsafe { std::mem::transmute(guard) };
-                    locks.add_write(resolved, guard);
+                    let table = handle.write().clone();
+                    locks.add_write_table(resolved, table);
                 }
             }
         }
@@ -309,7 +321,7 @@ impl ConcurrentCatalog {
         let mut dropped_defaults = Vec::new();
         for table_key in tables_in_schema {
             if let Some((_, handle)) = self.tables.remove(&table_key) {
-                let table = handle.read().unwrap().clone();
+                let table = handle.read().clone();
                 dropped_tables.push((table_key.clone(), table));
             }
             if let Some((_, defaults)) = self.table_defaults.remove(&table_key) {
@@ -400,12 +412,11 @@ impl ConcurrentCatalog {
     }
 
     pub fn set_search_path(&self, schemas: Vec<String>) {
-        *self.search_path.write().unwrap() =
-            schemas.into_iter().map(|s| s.to_uppercase()).collect();
+        *self.search_path.write() = schemas.into_iter().map(|s| s.to_uppercase()).collect();
     }
 
     pub fn get_search_path(&self) -> Vec<String> {
-        self.search_path.read().unwrap().clone()
+        self.search_path.read().clone()
     }
 
     pub fn create_table(&self, name: &str, schema: Schema) -> Result<()> {
@@ -498,6 +509,13 @@ impl ConcurrentCatalog {
     pub fn create_or_replace_table(&self, name: &str, table: Table) {
         let key = name.to_uppercase();
         self.tables.insert(key, Arc::new(RwLock::new(table)));
+    }
+
+    pub fn update_table(&self, name: &str, table: Table) {
+        let key = name.to_uppercase();
+        if let Some(handle) = self.tables.get(&key) {
+            *handle.write() = table;
+        }
     }
 
     pub fn create_function(&self, func: UserFunction, or_replace: bool) -> Result<()> {
@@ -638,7 +656,7 @@ impl ConcurrentCatalog {
 
     pub fn get_table_schema(&self, name: &str) -> Option<Schema> {
         let handle = self.get_table_handle(name)?;
-        let table = handle.read().ok()?;
+        let table = handle.read();
         Some(table.schema().clone())
     }
 }

@@ -10,35 +10,41 @@ use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
 impl ConcurrentPlanExecutor<'_> {
-    pub(crate) fn execute_insert(
-        &mut self,
+    pub(crate) async fn execute_insert(
+        &self,
         table_name: &str,
         columns: &[String],
         source: &PhysicalPlan,
     ) -> Result<Table> {
-        let target = self
-            .tables
-            .get_table_mut(table_name)
-            .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
-        let target_schema = target.schema().clone();
-        let fields = target_schema.fields().to_vec();
+        let (target_schema, fields, default_values) = {
+            let target = self
+                .tables
+                .get_table_mut(table_name)
+                .ok_or_else(|| Error::TableNotFound(table_name.to_string()))?;
+            let target_schema = target.schema().clone();
+            let fields = target_schema.fields().to_vec();
 
-        let evaluator = IrEvaluator::new(&target_schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-        let empty_record = Record::new();
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
+            let evaluator = IrEvaluator::new(&target_schema)
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
+            let empty_record = Record::new();
 
-        let mut default_values: Vec<Option<Value>> = vec![None; target_schema.field_count()];
-        if let Some(defaults) = self.catalog.get_table_defaults(table_name) {
-            for default in defaults {
-                if let Some(idx) = target_schema.field_index(&default.column_name)
-                    && let Ok(val) = evaluator.evaluate(&default.default_expr, &empty_record)
-                {
-                    default_values[idx] = Some(val);
+            let mut default_values: Vec<Option<Value>> = vec![None; target_schema.field_count()];
+            if let Some(defaults) = self.catalog.get_table_defaults(table_name) {
+                for default in defaults {
+                    if let Some(idx) = target_schema.field_index(&default.column_name)
+                        && let Ok(val) = evaluator.evaluate(&default.default_expr, &empty_record)
+                    {
+                        default_values[idx] = Some(val);
+                    }
                 }
             }
-        }
+            (target_schema, fields, default_values)
+        };
 
         if let PhysicalPlan::Values { values, .. } = source {
             let empty_schema = Schema::new();
@@ -54,27 +60,34 @@ impl ConcurrentPlanExecutor<'_> {
                             let final_val = match expr {
                                 Expr::Default => default_values[i].clone().unwrap_or(Value::Null),
                                 _ if Self::expr_contains_subquery(expr) => {
-                                    self.eval_expr_with_subqueries(expr, &empty_schema, &empty_rec)?
+                                    self.eval_expr_with_subqueries(expr, &empty_schema, &empty_rec)
+                                        .await?
                                 }
                                 _ => {
+                                    let vars = self.get_variables();
+                                    let sys_vars = self.get_system_variables();
+                                    let udf = self.get_user_functions();
                                     let values_evaluator = IrEvaluator::new(&empty_schema)
-                                        .with_variables(&self.variables)
-                                        .with_system_variables(&self.system_variables)
-                                        .with_user_functions(&self.user_function_defs);
+                                        .with_variables(&vars)
+                                        .with_system_variables(&sys_vars)
+                                        .with_user_functions(&udf);
                                     values_evaluator.evaluate(expr, &empty_rec)?
                                 }
                             };
                             coerced_row.push(coerce_value(final_val, &fields[i].data_type)?);
                         } else if Self::expr_contains_subquery(expr) {
-                            coerced_row.push(self.eval_expr_with_subqueries(
-                                expr,
-                                &empty_schema,
-                                &empty_rec,
-                            )?);
+                            coerced_row.push(
+                                self.eval_expr_with_subqueries(expr, &empty_schema, &empty_rec)
+                                    .await?,
+                            );
                         } else {
+                            let vars = self.get_variables();
+                            let sys_vars = self.get_system_variables();
+                            let udf = self.get_user_functions();
                             let values_evaluator = IrEvaluator::new(&empty_schema)
-                                .with_variables(&self.variables)
-                                .with_user_functions(&self.user_function_defs);
+                                .with_variables(&vars)
+                                .with_system_variables(&sys_vars)
+                                .with_user_functions(&udf);
                             coerced_row.push(values_evaluator.evaluate(expr, &empty_rec)?);
                         }
                     }
@@ -95,13 +108,17 @@ impl ConcurrentPlanExecutor<'_> {
                                     default_values[col_idx].clone().unwrap_or(Value::Null)
                                 }
                                 _ if Self::expr_contains_subquery(expr) => {
-                                    self.eval_expr_with_subqueries(expr, &empty_schema, &empty_rec)?
+                                    self.eval_expr_with_subqueries(expr, &empty_schema, &empty_rec)
+                                        .await?
                                 }
                                 _ => {
+                                    let vars = self.get_variables();
+                                    let sys_vars = self.get_system_variables();
+                                    let udf = self.get_user_functions();
                                     let values_evaluator = IrEvaluator::new(&empty_schema)
-                                        .with_variables(&self.variables)
-                                        .with_system_variables(&self.system_variables)
-                                        .with_user_functions(&self.user_function_defs);
+                                        .with_variables(&vars)
+                                        .with_system_variables(&sys_vars)
+                                        .with_user_functions(&udf);
                                     values_evaluator.evaluate(expr, &empty_rec)?
                                 }
                             };
@@ -123,7 +140,7 @@ impl ConcurrentPlanExecutor<'_> {
             return Ok(Table::empty(Schema::new()));
         }
 
-        let source_table = self.execute_plan(source)?;
+        let source_table = self.execute_plan(source).await?;
 
         let target = self
             .tables
@@ -172,8 +189,8 @@ impl ConcurrentPlanExecutor<'_> {
         Ok(Table::empty(Schema::new()))
     }
 
-    pub(crate) fn execute_update(
-        &mut self,
+    pub(crate) async fn execute_update(
+        &self,
         table_name: &str,
         alias: Option<&str>,
         assignments: &[Assignment],
@@ -189,22 +206,28 @@ impl ConcurrentPlanExecutor<'_> {
         let source_name = alias.unwrap_or(table_name);
         let target_schema = Self::schema_with_source_table(&base_schema, source_name);
 
-        let evaluator_for_defaults = IrEvaluator::new(&base_schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-        let empty_record = Record::new();
-        let mut default_values: Vec<Option<Value>> = vec![None; base_schema.field_count()];
-        if let Some(defaults) = self.catalog.get_table_defaults(table_name) {
-            for default in defaults {
-                if let Some(idx) = base_schema.field_index(&default.column_name)
-                    && let Ok(val) =
-                        evaluator_for_defaults.evaluate(&default.default_expr, &empty_record)
-                {
-                    default_values[idx] = Some(val);
+        let default_values = {
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
+            let evaluator_for_defaults = IrEvaluator::new(&base_schema)
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
+            let empty_record = Record::new();
+            let mut default_values: Vec<Option<Value>> = vec![None; base_schema.field_count()];
+            if let Some(defaults) = self.catalog.get_table_defaults(table_name) {
+                for default in defaults {
+                    if let Some(idx) = base_schema.field_index(&default.column_name)
+                        && let Ok(val) =
+                            evaluator_for_defaults.evaluate(&default.default_expr, &empty_record)
+                    {
+                        default_values[idx] = Some(val);
+                    }
                 }
             }
-        }
+            default_values
+        };
 
         let filter_has_subquery = filter
             .as_ref()
@@ -217,7 +240,7 @@ impl ConcurrentPlanExecutor<'_> {
 
         match from {
             Some(from_plan) => {
-                let from_data = self.execute_plan(from_plan)?;
+                let from_data = self.execute_plan(from_plan).await?;
                 let from_schema = from_data.schema().clone();
 
                 let mut combined_schema = target_schema.clone();
@@ -249,14 +272,18 @@ impl ConcurrentPlanExecutor<'_> {
                                         expr,
                                         &combined_schema,
                                         &combined_record,
-                                    )?
+                                    )
+                                    .await?
                                     .as_bool()
                                     .unwrap_or(false)
                                 } else {
+                                    let vars = self.get_variables();
+                                    let sys_vars = self.get_system_variables();
+                                    let udf = self.get_user_functions();
                                     let evaluator = IrEvaluator::new(&combined_schema)
-                                        .with_variables(&self.variables)
-                                        .with_system_variables(&self.system_variables)
-                                        .with_user_functions(&self.user_function_defs);
+                                        .with_variables(&vars)
+                                        .with_system_variables(&sys_vars)
+                                        .with_user_functions(&udf);
                                     evaluator
                                         .evaluate(expr, &combined_record)?
                                         .as_bool()
@@ -282,12 +309,16 @@ impl ConcurrentPlanExecutor<'_> {
                                                     &assignment.value,
                                                     &combined_schema,
                                                     &combined_record,
-                                                )?
+                                                )
+                                                .await?
                                             } else {
+                                                let vars = self.get_variables();
+                                                let sys_vars = self.get_system_variables();
+                                                let udf = self.get_user_functions();
                                                 let evaluator = IrEvaluator::new(&combined_schema)
-                                                    .with_variables(&self.variables)
-                                                    .with_system_variables(&self.system_variables)
-                                                    .with_user_functions(&self.user_function_defs);
+                                                    .with_variables(&vars)
+                                                    .with_system_variables(&sys_vars)
+                                                    .with_user_functions(&udf);
                                                 evaluator
                                                     .evaluate(&assignment.value, &combined_record)?
                                             }
@@ -321,7 +352,8 @@ impl ConcurrentPlanExecutor<'_> {
                 if filter_has_subquery || assignments_have_subquery {
                     for record in table.rows()? {
                         let matches = if let Some(f) = filter {
-                            self.eval_expr_with_subqueries(f, &target_schema, &record)?
+                            self.eval_expr_with_subqueries(f, &target_schema, &record)
+                                .await?
                                 .as_bool()
                                 .unwrap_or(false)
                         } else {
@@ -338,11 +370,14 @@ impl ConcurrentPlanExecutor<'_> {
                                         Expr::Default => {
                                             default_values[idx].clone().unwrap_or(Value::Null)
                                         }
-                                        _ => self.eval_expr_with_subqueries(
-                                            &assignment.value,
-                                            &target_schema,
-                                            &record,
-                                        )?,
+                                        _ => {
+                                            self.eval_expr_with_subqueries(
+                                                &assignment.value,
+                                                &target_schema,
+                                                &record,
+                                            )
+                                            .await?
+                                        }
                                     };
                                     if field_path.is_empty() {
                                         new_row[idx] = val;
@@ -361,9 +396,11 @@ impl ConcurrentPlanExecutor<'_> {
                         }
                     }
                 } else {
+                    let vars = self.get_variables();
+                    let udf = self.get_user_functions();
                     let evaluator = IrEvaluator::new(&target_schema)
-                        .with_variables(&self.variables)
-                        .with_user_functions(&self.user_function_defs);
+                        .with_variables(&vars)
+                        .with_user_functions(&udf);
 
                     for record in table.rows()? {
                         let matches = filter
@@ -462,8 +499,8 @@ impl ConcurrentPlanExecutor<'_> {
         }
     }
 
-    pub(crate) fn execute_delete(
-        &mut self,
+    pub(crate) async fn execute_delete(
+        &self,
         table_name: &str,
         alias: Option<&str>,
         filter: Option<&Expr>,
@@ -484,21 +521,27 @@ impl ConcurrentPlanExecutor<'_> {
 
         if has_subquery {
             for record in table.rows()? {
-                let matches = filter
-                    .map(|f| self.eval_expr_with_subqueries(f, &schema, &record))
-                    .transpose()?
-                    .map(|v| v.as_bool().unwrap_or(false))
-                    .unwrap_or(true);
+                let matches = match filter {
+                    Some(f) => self
+                        .eval_expr_with_subqueries(f, &schema, &record)
+                        .await?
+                        .as_bool()
+                        .unwrap_or(false),
+                    None => true,
+                };
 
                 if !matches {
                     new_table.push_row(record.values().to_vec())?;
                 }
             }
         } else {
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
 
             for record in table.rows()? {
                 let matches = filter
@@ -534,14 +577,14 @@ impl ConcurrentPlanExecutor<'_> {
         new_schema
     }
 
-    pub(crate) fn execute_merge(
-        &mut self,
+    pub(crate) async fn execute_merge(
+        &self,
         target_table: &str,
         source: &PhysicalPlan,
         on: &Expr,
         clauses: &[MergeClause],
     ) -> Result<Table> {
-        let source_table = self.execute_plan(source)?;
+        let source_table = self.execute_plan(source).await?;
         let source_schema = source_table.schema().clone();
         let source_rows: Vec<Record> = source_table.rows()?;
 
@@ -563,11 +606,14 @@ impl ConcurrentPlanExecutor<'_> {
             for (s_idx, source_row) in source_rows.iter().enumerate() {
                 let combined_record = self.create_combined_record(target_row, source_row);
                 let val = if on_has_subquery {
-                    self.eval_expr_with_subqueries(on, &combined_schema, &combined_record)?
+                    self.eval_expr_with_subqueries(on, &combined_schema, &combined_record)
+                        .await?
                 } else {
+                    let vars = self.get_variables();
+                    let udf = self.get_user_functions();
                     let evaluator = IrEvaluator::new(&combined_schema)
-                        .with_variables(&self.variables)
-                        .with_user_functions(&self.user_function_defs);
+                        .with_variables(&vars)
+                        .with_user_functions(&udf);
                     evaluator.evaluate(on, &combined_record)?
                 };
                 if val.as_bool().unwrap_or(false) {
@@ -611,14 +657,18 @@ impl ConcurrentPlanExecutor<'_> {
                                         pred,
                                         &combined_schema,
                                         &combined_record,
-                                    )?
+                                    )
+                                    .await?
                                     .as_bool()
                                     .unwrap_or(false)
                                 } else {
+                                    let vars = self.get_variables();
+                                    let sys_vars = self.get_system_variables();
+                                    let udf = self.get_user_functions();
                                     let evaluator = IrEvaluator::new(&combined_schema)
-                                        .with_variables(&self.variables)
-                                        .with_system_variables(&self.system_variables)
-                                        .with_user_functions(&self.user_function_defs);
+                                        .with_variables(&vars)
+                                        .with_system_variables(&sys_vars)
+                                        .with_user_functions(&udf);
                                     evaluator
                                         .evaluate(pred, &combined_record)?
                                         .as_bool()
@@ -644,12 +694,16 @@ impl ConcurrentPlanExecutor<'_> {
                                         &assignment.value,
                                         &combined_schema,
                                         &combined_record,
-                                    )?
+                                    )
+                                    .await?
                                 } else {
+                                    let vars = self.get_variables();
+                                    let sys_vars = self.get_system_variables();
+                                    let udf = self.get_user_functions();
                                     let evaluator = IrEvaluator::new(&combined_schema)
-                                        .with_variables(&self.variables)
-                                        .with_system_variables(&self.system_variables)
-                                        .with_user_functions(&self.user_function_defs);
+                                        .with_variables(&vars)
+                                        .with_system_variables(&sys_vars)
+                                        .with_user_functions(&udf);
                                     evaluator.evaluate(&assignment.value, &combined_record)?
                                 };
                                 new_values[col_idx] = new_val;
@@ -681,14 +735,18 @@ impl ConcurrentPlanExecutor<'_> {
                                         pred,
                                         &combined_schema,
                                         &combined_record,
-                                    )?
+                                    )
+                                    .await?
                                     .as_bool()
                                     .unwrap_or(false)
                                 } else {
+                                    let vars = self.get_variables();
+                                    let sys_vars = self.get_system_variables();
+                                    let udf = self.get_user_functions();
                                     let evaluator = IrEvaluator::new(&combined_schema)
-                                        .with_variables(&self.variables)
-                                        .with_system_variables(&self.system_variables)
-                                        .with_user_functions(&self.user_function_defs);
+                                        .with_variables(&vars)
+                                        .with_system_variables(&sys_vars)
+                                        .with_user_functions(&udf);
                                     evaluator
                                         .evaluate(pred, &combined_record)?
                                         .as_bool()
@@ -709,9 +767,11 @@ impl ConcurrentPlanExecutor<'_> {
                     columns,
                     values,
                 } => {
+                    let vars = self.get_variables();
+                    let udf = self.get_user_functions();
                     let source_evaluator = IrEvaluator::new(&source_schema)
-                        .with_variables(&self.variables)
-                        .with_user_functions(&self.user_function_defs);
+                        .with_variables(&vars)
+                        .with_user_functions(&udf);
 
                     for (s_idx, source_row) in source_rows.iter().enumerate() {
                         if matched_source_indices.contains(&s_idx)
@@ -766,9 +826,11 @@ impl ConcurrentPlanExecutor<'_> {
                     condition,
                     assignments,
                 } => {
+                    let vars = self.get_variables();
+                    let udf = self.get_user_functions();
                     let target_evaluator = IrEvaluator::new(&target_schema)
-                        .with_variables(&self.variables)
-                        .with_user_functions(&self.user_function_defs);
+                        .with_variables(&vars)
+                        .with_user_functions(&udf);
 
                     for (t_idx, target_row) in target_rows.iter().enumerate() {
                         if matched_target_indices.contains(&t_idx)
@@ -809,9 +871,11 @@ impl ConcurrentPlanExecutor<'_> {
                     }
                 }
                 MergeClause::NotMatchedBySourceDelete { condition } => {
+                    let vars = self.get_variables();
+                    let udf = self.get_user_functions();
                     let target_evaluator = IrEvaluator::new(&target_schema)
-                        .with_variables(&self.variables)
-                        .with_user_functions(&self.user_function_defs);
+                        .with_variables(&vars)
+                        .with_user_functions(&udf);
 
                     for (t_idx, target_row) in target_rows.iter().enumerate() {
                         if matched_target_indices.contains(&t_idx)

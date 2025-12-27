@@ -1,13 +1,22 @@
+mod cte;
 mod ddl;
 mod dml;
+mod dql;
+mod gap_fill;
 mod io;
+mod join;
 mod scripting;
+mod set_ops;
+mod unnest;
+mod utils;
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::RwLock;
 
 use arrow::array::Array;
+use async_recursion::async_recursion;
 use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, Timelike, Utc};
+use futures::future::{join, join_all};
 use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::{DataType, Value};
 use yachtsql_ir::{
@@ -124,18 +133,18 @@ fn compare_values_for_sort(a: &Value, b: &Value) -> std::cmp::Ordering {
 pub struct ConcurrentPlanExecutor<'a> {
     pub(crate) catalog: &'a ConcurrentCatalog,
     pub(crate) session: &'a ConcurrentSession,
-    pub(crate) tables: TableLockSet<'a>,
-    pub(crate) variables: HashMap<String, Value>,
-    pub(crate) system_variables: HashMap<String, Value>,
-    pub(crate) cte_results: HashMap<String, Table>,
-    pub(crate) user_function_defs: HashMap<String, UserFunctionDef>,
+    pub(crate) tables: TableLockSet,
+    pub(crate) variables: RwLock<HashMap<String, Value>>,
+    pub(crate) system_variables: RwLock<HashMap<String, Value>>,
+    pub(crate) cte_results: RwLock<HashMap<String, Table>>,
+    pub(crate) user_function_defs: RwLock<HashMap<String, UserFunctionDef>>,
 }
 
 impl<'a> ConcurrentPlanExecutor<'a> {
     pub fn new(
         catalog: &'a ConcurrentCatalog,
         session: &'a ConcurrentSession,
-        tables: TableLockSet<'a>,
+        tables: TableLockSet,
     ) -> Self {
         let user_function_defs = catalog
             .get_functions()
@@ -163,15 +172,21 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             catalog,
             session,
             tables,
-            variables,
-            system_variables,
-            cte_results: HashMap::new(),
-            user_function_defs,
+            variables: RwLock::new(variables),
+            system_variables: RwLock::new(system_variables),
+            cte_results: RwLock::new(HashMap::new()),
+            user_function_defs: RwLock::new(user_function_defs),
         }
     }
 
-    fn refresh_user_functions(&mut self) {
-        self.user_function_defs = self
+    pub(crate) fn get_system_variables(
+        &self,
+    ) -> std::sync::RwLockReadGuard<'_, HashMap<String, Value>> {
+        self.system_variables.read().unwrap()
+    }
+
+    fn refresh_user_functions(&self) {
+        let new_defs: HashMap<String, UserFunctionDef> = self
             .catalog
             .get_functions()
             .iter()
@@ -185,41 +200,90 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 )
             })
             .collect();
+        *self.user_function_defs.write().unwrap() = new_defs;
     }
 
-    pub fn execute(&mut self, plan: &OptimizedLogicalPlan) -> Result<Table> {
+    pub(crate) fn get_variables(&self) -> std::sync::RwLockReadGuard<'_, HashMap<String, Value>> {
+        self.variables.read().unwrap()
+    }
+
+    pub(crate) fn get_user_functions(
+        &self,
+    ) -> std::sync::RwLockReadGuard<'_, HashMap<String, UserFunctionDef>> {
+        self.user_function_defs.read().unwrap()
+    }
+
+    pub(crate) fn is_parallel_execution_enabled(&self) -> bool {
+        if let Some(val) = self.variables.read().unwrap().get("PARALLEL_EXECUTION") {
+            return val.as_bool().unwrap_or(true);
+        }
+
+        if let Some(val) = self
+            .system_variables
+            .read()
+            .unwrap()
+            .get("PARALLEL_EXECUTION")
+        {
+            return val.as_bool().unwrap_or(true);
+        }
+
+        match std::env::var("YACHTSQL_PARALLEL_EXECUTION") {
+            Ok(val) => !val.eq_ignore_ascii_case("false") && val != "0",
+            Err(_) => true,
+        }
+    }
+
+    pub async fn execute(&self, plan: &OptimizedLogicalPlan) -> Result<Table> {
         let executor_plan = PhysicalPlan::from_physical(plan);
-        self.execute_plan(&executor_plan)
+        self.execute_plan(&executor_plan).await
     }
 
-    pub fn execute_plan(&mut self, plan: &PhysicalPlan) -> Result<Table> {
+    #[async_recursion(?Send)]
+    pub async fn execute_plan(&self, plan: &PhysicalPlan) -> Result<Table> {
         match plan {
             PhysicalPlan::TableScan {
                 table_name, schema, ..
-            } => self.execute_scan(table_name, schema),
+            } => self.execute_scan(table_name, schema).await,
             PhysicalPlan::Sample {
                 input,
                 sample_type,
                 sample_value,
-            } => self.execute_sample(input, sample_type, *sample_value),
-            PhysicalPlan::Filter { input, predicate } => self.execute_filter(input, predicate),
+            } => self.execute_sample(input, sample_type, *sample_value).await,
+            PhysicalPlan::Filter { input, predicate } => {
+                self.execute_filter(input, predicate).await
+            }
             PhysicalPlan::Project {
                 input,
                 expressions,
                 schema,
-            } => self.execute_project(input, expressions, schema),
+            } => self.execute_project(input, expressions, schema).await,
             PhysicalPlan::NestedLoopJoin {
                 left,
                 right,
                 join_type,
                 condition,
                 schema,
-            } => self.execute_nested_loop_join(left, right, join_type, condition.as_ref(), schema),
+                parallel,
+            } => {
+                self.execute_nested_loop_join(
+                    left,
+                    right,
+                    join_type,
+                    condition.as_ref(),
+                    schema,
+                    *parallel,
+                )
+                .await
+            }
             PhysicalPlan::CrossJoin {
                 left,
                 right,
                 schema,
-            } => self.execute_cross_join(left, right, schema),
+                parallel,
+            } => {
+                self.execute_cross_join(left, right, schema, *parallel)
+                    .await
+            }
             PhysicalPlan::HashJoin {
                 left,
                 right,
@@ -227,7 +291,13 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 left_keys,
                 right_keys,
                 schema,
-            } => self.execute_hash_join(left, right, join_type, left_keys, right_keys, schema),
+                parallel,
+            } => {
+                self.execute_hash_join(
+                    left, right, join_type, left_keys, right_keys, schema, *parallel,
+                )
+                .await
+            }
             PhysicalPlan::HashAggregate {
                 input,
                 group_by,
@@ -236,49 +306,65 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 grouping_sets,
             } => {
                 self.execute_aggregate(input, group_by, aggregates, schema, grouping_sets.as_ref())
+                    .await
             }
-            PhysicalPlan::Sort { input, sort_exprs } => self.execute_sort(input, sort_exprs),
+            PhysicalPlan::Sort { input, sort_exprs } => self.execute_sort(input, sort_exprs).await,
             PhysicalPlan::Limit {
                 input,
                 limit,
                 offset,
-            } => self.execute_limit(input, *limit, *offset),
+            } => self.execute_limit(input, *limit, *offset).await,
             PhysicalPlan::TopN {
                 input,
                 sort_exprs,
                 limit,
-            } => self.execute_topn(input, sort_exprs, *limit),
-            PhysicalPlan::Distinct { input } => self.execute_distinct(input),
+            } => self.execute_topn(input, sort_exprs, *limit).await,
+            PhysicalPlan::Distinct { input } => self.execute_distinct(input).await,
             PhysicalPlan::Union {
                 inputs,
                 all,
                 schema,
-            } => self.execute_union(inputs, *all, schema),
+                parallel,
+            } => self.execute_union(inputs, *all, schema, *parallel).await,
             PhysicalPlan::Intersect {
                 left,
                 right,
                 all,
                 schema,
-            } => self.execute_intersect(left, right, *all, schema),
+                parallel,
+            } => {
+                self.execute_intersect(left, right, *all, schema, *parallel)
+                    .await
+            }
             PhysicalPlan::Except {
                 left,
                 right,
                 all,
                 schema,
-            } => self.execute_except(left, right, *all, schema),
+                parallel,
+            } => {
+                self.execute_except(left, right, *all, schema, *parallel)
+                    .await
+            }
             PhysicalPlan::Window {
                 input,
                 window_exprs,
                 schema,
-            } => self.execute_window(input, window_exprs, schema),
-            PhysicalPlan::WithCte { ctes, body } => self.execute_cte(ctes, body),
+            } => self.execute_window(input, window_exprs, schema).await,
+            PhysicalPlan::WithCte {
+                ctes,
+                body,
+                parallel_ctes,
+            } => self.execute_cte(ctes, body, parallel_ctes).await,
             PhysicalPlan::Unnest {
                 input,
                 columns,
                 schema,
-            } => self.execute_unnest(input, columns, schema),
-            PhysicalPlan::Qualify { input, predicate } => self.execute_qualify(input, predicate),
-            PhysicalPlan::Values { values, schema } => self.execute_values(values, schema),
+            } => self.execute_unnest(input, columns, schema).await,
+            PhysicalPlan::Qualify { input, predicate } => {
+                self.execute_qualify(input, predicate).await
+            }
+            PhysicalPlan::Values { values, schema } => self.execute_values(values, schema).await,
             PhysicalPlan::Empty { schema } => {
                 let result_schema = plan_schema_to_schema(schema);
                 let mut table = Table::empty(result_schema.clone());
@@ -291,44 +377,53 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 table_name,
                 columns,
                 source,
-            } => self.execute_insert(table_name, columns, source),
+            } => self.execute_insert(table_name, columns, source).await,
             PhysicalPlan::Update {
                 table_name,
                 alias,
                 assignments,
                 from,
                 filter,
-            } => self.execute_update(
-                table_name,
-                alias.as_deref(),
-                assignments,
-                from.as_deref(),
-                filter.as_ref(),
-            ),
+            } => {
+                self.execute_update(
+                    table_name,
+                    alias.as_deref(),
+                    assignments,
+                    from.as_deref(),
+                    filter.as_ref(),
+                )
+                .await
+            }
             PhysicalPlan::Delete {
                 table_name,
                 alias,
                 filter,
-            } => self.execute_delete(table_name, alias.as_deref(), filter.as_ref()),
+            } => {
+                self.execute_delete(table_name, alias.as_deref(), filter.as_ref())
+                    .await
+            }
             PhysicalPlan::Merge {
                 target_table,
                 source,
                 on,
                 clauses,
-            } => self.execute_merge(target_table, source, on, clauses),
+            } => self.execute_merge(target_table, source, on, clauses).await,
             PhysicalPlan::CreateTable {
                 table_name,
                 columns,
                 if_not_exists,
                 or_replace,
                 query,
-            } => self.execute_create_table(
-                table_name,
-                columns,
-                *if_not_exists,
-                *or_replace,
-                query.as_deref(),
-            ),
+            } => {
+                self.execute_create_table(
+                    table_name,
+                    columns,
+                    *if_not_exists,
+                    *or_replace,
+                    query.as_deref(),
+                )
+                .await
+            }
             PhysicalPlan::DropTable {
                 table_names,
                 if_exists,
@@ -404,8 +499,10 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             PhysicalPlan::Call {
                 procedure_name,
                 args,
-            } => self.execute_call(procedure_name, args),
-            PhysicalPlan::ExportData { options, query } => self.execute_export(options, query),
+            } => self.execute_call(procedure_name, args).await,
+            PhysicalPlan::ExportData { options, query } => {
+                self.execute_export(options, query).await
+            }
             PhysicalPlan::LoadData {
                 table_name,
                 options,
@@ -417,31 +514,36 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 data_type,
                 default,
             } => self.execute_declare(name, data_type, default.as_ref()),
-            PhysicalPlan::SetVariable { name, value } => self.execute_set_variable(name, value),
+            PhysicalPlan::SetVariable { name, value } => {
+                self.execute_set_variable(name, value).await
+            }
             PhysicalPlan::SetMultipleVariables { names, value } => {
-                self.execute_set_multiple_variables(names, value)
+                self.execute_set_multiple_variables(names, value).await
             }
             PhysicalPlan::If {
                 condition,
                 then_branch,
                 else_branch,
-            } => self.execute_if(condition, then_branch, else_branch.as_deref()),
+            } => {
+                self.execute_if(condition, then_branch, else_branch.as_deref())
+                    .await
+            }
             PhysicalPlan::While {
                 condition,
                 body,
                 label,
-            } => self.execute_while(condition, body, label.as_deref()),
-            PhysicalPlan::Loop { body, label } => self.execute_loop(body, label.as_deref()),
-            PhysicalPlan::Block { body, label } => self.execute_block(body, label.as_deref()),
+            } => self.execute_while(condition, body, label.as_deref()).await,
+            PhysicalPlan::Loop { body, label } => self.execute_loop(body, label.as_deref()).await,
+            PhysicalPlan::Block { body, label } => self.execute_block(body, label.as_deref()).await,
             PhysicalPlan::Repeat {
                 body,
                 until_condition,
-            } => self.execute_repeat(body, until_condition),
+            } => self.execute_repeat(body, until_condition).await,
             PhysicalPlan::For {
                 variable,
                 query,
                 body,
-            } => self.execute_for(variable, query, body),
+            } => self.execute_for(variable, query, body).await,
             PhysicalPlan::Return { value: _ } => {
                 Err(Error::InvalidQuery("RETURN outside of function".into()))
             }
@@ -470,13 +572,16 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 if_exists,
             } => self.execute_drop_snapshot(snapshot_name, *if_exists),
             PhysicalPlan::Assert { condition, message } => {
-                self.execute_assert(condition, message.as_ref())
+                self.execute_assert(condition, message.as_ref()).await
             }
             PhysicalPlan::ExecuteImmediate {
                 sql_expr,
                 into_variables,
                 using_params,
-            } => self.execute_execute_immediate(sql_expr, into_variables, using_params),
+            } => {
+                self.execute_execute_immediate(sql_expr, into_variables, using_params)
+                    .await
+            }
             PhysicalPlan::Grant { .. } => Ok(Table::empty(Schema::new())),
             PhysicalPlan::Revoke { .. } => Ok(Table::empty(Schema::new())),
             PhysicalPlan::BeginTransaction => {
@@ -498,7 +603,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             PhysicalPlan::TryCatch {
                 try_block,
                 catch_block,
-            } => self.execute_try_catch(try_block, catch_block),
+            } => self.execute_try_catch(try_block, catch_block).await,
             PhysicalPlan::GapFill {
                 input,
                 ts_column,
@@ -508,97 +613,37 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 origin,
                 input_schema,
                 schema,
-            } => self.execute_gap_fill(
-                input,
-                ts_column,
-                bucket_width,
-                value_columns,
-                partitioning_columns,
-                origin.as_ref(),
-                input_schema,
-                schema,
-            ),
-        }
-    }
-
-    pub(crate) fn execute_scan(
-        &self,
-        table_name: &str,
-        planned_schema: &PlanSchema,
-    ) -> Result<Table> {
-        if let Some(cte_table) = self.cte_results.get(table_name) {
-            return Ok(self.apply_planned_schema(cte_table, planned_schema));
-        }
-        let table_name_upper = table_name.to_uppercase();
-        if let Some(cte_table) = self.cte_results.get(&table_name_upper) {
-            return Ok(self.apply_planned_schema(cte_table, planned_schema));
-        }
-        let table_name_lower = table_name.to_lowercase();
-        if let Some(cte_table) = self.cte_results.get(&table_name_lower) {
-            return Ok(self.apply_planned_schema(cte_table, planned_schema));
-        }
-
-        if let Some(table) = self.tables.get_table(table_name) {
-            return Ok(self.apply_planned_schema(table, planned_schema));
-        }
-
-        if let Some(handle) = self.catalog.get_table_handle(table_name)
-            && let Ok(guard) = handle.read()
-        {
-            return Ok(self.apply_planned_schema(&guard, planned_schema));
-        }
-
-        Err(Error::TableNotFound(table_name.to_string()))
-    }
-
-    pub(crate) fn apply_planned_schema(
-        &self,
-        source_table: &Table,
-        planned_schema: &PlanSchema,
-    ) -> Table {
-        if planned_schema.fields.is_empty() {
-            return source_table.clone();
-        }
-
-        let mut new_schema = Schema::new();
-        let mut column_indices = Vec::new();
-        for plan_field in &planned_schema.fields {
-            let mode = if plan_field.nullable {
-                FieldMode::Nullable
-            } else {
-                FieldMode::Required
-            };
-            let mut field = Field::new(&plan_field.name, plan_field.data_type.clone(), mode);
-            if let Some(ref table) = plan_field.table {
-                field = field.with_source_table(table.clone());
+            } => {
+                self.execute_gap_fill(
+                    input,
+                    ts_column,
+                    bucket_width,
+                    value_columns,
+                    partitioning_columns,
+                    origin.as_ref(),
+                    input_schema,
+                    schema,
+                )
+                .await
             }
-            let source_field_idx = source_table
-                .schema()
-                .fields()
-                .iter()
-                .position(|f| f.name.eq_ignore_ascii_case(&plan_field.name));
-            if let Some(idx) = source_field_idx {
-                if let Some(ref collation) = source_table.schema().fields()[idx].collation {
-                    field.collation = Some(collation.clone());
-                }
-                column_indices.push(idx);
-            }
-            new_schema.add_field(field);
         }
-        source_table.with_reordered_schema(new_schema, &column_indices)
     }
 
-    fn execute_assert(&mut self, condition: &Expr, message: Option<&Expr>) -> Result<Table> {
+    async fn execute_assert(&self, condition: &Expr, message: Option<&Expr>) -> Result<Table> {
         let empty_schema = Schema::new();
         let empty_record = Record::new();
 
         let result = if Self::expr_contains_subquery(condition) {
-            self.eval_expr_with_subqueries(condition, &empty_schema, &empty_record)?
+            self.eval_expr_with_subqueries(condition, &empty_schema, &empty_record)
+                .await?
         } else {
+            let vars = self.get_variables();
+            let sys_vars = self.get_system_variables();
+            let udf = self.get_user_functions();
             let evaluator = IrEvaluator::new(&empty_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
+                .with_variables(&vars)
+                .with_system_variables(&sys_vars)
+                .with_user_functions(&udf);
             evaluator.evaluate(condition, &empty_record)?
         };
 
@@ -606,10 +651,13 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             Value::Bool(true) => Ok(Table::empty(Schema::new())),
             Value::Bool(false) => {
                 let msg = if let Some(msg_expr) = message {
+                    let vars = self.get_variables();
+                    let sys_vars = self.get_system_variables();
+                    let udf = self.get_user_functions();
                     let evaluator = IrEvaluator::new(&empty_schema)
-                        .with_variables(&self.variables)
-                        .with_system_variables(&self.system_variables)
-                        .with_user_functions(&self.user_function_defs);
+                        .with_variables(&vars)
+                        .with_system_variables(&sys_vars)
+                        .with_user_functions(&udf);
                     let msg_val = evaluator.evaluate(msg_expr, &empty_record)?;
                     match msg_val {
                         Value::String(s) => s,
@@ -626,1157 +674,33 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
     }
 
-    pub(crate) fn execute_filter(
-        &mut self,
-        input: &PhysicalPlan,
-        predicate: &Expr,
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        let schema = input_table.schema().clone();
-        let has_subquery = Self::expr_contains_subquery(predicate);
-        let mut result = Table::empty(schema.clone());
-
-        if has_subquery {
-            for record in input_table.rows()? {
-                let val = self.eval_expr_with_subqueries(predicate, &schema, &record)?;
-                if val.as_bool().unwrap_or(false) {
-                    result.push_row(record.values().to_vec())?;
-                }
-            }
-        } else {
-            let evaluator = IrEvaluator::new(&schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
-
-            for record in input_table.rows()? {
-                let val = evaluator.evaluate(predicate, &record)?;
-                if val.as_bool().unwrap_or(false) {
-                    result.push_row(record.values().to_vec())?;
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_project(
-        &mut self,
-        input: &PhysicalPlan,
-        expressions: &[Expr],
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        let input_schema = input_table.schema().clone();
-        let result_schema = plan_schema_to_schema(schema);
-        let has_subqueries = expressions.iter().any(Self::expr_contains_subquery);
-
-        let mut result = Table::empty(result_schema);
-
-        if has_subqueries {
-            for record in input_table.rows()? {
-                let mut new_row = Vec::with_capacity(expressions.len());
-                for expr in expressions {
-                    let val = self.eval_expr_with_subqueries(expr, &input_schema, &record)?;
-                    new_row.push(val);
-                }
-                result.push_row(new_row)?;
-            }
-        } else {
-            let evaluator = IrEvaluator::new(&input_schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
-
-            for record in input_table.rows()? {
-                let mut new_row = Vec::with_capacity(expressions.len());
-                for expr in expressions {
-                    let val = evaluator.evaluate(expr, &record)?;
-                    new_row.push(val);
-                }
-                result.push_row(new_row)?;
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_sample(
-        &mut self,
-        input: &PhysicalPlan,
-        sample_type: &SampleType,
-        sample_value: i64,
-    ) -> Result<Table> {
-        use rand::Rng;
-        use rand::seq::SliceRandom;
-
-        let input_table = self.execute_plan(input)?;
-        let schema = input_table.schema().clone();
-        let rows = input_table.rows()?;
-        let mut result = Table::empty(schema);
-
-        match sample_type {
-            SampleType::Rows => {
-                let n = sample_value as usize;
-                let mut rng = rand::thread_rng();
-                let sampled: Vec<_> = rows.choose_multiple(&mut rng, n.min(rows.len())).collect();
-                for record in sampled {
-                    result.push_row(record.values().to_vec())?;
-                }
-            }
-            SampleType::Percent => {
-                let pct = sample_value as f64 / 100.0;
-                let mut rng = rand::thread_rng();
-                for record in rows {
-                    if rng.r#gen::<f64>() < pct {
-                        result.push_row(record.values().to_vec())?;
-                    }
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_nested_loop_join(
-        &mut self,
-        left: &PhysicalPlan,
-        right: &PhysicalPlan,
-        join_type: &JoinType,
-        condition: Option<&Expr>,
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let left_table = self.execute_plan(left)?;
-        let right_table = self.execute_plan(right)?;
-        let left_schema = left_table.schema().clone();
-        let right_schema = right_table.schema().clone();
-        let result_schema = plan_schema_to_schema(schema);
-
-        let mut combined_schema = Schema::new();
-        for field in left_schema.fields() {
-            combined_schema.add_field(field.clone());
-        }
-        for field in right_schema.fields() {
-            combined_schema.add_field(field.clone());
-        }
-
-        let evaluator = IrEvaluator::new(&combined_schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-
-        let mut result = Table::empty(result_schema.clone());
-        let left_rows = left_table.rows()?;
-        let right_rows = right_table.rows()?;
-        let left_width = left_schema.field_count();
-        let right_width = right_schema.field_count();
-
-        match join_type {
-            JoinType::Inner => {
-                for left_record in &left_rows {
-                    for right_record in &right_rows {
-                        let mut combined = left_record.values().to_vec();
-                        combined.extend(right_record.values().to_vec());
-                        let combined_record = Record::from_values(combined.clone());
-
-                        let matches = condition
-                            .map(|c| evaluator.evaluate(c, &combined_record))
-                            .transpose()?
-                            .map(|v| v.as_bool().unwrap_or(false))
-                            .unwrap_or(true);
-
-                        if matches {
-                            result.push_row(combined)?;
-                        }
-                    }
-                }
-            }
-            JoinType::Left => {
-                for left_record in &left_rows {
-                    let mut found_match = false;
-                    for right_record in &right_rows {
-                        let mut combined = left_record.values().to_vec();
-                        combined.extend(right_record.values().to_vec());
-                        let combined_record = Record::from_values(combined.clone());
-
-                        let matches = condition
-                            .map(|c| evaluator.evaluate(c, &combined_record))
-                            .transpose()?
-                            .map(|v| v.as_bool().unwrap_or(false))
-                            .unwrap_or(true);
-
-                        if matches {
-                            found_match = true;
-                            result.push_row(combined)?;
-                        }
-                    }
-                    if !found_match {
-                        let mut combined = left_record.values().to_vec();
-                        combined.extend(vec![Value::Null; right_width]);
-                        result.push_row(combined)?;
-                    }
-                }
-            }
-            JoinType::Right => {
-                for right_record in &right_rows {
-                    let mut found_match = false;
-                    for left_record in &left_rows {
-                        let mut combined = left_record.values().to_vec();
-                        combined.extend(right_record.values().to_vec());
-                        let combined_record = Record::from_values(combined.clone());
-
-                        let matches = condition
-                            .map(|c| evaluator.evaluate(c, &combined_record))
-                            .transpose()?
-                            .map(|v| v.as_bool().unwrap_or(false))
-                            .unwrap_or(true);
-
-                        if matches {
-                            found_match = true;
-                            result.push_row(combined)?;
-                        }
-                    }
-                    if !found_match {
-                        let mut combined = vec![Value::Null; left_width];
-                        combined.extend(right_record.values().to_vec());
-                        result.push_row(combined)?;
-                    }
-                }
-            }
-            JoinType::Full => {
-                let mut matched_right: HashSet<usize> = HashSet::new();
-                for left_record in &left_rows {
-                    let mut found_match = false;
-                    for (ri, right_record) in right_rows.iter().enumerate() {
-                        let mut combined = left_record.values().to_vec();
-                        combined.extend(right_record.values().to_vec());
-                        let combined_record = Record::from_values(combined.clone());
-
-                        let matches = condition
-                            .map(|c| evaluator.evaluate(c, &combined_record))
-                            .transpose()?
-                            .map(|v| v.as_bool().unwrap_or(false))
-                            .unwrap_or(true);
-
-                        if matches {
-                            found_match = true;
-                            matched_right.insert(ri);
-                            result.push_row(combined)?;
-                        }
-                    }
-                    if !found_match {
-                        let mut combined = left_record.values().to_vec();
-                        combined.extend(vec![Value::Null; right_width]);
-                        result.push_row(combined)?;
-                    }
-                }
-                for (ri, right_record) in right_rows.iter().enumerate() {
-                    if !matched_right.contains(&ri) {
-                        let mut combined = vec![Value::Null; left_width];
-                        combined.extend(right_record.values().to_vec());
-                        result.push_row(combined)?;
-                    }
-                }
-            }
-            JoinType::Cross => {
-                for left_record in &left_rows {
-                    for right_record in &right_rows {
-                        let mut combined = left_record.values().to_vec();
-                        combined.extend(right_record.values().to_vec());
-                        result.push_row(combined)?;
-                    }
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_cross_join(
-        &mut self,
-        left: &PhysicalPlan,
-        right: &PhysicalPlan,
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        self.execute_nested_loop_join(left, right, &JoinType::Cross, None, schema)
-    }
-
-    pub(crate) fn execute_hash_join(
-        &mut self,
-        left: &PhysicalPlan,
-        right: &PhysicalPlan,
-        join_type: &JoinType,
-        left_keys: &[Expr],
-        right_keys: &[Expr],
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let left_table = self.execute_plan(left)?;
-        let right_table = self.execute_plan(right)?;
-        let left_schema = left_table.schema().clone();
-        let right_schema = right_table.schema().clone();
-        let result_schema = plan_schema_to_schema(schema);
-
-        match join_type {
-            JoinType::Inner => {
-                let left_evaluator = IrEvaluator::new(&left_schema)
-                    .with_variables(&self.variables)
-                    .with_system_variables(&self.system_variables)
-                    .with_user_functions(&self.user_function_defs);
-                let right_evaluator = IrEvaluator::new(&right_schema)
-                    .with_variables(&self.variables)
-                    .with_system_variables(&self.system_variables)
-                    .with_user_functions(&self.user_function_defs);
-
-                let right_rows = right_table.rows()?;
-                let mut hash_table: HashMap<Vec<Value>, Vec<Record>> = HashMap::new();
-
-                for right_record in right_rows {
-                    let key_values: Vec<Value> = right_keys
-                        .iter()
-                        .map(|expr| right_evaluator.evaluate(expr, &right_record))
-                        .collect::<Result<Vec<_>>>()?;
-
-                    let has_null = key_values.iter().any(|v| matches!(v, Value::Null));
-                    if has_null {
-                        continue;
-                    }
-
-                    hash_table.entry(key_values).or_default().push(right_record);
-                }
-
-                let mut result = Table::empty(result_schema);
-                for left_record in left_table.rows()? {
-                    let key_values: Vec<Value> = left_keys
-                        .iter()
-                        .map(|expr| left_evaluator.evaluate(expr, &left_record))
-                        .collect::<Result<Vec<_>>>()?;
-
-                    let has_null = key_values.iter().any(|v| matches!(v, Value::Null));
-                    if has_null {
-                        continue;
-                    }
-
-                    if let Some(matching_rows) = hash_table.get(&key_values) {
-                        for right_record in matching_rows {
-                            let mut combined = left_record.values().to_vec();
-                            combined.extend(right_record.values().to_vec());
-                            result.push_row(combined)?;
-                        }
-                    }
-                }
-
-                Ok(result)
-            }
-            _ => {
-                panic!("HashJoin only supports Inner join type currently");
-            }
-        }
-    }
-
-    pub(crate) fn execute_sort(
-        &mut self,
-        input: &PhysicalPlan,
-        sort_exprs: &[SortExpr],
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        let schema = input_table.schema().clone();
-        let evaluator = IrEvaluator::new(&schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-
-        let mut rows: Vec<Record> = input_table.rows()?;
-
-        rows.sort_by(|a, b| {
-            for sort_expr in sort_exprs {
-                let val_a = evaluator
-                    .evaluate(&sort_expr.expr, a)
-                    .unwrap_or(Value::Null);
-                let val_b = evaluator
-                    .evaluate(&sort_expr.expr, b)
-                    .unwrap_or(Value::Null);
-
-                let ordering = compare_values_for_sort(&val_a, &val_b);
-                let ordering = if !sort_expr.asc {
-                    ordering.reverse()
-                } else {
-                    ordering
-                };
-
-                match (val_a.is_null(), val_b.is_null()) {
-                    (true, true) => {}
-                    (true, false) => {
-                        return if sort_expr.nulls_first {
-                            std::cmp::Ordering::Less
-                        } else {
-                            std::cmp::Ordering::Greater
-                        };
-                    }
-                    (false, true) => {
-                        return if sort_expr.nulls_first {
-                            std::cmp::Ordering::Greater
-                        } else {
-                            std::cmp::Ordering::Less
-                        };
-                    }
-                    (false, false) => {}
-                }
-
-                if ordering != std::cmp::Ordering::Equal {
-                    return ordering;
-                }
-            }
-            std::cmp::Ordering::Equal
-        });
-
-        let mut result = Table::empty(schema);
-        for record in rows {
-            result.push_row(record.values().to_vec())?;
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_limit(
-        &mut self,
-        input: &PhysicalPlan,
-        limit: Option<usize>,
-        offset: Option<usize>,
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        let schema = input_table.schema().clone();
-        let mut result = Table::empty(schema);
-
-        let offset = offset.unwrap_or(0);
-        let limit = limit.unwrap_or(usize::MAX);
-
-        for (i, record) in input_table.rows()?.into_iter().enumerate() {
-            if i >= offset && i < offset + limit {
-                result.push_row(record.values().to_vec())?;
-            }
-            if i >= offset + limit {
-                break;
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_topn(
-        &mut self,
-        input: &PhysicalPlan,
-        sort_exprs: &[SortExpr],
-        limit: usize,
-    ) -> Result<Table> {
-        let sorted = self.execute_sort(input, sort_exprs)?;
-        let schema = sorted.schema().clone();
-        let mut result = Table::empty(schema);
-
-        for (i, record) in sorted.rows()?.into_iter().enumerate() {
-            if i >= limit {
-                break;
-            }
-            result.push_row(record.values().to_vec())?;
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_distinct(&mut self, input: &PhysicalPlan) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        let schema = input_table.schema().clone();
-        let mut result = Table::empty(schema);
-        let mut seen: HashSet<Vec<Value>> = HashSet::new();
-
-        for record in input_table.rows()? {
-            let values = record.values().to_vec();
-            if seen.insert(values.clone()) {
-                result.push_row(values)?;
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_union(
-        &mut self,
-        inputs: &[PhysicalPlan],
-        all: bool,
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let result_schema = plan_schema_to_schema(schema);
-        let mut result = Table::empty(result_schema);
-        let mut seen: HashSet<Vec<Value>> = HashSet::new();
-
-        for input in inputs {
-            let table = self.execute_plan(input)?;
-            for record in table.rows()? {
-                let values = record.values().to_vec();
-                if all || seen.insert(values.clone()) {
-                    result.push_row(values)?;
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_intersect(
-        &mut self,
-        left: &PhysicalPlan,
-        right: &PhysicalPlan,
-        all: bool,
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let left_table = self.execute_plan(left)?;
-        let right_table = self.execute_plan(right)?;
-        let result_schema = plan_schema_to_schema(schema);
-        let mut result = Table::empty(result_schema);
-
-        let mut right_set: HashMap<Vec<Value>, usize> = HashMap::new();
-        for record in right_table.rows()? {
-            *right_set.entry(record.values().to_vec()).or_insert(0) += 1;
-        }
-
-        let mut seen: HashSet<Vec<Value>> = HashSet::new();
-        for record in left_table.rows()? {
-            let values = record.values().to_vec();
-            if let Some(count) = right_set.get_mut(&values)
-                && *count > 0
-                && (all || seen.insert(values.clone()))
-            {
-                result.push_row(values)?;
-                if all {
-                    *count -= 1;
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_except(
-        &mut self,
-        left: &PhysicalPlan,
-        right: &PhysicalPlan,
-        all: bool,
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let left_table = self.execute_plan(left)?;
-        let right_table = self.execute_plan(right)?;
-        let result_schema = plan_schema_to_schema(schema);
-        let mut result = Table::empty(result_schema);
-
-        let mut right_set: HashMap<Vec<Value>, usize> = HashMap::new();
-        for record in right_table.rows()? {
-            *right_set.entry(record.values().to_vec()).or_insert(0) += 1;
-        }
-
-        let mut seen: HashSet<Vec<Value>> = HashSet::new();
-        for record in left_table.rows()? {
-            let values = record.values().to_vec();
-            let in_right = right_set.get_mut(&values).map(|c| {
-                if *c > 0 {
-                    *c -= 1;
-                    true
-                } else {
-                    false
-                }
-            });
-
-            if !in_right.unwrap_or(false) && (all || seen.insert(values.clone())) {
-                result.push_row(values)?;
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub(crate) fn execute_aggregate(
-        &mut self,
-        input: &PhysicalPlan,
-        group_by: &[Expr],
-        aggregates: &[Expr],
-        schema: &PlanSchema,
-        grouping_sets: Option<&Vec<Vec<usize>>>,
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        crate::executor::compute_aggregate(
-            &input_table,
-            group_by,
-            aggregates,
-            schema,
-            grouping_sets,
-            &self.variables,
-            &self.user_function_defs,
-        )
-    }
-
-    pub(crate) fn execute_window(
-        &mut self,
-        input: &PhysicalPlan,
-        window_exprs: &[Expr],
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        crate::executor::compute_window(
-            &input_table,
-            window_exprs,
-            schema,
-            &self.variables,
-            &self.user_function_defs,
-        )
-    }
-
-    pub(crate) fn execute_cte(
-        &mut self,
-        ctes: &[CteDefinition],
-        body: &PhysicalPlan,
-    ) -> Result<Table> {
-        for cte in ctes {
-            if cte.recursive {
-                self.execute_recursive_cte(cte)?;
-            } else {
-                let physical_cte = yachtsql_optimizer::optimize(&cte.query)?;
-                let cte_plan = PhysicalPlan::from_physical(&physical_cte);
-                let mut cte_result = self.execute_plan(&cte_plan)?;
-
-                if let Some(ref columns) = cte.columns {
-                    cte_result = self.apply_cte_column_aliases(&cte_result, columns)?;
-                }
-
-                self.cte_results.insert(cte.name.to_uppercase(), cte_result);
-            }
-        }
-        self.execute_plan(body)
-    }
-
-    fn apply_cte_column_aliases(&self, table: &Table, columns: &[String]) -> Result<Table> {
-        let mut new_schema = Schema::new();
-        for (i, alias) in columns.iter().enumerate() {
-            if let Some(old_field) = table.schema().fields().get(i) {
-                let mut new_field = Field::new(alias, old_field.data_type.clone(), old_field.mode);
-                if let Some(ref src) = old_field.source_table {
-                    new_field = new_field.with_source_table(src.clone());
-                }
-                new_schema.add_field(new_field);
-            }
-        }
-        let rows: Vec<Vec<Value>> = table
-            .rows()?
-            .into_iter()
-            .map(|r| r.values().to_vec())
-            .collect();
-        let mut result = Table::empty(new_schema);
-        for row in rows {
-            result.push_row(row)?;
-        }
-        Ok(result)
-    }
-
-    fn execute_recursive_cte(&mut self, cte: &CteDefinition) -> Result<()> {
-        const MAX_RECURSION_DEPTH: usize = 500;
-
-        let (anchor_terms, recursive_terms) = Self::split_recursive_cte(&cte.query, &cte.name);
-
-        let mut all_results = Vec::new();
-        for anchor in &anchor_terms {
-            let physical = yachtsql_optimizer::optimize(anchor)?;
-            let anchor_plan = PhysicalPlan::from_physical(&physical);
-            let result = self.execute_plan(&anchor_plan)?;
-            for row in result.rows()? {
-                all_results.push(row.values().to_vec());
-            }
-        }
-
-        let schema = plan_schema_to_schema(cte.query.schema());
-        let mut accumulated = Table::from_values(schema.clone(), all_results.clone())?;
-
-        if let Some(ref columns) = cte.columns {
-            accumulated = self.apply_cte_column_aliases(&accumulated, columns)?;
-        }
-
-        self.cte_results
-            .insert(cte.name.to_uppercase(), accumulated.clone());
-
-        let mut working_set = accumulated.clone();
-        let mut iteration = 0;
-
-        while !working_set.is_empty() && iteration < MAX_RECURSION_DEPTH {
-            iteration += 1;
-
-            self.cte_results
-                .insert(cte.name.to_uppercase(), working_set);
-
-            let mut new_rows = Vec::new();
-            for recursive_term in &recursive_terms {
-                let physical = yachtsql_optimizer::optimize(recursive_term)?;
-                let rec_plan = PhysicalPlan::from_physical(&physical);
-                let result = self.execute_plan(&rec_plan)?;
-                for row in result.rows()? {
-                    new_rows.push(row.values().to_vec());
-                }
-            }
-
-            if new_rows.is_empty() {
-                break;
-            }
-
-            for row in &new_rows {
-                all_results.push(row.clone());
-            }
-
-            working_set = Table::from_values(schema.clone(), new_rows)?;
-            if let Some(ref columns) = cte.columns {
-                working_set = self.apply_cte_column_aliases(&working_set, columns)?;
-            }
-            accumulated = Table::from_values(schema.clone(), all_results.clone())?;
-            if let Some(ref columns) = cte.columns {
-                accumulated = self.apply_cte_column_aliases(&accumulated, columns)?;
-            }
-        }
-
-        self.cte_results
-            .insert(cte.name.to_uppercase(), accumulated);
-        Ok(())
-    }
-
-    fn split_recursive_cte(
-        query: &LogicalPlan,
-        cte_name: &str,
-    ) -> (Vec<LogicalPlan>, Vec<LogicalPlan>) {
-        let mut anchors = Vec::new();
-        let mut recursives = Vec::new();
-
-        Self::collect_union_terms(query, cte_name, &mut anchors, &mut recursives);
-
-        if anchors.is_empty() {
-            anchors.push(query.clone());
-        }
-
-        (anchors, recursives)
-    }
-
-    fn collect_union_terms(
-        plan: &LogicalPlan,
-        cte_name: &str,
-        anchors: &mut Vec<LogicalPlan>,
-        recursives: &mut Vec<LogicalPlan>,
-    ) {
-        match plan {
-            LogicalPlan::SetOperation {
-                left,
-                right,
-                op: SetOperationType::Union,
-                all: true,
-                ..
-            } => {
-                Self::collect_union_terms(left, cte_name, anchors, recursives);
-                Self::collect_union_terms(right, cte_name, anchors, recursives);
-            }
-            _ => {
-                if Self::references_table(plan, cte_name) {
-                    recursives.push(plan.clone());
-                } else {
-                    anchors.push(plan.clone());
-                }
-            }
-        }
-    }
-
-    fn references_table(plan: &LogicalPlan, table_name: &str) -> bool {
-        match plan {
-            LogicalPlan::Scan {
-                table_name: name, ..
-            } => name.eq_ignore_ascii_case(table_name),
-            LogicalPlan::Filter { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::Project { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::Aggregate { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::Join { left, right, .. } => {
-                Self::references_table(left, table_name)
-                    || Self::references_table(right, table_name)
-            }
-            LogicalPlan::Sort { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::Limit { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::Distinct { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::SetOperation { left, right, .. } => {
-                Self::references_table(left, table_name)
-                    || Self::references_table(right, table_name)
-            }
-            LogicalPlan::Window { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::WithCte { body, .. } => Self::references_table(body, table_name),
-            LogicalPlan::Unnest { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::Qualify { input, .. } => Self::references_table(input, table_name),
-            LogicalPlan::Sample { input, .. } => Self::references_table(input, table_name),
-            _ => false,
-        }
-    }
-
-    pub(crate) fn execute_unnest(
-        &mut self,
-        input: &PhysicalPlan,
-        columns: &[UnnestColumn],
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        let input_schema = input_table.schema().clone();
-        let evaluator = IrEvaluator::new(&input_schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-
-        let result_schema = plan_schema_to_schema(schema);
-        let mut result = Table::empty(result_schema);
-
-        let input_rows = input_table.rows()?;
-
-        if input_rows.is_empty() && !columns.is_empty() {
-            let empty_record = Record::new();
-            let first_col = &columns[0];
-            let array_val = evaluator.evaluate(&first_col.expr, &empty_record)?;
-            Self::unnest_array(&array_val, first_col, &[], &mut result)?;
-        } else {
-            for record in input_rows {
-                let base_values = record.values().to_vec();
-
-                if columns.is_empty() {
-                    result.push_row(base_values)?;
-                    continue;
-                }
-
-                let first_col = &columns[0];
-                let array_val = evaluator.evaluate(&first_col.expr, &record)?;
-                Self::unnest_array(&array_val, first_col, &base_values, &mut result)?;
-            }
-        }
-
-        Ok(result)
-    }
-
-    fn unnest_array(
-        array_val: &Value,
-        unnest_col: &UnnestColumn,
-        base_values: &[Value],
-        result: &mut Table,
-    ) -> Result<()> {
-        match array_val {
-            Value::Array(elements) => {
-                for (idx, elem) in elements.iter().enumerate() {
-                    let mut row = base_values.to_vec();
-                    match elem {
-                        Value::Struct(struct_fields) => {
-                            for (_, value) in struct_fields {
-                                row.push(value.clone());
-                            }
-                        }
-                        _ => {
-                            row.push(elem.clone());
-                        }
-                    }
-                    if unnest_col.with_offset {
-                        row.push(Value::Int64(idx as i64));
-                    }
-                    result.push_row(row)?;
-                }
-            }
-            Value::Null => {}
-            _ => {
-                return Err(Error::InvalidQuery("UNNEST requires array argument".into()));
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn execute_qualify(
-        &mut self,
-        input: &PhysicalPlan,
-        predicate: &Expr,
-    ) -> Result<Table> {
-        let input_table = self.execute_plan(input)?;
-        let schema = input_table.schema().clone();
-
-        if Self::expr_has_window_function(predicate) {
-            self.execute_qualify_with_window(&input_table, predicate)
-        } else {
-            let evaluator = IrEvaluator::new(&schema)
-                .with_variables(&self.variables)
-                .with_system_variables(&self.system_variables)
-                .with_user_functions(&self.user_function_defs);
-            let mut result = Table::empty(schema.clone());
-
-            for record in input_table.rows()? {
-                let val = evaluator.evaluate(predicate, &record)?;
-                if val.as_bool().unwrap_or(false) {
-                    result.push_row(record.values().to_vec())?;
-                }
-            }
-
-            Ok(result)
-        }
-    }
-
-    fn execute_qualify_with_window(&mut self, input: &Table, predicate: &Expr) -> Result<Table> {
-        let schema = input.schema().clone();
-        let rows: Vec<Record> = input.rows()?;
-        let evaluator = IrEvaluator::new(&schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-
-        let window_exprs = Self::collect_window_exprs(predicate);
-        let mut window_results: HashMap<String, Vec<Value>> = HashMap::new();
-
-        for window_expr in &window_exprs {
-            let key = format!("{:?}", window_expr);
-            if window_results.contains_key(&key) {
-                continue;
-            }
-
-            let (partition_by, order_by, frame, func_type) =
-                Self::extract_qualify_window_spec(window_expr)?;
-
-            let partitions = partition_rows(&rows, &partition_by, &evaluator)?;
-            let mut results = vec![Value::Null; rows.len()];
-
-            for (_key, mut indices) in partitions {
-                sort_partition(&rows, &mut indices, &order_by, &evaluator)?;
-
-                let partition_results = compute_window_function(
-                    &rows,
-                    &indices,
-                    window_expr,
-                    &func_type,
-                    &order_by,
-                    &frame,
-                    &evaluator,
-                )?;
-
-                for (local_idx, row_idx) in indices.iter().enumerate() {
-                    results[*row_idx] = partition_results[local_idx].clone();
-                }
-            }
-
-            window_results.insert(key, results);
-        }
-
-        let mut result = Table::empty(schema.clone());
-
-        for (row_idx, record) in rows.iter().enumerate() {
-            let val = Self::evaluate_qualify_predicate(
-                predicate,
-                &schema,
-                record,
-                row_idx,
-                &window_results,
-            )?;
-            if val.as_bool().unwrap_or(false) {
-                result.push_row(record.values().to_vec())?;
-            }
-        }
-
-        Ok(result)
-    }
-
-    fn evaluate_qualify_predicate(
-        expr: &Expr,
-        schema: &Schema,
-        record: &Record,
-        row_idx: usize,
-        window_results: &HashMap<String, Vec<Value>>,
-    ) -> Result<Value> {
-        match expr {
-            Expr::Window { .. } | Expr::AggregateWindow { .. } => {
-                let key = format!("{:?}", expr);
-                Ok(window_results
-                    .get(&key)
-                    .and_then(|r| r.get(row_idx))
-                    .cloned()
-                    .unwrap_or(Value::Null))
-            }
-            Expr::BinaryOp { left, op, right } => {
-                let left_val = Self::evaluate_qualify_predicate(
-                    left,
-                    schema,
-                    record,
-                    row_idx,
-                    window_results,
-                )?;
-                let right_val = Self::evaluate_qualify_predicate(
-                    right,
-                    schema,
-                    record,
-                    row_idx,
-                    window_results,
-                )?;
-
-                if left_val.is_null() || right_val.is_null() {
-                    match op {
-                        BinaryOp::And | BinaryOp::Or => {}
-                        _ => return Ok(Value::Bool(false)),
-                    }
-                }
-
-                match op {
-                    BinaryOp::Eq => Ok(Value::Bool(left_val == right_val)),
-                    BinaryOp::NotEq => Ok(Value::Bool(left_val != right_val)),
-                    BinaryOp::Lt => Ok(Value::Bool(left_val < right_val)),
-                    BinaryOp::LtEq => Ok(Value::Bool(left_val <= right_val)),
-                    BinaryOp::Gt => Ok(Value::Bool(left_val > right_val)),
-                    BinaryOp::GtEq => Ok(Value::Bool(left_val >= right_val)),
-                    BinaryOp::And => {
-                        let l = left_val.as_bool().unwrap_or(false);
-                        let r = right_val.as_bool().unwrap_or(false);
-                        Ok(Value::Bool(l && r))
-                    }
-                    BinaryOp::Or => {
-                        let l = left_val.as_bool().unwrap_or(false);
-                        let r = right_val.as_bool().unwrap_or(false);
-                        Ok(Value::Bool(l || r))
-                    }
-                    _ => {
-                        let evaluator = IrEvaluator::new(schema);
-                        evaluator.evaluate(expr, record)
-                    }
-                }
-            }
-            Expr::UnaryOp {
-                op: yachtsql_ir::UnaryOp::Not,
-                expr: inner,
-            } => {
-                let val = Self::evaluate_qualify_predicate(
-                    inner,
-                    schema,
-                    record,
-                    row_idx,
-                    window_results,
-                )?;
-                Ok(Value::Bool(!val.as_bool().unwrap_or(false)))
-            }
-            _ => {
-                let evaluator = IrEvaluator::new(schema);
-                evaluator.evaluate(expr, record)
-            }
-        }
-    }
-
-    fn collect_window_exprs(expr: &Expr) -> Vec<Expr> {
-        let mut exprs = Vec::new();
-        Self::collect_window_exprs_inner(expr, &mut exprs);
-        exprs
-    }
-
-    fn collect_window_exprs_inner(expr: &Expr, exprs: &mut Vec<Expr>) {
-        match expr {
-            Expr::Window { .. } | Expr::AggregateWindow { .. } => {
-                exprs.push(expr.clone());
-            }
-            Expr::BinaryOp { left, right, .. } => {
-                Self::collect_window_exprs_inner(left, exprs);
-                Self::collect_window_exprs_inner(right, exprs);
-            }
-            Expr::UnaryOp { expr, .. } => {
-                Self::collect_window_exprs_inner(expr, exprs);
-            }
-            _ => {}
-        }
-    }
-
-    fn expr_has_window_function(expr: &Expr) -> bool {
-        match expr {
-            Expr::Window { .. } | Expr::AggregateWindow { .. } => true,
-            Expr::BinaryOp { left, right, .. } => {
-                Self::expr_has_window_function(left) || Self::expr_has_window_function(right)
-            }
-            Expr::UnaryOp { expr, .. } => Self::expr_has_window_function(expr),
-            _ => false,
-        }
-    }
-
-    fn extract_qualify_window_spec(
-        expr: &Expr,
-    ) -> Result<(
-        Vec<Expr>,
-        Vec<SortExpr>,
-        Option<WindowFrame>,
-        WindowFuncType,
-    )> {
-        match expr {
-            Expr::Window {
-                func,
-                partition_by,
-                order_by,
-                frame,
-                ..
-            } => Ok((
-                partition_by.clone(),
-                order_by.clone(),
-                frame.clone(),
-                WindowFuncType::Window(*func),
-            )),
-            Expr::AggregateWindow {
-                func,
-                partition_by,
-                order_by,
-                frame,
-                ..
-            } => Ok((
-                partition_by.clone(),
-                order_by.clone(),
-                frame.clone(),
-                WindowFuncType::Aggregate(*func),
-            )),
-            _ => panic!("Expected window expression in qualify"),
-        }
-    }
-
-    pub(crate) fn execute_values(
-        &mut self,
-        values: &[Vec<Expr>],
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        let result_schema = plan_schema_to_schema(schema);
-        let empty_schema = Schema::new();
-        let evaluator = IrEvaluator::new(&empty_schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-        let empty_record = Record::new();
-        let mut result = Table::empty(result_schema);
-
-        for row_exprs in values {
-            let mut row = Vec::new();
-            for expr in row_exprs {
-                let val = evaluator.evaluate(expr, &empty_record)?;
-                row.push(val);
-            }
-            result.push_row(row)?;
-        }
-
-        Ok(result)
-    }
-
-    fn eval_expr_with_subqueries(
-        &mut self,
+    #[async_recursion(?Send)]
+    async fn eval_expr_with_subqueries(
+        &self,
         expr: &Expr,
         schema: &Schema,
         record: &Record,
     ) -> Result<Value> {
         match expr {
             Expr::Subquery(plan) | Expr::ScalarSubquery(plan) => {
-                self.eval_scalar_subquery(plan, schema, record)
+                self.eval_scalar_subquery(plan, schema, record).await
             }
             Expr::Exists { subquery, negated } => {
-                let has_rows = self.eval_exists_subquery(subquery, schema, record)?;
+                let has_rows = self.eval_exists_subquery(subquery, schema, record).await?;
                 Ok(Value::Bool(if *negated { !has_rows } else { has_rows }))
             }
-            Expr::ArraySubquery(plan) => self.eval_array_subquery(plan, schema, record),
+            Expr::ArraySubquery(plan) => self.eval_array_subquery(plan, schema, record).await,
             Expr::InSubquery {
                 expr: inner_expr,
                 subquery,
                 negated,
             } => {
-                let val = self.eval_expr_with_subqueries(inner_expr, schema, record)?;
-                let in_result = self.eval_value_in_subquery(&val, subquery, schema, record)?;
+                let val = self
+                    .eval_expr_with_subqueries(inner_expr, schema, record)
+                    .await?;
+                let in_result = self
+                    .eval_value_in_subquery(&val, subquery, schema, record)
+                    .await?;
                 Ok(Value::Bool(if *negated { !in_result } else { in_result }))
             }
             Expr::InUnnest {
@@ -1784,8 +708,12 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 array_expr,
                 negated,
             } => {
-                let val = self.eval_expr_with_subqueries(inner_expr, schema, record)?;
-                let array_val = self.eval_expr_with_subqueries(array_expr, schema, record)?;
+                let val = self
+                    .eval_expr_with_subqueries(inner_expr, schema, record)
+                    .await?;
+                let array_val = self
+                    .eval_expr_with_subqueries(array_expr, schema, record)
+                    .await?;
                 let in_result = if let Value::Array(arr) = array_val {
                     arr.contains(&val)
                 } else {
@@ -1794,23 +722,30 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 Ok(Value::Bool(if *negated { !in_result } else { in_result }))
             }
             Expr::BinaryOp { left, op, right } => {
-                let left_val = self.eval_expr_with_subqueries(left, schema, record)?;
-                let right_val = self.eval_expr_with_subqueries(right, schema, record)?;
+                let left_val = self.eval_expr_with_subqueries(left, schema, record).await?;
+                let right_val = self
+                    .eval_expr_with_subqueries(right, schema, record)
+                    .await?;
                 self.eval_binary_op_values(left_val, *op, right_val)
             }
             Expr::UnaryOp { op, expr: inner } => {
-                let val = self.eval_expr_with_subqueries(inner, schema, record)?;
+                let val = self
+                    .eval_expr_with_subqueries(inner, schema, record)
+                    .await?;
                 self.eval_unary_op_value(*op, val)
             }
             Expr::ScalarFunction { name, args } => {
-                let arg_vals: Vec<Value> = args
-                    .iter()
-                    .map(|a| self.eval_expr_with_subqueries(a, schema, record))
-                    .collect::<Result<_>>()?;
+                let mut arg_vals: Vec<Value> = Vec::with_capacity(args.len());
+                for a in args {
+                    arg_vals.push(self.eval_expr_with_subqueries(a, schema, record).await?);
+                }
+                let vars = self.get_variables();
+                let sys_vars = self.get_system_variables();
+                let udf = self.get_user_functions();
                 let evaluator = IrEvaluator::new(schema)
-                    .with_variables(&self.variables)
-                    .with_system_variables(&self.system_variables)
-                    .with_user_functions(&self.user_function_defs);
+                    .with_variables(&vars)
+                    .with_system_variables(&sys_vars)
+                    .with_user_functions(&udf);
                 evaluator.eval_scalar_function_with_values(name, &arg_vals)
             }
             Expr::Cast {
@@ -1818,7 +753,9 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 data_type,
                 safe,
             } => {
-                let val = self.eval_expr_with_subqueries(inner, schema, record)?;
+                let val = self
+                    .eval_expr_with_subqueries(inner, schema, record)
+                    .await?;
                 IrEvaluator::cast_value(val, data_type, *safe)
             }
             Expr::Case {
@@ -1826,46 +763,54 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 when_clauses,
                 else_result,
             } => {
-                let operand_val = operand
-                    .as_ref()
-                    .map(|e| self.eval_expr_with_subqueries(e, schema, record))
-                    .transpose()?;
+                let operand_val = match operand.as_ref() {
+                    Some(e) => Some(self.eval_expr_with_subqueries(e, schema, record).await?),
+                    None => None,
+                };
 
                 for clause in when_clauses {
                     let condition_val = if let Some(op_val) = &operand_val {
-                        let cond_val =
-                            self.eval_expr_with_subqueries(&clause.condition, schema, record)?;
+                        let cond_val = self
+                            .eval_expr_with_subqueries(&clause.condition, schema, record)
+                            .await?;
                         Value::Bool(op_val == &cond_val)
                     } else {
-                        self.eval_expr_with_subqueries(&clause.condition, schema, record)?
+                        self.eval_expr_with_subqueries(&clause.condition, schema, record)
+                            .await?
                     };
 
                     if matches!(condition_val, Value::Bool(true)) {
-                        return self.eval_expr_with_subqueries(&clause.result, schema, record);
+                        return self
+                            .eval_expr_with_subqueries(&clause.result, schema, record)
+                            .await;
                     }
                 }
 
                 if let Some(else_expr) = else_result {
                     self.eval_expr_with_subqueries(else_expr, schema, record)
+                        .await
                 } else {
                     Ok(Value::Null)
                 }
             }
             Expr::Alias { expr: inner, .. } => {
-                self.eval_expr_with_subqueries(inner, schema, record)
+                self.eval_expr_with_subqueries(inner, schema, record).await
             }
             _ => {
+                let vars = self.get_variables();
+                let sys_vars = self.get_system_variables();
+                let udf = self.get_user_functions();
                 let evaluator = IrEvaluator::new(schema)
-                    .with_variables(&self.variables)
-                    .with_system_variables(&self.system_variables)
-                    .with_user_functions(&self.user_function_defs);
+                    .with_variables(&vars)
+                    .with_system_variables(&sys_vars)
+                    .with_user_functions(&udf);
                 evaluator.evaluate(expr, record)
             }
         }
     }
 
-    fn eval_scalar_subquery(
-        &mut self,
+    async fn eval_scalar_subquery(
+        &self,
         plan: &LogicalPlan,
         outer_schema: &Schema,
         outer_record: &Record,
@@ -1873,7 +818,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
         let physical = optimize(&substituted)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
-        let result_table = self.execute_plan(&executor_plan)?;
+        let result_table = self.execute_plan(&executor_plan).await?;
 
         if result_table.is_empty() {
             return Ok(Value::Null);
@@ -1893,10 +838,10 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         Ok(values[0].clone())
     }
 
-    fn eval_scalar_subquery_as_row(&mut self, plan: &LogicalPlan) -> Result<Value> {
+    async fn eval_scalar_subquery_as_row(&self, plan: &LogicalPlan) -> Result<Value> {
         let physical = optimize(plan)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
-        let result_table = self.execute_plan(&executor_plan)?;
+        let result_table = self.execute_plan(&executor_plan).await?;
 
         if result_table.is_empty() {
             return Ok(Value::Struct(vec![]));
@@ -1922,8 +867,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         Ok(Value::Struct(result))
     }
 
-    fn eval_exists_subquery(
-        &mut self,
+    async fn eval_exists_subquery(
+        &self,
         plan: &LogicalPlan,
         outer_schema: &Schema,
         outer_record: &Record,
@@ -1931,12 +876,12 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
         let physical = optimize(&substituted)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
-        let result_table = self.execute_plan(&executor_plan)?;
+        let result_table = self.execute_plan(&executor_plan).await?;
         Ok(!result_table.is_empty())
     }
 
-    fn eval_array_subquery(
-        &mut self,
+    async fn eval_array_subquery(
+        &self,
         plan: &LogicalPlan,
         outer_schema: &Schema,
         outer_record: &Record,
@@ -1944,7 +889,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
         let physical = optimize(&substituted)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
-        let result_table = self.execute_plan(&executor_plan)?;
+        let result_table = self.execute_plan(&executor_plan).await?;
 
         let result_schema = result_table.schema();
         let num_fields = result_schema.field_count();
@@ -1968,8 +913,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         Ok(Value::Array(array_values))
     }
 
-    fn eval_value_in_subquery(
-        &mut self,
+    async fn eval_value_in_subquery(
+        &self,
         value: &Value,
         plan: &LogicalPlan,
         outer_schema: &Schema,
@@ -1982,7 +927,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         let substituted = self.substitute_outer_refs_in_plan(plan, outer_schema, outer_record)?;
         let physical = optimize(&substituted)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
-        let result_table = self.execute_plan(&executor_plan)?;
+        let result_table = self.execute_plan(&executor_plan).await?;
 
         for record in result_table.rows()? {
             let values = record.values();
@@ -2460,21 +1405,22 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
     }
 
-    fn resolve_subqueries_in_expr(&mut self, expr: &Expr) -> Result<Expr> {
+    #[async_recursion(?Send)]
+    async fn resolve_subqueries_in_expr(&self, expr: &Expr) -> Result<Expr> {
         match expr {
             Expr::InSubquery {
                 expr: inner_expr,
                 subquery,
                 negated,
             } => {
-                let resolved_inner = self.resolve_subqueries_in_expr(inner_expr)?;
+                let resolved_inner = self.resolve_subqueries_in_expr(inner_expr).await?;
                 let empty_schema = Schema::new();
                 let empty_record = Record::new();
                 let substituted =
                     self.substitute_outer_refs_in_plan(subquery, &empty_schema, &empty_record)?;
                 let physical = optimize(&substituted)?;
                 let executor_plan = PhysicalPlan::from_physical(&physical);
-                let result_table = self.execute_plan(&executor_plan)?;
+                let result_table = self.execute_plan(&executor_plan).await?;
 
                 let mut list_exprs = Vec::new();
                 for record in result_table.rows()? {
@@ -2498,7 +1444,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                     self.substitute_outer_refs_in_plan(subquery, &empty_schema, &empty_record)?;
                 let physical = optimize(&substituted)?;
                 let executor_plan = PhysicalPlan::from_physical(&physical);
-                let result_table = self.execute_plan(&executor_plan)?;
+                let result_table = self.execute_plan(&executor_plan).await?;
                 let has_rows = !result_table.is_empty();
                 let result = if *negated { !has_rows } else { has_rows };
                 Ok(Expr::Literal(yachtsql_ir::Literal::Bool(result)))
@@ -2510,7 +1456,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                     self.substitute_outer_refs_in_plan(plan, &empty_schema, &empty_record)?;
                 let physical = optimize(&substituted)?;
                 let executor_plan = PhysicalPlan::from_physical(&physical);
-                let result_table = self.execute_plan(&executor_plan)?;
+                let result_table = self.execute_plan(&executor_plan).await?;
 
                 if result_table.is_empty() {
                     return Ok(Expr::Literal(yachtsql_ir::Literal::Null));
@@ -2536,7 +1482,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                     self.substitute_outer_refs_in_plan(plan, &empty_schema, &empty_record)?;
                 let physical = optimize(&substituted)?;
                 let executor_plan = PhysicalPlan::from_physical(&physical);
-                let result_table = self.execute_plan(&executor_plan)?;
+                let result_table = self.execute_plan(&executor_plan).await?;
 
                 let mut array_elements = Vec::new();
                 for record in result_table.rows()? {
@@ -2548,8 +1494,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 Ok(Expr::Literal(yachtsql_ir::Literal::Array(array_elements)))
             }
             Expr::BinaryOp { left, op, right } => {
-                let resolved_left = self.resolve_subqueries_in_expr(left)?;
-                let resolved_right = self.resolve_subqueries_in_expr(right)?;
+                let resolved_left = self.resolve_subqueries_in_expr(left).await?;
+                let resolved_right = self.resolve_subqueries_in_expr(right).await?;
                 Ok(Expr::BinaryOp {
                     left: Box::new(resolved_left),
                     op: *op,
@@ -2557,7 +1503,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 })
             }
             Expr::UnaryOp { op, expr: inner } => {
-                let resolved_inner = self.resolve_subqueries_in_expr(inner)?;
+                let resolved_inner = self.resolve_subqueries_in_expr(inner).await?;
                 Ok(Expr::UnaryOp {
                     op: *op,
                     expr: Box::new(resolved_inner),
@@ -2568,7 +1514,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 data_type,
                 safe,
             } => {
-                let resolved_inner = self.resolve_subqueries_in_expr(inner)?;
+                let resolved_inner = self.resolve_subqueries_in_expr(inner).await?;
                 Ok(Expr::Cast {
                     expr: Box::new(resolved_inner),
                     data_type: data_type.clone(),
@@ -2580,25 +1526,23 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 when_clauses,
                 else_result,
             } => {
-                let resolved_operand = operand
-                    .as_ref()
-                    .map(|e| self.resolve_subqueries_in_expr(e))
-                    .transpose()?
-                    .map(Box::new);
+                let resolved_operand = match operand.as_ref() {
+                    Some(e) => Some(Box::new(self.resolve_subqueries_in_expr(e).await?)),
+                    None => None,
+                };
 
                 let mut resolved_clauses = Vec::new();
                 for clause in when_clauses {
                     resolved_clauses.push(yachtsql_ir::WhenClause {
-                        condition: self.resolve_subqueries_in_expr(&clause.condition)?,
-                        result: self.resolve_subqueries_in_expr(&clause.result)?,
+                        condition: self.resolve_subqueries_in_expr(&clause.condition).await?,
+                        result: self.resolve_subqueries_in_expr(&clause.result).await?,
                     });
                 }
 
-                let resolved_else = else_result
-                    .as_ref()
-                    .map(|e| self.resolve_subqueries_in_expr(e))
-                    .transpose()?
-                    .map(Box::new);
+                let resolved_else = match else_result.as_ref() {
+                    Some(e) => Some(Box::new(self.resolve_subqueries_in_expr(e).await?)),
+                    None => None,
+                };
 
                 Ok(Expr::Case {
                     operand: resolved_operand,
@@ -2607,17 +1551,17 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 })
             }
             Expr::ScalarFunction { name, args } => {
-                let resolved_args = args
-                    .iter()
-                    .map(|a| self.resolve_subqueries_in_expr(a))
-                    .collect::<Result<Vec<_>>>()?;
+                let mut resolved_args = Vec::with_capacity(args.len());
+                for a in args {
+                    resolved_args.push(self.resolve_subqueries_in_expr(a).await?);
+                }
                 Ok(Expr::ScalarFunction {
                     name: name.clone(),
                     args: resolved_args,
                 })
             }
             Expr::Alias { expr: inner, name } => {
-                let resolved_inner = self.resolve_subqueries_in_expr(inner)?;
+                let resolved_inner = self.resolve_subqueries_in_expr(inner).await?;
                 Ok(Expr::Alias {
                     expr: Box::new(resolved_inner),
                     name: name.clone(),
@@ -2627,7 +1571,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 expr: inner,
                 negated,
             } => {
-                let resolved_inner = self.resolve_subqueries_in_expr(inner)?;
+                let resolved_inner = self.resolve_subqueries_in_expr(inner).await?;
                 Ok(Expr::IsNull {
                     expr: Box::new(resolved_inner),
                     negated: *negated,
@@ -2638,11 +1582,11 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 list,
                 negated,
             } => {
-                let resolved_inner = self.resolve_subqueries_in_expr(inner)?;
-                let resolved_list = list
-                    .iter()
-                    .map(|e| self.resolve_subqueries_in_expr(e))
-                    .collect::<Result<Vec<_>>>()?;
+                let resolved_inner = self.resolve_subqueries_in_expr(inner).await?;
+                let mut resolved_list = Vec::with_capacity(list.len());
+                for e in list {
+                    resolved_list.push(self.resolve_subqueries_in_expr(e).await?);
+                }
                 Ok(Expr::InList {
                     expr: Box::new(resolved_inner),
                     list: resolved_list,
@@ -2655,9 +1599,9 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 high,
                 negated,
             } => {
-                let resolved_inner = self.resolve_subqueries_in_expr(inner)?;
-                let resolved_low = self.resolve_subqueries_in_expr(low)?;
-                let resolved_high = self.resolve_subqueries_in_expr(high)?;
+                let resolved_inner = self.resolve_subqueries_in_expr(inner).await?;
+                let resolved_low = self.resolve_subqueries_in_expr(low).await?;
+                let resolved_high = self.resolve_subqueries_in_expr(high).await?;
                 Ok(Expr::Between {
                     expr: Box::new(resolved_inner),
                     low: Box::new(resolved_low),
@@ -2712,252 +1656,9 @@ impl<'a> ConcurrentPlanExecutor<'a> {
             _ => false,
         }
     }
-
-    fn execute_gap_fill(
-        &mut self,
-        input: &PhysicalPlan,
-        ts_column: &str,
-        bucket_width: &Expr,
-        value_columns: &[GapFillColumn],
-        partitioning_columns: &[String],
-        origin: Option<&Expr>,
-        input_schema: &PlanSchema,
-        schema: &PlanSchema,
-    ) -> Result<Table> {
-        use std::collections::BTreeMap;
-
-        let input_table = self.execute_plan(input)?;
-        let storage_schema = input_table.schema();
-
-        let ts_idx = input_schema
-            .fields
-            .iter()
-            .position(|f| f.name.to_uppercase() == ts_column.to_uppercase())
-            .ok_or_else(|| Error::invalid_query(format!("Column not found: {}", ts_column)))?;
-
-        let partition_indices: Vec<usize> = partitioning_columns
-            .iter()
-            .filter_map(|p| {
-                input_schema
-                    .fields
-                    .iter()
-                    .position(|f| f.name.to_uppercase() == p.to_uppercase())
-            })
-            .collect();
-
-        let value_col_indices: Vec<(usize, GapFillStrategy)> = value_columns
-            .iter()
-            .filter_map(|vc| {
-                input_schema
-                    .fields
-                    .iter()
-                    .position(|f| f.name.to_uppercase() == vc.column_name.to_uppercase())
-                    .map(|idx| (idx, vc.strategy))
-            })
-            .collect();
-
-        let evaluator = IrEvaluator::new(storage_schema)
-            .with_variables(&self.variables)
-            .with_system_variables(&self.system_variables)
-            .with_user_functions(&self.user_function_defs);
-        let empty_record = Record::new();
-
-        let bucket_interval = evaluator.evaluate(bucket_width, &empty_record)?;
-        let bucket_millis = match bucket_interval {
-            Value::Interval(ref interval) => {
-                (interval.months as i64 * 30 * 24 * 60 * 60 * 1000)
-                    + (interval.days as i64 * 24 * 60 * 60 * 1000)
-                    + (interval.nanos / 1_000_000)
-            }
-            _ => {
-                return Err(Error::invalid_query("bucket_width must be an interval"));
-            }
-        };
-
-        let origin_offset = if let Some(origin_expr) = origin {
-            let origin_val = evaluator.evaluate(origin_expr, &empty_record)?;
-            match origin_val {
-                Value::DateTime(d) => d.and_utc().timestamp_millis() % bucket_millis,
-                Value::Timestamp(d) => d.timestamp_millis() % bucket_millis,
-                _ => 0,
-            }
-        } else {
-            0
-        };
-
-        let mut partitions: BTreeMap<Vec<Value>, Vec<(i64, Vec<Value>)>> = BTreeMap::new();
-
-        for row in input_table.rows()? {
-            let row_values = row.values().to_vec();
-            let ts_val = &row_values[ts_idx];
-
-            let ts_millis = match ts_val {
-                Value::DateTime(d) => d.and_utc().timestamp_millis(),
-                Value::Timestamp(d) => d.timestamp_millis(),
-                Value::Date(d) => d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp_millis(),
-                _ => continue,
-            };
-
-            let partition_key: Vec<Value> = partition_indices
-                .iter()
-                .map(|&idx| row_values[idx].clone())
-                .collect();
-
-            let values_for_row: Vec<Value> = value_col_indices
-                .iter()
-                .map(|(idx, _)| row_values[*idx].clone())
-                .collect();
-
-            partitions
-                .entry(partition_key)
-                .or_default()
-                .push((ts_millis, values_for_row));
-        }
-
-        let output_schema = plan_schema_to_schema(schema);
-        let mut result = Table::empty(output_schema.clone());
-
-        for (partition_key, mut entries) in partitions {
-            entries.sort_by_key(|(ts, _)| *ts);
-
-            if entries.is_empty() {
-                continue;
-            }
-
-            let min_original_ts = entries.first().map(|(ts, _)| *ts).unwrap();
-            let max_original_ts = entries.last().map(|(ts, _)| *ts).unwrap();
-
-            let min_bucket = {
-                let floored = ((min_original_ts - origin_offset) / bucket_millis) * bucket_millis
-                    + origin_offset;
-                if floored < min_original_ts {
-                    floored + bucket_millis
-                } else {
-                    floored
-                }
-            };
-            let max_bucket =
-                ((max_original_ts - origin_offset) / bucket_millis) * bucket_millis + origin_offset;
-
-            let mut exact_match_map: BTreeMap<i64, Vec<Value>> = BTreeMap::new();
-            for (ts, values) in &entries {
-                let bucket_ts =
-                    ((*ts - origin_offset) / bucket_millis) * bucket_millis + origin_offset;
-                if *ts == bucket_ts {
-                    exact_match_map.insert(bucket_ts, values.clone());
-                }
-            }
-
-            let mut last_values: Vec<Option<Value>> = vec![None; value_col_indices.len()];
-
-            let mut bucket = min_bucket;
-            while bucket <= max_bucket {
-                for (ts, values) in &entries {
-                    if *ts <= bucket {
-                        for (i, val) in values.iter().enumerate() {
-                            if !val.is_null() {
-                                last_values[i] = Some(val.clone());
-                            }
-                        }
-                    }
-                }
-
-                let row_values = if let Some(existing) = exact_match_map.get(&bucket) {
-                    existing.clone()
-                } else {
-                    value_col_indices
-                        .iter()
-                        .enumerate()
-                        .map(|(i, (_, strategy))| match strategy {
-                            GapFillStrategy::Null => Value::null(),
-                            GapFillStrategy::Locf => {
-                                last_values[i].clone().unwrap_or(Value::null())
-                            }
-                            GapFillStrategy::Linear => {
-                                let prev_entry =
-                                    entries.iter().filter(|(ts, _)| *ts < bucket).next_back();
-                                let next_entry = entries.iter().find(|(ts, _)| *ts > bucket);
-
-                                match (prev_entry, next_entry) {
-                                    (Some((prev_ts, prev_vals)), Some((next_ts, next_vals))) => {
-                                        interpolate_value(
-                                            &prev_vals[i],
-                                            &next_vals[i],
-                                            *prev_ts,
-                                            *next_ts,
-                                            bucket,
-                                        )
-                                    }
-                                    _ => Value::null(),
-                                }
-                            }
-                        })
-                        .collect()
-                };
-
-                let ts_value = match &input_schema.fields[ts_idx].data_type {
-                    DataType::DateTime => Value::DateTime(
-                        chrono::DateTime::from_timestamp_millis(bucket)
-                            .unwrap()
-                            .naive_utc(),
-                    ),
-                    DataType::Timestamp => {
-                        Value::Timestamp(chrono::DateTime::from_timestamp_millis(bucket).unwrap())
-                    }
-                    _ => Value::DateTime(
-                        chrono::DateTime::from_timestamp_millis(bucket)
-                            .unwrap()
-                            .naive_utc(),
-                    ),
-                };
-
-                let mut record_values = vec![ts_value];
-                record_values.extend(partition_key.clone());
-                record_values.extend(row_values);
-
-                result.push_row(record_values)?;
-
-                bucket += bucket_millis;
-            }
-        }
-
-        Ok(result)
-    }
 }
 
-fn interpolate_value(
-    prev: &Value,
-    next: &Value,
-    prev_ts: i64,
-    next_ts: i64,
-    current_ts: i64,
-) -> Value {
-    use ordered_float::OrderedFloat;
-    let ratio = (current_ts - prev_ts) as f64 / (next_ts - prev_ts) as f64;
-
-    match (prev, next) {
-        (Value::Int64(p), Value::Int64(n)) => {
-            let interpolated = *p as f64 + (*n as f64 - *p as f64) * ratio;
-            Value::Int64(interpolated.round() as i64)
-        }
-        (Value::Float64(p), Value::Float64(n)) => {
-            let p_val: f64 = (*p).into();
-            let n_val: f64 = (*n).into();
-            Value::Float64(OrderedFloat(p_val + (n_val - p_val) * ratio))
-        }
-        (Value::Int64(p), Value::Float64(n)) => {
-            let n_val: f64 = (*n).into();
-            Value::Float64(OrderedFloat(*p as f64 + (n_val - *p as f64) * ratio))
-        }
-        (Value::Float64(p), Value::Int64(n)) => {
-            let p_val: f64 = (*p).into();
-            Value::Float64(OrderedFloat(p_val + (*n as f64 - p_val) * ratio))
-        }
-        _ => Value::null(),
-    }
-}
-
-fn default_value_for_type(data_type: &DataType) -> Value {
+pub(super) fn default_value_for_type(data_type: &DataType) -> Value {
     match data_type {
         DataType::Int64 => Value::Int64(0),
         DataType::Float64 => Value::Float64(ordered_float::OrderedFloat(0.0)),
