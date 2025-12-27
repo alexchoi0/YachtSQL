@@ -5081,20 +5081,22 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                         index: *index,
                     });
                 }
-                let should_substitute = if let Some(tbl) = table {
-                    outer_schema.fields().iter().any(|f| {
-                        f.source_table
+                let idx = if let Some(tbl) = table {
+                    outer_schema.fields().iter().position(|f| {
+                        (f.source_table
                             .as_ref()
                             .is_some_and(|src| src.eq_ignore_ascii_case(tbl))
+                            || f.source_table.is_none())
                             && f.name.eq_ignore_ascii_case(name)
                     })
                 } else {
-                    outer_schema.field_index(name).is_some()
+                    outer_schema
+                        .fields()
+                        .iter()
+                        .position(|f| f.name.eq_ignore_ascii_case(name))
                 };
 
-                if should_substitute
-                    && let Some(idx) = outer_schema.field_index_qualified(name, table.as_deref())
-                {
+                if let Some(idx) = idx {
                     let value = outer_record
                         .values()
                         .get(idx)
