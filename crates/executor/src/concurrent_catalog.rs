@@ -392,6 +392,13 @@ impl ConcurrentCatalog {
         Ok(())
     }
 
+    pub fn get_schema_default_collation(&self, name: &str) -> Option<String> {
+        let key = name.to_uppercase();
+        self.schema_metadata
+            .get(&key)
+            .and_then(|metadata| metadata.options.get("default_collate").cloned())
+    }
+
     pub fn set_search_path(&self, schemas: Vec<String>) {
         *self.search_path.write().unwrap() =
             schemas.into_iter().map(|s| s.to_uppercase()).collect();
