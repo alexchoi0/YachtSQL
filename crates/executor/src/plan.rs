@@ -1531,23 +1531,11 @@ impl PhysicalPlan {
     }
 
     fn should_parallelize(left: &Self, right: &Self) -> bool {
-        let dominated_by_memory =
-            left.bound_type() == BoundType::Memory && right.bound_type() == BoundType::Memory;
-        if dominated_by_memory {
-            return false;
-        }
         left.estimate_rows() >= PARALLEL_ROW_THRESHOLD
             && right.estimate_rows() >= PARALLEL_ROW_THRESHOLD
     }
 
     fn should_parallelize_union(inputs: &[Self]) -> bool {
-        let compute_bound_count = inputs
-            .iter()
-            .filter(|p| p.bound_type() == BoundType::Compute)
-            .count();
-        if compute_bound_count < 2 {
-            return false;
-        }
         inputs.len() >= 2
             && inputs
                 .iter()

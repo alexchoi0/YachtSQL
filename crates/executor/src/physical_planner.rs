@@ -42,87 +42,74 @@ impl<'a> PhysicalPlanner<'a> {
     fn compute_hints_recursive(&self, plan: &mut PhysicalPlan, parallel_enabled: bool) {
         match plan {
             PhysicalPlan::NestedLoopJoin {
-                left,
-                right,
-                parallel,
-                hints,
-                ..
+                left, right, hints, ..
             }
             | PhysicalPlan::HashJoin {
-                left,
-                right,
-                parallel,
-                hints,
-                ..
+                left, right, hints, ..
             } => {
                 self.compute_hints_recursive(left, parallel_enabled);
                 self.compute_hints_recursive(right, parallel_enabled);
-                *hints = self.binary_join_hints(left, right, *parallel, parallel_enabled);
+                *hints = self.binary_join_hints(left, right, parallel_enabled);
             }
 
             PhysicalPlan::CrossJoin {
-                left,
-                right,
-                parallel,
-                hints,
-                ..
+                left, right, hints, ..
             } => {
                 self.compute_hints_recursive(left, parallel_enabled);
                 self.compute_hints_recursive(right, parallel_enabled);
                 let bound = Self::binary_bound_type(left, right);
+                let should_parallelize = left.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+                    && right.estimate_rows() >= PARALLEL_ROW_THRESHOLD;
                 *hints = ExecutionHints {
-                    parallel: parallel_enabled && *parallel && bound == BoundType::Compute,
+                    parallel: parallel_enabled && should_parallelize && bound == BoundType::Compute,
                     bound_type: bound,
                     estimated_rows: left.estimate_rows().saturating_mul(right.estimate_rows()),
                 };
             }
 
             PhysicalPlan::Intersect {
-                left,
-                right,
-                parallel,
-                hints,
-                ..
+                left, right, hints, ..
             } => {
                 self.compute_hints_recursive(left, parallel_enabled);
                 self.compute_hints_recursive(right, parallel_enabled);
                 let bound = Self::binary_bound_type(left, right);
+                let should_parallelize = left.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+                    && right.estimate_rows() >= PARALLEL_ROW_THRESHOLD;
                 *hints = ExecutionHints {
-                    parallel: parallel_enabled && *parallel && bound == BoundType::Compute,
+                    parallel: parallel_enabled && should_parallelize && bound == BoundType::Compute,
                     bound_type: bound,
                     estimated_rows: left.estimate_rows().min(right.estimate_rows()),
                 };
             }
 
             PhysicalPlan::Except {
-                left,
-                right,
-                parallel,
-                hints,
-                ..
+                left, right, hints, ..
             } => {
                 self.compute_hints_recursive(left, parallel_enabled);
                 self.compute_hints_recursive(right, parallel_enabled);
                 let bound = Self::binary_bound_type(left, right);
+                let should_parallelize = left.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+                    && right.estimate_rows() >= PARALLEL_ROW_THRESHOLD;
                 *hints = ExecutionHints {
-                    parallel: parallel_enabled && *parallel && bound == BoundType::Compute,
+                    parallel: parallel_enabled && should_parallelize && bound == BoundType::Compute,
                     bound_type: bound,
                     estimated_rows: left.estimate_rows(),
                 };
             }
 
-            PhysicalPlan::Union {
-                inputs,
-                parallel,
-                hints,
-                ..
-            } => {
+            PhysicalPlan::Union { inputs, hints, .. } => {
                 for input in inputs.iter_mut() {
                     self.compute_hints_recursive(input, parallel_enabled);
                 }
                 let bound = Self::union_bound_type(inputs);
+                let should_parallelize = inputs.len() >= 2
+                    && inputs
+                        .iter()
+                        .filter(|p| p.estimate_rows() >= PARALLEL_ROW_THRESHOLD)
+                        .count()
+                        >= 2;
                 *hints = ExecutionHints {
-                    parallel: parallel_enabled && *parallel && bound == BoundType::Compute,
+                    parallel: parallel_enabled && should_parallelize && bound == BoundType::Compute,
                     bound_type: bound,
                     estimated_rows: inputs.iter().map(|p| p.estimate_rows()).sum(),
                 };
@@ -187,12 +174,13 @@ impl<'a> PhysicalPlanner<'a> {
         &self,
         left: &PhysicalPlan,
         right: &PhysicalPlan,
-        parallel: bool,
         parallel_enabled: bool,
     ) -> ExecutionHints {
         let bound = Self::binary_bound_type(left, right);
+        let should_parallelize = left.estimate_rows() >= PARALLEL_ROW_THRESHOLD
+            && right.estimate_rows() >= PARALLEL_ROW_THRESHOLD;
         ExecutionHints {
-            parallel: parallel_enabled && parallel && bound == BoundType::Compute,
+            parallel: parallel_enabled && should_parallelize && bound == BoundType::Compute,
             bound_type: bound,
             estimated_rows: left.estimate_rows().saturating_add(right.estimate_rows()),
         }
@@ -223,20 +211,12 @@ impl<'a> PhysicalPlanner<'a> {
             .collect()
     }
 
-    fn binary_bound_type(left: &PhysicalPlan, right: &PhysicalPlan) -> BoundType {
-        if left.bound_type() == BoundType::Memory && right.bound_type() == BoundType::Memory {
-            BoundType::Memory
-        } else {
-            BoundType::Compute
-        }
+    fn binary_bound_type(_left: &PhysicalPlan, _right: &PhysicalPlan) -> BoundType {
+        BoundType::Compute
     }
 
     fn union_bound_type(inputs: &[PhysicalPlan]) -> BoundType {
-        let compute_count = inputs
-            .iter()
-            .filter(|p| p.bound_type() == BoundType::Compute)
-            .count();
-        if compute_count >= 2 {
+        if inputs.len() >= 2 {
             BoundType::Compute
         } else {
             BoundType::Memory
