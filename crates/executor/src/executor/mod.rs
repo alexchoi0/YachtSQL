@@ -149,10 +149,13 @@ impl<'a> PlanExecutor<'a> {
                 aggregates,
                 schema,
                 grouping_sets,
+                ..
             } => {
                 self.execute_aggregate(input, group_by, aggregates, schema, grouping_sets.as_ref())
             }
-            PhysicalPlan::Sort { input, sort_exprs } => self.execute_sort(input, sort_exprs),
+            PhysicalPlan::Sort {
+                input, sort_exprs, ..
+            } => self.execute_sort(input, sort_exprs),
             PhysicalPlan::Limit {
                 input,
                 limit,
@@ -188,6 +191,7 @@ impl<'a> PlanExecutor<'a> {
                 input,
                 window_exprs,
                 schema,
+                ..
             } => self.execute_window(input, window_exprs, schema),
             PhysicalPlan::WithCte { ctes, body, .. } => self.execute_cte(ctes, body),
             PhysicalPlan::Unnest {

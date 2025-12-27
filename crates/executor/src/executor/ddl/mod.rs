@@ -534,6 +534,7 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
             aggregates,
             schema,
             grouping_sets,
+            ..
         } => LogicalPlan::Aggregate {
             input: Box::new(executor_plan_to_logical_plan(input)),
             group_by: group_by.clone(),
@@ -541,7 +542,9 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
             schema: schema.clone(),
             grouping_sets: grouping_sets.clone(),
         },
-        PhysicalPlan::Sort { input, sort_exprs } => LogicalPlan::Sort {
+        PhysicalPlan::Sort {
+            input, sort_exprs, ..
+        } => LogicalPlan::Sort {
             input: Box::new(executor_plan_to_logical_plan(input)),
             sort_exprs: sort_exprs.clone(),
         },
@@ -620,6 +623,7 @@ fn executor_plan_to_logical_plan(plan: &PhysicalPlan) -> yachtsql_ir::LogicalPla
             input,
             window_exprs,
             schema,
+            ..
         } => LogicalPlan::Window {
             input: Box::new(executor_plan_to_logical_plan(input)),
             window_exprs: window_exprs.clone(),

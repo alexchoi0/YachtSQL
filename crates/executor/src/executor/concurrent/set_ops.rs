@@ -22,8 +22,7 @@ impl ConcurrentPlanExecutor<'_> {
         let mut result = Table::empty(result_schema);
         let mut seen: HashSet<Vec<Value>> = HashSet::new();
 
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-        let tables: Vec<Table> = if use_parallel && inputs.len() > 1 {
+        let tables: Vec<Table> = if parallel && inputs.len() > 1 {
             let futures: Vec<_> = inputs
                 .iter()
                 .map(|input| self.execute_plan(input))
@@ -58,8 +57,7 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-        let (left_table, right_table) = if use_parallel {
+        let (left_table, right_table) = if parallel {
             let (l, r) = join(self.execute_plan(left), self.execute_plan(right)).await;
             (l?, r?)
         } else {
@@ -101,8 +99,7 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-        let (left_table, right_table) = if use_parallel {
+        let (left_table, right_table) = if parallel {
             let (l, r) = join(self.execute_plan(left), self.execute_plan(right)).await;
             (l?, r?)
         } else {

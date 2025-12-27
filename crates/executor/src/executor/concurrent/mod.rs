@@ -213,26 +213,6 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         self.user_function_defs.read().unwrap()
     }
 
-    pub(crate) fn is_parallel_execution_enabled(&self) -> bool {
-        if let Some(val) = self.variables.read().unwrap().get("PARALLEL_EXECUTION") {
-            return val.as_bool().unwrap_or(true);
-        }
-
-        if let Some(val) = self
-            .system_variables
-            .read()
-            .unwrap()
-            .get("PARALLEL_EXECUTION")
-        {
-            return val.as_bool().unwrap_or(true);
-        }
-
-        match std::env::var("YACHTSQL_PARALLEL_EXECUTION") {
-            Ok(val) => !val.eq_ignore_ascii_case("false") && val != "0",
-            Err(_) => true,
-        }
-    }
-
     pub async fn execute(&self, plan: &OptimizedLogicalPlan) -> Result<Table> {
         let executor_plan = PhysicalPlan::from_physical(plan);
         self.execute_plan(&executor_plan).await
@@ -263,7 +243,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 join_type,
                 condition,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
                 self.execute_nested_loop_join(
                     left,
@@ -271,7 +252,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                     join_type,
                     condition.as_ref(),
                     schema,
-                    *parallel,
+                    hints.parallel,
                 )
                 .await
             }
@@ -279,9 +260,10 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 left,
                 right,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
-                self.execute_cross_join(left, right, schema, *parallel)
+                self.execute_cross_join(left, right, schema, hints.parallel)
                     .await
             }
             PhysicalPlan::HashJoin {
@@ -291,10 +273,17 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 left_keys,
                 right_keys,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
                 self.execute_hash_join(
-                    left, right, join_type, left_keys, right_keys, schema, *parallel,
+                    left,
+                    right,
+                    join_type,
+                    left_keys,
+                    right_keys,
+                    schema,
+                    hints.parallel,
                 )
                 .await
             }
@@ -304,11 +293,14 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 aggregates,
                 schema,
                 grouping_sets,
+                ..
             } => {
                 self.execute_aggregate(input, group_by, aggregates, schema, grouping_sets.as_ref())
                     .await
             }
-            PhysicalPlan::Sort { input, sort_exprs } => self.execute_sort(input, sort_exprs).await,
+            PhysicalPlan::Sort {
+                input, sort_exprs, ..
+            } => self.execute_sort(input, sort_exprs).await,
             PhysicalPlan::Limit {
                 input,
                 limit,
@@ -324,16 +316,21 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 inputs,
                 all,
                 schema,
-                parallel,
-            } => self.execute_union(inputs, *all, schema, *parallel).await,
+                hints,
+                ..
+            } => {
+                self.execute_union(inputs, *all, schema, hints.parallel)
+                    .await
+            }
             PhysicalPlan::Intersect {
                 left,
                 right,
                 all,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
-                self.execute_intersect(left, right, *all, schema, *parallel)
+                self.execute_intersect(left, right, *all, schema, hints.parallel)
                     .await
             }
             PhysicalPlan::Except {
@@ -341,20 +338,23 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 right,
                 all,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
-                self.execute_except(left, right, *all, schema, *parallel)
+                self.execute_except(left, right, *all, schema, hints.parallel)
                     .await
             }
             PhysicalPlan::Window {
                 input,
                 window_exprs,
                 schema,
+                ..
             } => self.execute_window(input, window_exprs, schema).await,
             PhysicalPlan::WithCte {
                 ctes,
                 body,
                 parallel_ctes,
+                ..
             } => self.execute_cte(ctes, body, parallel_ctes).await,
             PhysicalPlan::Unnest {
                 input,

@@ -19,9 +19,7 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-
-        let (left_table, right_table) = if use_parallel {
+        let (left_table, right_table) = if parallel {
             let rt = tokio::runtime::Handle::current();
             let (l, r) = std::thread::scope(|s| {
                 let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));
@@ -203,9 +201,7 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-
-        let (left_table, right_table) = if use_parallel {
+        let (left_table, right_table) = if parallel {
             let rt = tokio::runtime::Handle::current();
             let (l, r) = std::thread::scope(|s| {
                 let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));

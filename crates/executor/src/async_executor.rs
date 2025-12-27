@@ -11,7 +11,7 @@ use yachtsql_storage::Table;
 use crate::concurrent_catalog::ConcurrentCatalog;
 use crate::concurrent_session::ConcurrentSession;
 use crate::executor::concurrent::ConcurrentPlanExecutor;
-use crate::plan::PhysicalPlan;
+use crate::physical_planner::PhysicalPlanner;
 
 const PLAN_CACHE_SIZE: usize = 10000;
 
@@ -124,8 +124,8 @@ impl AsyncQueryExecutor {
             }
         };
 
-        let mut executor_plan = PhysicalPlan::from_physical(&physical);
-        executor_plan.populate_row_counts(&self.catalog);
+        let planner = PhysicalPlanner::new(&self.catalog, &self.session);
+        let executor_plan = planner.plan(&physical);
         let accesses = executor_plan.extract_table_accesses();
 
         let mut tables = self.catalog.acquire_table_locks(&accesses)?;
