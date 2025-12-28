@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use dashmap::DashMap;
@@ -11,6 +11,49 @@ use crate::catalog::{ColumnDefault, SchemaMetadata, UserFunction, UserProcedure,
 use crate::plan::{AccessType, PhysicalPlan, TableAccessSet};
 
 pub type TableHandle = Arc<RwLock<Table>>;
+
+#[derive(Debug, Clone)]
+pub struct QualifiedName {
+    pub project: Option<String>,
+    pub dataset: Option<String>,
+    pub table: String,
+}
+
+impl QualifiedName {
+    pub fn parse(name: &str) -> Self {
+        let parts: Vec<&str> = name.split('.').collect();
+        match parts.len() {
+            1 => QualifiedName {
+                project: None,
+                dataset: None,
+                table: parts[0].to_uppercase(),
+            },
+            2 => QualifiedName {
+                project: None,
+                dataset: Some(parts[0].to_uppercase()),
+                table: parts[1].to_uppercase(),
+            },
+            3 => QualifiedName {
+                project: Some(parts[0].to_uppercase()),
+                dataset: Some(parts[1].to_uppercase()),
+                table: parts[2].to_uppercase(),
+            },
+            _ => QualifiedName {
+                project: None,
+                dataset: None,
+                table: name.to_uppercase(),
+            },
+        }
+    }
+
+    pub fn full_key(&self) -> String {
+        match (&self.project, &self.dataset) {
+            (Some(p), Some(d)) => format!("{}.{}.{}", p, d, self.table),
+            (None, Some(d)) => format!("{}.{}", d, self.table),
+            _ => self.table.clone(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct DroppedSchemaData {
@@ -121,6 +164,8 @@ pub struct ConcurrentCatalog {
     search_path: RwLock<Vec<String>>,
     dropped_schemas: DashMap<String, DroppedSchemaData>,
     transaction_snapshot: RwLock<Option<TransactionSnapshot>>,
+    projects: DashMap<String, HashSet<String>>,
+    dataset_tables: DashMap<String, HashSet<String>>,
 }
 
 impl ConcurrentCatalog {
@@ -137,6 +182,33 @@ impl ConcurrentCatalog {
             search_path: RwLock::new(Vec::new()),
             dropped_schemas: DashMap::new(),
             transaction_snapshot: RwLock::new(None),
+            projects: DashMap::new(),
+            dataset_tables: DashMap::new(),
+        }
+    }
+
+    fn add_to_indexes(&self, key: &str) {
+        let qn = QualifiedName::parse(key);
+        if let (Some(project), Some(dataset)) = (&qn.project, &qn.dataset) {
+            self.projects
+                .entry(project.clone())
+                .or_default()
+                .insert(dataset.clone());
+            let dataset_key = format!("{}.{}", project, dataset);
+            self.dataset_tables
+                .entry(dataset_key)
+                .or_default()
+                .insert(qn.table.clone());
+        }
+    }
+
+    fn remove_from_indexes(&self, key: &str) {
+        let qn = QualifiedName::parse(key);
+        if let (Some(project), Some(dataset)) = (&qn.project, &qn.dataset) {
+            let dataset_key = format!("{}.{}", project, dataset);
+            if let Some(mut tables) = self.dataset_tables.get_mut(&dataset_key) {
+                tables.remove(&qn.table);
+            }
         }
     }
 
@@ -428,7 +500,9 @@ impl ConcurrentCatalog {
             )));
         }
         let table = Table::new(schema);
-        self.tables.insert(key, Arc::new(RwLock::new(table)));
+        self.tables
+            .insert(key.clone(), Arc::new(RwLock::new(table)));
+        self.add_to_indexes(&key);
         Ok(())
     }
 
@@ -460,7 +534,9 @@ impl ConcurrentCatalog {
                 name
             )));
         }
-        self.tables.insert(key, Arc::new(RwLock::new(table)));
+        self.tables
+            .insert(key.clone(), Arc::new(RwLock::new(table)));
+        self.add_to_indexes(&key);
         Ok(())
     }
 
@@ -469,6 +545,7 @@ impl ConcurrentCatalog {
         if self.tables.remove(&key).is_none() {
             return Err(Error::TableNotFound(name.to_string()));
         }
+        self.remove_from_indexes(&key);
         Ok(())
     }
 
@@ -492,7 +569,9 @@ impl ConcurrentCatalog {
         }
 
         if let Some((_, handle)) = self.tables.remove(&old_key) {
-            self.tables.insert(new_key, handle);
+            self.remove_from_indexes(&old_key);
+            self.tables.insert(new_key.clone(), handle);
+            self.add_to_indexes(&new_key);
         }
         Ok(())
     }
@@ -508,7 +587,12 @@ impl ConcurrentCatalog {
 
     pub fn create_or_replace_table(&self, name: &str, table: Table) {
         let key = name.to_uppercase();
-        self.tables.insert(key, Arc::new(RwLock::new(table)));
+        let is_new = !self.tables.contains_key(&key);
+        self.tables
+            .insert(key.clone(), Arc::new(RwLock::new(table)));
+        if is_new {
+            self.add_to_indexes(&key);
+        }
     }
 
     pub fn update_table(&self, name: &str, table: Table) {
@@ -516,6 +600,25 @@ impl ConcurrentCatalog {
         if let Some(handle) = self.tables.get(&key) {
             *handle.write() = table;
         }
+    }
+
+    pub fn get_projects(&self) -> Vec<String> {
+        self.projects.iter().map(|e| e.key().clone()).collect()
+    }
+
+    pub fn get_datasets(&self, project: &str) -> Vec<String> {
+        self.projects
+            .get(&project.to_uppercase())
+            .map(|ds| ds.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn get_tables_in_dataset(&self, project: &str, dataset: &str) -> Vec<String> {
+        let key = format!("{}.{}", project.to_uppercase(), dataset.to_uppercase());
+        self.dataset_tables
+            .get(&key)
+            .map(|ts| ts.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     pub fn create_function(&self, func: UserFunction, or_replace: bool) -> Result<()> {

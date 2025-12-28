@@ -516,3 +516,57 @@ async fn test_parallel_execution_is_faster_with_ctes_and_joins() {
         sequential_time
     );
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_qualified_table_names_project_dataset() {
+    let executor = AsyncQueryExecutor::new();
+
+    executor
+        .execute_sql("CREATE TABLE proj1.ds1.table1 (id INT64, name STRING)")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE proj1.ds1.table2 (id INT64, value FLOAT64)")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE proj1.ds2.table3 (id INT64, data STRING)")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE proj2.ds1.table4 (id INT64, count INT64)")
+        .await
+        .unwrap();
+
+    executor
+        .execute_sql("INSERT INTO proj1.ds1.table1 VALUES (1, 'Alice'), (2, 'Bob')")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO proj1.ds1.table2 VALUES (1, 1.5), (2, 2.5)")
+        .await
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT t1.id, t1.name, t2.value FROM proj1.ds1.table1 t1 JOIN proj1.ds1.table2 t2 ON t1.id = t2.id")
+        .await
+        .unwrap();
+    assert_eq!(result.row_count(), 2);
+
+    let result = executor
+        .execute_sql("SELECT * FROM proj1.ds2.table3")
+        .await
+        .unwrap();
+    assert_eq!(result.row_count(), 0);
+
+    executor
+        .execute_sql("DROP TABLE proj1.ds1.table1")
+        .await
+        .unwrap();
+
+    let result = executor.execute_sql("SELECT * FROM proj1.ds1.table2").await;
+    assert!(result.is_ok());
+
+    let result = executor.execute_sql("SELECT * FROM proj1.ds1.table1").await;
+    assert!(result.is_err());
+}
