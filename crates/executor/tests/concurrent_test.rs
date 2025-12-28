@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use yachtsql_executor::AsyncQueryExecutor;
 
 #[tokio::test(flavor = "current_thread")]
@@ -411,4 +413,106 @@ async fn test_parallel_union_execution() {
         .unwrap();
 
     assert_eq!(result.row_count(), 450);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_parallel_execution_is_faster_with_ctes_and_joins() {
+    let executor = AsyncQueryExecutor::new();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE left_table AS
+             SELECT CAST(x AS INT64) AS id, CAST(x AS FLOAT64) * 1.5 AS value, CONCAT('left_', CAST(x AS STRING)) AS name
+             FROM UNNEST(GENERATE_ARRAY(1, 50000)) AS x",
+        )
+        .await
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE right_table AS
+             SELECT CAST(x AS INT64) AS id, CAST(x AS FLOAT64) * 2.5 AS amount, CONCAT('right_', CAST(x AS STRING)) AS label
+             FROM UNNEST(GENERATE_ARRAY(1, 50000)) AS x",
+        )
+        .await
+        .unwrap();
+
+    let query = r#"
+        SELECT l.id, l.value, l.name, r.amount, r.label
+        FROM left_table l
+        JOIN right_table r ON l.id = r.id
+        WHERE l.value > 100 AND r.amount > 200
+        ORDER BY l.id
+        LIMIT 1000
+    "#;
+
+    let warmup_iterations = 2;
+    let test_iterations = 5;
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = TRUE")
+        .await
+        .unwrap();
+    for _ in 0..warmup_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = FALSE")
+        .await
+        .unwrap();
+    for _ in 0..warmup_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = TRUE")
+        .await
+        .unwrap();
+    let start = Instant::now();
+    for _ in 0..test_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+    let parallel_time = start.elapsed();
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = FALSE")
+        .await
+        .unwrap();
+    let start = Instant::now();
+    for _ in 0..test_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+    let sequential_time = start.elapsed();
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = TRUE")
+        .await
+        .unwrap();
+    let parallel_result = executor.execute_sql(query).await.unwrap();
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = FALSE")
+        .await
+        .unwrap();
+    let sequential_result = executor.execute_sql(query).await.unwrap();
+    assert_eq!(parallel_result.row_count(), sequential_result.row_count());
+
+    eprintln!(
+        "Parallel: {:?} ({:.2} ms/query), Sequential: {:?} ({:.2} ms/query)",
+        parallel_time,
+        parallel_time.as_millis() as f64 / test_iterations as f64,
+        sequential_time,
+        sequential_time.as_millis() as f64 / test_iterations as f64
+    );
+
+    let speedup = sequential_time.as_secs_f64() / parallel_time.as_secs_f64();
+    eprintln!("Speedup: {:.2}x", speedup);
+
+    assert!(
+        parallel_time <= sequential_time,
+        "Parallel ({:?}) should be faster than or equal to sequential ({:?})",
+        parallel_time,
+        sequential_time
+    );
 }

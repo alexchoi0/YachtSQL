@@ -10,7 +10,7 @@ use crate::catalog::{ColumnDefault, UserFunction, UserProcedure};
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) fn execute_truncate(&self, table_name: &str) -> Result<Table> {
         let table = self
             .tables

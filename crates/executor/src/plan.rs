@@ -8,7 +8,7 @@ use yachtsql_ir::{
 };
 use yachtsql_optimizer::{OptimizedLogicalPlan, SampleType};
 
-pub const PARALLEL_ROW_THRESHOLD: u64 = 5000;
+pub const PARALLEL_ROW_THRESHOLD: u64 = 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundType {

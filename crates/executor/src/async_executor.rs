@@ -131,7 +131,11 @@ impl AsyncQueryExecutor {
         let mut tables = self.catalog.acquire_table_locks(&accesses)?;
         tables.set_catalog(Arc::clone(&self.catalog));
 
-        let executor = ConcurrentPlanExecutor::new(&self.catalog, &self.session, tables);
+        let executor = ConcurrentPlanExecutor::new(
+            Arc::clone(&self.catalog),
+            Arc::clone(&self.session),
+            tables,
+        );
         let result = executor.execute_plan(&executor_plan).await?;
 
         executor.tables.commit_writes();

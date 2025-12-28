@@ -9,7 +9,7 @@ use super::{ConcurrentPlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_gap_fill(
         &self,
         input: &PhysicalPlan,

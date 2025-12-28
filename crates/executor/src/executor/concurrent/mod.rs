@@ -11,7 +11,7 @@ mod unnest;
 mod utils;
 
 use std::collections::{HashMap, HashSet};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use arrow::array::Array;
 use async_recursion::async_recursion;
@@ -130,20 +130,21 @@ fn compare_values_for_sort(a: &Value, b: &Value) -> std::cmp::Ordering {
     }
 }
 
-pub struct ConcurrentPlanExecutor<'a> {
-    pub(crate) catalog: &'a ConcurrentCatalog,
-    pub(crate) session: &'a ConcurrentSession,
-    pub(crate) tables: TableLockSet,
-    pub(crate) variables: RwLock<HashMap<String, Value>>,
-    pub(crate) system_variables: RwLock<HashMap<String, Value>>,
-    pub(crate) cte_results: RwLock<HashMap<String, Table>>,
-    pub(crate) user_function_defs: RwLock<HashMap<String, UserFunctionDef>>,
+#[derive(Clone)]
+pub struct ConcurrentPlanExecutor {
+    pub(crate) catalog: Arc<ConcurrentCatalog>,
+    pub(crate) session: Arc<ConcurrentSession>,
+    pub(crate) tables: Arc<TableLockSet>,
+    pub(crate) variables: Arc<RwLock<HashMap<String, Value>>>,
+    pub(crate) system_variables: Arc<RwLock<HashMap<String, Value>>>,
+    pub(crate) cte_results: Arc<RwLock<HashMap<String, Table>>>,
+    pub(crate) user_function_defs: Arc<RwLock<HashMap<String, UserFunctionDef>>>,
 }
 
-impl<'a> ConcurrentPlanExecutor<'a> {
+impl ConcurrentPlanExecutor {
     pub fn new(
-        catalog: &'a ConcurrentCatalog,
-        session: &'a ConcurrentSession,
+        catalog: Arc<ConcurrentCatalog>,
+        session: Arc<ConcurrentSession>,
         tables: TableLockSet,
     ) -> Self {
         let user_function_defs = catalog
@@ -171,11 +172,11 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         Self {
             catalog,
             session,
-            tables,
-            variables: RwLock::new(variables),
-            system_variables: RwLock::new(system_variables),
-            cte_results: RwLock::new(HashMap::new()),
-            user_function_defs: RwLock::new(user_function_defs),
+            tables: Arc::new(tables),
+            variables: Arc::new(RwLock::new(variables)),
+            system_variables: Arc::new(RwLock::new(system_variables)),
+            cte_results: Arc::new(RwLock::new(HashMap::new())),
+            user_function_defs: Arc::new(RwLock::new(user_function_defs)),
         }
     }
 
@@ -218,7 +219,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         self.execute_plan(&executor_plan).await
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub async fn execute_plan(&self, plan: &PhysicalPlan) -> Result<Table> {
         match plan {
             PhysicalPlan::TableScan {
@@ -681,7 +682,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     async fn eval_expr_with_subqueries(
         &self,
         expr: &Expr,
@@ -1412,7 +1413,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     async fn resolve_subqueries_in_expr(&self, expr: &Expr) -> Result<Expr> {
         match expr {
             Expr::InSubquery {

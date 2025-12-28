@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use yachtsql_common::error::Result;
+use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_ir::{Expr, JoinType, PlanSchema};
 use yachtsql_storage::{Record, Schema, Table};
@@ -9,7 +9,7 @@ use super::{ConcurrentPlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_nested_loop_join(
         &self,
         left: &PhysicalPlan,
@@ -20,13 +20,18 @@ impl ConcurrentPlanExecutor<'_> {
         parallel: bool,
     ) -> Result<Table> {
         let (left_table, right_table) = if parallel {
-            let rt = tokio::runtime::Handle::current();
-            let (l, r) = std::thread::scope(|s| {
-                let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));
-                let right_handle = s.spawn(|| rt.block_on(self.execute_plan(right)));
-                (left_handle.join().unwrap(), right_handle.join().unwrap())
-            });
-            (l?, r?)
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,
@@ -202,13 +207,18 @@ impl ConcurrentPlanExecutor<'_> {
         parallel: bool,
     ) -> Result<Table> {
         let (left_table, right_table) = if parallel {
-            let rt = tokio::runtime::Handle::current();
-            let (l, r) = std::thread::scope(|s| {
-                let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));
-                let right_handle = s.spawn(|| rt.block_on(self.execute_plan(right)));
-                (left_handle.join().unwrap(), right_handle.join().unwrap())
-            });
-            (l?, r?)
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,

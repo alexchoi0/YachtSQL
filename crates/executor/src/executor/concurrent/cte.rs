@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use yachtsql_common::error::Result;
+use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_ir::{CteDefinition, LogicalPlan, SetOperationType};
 use yachtsql_storage::{Field, Schema, Table};
@@ -9,7 +9,7 @@ use super::ConcurrentPlanExecutor;
 use crate::executor::plan_schema_to_schema;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_cte(
         &self,
         ctes: &[CteDefinition],
@@ -34,25 +34,28 @@ impl ConcurrentPlanExecutor<'_> {
                 && wave_ctes.iter().any(|(i, _)| parallel_ctes.contains(i));
 
             if can_parallel {
-                let rt = tokio::runtime::Handle::current();
-                let results: Vec<Result<(String, Table, Option<Vec<String>>)>> =
-                    std::thread::scope(|s| {
-                        let handles: Vec<_> = wave_ctes
-                            .iter()
-                            .map(|(_, cte)| {
-                                s.spawn(|| {
-                                    let physical_cte = yachtsql_optimizer::optimize(&cte.query)?;
-                                    let cte_plan = PhysicalPlan::from_physical(&physical_cte);
-                                    let cte_result = rt.block_on(self.execute_plan(&cte_plan))?;
-                                    Ok((cte.name.to_uppercase(), cte_result, cte.columns.clone()))
-                                })
-                            })
-                            .collect();
-                        handles.into_iter().map(|h| h.join().unwrap()).collect()
-                    });
+                let handles: Vec<_> = wave_ctes
+                    .iter()
+                    .map(|(_, cte)| {
+                        let executor = self.clone();
+                        let query = cte.query.clone();
+                        let name = cte.name.to_uppercase();
+                        let columns = cte.columns.clone();
+                        tokio::spawn(async move {
+                            let physical_cte = yachtsql_optimizer::optimize(&query)?;
+                            let cte_plan = PhysicalPlan::from_physical(&physical_cte);
+                            let cte_result = executor.execute_plan(&cte_plan).await?;
+                            Ok((name, cte_result, columns))
+                        })
+                    })
+                    .collect();
+                let results: Vec<
+                    std::result::Result<Result<(String, Table, Option<Vec<String>>)>, _>,
+                > = futures::future::join_all(handles).await;
 
                 for result in results {
-                    let (name, mut table, columns) = result?;
+                    let (name, mut table, columns) =
+                        result.map_err(|e| Error::Internal(e.to_string()))??;
                     if let Some(ref cols) = columns {
                         table = self.apply_cte_column_aliases(&table, cols)?;
                     }

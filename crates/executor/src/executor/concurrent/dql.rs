@@ -13,7 +13,7 @@ use crate::executor::plan_schema_to_schema;
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_scan(
         &self,
         table_name: &str,

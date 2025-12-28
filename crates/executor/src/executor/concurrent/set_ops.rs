@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use yachtsql_common::error::Result;
+use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_ir::PlanSchema;
 use yachtsql_storage::Table;
@@ -9,7 +9,7 @@ use super::ConcurrentPlanExecutor;
 use crate::executor::plan_schema_to_schema;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_union(
         &self,
         inputs: &[PhysicalPlan],
@@ -22,19 +22,19 @@ impl ConcurrentPlanExecutor<'_> {
         let mut seen: HashSet<Vec<Value>> = HashSet::new();
 
         let tables: Vec<Table> = if parallel && inputs.len() > 1 {
-            let rt = tokio::runtime::Handle::current();
-            std::thread::scope(|s| {
-                let handles: Vec<_> = inputs
-                    .iter()
-                    .map(|input| s.spawn(|| rt.block_on(self.execute_plan(input))))
-                    .collect();
-                handles
-                    .into_iter()
-                    .map(|h| h.join().unwrap())
-                    .collect::<Vec<Result<Table>>>()
-            })
-            .into_iter()
-            .collect::<Result<Vec<_>>>()?
+            let handles: Vec<_> = inputs
+                .iter()
+                .map(|input| {
+                    let executor = self.clone();
+                    let plan = input.clone();
+                    tokio::spawn(async move { executor.execute_plan(&plan).await })
+                })
+                .collect();
+            let results = futures::future::join_all(handles).await;
+            results
+                .into_iter()
+                .map(|r| r.map_err(|e| Error::Internal(e.to_string()))?)
+                .collect::<Result<Vec<_>>>()?
         } else {
             let mut tables = Vec::with_capacity(inputs.len());
             for input in inputs {
@@ -64,13 +64,18 @@ impl ConcurrentPlanExecutor<'_> {
         parallel: bool,
     ) -> Result<Table> {
         let (left_table, right_table) = if parallel {
-            let rt = tokio::runtime::Handle::current();
-            let (l, r) = std::thread::scope(|s| {
-                let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));
-                let right_handle = s.spawn(|| rt.block_on(self.execute_plan(right)));
-                (left_handle.join().unwrap(), right_handle.join().unwrap())
-            });
-            (l?, r?)
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,
@@ -111,13 +116,18 @@ impl ConcurrentPlanExecutor<'_> {
         parallel: bool,
     ) -> Result<Table> {
         let (left_table, right_table) = if parallel {
-            let rt = tokio::runtime::Handle::current();
-            let (l, r) = std::thread::scope(|s| {
-                let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));
-                let right_handle = s.spawn(|| rt.block_on(self.execute_plan(right)));
-                (left_handle.join().unwrap(), right_handle.join().unwrap())
-            });
-            (l?, r?)
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,
