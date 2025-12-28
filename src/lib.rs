@@ -105,6 +105,28 @@ impl YachtSQLSession {
     pub fn catalog(&self) -> &ConcurrentCatalog {
         self.executor.catalog()
     }
+
+    pub fn set_default_project(&self, project: Option<String>) {
+        self.executor.catalog().set_default_project(project);
+    }
+
+    pub fn get_default_project(&self) -> Option<String> {
+        self.executor.catalog().get_default_project()
+    }
+
+    pub fn get_projects(&self) -> Vec<String> {
+        self.executor.catalog().get_projects()
+    }
+
+    pub fn get_datasets(&self, project: &str) -> Vec<String> {
+        self.executor.catalog().get_datasets(project)
+    }
+
+    pub fn get_tables_in_dataset(&self, project: &str, dataset: &str) -> Vec<String> {
+        self.executor
+            .catalog()
+            .get_tables_in_dataset(project, dataset)
+    }
 }
 
 impl Default for YachtSQLSession {
