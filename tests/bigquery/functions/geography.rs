@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_geogpoint() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_st_geogpoint() {
     assert_table_eq!(result, [["POINT(-122.4194 37.7749)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_makeline() {
     let session = create_session();
     let result = session
@@ -25,7 +25,7 @@ async fn test_st_makeline() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_makepolygon() {
     let session = create_session();
     let result = session
@@ -34,7 +34,7 @@ async fn test_st_makepolygon() {
     assert_table_eq!(result, [["POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_geogfromtext() {
     let session = create_session();
     let result = session
@@ -44,7 +44,7 @@ async fn test_st_geogfromtext() {
     assert_table_eq!(result, [["POINT(-122.4194 37.7749)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_geogfromgeojson() {
     let session = create_session();
     let result = session
@@ -53,7 +53,7 @@ async fn test_st_geogfromgeojson() {
     assert_table_eq!(result, [["POINT(-122.4194 37.7749)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_astext() {
     let session = create_session();
     let result = session
@@ -63,7 +63,7 @@ async fn test_st_astext() {
     assert_table_eq!(result, [["POINT(-122.4194 37.7749)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_asgeojson() {
     let session = create_session();
     let result = session
@@ -76,7 +76,7 @@ async fn test_st_asgeojson() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_distance() {
     let session = create_session();
     let result = session
@@ -87,7 +87,7 @@ async fn test_st_distance() {
     assert_table_eq!(result, [[4145004.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_length() {
     let session = create_session();
     let result = session
@@ -99,7 +99,7 @@ async fn test_st_length() {
     assert_table_eq!(result, [[111319.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_area() {
     let session = create_session();
     let result = session
@@ -111,7 +111,7 @@ async fn test_st_area() {
     assert_table_eq!(result, [[12308778361.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_perimeter() {
     let session = create_session();
     let result = session
@@ -123,7 +123,7 @@ async fn test_st_perimeter() {
     assert_table_eq!(result, [[443771.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_x() {
     let session = create_session();
     let result = session
@@ -133,7 +133,7 @@ async fn test_st_x() {
     assert_table_eq!(result, [[-122.4194]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_y() {
     let session = create_session();
     let result = session
@@ -143,7 +143,7 @@ async fn test_st_y() {
     assert_table_eq!(result, [[37.7749]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_centroid() {
     let session = create_session();
     let result = session
@@ -155,7 +155,7 @@ async fn test_st_centroid() {
     assert_table_eq!(result, [["POINT(0.5 0.5)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_contains() {
     let session = create_session();
     let result = session
@@ -164,7 +164,7 @@ async fn test_st_contains() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_intersects() {
     let session = create_session();
     let result = session
@@ -173,7 +173,7 @@ async fn test_st_intersects() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_within() {
     let session = create_session();
     let result = session
@@ -182,7 +182,7 @@ async fn test_st_within() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_dwithin() {
     let session = create_session();
     let result = session
@@ -192,7 +192,7 @@ async fn test_st_dwithin() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_touches() {
     let session = create_session();
     let result = session
@@ -201,7 +201,7 @@ async fn test_st_touches() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_boundary() {
     let session = create_session();
     let result = session
@@ -210,7 +210,7 @@ async fn test_st_boundary() {
     assert_table_eq!(result, [["LineString"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_buffer() {
     let session = create_session();
     let result = session
@@ -220,7 +220,7 @@ async fn test_st_buffer() {
     assert_table_eq!(result, [["Polygon"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_bufferwithtolerance() {
     let session = create_session();
     let result = session
@@ -230,7 +230,7 @@ async fn test_st_bufferwithtolerance() {
     assert_table_eq!(result, [["Polygon"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_union() {
     let session = create_session();
     let result = session
@@ -239,7 +239,7 @@ async fn test_st_union() {
     assert_table_eq!(result, [["MultiPolygon"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_intersection() {
     let session = create_session();
     let result = session
@@ -248,7 +248,7 @@ async fn test_st_intersection() {
     assert_table_eq!(result, [["MultiPolygon"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_difference() {
     let session = create_session();
     let result = session
@@ -257,7 +257,7 @@ async fn test_st_difference() {
     assert_table_eq!(result, [["MultiPolygon"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_simplify() {
     let session = create_session();
     let result = session
@@ -268,7 +268,7 @@ async fn test_st_simplify() {
     assert_table_eq!(result, [["LineString"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_snaptogrid() {
     let session = create_session();
     let result = session
@@ -280,7 +280,7 @@ async fn test_st_snaptogrid() {
     assert_table_eq!(result, [["POINT(-122.4195 37.7749)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_numpoints() {
     let session = create_session();
     let result = session
@@ -290,7 +290,7 @@ async fn test_st_numpoints() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_pointn() {
     let session = create_session();
     let result = session
@@ -300,7 +300,7 @@ async fn test_st_pointn() {
     assert_table_eq!(result, [["POINT(1 1)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_startpoint() {
     let session = create_session();
     let result = session
@@ -312,7 +312,7 @@ async fn test_st_startpoint() {
     assert_table_eq!(result, [["POINT(0 0)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_endpoint() {
     let session = create_session();
     let result = session
@@ -322,7 +322,7 @@ async fn test_st_endpoint() {
     assert_table_eq!(result, [["POINT(2 0)"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_isclosed() {
     let session = create_session();
     let result = session
@@ -332,7 +332,7 @@ async fn test_st_isclosed() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_isempty() {
     let session = create_session();
     let result = session
@@ -342,7 +342,7 @@ async fn test_st_isempty() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_dimension() {
     let session = create_session();
     let result = session
@@ -352,7 +352,7 @@ async fn test_st_dimension() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_geometrytype() {
     let session = create_session();
     let result = session
@@ -362,7 +362,7 @@ async fn test_st_geometrytype() {
     assert_table_eq!(result, [["Point"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_maxdistance() {
     let session = create_session();
     let result = session
@@ -371,7 +371,7 @@ async fn test_st_maxdistance() {
     assert_table_eq!(result, [[313776.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_closestpoint() {
     let session = create_session();
     let result = session
@@ -380,7 +380,7 @@ async fn test_st_closestpoint() {
     assert_table_eq!(result, [["Point"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_convexhull() {
     let session = create_session();
     let result = session
@@ -391,7 +391,7 @@ async fn test_st_convexhull() {
     assert_table_eq!(result, [["Polygon"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_geography_in_table() {
     let session = create_session();
     session
@@ -408,7 +408,7 @@ async fn test_geography_in_table() {
     assert_table_eq!(result, [["San Francisco"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_geohash() {
     let session = create_session();
     let result = session
@@ -418,7 +418,7 @@ async fn test_st_geohash() {
     assert_table_eq!(result, [["9q8yyk"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_st_geogpointfromgeohash() {
     let session = create_session();
     let result = session

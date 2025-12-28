@@ -23,7 +23,7 @@ async fn setup_nullable_table(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_single_row() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -38,7 +38,7 @@ async fn test_insert_single_row() {
     assert_table_eq!(result, [[1, "Widget", 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_multiple_rows() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -61,7 +61,7 @@ async fn test_insert_multiple_rows() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_column_list() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -76,7 +76,7 @@ async fn test_insert_with_column_list() {
     assert_table_eq!(result, [[1, "Widget", 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_reordered_columns() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -94,7 +94,7 @@ async fn test_insert_with_reordered_columns() {
     assert_table_eq!(result, [[1, "Widget", 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_partial_columns() {
     let session = create_session();
     setup_nullable_table(&session).await;
@@ -109,7 +109,7 @@ async fn test_insert_partial_columns() {
     assert_table_eq!(result, [[1, "test@example.com", null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_null_value() {
     let session = create_session();
     setup_nullable_table(&session).await;
@@ -124,7 +124,7 @@ async fn test_insert_with_null_value() {
     assert_table_eq!(result, [[1, "test@example.com", null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_default_keyword() {
     let session = create_session();
     setup_table_with_defaults(&session).await;
@@ -139,7 +139,7 @@ async fn test_insert_with_default_keyword() {
     assert_table_eq!(result, [[1, "pending", 0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_default_values() {
     let session = create_session();
     setup_table_with_defaults(&session).await;
@@ -154,7 +154,7 @@ async fn test_insert_default_values() {
     assert_table_eq!(result, [[1, "pending", 0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_expression() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -172,7 +172,7 @@ async fn test_insert_with_expression() {
     assert_table_eq!(result, [[100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_multiple_statements() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -194,7 +194,7 @@ async fn test_insert_multiple_statements() {
     assert_table_eq!(result, [[1, "Widget", 100], [2, "Gadget", 50],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_into_empty_table() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -217,7 +217,7 @@ async fn test_insert_into_empty_table() {
     assert_table_eq!(result_after, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_subquery() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -245,7 +245,7 @@ async fn test_insert_with_subquery() {
     assert_table_eq!(result, [[1, "Widget", 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_expression_default() {
     let session = create_session();
 
@@ -269,7 +269,7 @@ async fn test_insert_with_expression_default() {
     assert_table_eq!(result, [[1, "login", true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_struct_type() {
     let session = create_session();
 
@@ -296,7 +296,7 @@ async fn test_insert_with_struct_type() {
     assert_table_eq!(result, [["Widget", "red"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_array_type() {
     let session = create_session();
 
@@ -318,7 +318,7 @@ async fn test_insert_with_array_type() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_select_with_unnest_simple() {
     let session = create_session();
 
@@ -340,7 +340,7 @@ async fn test_insert_select_with_unnest_simple() {
     assert_table_eq!(result, [[1], [2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_select_with_unnest() {
     let session = create_session();
 
@@ -375,7 +375,7 @@ async fn test_insert_select_with_unnest() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_select_with_cte_simple() {
     let session = create_session();
 
@@ -400,7 +400,7 @@ async fn test_insert_select_with_cte_simple() {
     assert_table_eq!(result, [[1, 100], [2, 200]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_select_with_cte() {
     let session = create_session();
 
@@ -430,7 +430,7 @@ async fn test_insert_select_with_cte() {
     assert_table_eq!(result, [["warehouse #1", "WA"], ["warehouse #2", "CA"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_nested_struct_simple() {
     let session = create_session();
 
@@ -462,7 +462,7 @@ async fn test_insert_with_nested_struct_simple() {
     assert_table_eq!(result, [[1, {"John Doe", {"New York", "10001"}}]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_nested_struct() {
     let session = create_session();
 
@@ -497,7 +497,7 @@ async fn test_insert_with_nested_struct() {
     assert_table_eq!(result, [["washer", "white"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_array_of_struct() {
     let session = create_session();
 
@@ -527,7 +527,7 @@ async fn test_insert_with_array_of_struct() {
     assert_table_eq!(result, [["washer", 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_values_with_subquery_simple() {
     let session = create_session();
 
@@ -557,7 +557,7 @@ async fn test_insert_values_with_subquery_simple() {
     assert_table_eq!(result, [[1, 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_values_with_subquery() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -584,7 +584,7 @@ async fn test_insert_values_with_subquery() {
     assert_table_eq!(result, [[20]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_into_keyword() {
     let session = create_session();
     setup_simple_table(&session).await;
@@ -599,7 +599,7 @@ async fn test_insert_into_keyword() {
     assert_table_eq!(result, [[1, "Widget", 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_copy_table() {
     let session = create_session();
 
@@ -643,7 +643,7 @@ async fn test_insert_copy_table() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_range_function() {
     let session = create_session();
 
@@ -655,7 +655,7 @@ async fn test_insert_with_range_function() {
     assert_table_eq!(result, [["2024-01-01"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_insert_with_range_type() {
     let session = create_session();
 

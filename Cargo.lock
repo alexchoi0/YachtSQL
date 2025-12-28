@@ -5348,7 +5348,7 @@ checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "yachtsql"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "ahash 0.8.12",
  "aligned-vec",
@@ -5398,14 +5398,14 @@ dependencies = [
  "yachtsql-ir",
  "yachtsql-optimizer",
  "yachtsql-parser",
- "yachtsql-sqlparser",
+ "yachtsql-sqlparser 0.60.1",
  "yachtsql-storage",
  "yachtsql-test-utils",
 ]
 
 [[package]]
 name = "yachtsql-cli"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -5416,7 +5416,7 @@ dependencies = [
 
 [[package]]
 name = "yachtsql-common"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "base64",
@@ -5438,7 +5438,7 @@ dependencies = [
 
 [[package]]
 name = "yachtsql-executor"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -5517,7 +5517,7 @@ dependencies = [
 
 [[package]]
 name = "yachtsql-functions"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "aes",
  "ahash 0.8.12",
@@ -5552,13 +5552,13 @@ dependencies = [
  "xxhash-rust",
  "yachtsql-common",
  "yachtsql-parser",
- "yachtsql-sqlparser",
+ "yachtsql-sqlparser 0.59.0",
  "yachtsql-storage",
 ]
 
 [[package]]
 name = "yachtsql-ir"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "chrono",
  "indexmap",
@@ -5567,13 +5567,13 @@ dependencies = [
  "serde",
  "serde_json",
  "yachtsql-common",
- "yachtsql-sqlparser",
+ "yachtsql-sqlparser 0.60.1",
  "yachtsql-storage",
 ]
 
 [[package]]
 name = "yachtsql-optimizer"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "serde",
  "tokio",
@@ -5583,7 +5583,7 @@ dependencies = [
 
 [[package]]
 name = "yachtsql-parser"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "chrono",
  "hex",
@@ -5594,13 +5594,26 @@ dependencies = [
  "serde_json",
  "yachtsql-common",
  "yachtsql-ir",
- "yachtsql-sqlparser",
+ "yachtsql-sqlparser 0.60.1",
  "yachtsql-storage",
 ]
 
 [[package]]
 name = "yachtsql-sqlparser"
 version = "0.59.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d269de611109b9eeafd671837a110dda689cb8615823fe35615bdbd1c11e937"
+dependencies = [
+ "log",
+ "recursive",
+ "yachtsql-sqlparser-derive",
+]
+
+[[package]]
+name = "yachtsql-sqlparser"
+version = "0.60.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e049a84b3fa8e71c02b85d8e8e708f92b0bc03e00945dc1e091ce6fb4c20497a"
 dependencies = [
  "log",
  "recursive",
@@ -5620,7 +5633,7 @@ dependencies = [
 
 [[package]]
 name = "yachtsql-storage"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "aligned-vec",
  "chrono",
@@ -5635,7 +5648,7 @@ dependencies = [
 
 [[package]]
 name = "yachtsql-test-utils"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "rust_decimal",
  "yachtsql",

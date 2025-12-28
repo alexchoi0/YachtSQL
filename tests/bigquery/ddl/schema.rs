@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema() {
     let session = create_session();
     session
@@ -25,7 +25,7 @@ async fn test_create_schema() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_if_not_exists() {
     let session = create_session();
     session
@@ -39,7 +39,7 @@ async fn test_create_schema_if_not_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_schema() {
     let session = create_session();
     session
@@ -57,7 +57,7 @@ async fn test_drop_schema() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_schema_if_exists() {
     let session = create_session();
 
@@ -67,7 +67,7 @@ async fn test_drop_schema_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_schema_cascade() {
     let session = create_session();
     session
@@ -92,7 +92,7 @@ async fn test_drop_schema_cascade() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_schema_qualified_table_names() {
     let session = create_session();
     session.execute_sql("CREATE SCHEMA schema1").await.unwrap();
@@ -129,7 +129,7 @@ async fn test_schema_qualified_table_names() {
     assert_table_eq!(result2, [[200]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_schema_with_options() {
     let session = create_session();
     session
@@ -146,7 +146,7 @@ async fn test_schema_with_options() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_schema() {
     let session = create_session();
     session
@@ -160,7 +160,7 @@ async fn test_alter_schema() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_schema_join() {
     let session = create_session();
     session.execute_sql("CREATE SCHEMA schema_a").await.unwrap();
@@ -190,7 +190,7 @@ async fn test_cross_schema_join() {
     assert_table_eq!(result, [["Alice", 300], ["Bob", 150]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_view_in_schema() {
     let session = create_session();
     session
@@ -220,7 +220,7 @@ async fn test_create_view_in_schema() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_default_schema() {
     let session = create_session();
 
@@ -240,7 +240,7 @@ async fn test_default_schema() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_schema_search_path() {
     let session = create_session();
     session
@@ -265,7 +265,7 @@ async fn test_schema_search_path() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_table() {
     let session = create_session();
     session
@@ -286,7 +286,7 @@ async fn test_truncate_table() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_table_in_schema() {
     let session = create_session();
     session
@@ -314,7 +314,7 @@ async fn test_truncate_table_in_schema() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_undrop_schema() {
     let session = create_session();
 
@@ -348,7 +348,7 @@ async fn test_undrop_schema() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_undrop_schema_if_not_exists() {
     let session = create_session();
 
@@ -367,7 +367,7 @@ async fn test_undrop_schema_if_not_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_or_replace() {
     let session = create_session();
 
@@ -393,7 +393,7 @@ async fn test_create_schema_or_replace() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_schema_restrict() {
     let session = create_session();
 
@@ -412,7 +412,7 @@ async fn test_drop_schema_restrict() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_schema_with_default_collation() {
     let session = create_session();
 
@@ -432,7 +432,7 @@ async fn test_schema_with_default_collation() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_row_access_policy() {
     let session = create_session();
 
@@ -459,7 +459,7 @@ async fn test_create_row_access_policy() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_row_access_policy_if_not_exists() {
     let session = create_session();
 
@@ -479,7 +479,7 @@ async fn test_create_row_access_policy_if_not_exists() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_row_access_policy() {
     let session = create_session();
 
@@ -509,7 +509,7 @@ async fn test_create_or_replace_row_access_policy() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_row_access_policy() {
     let session = create_session();
 
@@ -534,7 +534,7 @@ async fn test_drop_row_access_policy() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_all_row_access_policies() {
     let session = create_session();
 
@@ -561,7 +561,7 @@ async fn test_drop_all_row_access_policies() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_search_index() {
     let session = create_session();
 
@@ -579,7 +579,7 @@ async fn test_create_search_index() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_search_index_all_columns() {
     let session = create_session();
 
@@ -597,7 +597,7 @@ async fn test_create_search_index_all_columns() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_search_index_with_options() {
     let session = create_session();
 
@@ -616,7 +616,7 @@ async fn test_create_search_index_with_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_search_index() {
     let session = create_session();
 
@@ -636,7 +636,7 @@ async fn test_drop_search_index() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_vector_index() {
     let session = create_session();
 
@@ -655,7 +655,7 @@ async fn test_create_vector_index() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_vector_index_stored_column() {
     let session = create_session();
 
@@ -675,7 +675,7 @@ async fn test_create_vector_index_stored_column() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_vector_index() {
     let session = create_session();
 
@@ -695,7 +695,7 @@ async fn test_drop_vector_index() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_with_location() {
     let session = create_session();
 
@@ -715,7 +715,7 @@ async fn test_create_schema_with_location() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_with_default_table_expiration() {
     let session = create_session();
 
@@ -741,7 +741,7 @@ async fn test_create_schema_with_default_table_expiration() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_with_labels() {
     let session = create_session();
 
@@ -765,7 +765,7 @@ async fn test_create_schema_with_labels() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_with_default_partition_expiration() {
     let session = create_session();
 
@@ -800,7 +800,7 @@ async fn test_create_schema_with_default_partition_expiration() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_with_storage_billing_model() {
     let session = create_session();
 
@@ -814,7 +814,7 @@ async fn test_create_schema_with_storage_billing_model() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_schema_with_max_time_travel() {
     let session = create_session();
 
@@ -828,7 +828,7 @@ async fn test_create_schema_with_max_time_travel() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_schema_set_default_collate() {
     let session = create_session();
 
@@ -859,7 +859,7 @@ async fn test_alter_schema_set_default_collate() {
     assert_table_eq!(result, [["Hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_schema_set_multiple_options() {
     let session = create_session();
 
@@ -880,7 +880,7 @@ async fn test_alter_schema_set_multiple_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_external_schema() {
     let session = create_session();
 
@@ -901,7 +901,7 @@ async fn test_drop_external_schema() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_vector_index_tree_ah() {
     let session = create_session();
 
@@ -923,7 +923,7 @@ async fn test_create_vector_index_tree_ah() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_search_index_if_not_exists() {
     let session = create_session();
 
@@ -943,7 +943,7 @@ async fn test_create_search_index_if_not_exists() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_search_index_with_data_types() {
     let session = create_session();
 
@@ -969,7 +969,7 @@ async fn test_create_search_index_with_data_types() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_search_index_if_exists() {
     let session = create_session();
 
@@ -979,7 +979,7 @@ async fn test_drop_search_index_if_exists() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_vector_index() {
     let session = create_session();
 

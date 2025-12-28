@@ -36,7 +36,7 @@ async fn setup_nullable_numbers(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_equals_integer() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -49,7 +49,7 @@ async fn test_equals_integer() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_equals_string() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -62,7 +62,7 @@ async fn test_equals_string() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_equals_integer() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -75,7 +75,7 @@ async fn test_not_equals_integer() {
     assert_table_eq!(result, [[1], [3], [4], [5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_equals_alternate_syntax() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -88,7 +88,7 @@ async fn test_not_equals_alternate_syntax() {
     assert_table_eq!(result, [[1], [3], [4], [5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_less_than() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -101,7 +101,7 @@ async fn test_less_than() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_less_than_or_equal() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -114,7 +114,7 @@ async fn test_less_than_or_equal() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_greater_than() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -127,7 +127,7 @@ async fn test_greater_than() {
     assert_table_eq!(result, [[4], [5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_greater_than_or_equal() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -140,7 +140,7 @@ async fn test_greater_than_or_equal() {
     assert_table_eq!(result, [[4], [5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_comparison_with_null_equals() {
     let session = create_session();
     setup_nullable_numbers(&session).await;
@@ -153,7 +153,7 @@ async fn test_comparison_with_null_equals() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_null() {
     let session = create_session();
     setup_nullable_numbers(&session).await;
@@ -166,7 +166,7 @@ async fn test_is_null() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_null() {
     let session = create_session();
     setup_nullable_numbers(&session).await;
@@ -179,7 +179,7 @@ async fn test_is_not_null() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -192,7 +192,7 @@ async fn test_between() {
     assert_table_eq!(result, [[2], [3], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_between() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -205,7 +205,7 @@ async fn test_not_between() {
     assert_table_eq!(result, [[1], [5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_list() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -218,7 +218,7 @@ async fn test_in_list() {
     assert_table_eq!(result, [[1], [3], [5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_in_list() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -231,7 +231,7 @@ async fn test_not_in_list() {
     assert_table_eq!(result, [[2], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_string_list() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -244,7 +244,7 @@ async fn test_in_string_list() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_prefix() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -257,7 +257,7 @@ async fn test_like_prefix() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_suffix() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -270,7 +270,7 @@ async fn test_like_suffix() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_contains() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -283,7 +283,7 @@ async fn test_like_contains() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_single_char() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -296,7 +296,7 @@ async fn test_like_single_char() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_like() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -309,7 +309,7 @@ async fn test_not_like() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_comparison_expression_result() {
     let session = create_session();
 
@@ -321,7 +321,7 @@ async fn test_comparison_expression_result() {
     assert_table_eq!(result, [[true, false, true, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_comparison_expression() {
     let session = create_session();
 
@@ -333,7 +333,7 @@ async fn test_null_comparison_expression() {
     assert_table_eq!(result, [[null, true, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_comparison_operators() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -346,7 +346,7 @@ async fn test_string_comparison_operators() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_greater_than() {
     let session = create_session();
     setup_strings_table(&session).await;
@@ -359,7 +359,7 @@ async fn test_string_greater_than() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_chained_comparison() {
     let session = create_session();
     setup_numbers_table(&session).await;
@@ -372,7 +372,7 @@ async fn test_chained_comparison() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_comparison_with_expression() {
     let session = create_session();
     setup_numbers_table(&session).await;

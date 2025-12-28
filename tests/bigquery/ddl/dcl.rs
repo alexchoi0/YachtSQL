@@ -1,6 +1,6 @@
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_role_on_schema() {
     let session = create_session();
     session
@@ -17,7 +17,7 @@ async fn test_grant_role_on_schema() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_multiple_roles_on_schema() {
     let session = create_session();
     session
@@ -35,7 +35,7 @@ async fn test_grant_multiple_roles_on_schema() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_role_on_table() {
     let session = create_session();
     session
@@ -52,7 +52,7 @@ async fn test_grant_role_on_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_to_group() {
     let session = create_session();
     session
@@ -69,7 +69,7 @@ async fn test_grant_to_group() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_to_service_account() {
     let session = create_session();
     session
@@ -86,7 +86,7 @@ async fn test_grant_to_service_account() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_to_domain() {
     let session = create_session();
     session
@@ -103,7 +103,7 @@ async fn test_grant_to_domain() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_revoke_role_from_schema() {
     let session = create_session();
     session
@@ -118,7 +118,7 @@ async fn test_revoke_role_from_schema() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_revoke_role_from_table() {
     let session = create_session();
     session
@@ -135,7 +135,7 @@ async fn test_revoke_role_from_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_revoke_multiple_roles() {
     let session = create_session();
     session
@@ -153,7 +153,7 @@ async fn test_revoke_multiple_roles() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_on_fully_qualified_table() {
     let session = create_session();
     session
@@ -174,7 +174,7 @@ async fn test_grant_on_fully_qualified_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_revoke_from_multiple_users() {
     let session = create_session();
     session
@@ -191,7 +191,7 @@ async fn test_revoke_from_multiple_users() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_admin_role() {
     let session = create_session();
     session
@@ -208,7 +208,7 @@ async fn test_grant_admin_role() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_job_user_role() {
     let session = create_session();
     session
@@ -225,7 +225,7 @@ async fn test_grant_job_user_role() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_revoke_from_special_group() {
     let session = create_session();
     session
@@ -242,7 +242,7 @@ async fn test_revoke_from_special_group() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grant_then_revoke() {
     let session = create_session();
     session

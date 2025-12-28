@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, ip};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ipv4_from_int64() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_net_ipv4_from_int64() {
     assert_table_eq!(result, [[ip("10.0.0.1")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ipv4_to_int64() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_net_ipv4_to_int64() {
     assert_table_eq!(result, [[3232235777i64]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_from_string() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_net_ip_from_string() {
     assert_table_eq!(result, [[ip("192.168.1.1")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_safe_ip_from_string() {
     let session = create_session();
     let result = session
@@ -41,7 +41,7 @@ async fn test_net_safe_ip_from_string() {
     assert_table_eq!(result, [[ip("192.168.1.1")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_safe_ip_from_string_invalid() {
     let session = create_session();
     let result = session
@@ -51,7 +51,7 @@ async fn test_net_safe_ip_from_string_invalid() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_to_string() {
     let session = create_session();
     let result = session
@@ -61,7 +61,7 @@ async fn test_net_ip_to_string() {
     assert_table_eq!(result, [["192.168.1.1"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_net_mask() {
     let session = create_session();
     let result = session
@@ -71,7 +71,7 @@ async fn test_net_ip_net_mask() {
     assert_table_eq!(result, [[ip("255.255.255.0")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_trunc() {
     let session = create_session();
     let result = session
@@ -81,7 +81,7 @@ async fn test_net_ip_trunc() {
     assert_table_eq!(result, [[ip("192.168.1.0")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ipv4_from_int64_null() {
     let session = create_session();
     let result = session
@@ -91,7 +91,7 @@ async fn test_net_ipv4_from_int64_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_host() {
     let session = create_session();
     let result = session
@@ -101,7 +101,7 @@ async fn test_net_host() {
     assert_table_eq!(result, [["www.example.com"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_public_suffix() {
     let session = create_session();
     let result = session
@@ -111,7 +111,7 @@ async fn test_net_public_suffix() {
     assert_table_eq!(result, [["com"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_reg_domain() {
     let session = create_session();
     let result = session
@@ -121,7 +121,7 @@ async fn test_net_reg_domain() {
     assert_table_eq!(result, [["example.com"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_in_net() {
     let session = create_session();
     let result = session
@@ -131,7 +131,7 @@ async fn test_net_ip_in_net() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_in_net_false() {
     let session = create_session();
     let result = session
@@ -141,7 +141,7 @@ async fn test_net_ip_in_net_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_make_net() {
     let session = create_session();
     let result = session
@@ -151,7 +151,7 @@ async fn test_net_make_net() {
     assert_table_eq!(result, [["192.168.1.0/24"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_is_private() {
     let session = create_session();
     let result = session
@@ -161,7 +161,7 @@ async fn test_net_ip_is_private() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ip_is_private_public() {
     let session = create_session();
     let result = session
@@ -171,7 +171,7 @@ async fn test_net_ip_is_private_public() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ipv6_from_string() {
     let session = create_session();
     let result = session
@@ -181,7 +181,7 @@ async fn test_net_ipv6_from_string() {
     assert_table_eq!(result, [["2001:db8::1"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_ipv6_to_string() {
     let session = create_session();
     let result = session
@@ -191,7 +191,7 @@ async fn test_net_ipv6_to_string() {
     assert_table_eq!(result, [["::ffff:192.168.1.1"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_net_in_table() {
     let session = create_session();
     session

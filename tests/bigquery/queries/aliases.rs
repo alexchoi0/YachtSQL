@@ -1,14 +1,14 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_column_alias() {
     let session = create_session();
     let result = session.execute_sql("SELECT 1 AS number").await.unwrap();
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_column_alias_without_as() {
     let session = create_session();
     let result = session
@@ -18,7 +18,7 @@ async fn test_column_alias_without_as() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_expression_alias() {
     let session = create_session();
     let result = session
@@ -28,7 +28,7 @@ async fn test_expression_alias() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_alias() {
     let session = create_session();
     session
@@ -47,7 +47,7 @@ async fn test_table_alias() {
     assert_table_eq!(result, [[1, "alice"], [2, "bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_alias_without_as() {
     let session = create_session();
     session
@@ -66,7 +66,7 @@ async fn test_table_alias_without_as() {
     assert_table_eq!(result, [[1, 100], [2, 200]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alias_in_order_by() {
     let session = create_session();
     session
@@ -85,7 +85,7 @@ async fn test_alias_in_order_by() {
     assert_table_eq!(result, [[10], [20], [30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_aggregate_alias() {
     let session = create_session();
     session
@@ -104,7 +104,7 @@ async fn test_aggregate_alias() {
     assert_table_eq!(result, [[600]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_multiple_aliases() {
     let session = create_session();
     session
@@ -122,7 +122,7 @@ async fn test_multiple_aliases() {
     assert_table_eq!(result, [[1, "Widget", 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_join_with_table_aliases() {
     let session = create_session();
     session
@@ -150,7 +150,7 @@ async fn test_join_with_table_aliases() {
     assert_table_eq!(result, [["alice", "Engineering"], ["bob", "Sales"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_subquery_alias() {
     let session = create_session();
     session

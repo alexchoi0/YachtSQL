@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "yachtsql-sqlparser"
-version = "0.59.0"
+version = "0.60.1"
 authors = [
     "Apache DataFusion <dev@datafusion.apache.org>",
     "Alex Choi <alexchoi@hey.com>",

@@ -13,7 +13,7 @@ async fn setup_table(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_by_single_column_asc() {
     let session = create_session();
     setup_table(&session).await;
@@ -29,7 +29,7 @@ async fn test_order_by_single_column_asc() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_by_single_column_desc() {
     let session = create_session();
     setup_table(&session).await;
@@ -45,7 +45,7 @@ async fn test_order_by_single_column_desc() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_by_multiple_columns() {
     let session = create_session();
     setup_table(&session).await;
@@ -67,7 +67,7 @@ async fn test_order_by_multiple_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_limit() {
     let session = create_session();
     setup_table(&session).await;
@@ -80,7 +80,7 @@ async fn test_limit() {
     assert_table_eq!(result, [["Apple"], ["Banana"], ["Carrot"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_limit_offset() {
     let session = create_session();
     setup_table(&session).await;
@@ -93,7 +93,7 @@ async fn test_limit_offset() {
     assert_table_eq!(result, [["Carrot"], ["Date"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_limit_larger_than_result() {
     let session = create_session();
     setup_table(&session).await;
@@ -109,7 +109,7 @@ async fn test_limit_larger_than_result() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_offset_larger_than_result() {
     let session = create_session();
     setup_table(&session).await;
@@ -122,7 +122,7 @@ async fn test_offset_larger_than_result() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_by_with_null_values() {
     let session = create_session();
 
@@ -143,7 +143,7 @@ async fn test_order_by_with_null_values() {
     assert_table_eq!(result, [[3], [5], [1], [2], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_by_expression() {
     let session = create_session();
     setup_table(&session).await;
@@ -158,7 +158,7 @@ async fn test_order_by_expression() {
     assert_table_eq!(result, [["Date", 400], ["Eggplant", 250], ["Apple", 200],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_by_alias() {
     let session = create_session();
     setup_table(&session).await;

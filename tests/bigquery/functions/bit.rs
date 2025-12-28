@@ -1,21 +1,21 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_count() {
     let session = create_session();
     let result = session.execute_sql("SELECT BIT_COUNT(5)").await.unwrap();
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_count_zero() {
     let session = create_session();
     let result = session.execute_sql("SELECT BIT_COUNT(0)").await.unwrap();
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_count_bytes() {
     let session = create_session();
     let result = session
@@ -25,7 +25,7 @@ async fn test_bit_count_bytes() {
     assert_table_eq!(result, [[8]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_byte_length() {
     let session = create_session();
     let result = session
@@ -35,7 +35,7 @@ async fn test_byte_length() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_byte_length_unicode() {
     let session = create_session();
     let result = session
@@ -45,7 +45,7 @@ async fn test_byte_length_unicode() {
     assert_table_eq!(result, [[9]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_byte_length_bytes() {
     let session = create_session();
     let result = session
@@ -55,7 +55,7 @@ async fn test_byte_length_bytes() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_and_aggregate() {
     let session = create_session();
     session
@@ -74,7 +74,7 @@ async fn test_bit_and_aggregate() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_or_aggregate() {
     let session = create_session();
     session
@@ -93,7 +93,7 @@ async fn test_bit_or_aggregate() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_xor_aggregate() {
     let session = create_session();
     session
@@ -112,7 +112,7 @@ async fn test_bit_xor_aggregate() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_operations_with_group_by() {
     let session = create_session();
     session
@@ -131,7 +131,7 @@ async fn test_bit_operations_with_group_by() {
     assert_table_eq!(result, [["A", 7], ["B", 7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bit_count_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT BIT_COUNT(NULL)").await.unwrap();

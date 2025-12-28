@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use yachtsql_common::error::Result;
+use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_ir::{Expr, JoinType, PlanSchema};
 use yachtsql_storage::{Record, Schema, Table};
@@ -9,7 +9,7 @@ use super::{ConcurrentPlanExecutor, plan_schema_to_schema};
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_nested_loop_join(
         &self,
         left: &PhysicalPlan,
@@ -19,16 +19,19 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-
-        let (left_table, right_table) = if use_parallel {
-            let rt = tokio::runtime::Handle::current();
-            let (l, r) = std::thread::scope(|s| {
-                let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));
-                let right_handle = s.spawn(|| rt.block_on(self.execute_plan(right)));
-                (left_handle.join().unwrap(), right_handle.join().unwrap())
-            });
-            (l?, r?)
+        let (left_table, right_table) = if parallel {
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,
@@ -203,16 +206,19 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-
-        let (left_table, right_table) = if use_parallel {
-            let rt = tokio::runtime::Handle::current();
-            let (l, r) = std::thread::scope(|s| {
-                let left_handle = s.spawn(|| rt.block_on(self.execute_plan(left)));
-                let right_handle = s.spawn(|| rt.block_on(self.execute_plan(right)));
-                (left_handle.join().unwrap(), right_handle.join().unwrap())
-            });
-            (l?, r?)
+        let (left_table, right_table) = if parallel {
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,
@@ -225,57 +231,146 @@ impl ConcurrentPlanExecutor<'_> {
 
         match join_type {
             JoinType::Inner => {
+                let left_rows: Vec<Record> = left_table.rows()?;
+                let right_rows: Vec<Record> = right_table.rows()?;
+
+                let build_on_right = right_rows.len() <= left_rows.len();
+
+                let (build_rows, probe_rows, build_schema, probe_schema, build_keys, probe_keys) =
+                    if build_on_right {
+                        (
+                            right_rows,
+                            left_rows,
+                            &right_schema,
+                            &left_schema,
+                            right_keys,
+                            left_keys,
+                        )
+                    } else {
+                        (
+                            left_rows,
+                            right_rows,
+                            &left_schema,
+                            &right_schema,
+                            left_keys,
+                            right_keys,
+                        )
+                    };
+
                 let vars = self.get_variables();
                 let sys_vars = self.get_system_variables();
                 let udf = self.get_user_functions();
-                let left_evaluator = IrEvaluator::new(&left_schema)
-                    .with_variables(&vars)
-                    .with_system_variables(&sys_vars)
-                    .with_user_functions(&udf);
-                let right_evaluator = IrEvaluator::new(&right_schema)
+                let build_evaluator = IrEvaluator::new(build_schema)
                     .with_variables(&vars)
                     .with_system_variables(&sys_vars)
                     .with_user_functions(&udf);
 
-                let right_rows = right_table.rows()?;
                 let mut hash_table: HashMap<Vec<Value>, Vec<Record>> = HashMap::new();
-
-                for right_record in right_rows {
-                    let key_values: Vec<Value> = right_keys
+                for build_record in &build_rows {
+                    let key_values: Vec<Value> = build_keys
                         .iter()
-                        .map(|expr| right_evaluator.evaluate(expr, &right_record))
+                        .map(|expr| build_evaluator.evaluate(expr, build_record))
                         .collect::<Result<Vec<_>>>()?;
 
-                    let has_null = key_values.iter().any(|v| matches!(v, Value::Null));
-                    if has_null {
+                    if key_values.iter().any(|v| matches!(v, Value::Null)) {
                         continue;
                     }
 
-                    hash_table.entry(key_values).or_default().push(right_record);
+                    hash_table
+                        .entry(key_values)
+                        .or_default()
+                        .push(build_record.clone());
                 }
 
-                let mut result = Table::empty(result_schema);
-                for left_record in left_table.rows()? {
-                    let key_values: Vec<Value> = left_keys
-                        .iter()
-                        .map(|expr| left_evaluator.evaluate(expr, &left_record))
-                        .collect::<Result<Vec<_>>>()?;
-
-                    let has_null = key_values.iter().any(|v| matches!(v, Value::Null));
-                    if has_null {
-                        continue;
+                let combine_row = |probe_rec: &Record, build_rec: &Record| -> Vec<Value> {
+                    if build_on_right {
+                        let mut combined = probe_rec.values().to_vec();
+                        combined.extend(build_rec.values().to_vec());
+                        combined
+                    } else {
+                        let mut combined = build_rec.values().to_vec();
+                        combined.extend(probe_rec.values().to_vec());
+                        combined
                     }
+                };
 
-                    if let Some(matching_rows) = hash_table.get(&key_values) {
-                        for right_record in matching_rows {
-                            let mut combined = left_record.values().to_vec();
-                            combined.extend(right_record.values().to_vec());
-                            result.push_row(combined)?;
+                if parallel && probe_rows.len() >= 10000 {
+                    let num_threads = std::thread::available_parallelism()
+                        .map(|n| n.get())
+                        .unwrap_or(4);
+                    let chunk_size = probe_rows.len().div_ceil(num_threads);
+
+                    let chunk_results: Vec<Result<Vec<Vec<Value>>>> = std::thread::scope(|s| {
+                        let handles: Vec<_> = probe_rows
+                            .chunks(chunk_size)
+                            .map(|chunk| {
+                                let hash_table = &hash_table;
+                                let vars = &vars;
+                                let sys_vars = &sys_vars;
+                                let udf = &udf;
+                                let combine_row = &combine_row;
+                                s.spawn(move || {
+                                    let probe_evaluator = IrEvaluator::new(probe_schema)
+                                        .with_variables(vars)
+                                        .with_system_variables(sys_vars)
+                                        .with_user_functions(udf);
+                                    let mut rows = Vec::new();
+                                    for probe_record in chunk {
+                                        let key_values: Vec<Value> = probe_keys
+                                            .iter()
+                                            .map(|expr| {
+                                                probe_evaluator.evaluate(expr, probe_record)
+                                            })
+                                            .collect::<Result<Vec<_>>>()?;
+
+                                        if key_values.iter().any(|v| matches!(v, Value::Null)) {
+                                            continue;
+                                        }
+
+                                        if let Some(matching_rows) = hash_table.get(&key_values) {
+                                            for build_record in matching_rows {
+                                                rows.push(combine_row(probe_record, build_record));
+                                            }
+                                        }
+                                    }
+                                    Ok(rows)
+                                })
+                            })
+                            .collect();
+                        handles.into_iter().map(|h| h.join().unwrap()).collect()
+                    });
+
+                    let mut result = Table::empty(result_schema);
+                    for chunk_result in chunk_results {
+                        for row in chunk_result? {
+                            result.push_row(row)?;
                         }
                     }
-                }
+                    Ok(result)
+                } else {
+                    let probe_evaluator = IrEvaluator::new(probe_schema)
+                        .with_variables(&vars)
+                        .with_system_variables(&sys_vars)
+                        .with_user_functions(&udf);
+                    let mut result = Table::empty(result_schema);
+                    for probe_record in &probe_rows {
+                        let key_values: Vec<Value> = probe_keys
+                            .iter()
+                            .map(|expr| probe_evaluator.evaluate(expr, probe_record))
+                            .collect::<Result<Vec<_>>>()?;
 
-                Ok(result)
+                        if key_values.iter().any(|v| matches!(v, Value::Null)) {
+                            continue;
+                        }
+
+                        if let Some(matching_rows) = hash_table.get(&key_values) {
+                            for build_record in matching_rows {
+                                result.push_row(combine_row(probe_record, build_record))?;
+                            }
+                        }
+                    }
+                    Ok(result)
+                }
             }
             _ => {
                 panic!("HashJoin only supports Inner join type currently");

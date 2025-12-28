@@ -1,6 +1,6 @@
 [package]
 name = "yachtsql-executor"
-version = "0.1.0"
+version = "0.1.4"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "YachtSQL execution engine"
@@ -12,12 +12,12 @@ categories = ["database"]
 
 [dependencies]
 # YachtSQL crates
-yachtsql-common = { version = "0.1.0", path = "../common" }
-yachtsql-storage = { version = "0.1.0", path = "../storage" }
-yachtsql-parser = { version = "0.1.0", path = "../parser" }
-yachtsql-ir = { version = "0.1.0", path = "../ir" }
-yachtsql-optimizer = { version = "0.1.0", path = "../optimizer" }
-yachtsql-functions = { version = "0.1.0", path = "../functions" }
+yachtsql-common = { version = "0.1.4", path = "../common" }
+yachtsql-storage = { version = "0.1.4", path = "../storage" }
+yachtsql-parser = { version = "0.1.4", path = "../parser" }
+yachtsql-ir = { version = "0.1.4", path = "../ir" }
+yachtsql-optimizer = { version = "0.1.4", path = "../optimizer" }
+yachtsql-functions = { version = "0.1.4", path = "../functions" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

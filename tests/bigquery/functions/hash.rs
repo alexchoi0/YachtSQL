@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_md5() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_md5() {
     assert_table_eq!(result, [["5d41402abc4b2a76b9719d911017c592"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sha256() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_sha256() {
     assert_table_eq!(result, [[32]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sha512() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_sha512() {
     assert_table_eq!(result, [[64]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_md5_with_column() {
     let session = create_session();
     session
@@ -56,7 +56,7 @@ async fn test_md5_with_column() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_null() {
     let session = create_session();
     let result = session

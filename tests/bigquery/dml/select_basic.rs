@@ -41,7 +41,7 @@ async fn setup_nullable_table(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_all_columns() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -57,7 +57,7 @@ async fn test_select_all_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_specific_columns() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -70,7 +70,7 @@ async fn test_select_specific_columns() {
     assert_table_eq!(result, [["Alice", 30], ["Bob", 25], ["Charlie", 35],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_single_column() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -83,7 +83,7 @@ async fn test_select_single_column() {
     assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_column_alias() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -96,7 +96,7 @@ async fn test_select_with_column_alias() {
     assert_table_eq!(result, [["Alice", 30], ["Bob", 25], ["Charlie", 35],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_equality_filter() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -109,7 +109,7 @@ async fn test_select_with_equality_filter() {
     assert_table_eq!(result, [[1, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_greater_than_filter() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -122,7 +122,7 @@ async fn test_select_with_greater_than_filter() {
     assert_table_eq!(result, [[1, "Alice"], [3, "Charlie"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_less_than_filter() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -135,7 +135,7 @@ async fn test_select_with_less_than_filter() {
     assert_table_eq!(result, [[2, "Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_not_equal_filter() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -148,7 +148,7 @@ async fn test_select_with_not_equal_filter() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_string_filter() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -161,7 +161,7 @@ async fn test_select_with_string_filter() {
     assert_table_eq!(result, [[2, 25]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_and_condition() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -174,7 +174,7 @@ async fn test_select_with_and_condition() {
     assert_table_eq!(result, [[1, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_or_condition() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -187,7 +187,7 @@ async fn test_select_with_or_condition() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_boolean_column() {
     let session = create_session();
     setup_products_table(&session).await;
@@ -200,7 +200,7 @@ async fn test_select_with_boolean_column() {
     assert_table_eq!(result, [["Laptop"], ["Mouse"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_float_comparison() {
     let session = create_session();
     setup_products_table(&session).await;
@@ -213,7 +213,7 @@ async fn test_select_with_float_comparison() {
     assert_table_eq!(result, [["Laptop"], ["Keyboard"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_null_check() {
     let session = create_session();
     setup_nullable_table(&session).await;
@@ -226,7 +226,7 @@ async fn test_select_with_null_check() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_not_null_check() {
     let session = create_session();
     setup_nullable_table(&session).await;
@@ -239,7 +239,7 @@ async fn test_select_with_not_null_check() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_from_empty_table() {
     let session = create_session();
 
@@ -256,7 +256,7 @@ async fn test_select_from_empty_table() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_no_matching_rows() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -269,7 +269,7 @@ async fn test_select_with_no_matching_rows() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_literal_values() {
     let session = create_session();
 
@@ -281,7 +281,7 @@ async fn test_select_literal_values() {
     assert_table_eq!(result, [[1, "hello", 3.14, true,]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_null_literal() {
     let session = create_session();
 
@@ -290,7 +290,7 @@ async fn test_select_null_literal() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_expression() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -303,7 +303,7 @@ async fn test_select_expression() {
     assert_table_eq!(result, [[1, 40], [2, 35], [3, 45],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_table_alias() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -316,7 +316,7 @@ async fn test_select_with_table_alias() {
     assert_table_eq!(result, [[1, "Alice"], [2, "Bob"], [3, "Charlie"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_with_qualified_column() {
     let session = create_session();
     setup_users_table(&session).await;

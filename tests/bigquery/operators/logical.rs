@@ -1,98 +1,98 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_and_true_true() {
     let session = create_session();
     let result = session.execute_sql("SELECT TRUE AND TRUE").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_and_true_false() {
     let session = create_session();
     let result = session.execute_sql("SELECT TRUE AND FALSE").await.unwrap();
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_and_false_false() {
     let session = create_session();
     let result = session.execute_sql("SELECT FALSE AND FALSE").await.unwrap();
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_or_true_true() {
     let session = create_session();
     let result = session.execute_sql("SELECT TRUE OR TRUE").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_or_true_false() {
     let session = create_session();
     let result = session.execute_sql("SELECT TRUE OR FALSE").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_or_false_false() {
     let session = create_session();
     let result = session.execute_sql("SELECT FALSE OR FALSE").await.unwrap();
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_true() {
     let session = create_session();
     let result = session.execute_sql("SELECT NOT TRUE").await.unwrap();
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_false() {
     let session = create_session();
     let result = session.execute_sql("SELECT NOT FALSE").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_and_with_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT TRUE AND NULL").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_and_false_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT FALSE AND NULL").await.unwrap();
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_or_with_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT FALSE OR NULL").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_or_true_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT TRUE OR NULL").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT NOT NULL").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_complex_logical_expression() {
     let session = create_session();
     let result = session
@@ -102,7 +102,7 @@ async fn test_complex_logical_expression() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_logical_precedence() {
     let session = create_session();
     let result = session
@@ -112,14 +112,14 @@ async fn test_logical_precedence() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_logical_with_comparison() {
     let session = create_session();
     let result = session.execute_sql("SELECT 5 > 3 AND 2 < 4").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_logical_with_where() {
     let session = create_session();
     session
@@ -140,7 +140,7 @@ async fn test_logical_with_where() {
     assert_table_eq!(result, [[true, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_logical_or_in_where() {
     let session = create_session();
     session
@@ -161,7 +161,7 @@ async fn test_logical_or_in_where() {
     assert_table_eq!(result, [[true, true], [true, false], [false, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_in_where() {
     let session = create_session();
     session
@@ -180,7 +180,7 @@ async fn test_not_in_where() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_null() {
     let session = create_session();
     session
@@ -199,7 +199,7 @@ async fn test_is_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_null() {
     let session = create_session();
     session

@@ -5,28 +5,28 @@ use crate::common::create_session;
 // ASCII
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ascii() {
     let session = create_session();
     let result = session.execute_sql("SELECT ASCII('abcd')").await.unwrap();
     assert_table_eq!(result, [[97]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ascii_single_char() {
     let session = create_session();
     let result = session.execute_sql("SELECT ASCII('a')").await.unwrap();
     assert_table_eq!(result, [[97]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ascii_empty_string() {
     let session = create_session();
     let result = session.execute_sql("SELECT ASCII('')").await.unwrap();
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ascii_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT ASCII(NULL)").await.unwrap();
@@ -37,7 +37,7 @@ async fn test_ascii_null() {
 // BYTE_LENGTH
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_byte_length() {
     let session = create_session();
     let result = session
@@ -47,7 +47,7 @@ async fn test_byte_length() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_byte_length_utf8() {
     let session = create_session();
     let result = session
@@ -57,7 +57,7 @@ async fn test_byte_length_utf8() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_byte_length_empty() {
     let session = create_session();
     let result = session.execute_sql("SELECT BYTE_LENGTH('')").await.unwrap();
@@ -68,7 +68,7 @@ async fn test_byte_length_empty() {
 // CHAR_LENGTH / CHARACTER_LENGTH
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_char_length() {
     let session = create_session();
     let result = session
@@ -78,7 +78,7 @@ async fn test_char_length() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_char_length_utf8() {
     let session = create_session();
     let result = session
@@ -88,7 +88,7 @@ async fn test_char_length_utf8() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_character_length() {
     let session = create_session();
     let result = session
@@ -98,7 +98,7 @@ async fn test_character_length() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_char_length_empty() {
     let session = create_session();
     let result = session.execute_sql("SELECT CHAR_LENGTH('')").await.unwrap();
@@ -109,35 +109,35 @@ async fn test_char_length_empty() {
 // CHR
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_chr() {
     let session = create_session();
     let result = session.execute_sql("SELECT CHR(65)").await.unwrap();
     assert_table_eq!(result, [["A"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_chr_lowercase() {
     let session = create_session();
     let result = session.execute_sql("SELECT CHR(97)").await.unwrap();
     assert_table_eq!(result, [["a"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_chr_zero() {
     let session = create_session();
     let result = session.execute_sql("SELECT CHR(0)").await.unwrap();
     assert_table_eq!(result, [[""]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_chr_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT CHR(NULL)").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_chr_extended_ascii() {
     let session = create_session();
     let result = session.execute_sql("SELECT CHR(255)").await.unwrap();
@@ -148,7 +148,7 @@ async fn test_chr_extended_ascii() {
 // CODE_POINTS_TO_STRING
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_code_points_to_string() {
     let session = create_session();
     let result = session
@@ -158,7 +158,7 @@ async fn test_code_points_to_string() {
     assert_table_eq!(result, [["ABC"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_code_points_to_string_extended() {
     let session = create_session();
     let result = session
@@ -168,7 +168,7 @@ async fn test_code_points_to_string_extended() {
     assert_table_eq!(result, [["AÿȁЀ"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_code_points_to_string_empty() {
     let session = create_session();
     let result = session
@@ -178,7 +178,7 @@ async fn test_code_points_to_string_empty() {
     assert_table_eq!(result, [[""]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_code_points_to_string_with_null_element() {
     let session = create_session();
     let result = session
@@ -192,7 +192,7 @@ async fn test_code_points_to_string_with_null_element() {
 // TO_CODE_POINTS
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_code_points() {
     let session = create_session();
     let result = session
@@ -202,7 +202,7 @@ async fn test_to_code_points() {
     assert_table_eq!(result, [[[102, 111, 111]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_code_points_empty() {
     let session = create_session();
     let result = session
@@ -212,7 +212,7 @@ async fn test_to_code_points_empty() {
     assert_table_eq!(result, [[[]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_code_points_utf8() {
     let session = create_session();
     let result = session
@@ -226,7 +226,7 @@ async fn test_to_code_points_utf8() {
 // CODE_POINTS_TO_BYTES
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_code_points_to_bytes() {
     let session = create_session();
     let result = session
@@ -240,7 +240,7 @@ async fn test_code_points_to_bytes() {
 // COLLATE
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_collate() {
     let session = create_session();
     let result = session
@@ -254,7 +254,7 @@ async fn test_collate() {
 // CONCAT
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concat() {
     let session = create_session();
 
@@ -266,7 +266,7 @@ async fn test_concat() {
     assert_table_eq!(result, [["hello world"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concat_two_args() {
     let session = create_session();
     let result = session
@@ -276,7 +276,7 @@ async fn test_concat_two_args() {
     assert_table_eq!(result, [["T.P. Bar"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concat_with_number() {
     let session = create_session();
     let result = session
@@ -286,7 +286,7 @@ async fn test_concat_with_number() {
     assert_table_eq!(result, [["Summer 1923"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concat_null() {
     let session = create_session();
     let result = session
@@ -296,7 +296,7 @@ async fn test_concat_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concat_operator() {
     let session = create_session();
     let result = session
@@ -310,7 +310,7 @@ async fn test_concat_operator() {
 // CONTAINS_SUBSTR
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_contains_substr() {
     let session = create_session();
     let result = session
@@ -320,7 +320,7 @@ async fn test_contains_substr() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_contains_substr_not_found() {
     let session = create_session();
     let result = session
@@ -330,7 +330,7 @@ async fn test_contains_substr_not_found() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_contains_substr_normalized() {
     let session = create_session();
     let result = session
@@ -340,7 +340,7 @@ async fn test_contains_substr_normalized() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_contains_substr_struct() {
     let session = create_session();
     let result = session
@@ -354,7 +354,7 @@ async fn test_contains_substr_struct() {
 // EDIT_DISTANCE
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_edit_distance() {
     let session = create_session();
     let result = session
@@ -364,7 +364,7 @@ async fn test_edit_distance() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_edit_distance_two_chars() {
     let session = create_session();
     let result = session
@@ -374,7 +374,7 @@ async fn test_edit_distance_two_chars() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_edit_distance_one_diff() {
     let session = create_session();
     let result = session
@@ -384,7 +384,7 @@ async fn test_edit_distance_one_diff() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_edit_distance_max_distance() {
     let session = create_session();
     let result = session
@@ -398,7 +398,7 @@ async fn test_edit_distance_max_distance() {
 // ENDS_WITH
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ends_with() {
     let session = create_session();
     let result = session
@@ -408,7 +408,7 @@ async fn test_ends_with() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ends_with_full_suffix() {
     let session = create_session();
     let result = session
@@ -418,7 +418,7 @@ async fn test_ends_with_full_suffix() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ends_with_false() {
     let session = create_session();
     let result = session
@@ -428,7 +428,7 @@ async fn test_ends_with_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ends_with_null() {
     let session = create_session();
     let result = session
@@ -442,7 +442,7 @@ async fn test_ends_with_null() {
 // STARTS_WITH
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_starts_with() {
     let session = create_session();
     let result = session
@@ -452,7 +452,7 @@ async fn test_starts_with() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_starts_with_full_prefix() {
     let session = create_session();
     let result = session
@@ -462,7 +462,7 @@ async fn test_starts_with_full_prefix() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_starts_with_false() {
     let session = create_session();
     let result = session
@@ -472,7 +472,7 @@ async fn test_starts_with_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_starts_with_null() {
     let session = create_session();
     let result = session
@@ -486,7 +486,7 @@ async fn test_starts_with_null() {
 // FORMAT
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_integer() {
     let session = create_session();
     let result = session
@@ -496,7 +496,7 @@ async fn test_format_integer() {
     assert_table_eq!(result, [["10"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_string() {
     let session = create_session();
     let result = session
@@ -506,7 +506,7 @@ async fn test_format_string() {
     assert_table_eq!(result, [["-abcd efg-"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_float() {
     let session = create_session();
     let result = session
@@ -516,7 +516,7 @@ async fn test_format_float() {
     assert_table_eq!(result, [["1.100000"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_padded() {
     let session = create_session();
     let result = session
@@ -526,7 +526,7 @@ async fn test_format_padded() {
     assert_table_eq!(result, [["|        11|"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_zero_padded() {
     let session = create_session();
     let result = session
@@ -536,7 +536,7 @@ async fn test_format_zero_padded() {
     assert_table_eq!(result, [["+0000000012+"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_with_commas() {
     let session = create_session();
     let result = session
@@ -546,7 +546,7 @@ async fn test_format_with_commas() {
     assert_table_eq!(result, [["123,456,789"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_scientific() {
     let session = create_session();
     let result = session
@@ -556,7 +556,7 @@ async fn test_format_scientific() {
     assert_table_eq!(result, [["2.200000E+00"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_percent() {
     let session = create_session();
     let result = session.execute_sql("SELECT FORMAT('%%')").await.unwrap();
@@ -567,7 +567,7 @@ async fn test_format_percent() {
 // FROM_BASE64 / TO_BASE64
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_base64() {
     let session = create_session();
     let result = session
@@ -577,7 +577,7 @@ async fn test_to_base64() {
     assert_table_eq!(result, [["aGVsbG8="]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_from_base64() {
     let session = create_session();
     let result = session
@@ -587,7 +587,7 @@ async fn test_from_base64() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_base64_roundtrip() {
     let session = create_session();
     let result = session
@@ -601,7 +601,7 @@ async fn test_base64_roundtrip() {
 // FROM_BASE32 / TO_BASE32
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_base32() {
     let session = create_session();
     let result = session
@@ -611,7 +611,7 @@ async fn test_to_base32() {
     assert_table_eq!(result, [["MFRGGZDF"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_from_base32() {
     let session = create_session();
     let result = session
@@ -625,7 +625,7 @@ async fn test_from_base32() {
 // FROM_HEX / TO_HEX
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_hex() {
     let session = create_session();
     let result = session
@@ -635,7 +635,7 @@ async fn test_to_hex() {
     assert_table_eq!(result, [["68656c6c6f"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_from_hex() {
     let session = create_session();
     let result = session
@@ -645,7 +645,7 @@ async fn test_from_hex() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_from_hex_uppercase() {
     let session = create_session();
     let result = session
@@ -655,7 +655,7 @@ async fn test_from_hex_uppercase() {
     assert_table_eq!(result, [["HELLO"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_from_hex_odd_length() {
     let session = create_session();
     let result = session
@@ -669,7 +669,7 @@ async fn test_from_hex_odd_length() {
 // INITCAP
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_initcap() {
     let session = create_session();
     let result = session
@@ -679,7 +679,7 @@ async fn test_initcap() {
     assert_table_eq!(result, [["Hello World"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_initcap_mixed_case() {
     let session = create_session();
     let result = session
@@ -689,7 +689,7 @@ async fn test_initcap_mixed_case() {
     assert_table_eq!(result, [["Hello World-Everyone!"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_initcap_custom_delimiters() {
     let session = create_session();
     let result = session
@@ -699,7 +699,7 @@ async fn test_initcap_custom_delimiters() {
     assert_table_eq!(result, [["Apples1Oranges2Pears"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_initcap_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT INITCAP(NULL)").await.unwrap();
@@ -710,7 +710,7 @@ async fn test_initcap_null() {
 // INSTR
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_instr() {
     let session = create_session();
     let result = session
@@ -720,7 +720,7 @@ async fn test_instr() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_instr_occurrence() {
     let session = create_session();
     let result = session
@@ -730,7 +730,7 @@ async fn test_instr_occurrence() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_instr_not_found() {
     let session = create_session();
     let result = session
@@ -740,7 +740,7 @@ async fn test_instr_not_found() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_instr_from_position() {
     let session = create_session();
     let result = session
@@ -750,7 +750,7 @@ async fn test_instr_from_position() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_instr_negative_position() {
     let session = create_session();
     let result = session
@@ -760,7 +760,7 @@ async fn test_instr_negative_position() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_instr_overlapping() {
     let session = create_session();
     let result = session
@@ -770,7 +770,7 @@ async fn test_instr_overlapping() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_instr_overlapping_second() {
     let session = create_session();
     let result = session
@@ -784,7 +784,7 @@ async fn test_instr_overlapping_second() {
 // LEFT
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_left() {
     let session = create_session();
 
@@ -796,7 +796,7 @@ async fn test_left() {
     assert_table_eq!(result, [["hel"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_left_banana() {
     let session = create_session();
     let result = session
@@ -806,7 +806,7 @@ async fn test_left_banana() {
     assert_table_eq!(result, [["ban"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_left_zero() {
     let session = create_session();
     let result = session
@@ -816,7 +816,7 @@ async fn test_left_zero() {
     assert_table_eq!(result, [[""]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_left_exceeds_length() {
     let session = create_session();
     let result = session
@@ -830,7 +830,7 @@ async fn test_left_exceeds_length() {
 // LENGTH
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_length() {
     let session = create_session();
 
@@ -839,21 +839,21 @@ async fn test_length() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_length_utf8() {
     let session = create_session();
     let result = session.execute_sql("SELECT LENGTH('абвгд')").await.unwrap();
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_length_empty() {
     let session = create_session();
     let result = session.execute_sql("SELECT LENGTH('')").await.unwrap();
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_length_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT LENGTH(NULL)").await.unwrap();
@@ -864,7 +864,7 @@ async fn test_length_null() {
 // LOWER
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lower() {
     let session = create_session();
 
@@ -873,7 +873,7 @@ async fn test_lower() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lower_mixed() {
     let session = create_session();
     let result = session
@@ -883,7 +883,7 @@ async fn test_lower_mixed() {
     assert_table_eq!(result, [["foo bar baz"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lower_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT LOWER(NULL)").await.unwrap();
@@ -894,14 +894,14 @@ async fn test_lower_null() {
 // LPAD
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lpad() {
     let session = create_session();
     let result = session.execute_sql("SELECT LPAD('c', 5)").await.unwrap();
     assert_table_eq!(result, [["    c"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lpad_with_pattern() {
     let session = create_session();
     let result = session
@@ -911,7 +911,7 @@ async fn test_lpad_with_pattern() {
     assert_table_eq!(result, [["aaaab"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lpad_with_long_pattern() {
     let session = create_session();
     let result = session
@@ -921,7 +921,7 @@ async fn test_lpad_with_long_pattern() {
     assert_table_eq!(result, [["ghdghdgabc"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lpad_truncate() {
     let session = create_session();
     let result = session
@@ -931,7 +931,7 @@ async fn test_lpad_truncate() {
     assert_table_eq!(result, [["ab"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lpad_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT LPAD(NULL, 5)").await.unwrap();
@@ -942,7 +942,7 @@ async fn test_lpad_null() {
 // LTRIM
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ltrim() {
     let session = create_session();
 
@@ -954,7 +954,7 @@ async fn test_ltrim() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ltrim_with_chars() {
     let session = create_session();
     let result = session
@@ -964,7 +964,7 @@ async fn test_ltrim_with_chars() {
     assert_table_eq!(result, [["apple***"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ltrim_multiple_chars() {
     let session = create_session();
     let result = session
@@ -978,7 +978,7 @@ async fn test_ltrim_multiple_chars() {
 // NORMALIZE
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_normalize() {
     let session = create_session();
     let result = session
@@ -988,7 +988,7 @@ async fn test_normalize() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_normalize_nfkc() {
     let session = create_session();
     let result = session
@@ -1002,7 +1002,7 @@ async fn test_normalize_nfkc() {
 // NORMALIZE_AND_CASEFOLD
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_normalize_and_casefold() {
     let session = create_session();
     let result = session
@@ -1017,7 +1017,7 @@ async fn test_normalize_and_casefold() {
 // OCTET_LENGTH (alias for BYTE_LENGTH)
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_octet_length() {
     let session = create_session();
     let result = session
@@ -1027,7 +1027,7 @@ async fn test_octet_length() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_octet_length_utf8() {
     let session = create_session();
     let result = session
@@ -1041,7 +1041,7 @@ async fn test_octet_length_utf8() {
 // REPEAT
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_repeat() {
     let session = create_session();
 
@@ -1050,7 +1050,7 @@ async fn test_repeat() {
     assert_table_eq!(result, [["ababab"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_repeat_zero() {
     let session = create_session();
     let result = session
@@ -1060,14 +1060,14 @@ async fn test_repeat_zero() {
     assert_table_eq!(result, [[""]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_repeat_null_value() {
     let session = create_session();
     let result = session.execute_sql("SELECT REPEAT(NULL, 3)").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_repeat_null_count() {
     let session = create_session();
     let result = session
@@ -1081,7 +1081,7 @@ async fn test_repeat_null_count() {
 // REPLACE
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_replace() {
     let session = create_session();
 
@@ -1093,7 +1093,7 @@ async fn test_replace() {
     assert_table_eq!(result, [["hello there"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_replace_multiple() {
     let session = create_session();
     let result = session
@@ -1103,7 +1103,7 @@ async fn test_replace_multiple() {
     assert_table_eq!(result, [["axxle xie"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_replace_empty_pattern() {
     let session = create_session();
     let result = session
@@ -1113,7 +1113,7 @@ async fn test_replace_empty_pattern() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_replace_not_found() {
     let session = create_session();
     let result = session
@@ -1127,7 +1127,7 @@ async fn test_replace_not_found() {
 // REVERSE
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_reverse() {
     let session = create_session();
 
@@ -1139,21 +1139,21 @@ async fn test_reverse() {
     assert_table_eq!(result, [["olleh"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_reverse_abc() {
     let session = create_session();
     let result = session.execute_sql("SELECT REVERSE('abc')").await.unwrap();
     assert_table_eq!(result, [["cba"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_reverse_empty() {
     let session = create_session();
     let result = session.execute_sql("SELECT REVERSE('')").await.unwrap();
     assert_table_eq!(result, [[""]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_reverse_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT REVERSE(NULL)").await.unwrap();
@@ -1164,7 +1164,7 @@ async fn test_reverse_null() {
 // RIGHT
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_right() {
     let session = create_session();
 
@@ -1176,7 +1176,7 @@ async fn test_right() {
     assert_table_eq!(result, [["llo"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_right_apple() {
     let session = create_session();
     let result = session
@@ -1186,7 +1186,7 @@ async fn test_right_apple() {
     assert_table_eq!(result, [["ple"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_right_zero() {
     let session = create_session();
     let result = session
@@ -1196,7 +1196,7 @@ async fn test_right_zero() {
     assert_table_eq!(result, [[""]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_right_exceeds_length() {
     let session = create_session();
     let result = session
@@ -1210,14 +1210,14 @@ async fn test_right_exceeds_length() {
 // RPAD
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rpad() {
     let session = create_session();
     let result = session.execute_sql("SELECT RPAD('c', 5)").await.unwrap();
     assert_table_eq!(result, [["c    "]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rpad_with_pattern() {
     let session = create_session();
     let result = session
@@ -1227,7 +1227,7 @@ async fn test_rpad_with_pattern() {
     assert_table_eq!(result, [["baaaa"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rpad_with_long_pattern() {
     let session = create_session();
     let result = session
@@ -1237,7 +1237,7 @@ async fn test_rpad_with_long_pattern() {
     assert_table_eq!(result, [["abcghdghdg"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rpad_truncate() {
     let session = create_session();
     let result = session
@@ -1247,7 +1247,7 @@ async fn test_rpad_truncate() {
     assert_table_eq!(result, [["ab"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rpad_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT RPAD(NULL, 5)").await.unwrap();
@@ -1258,7 +1258,7 @@ async fn test_rpad_null() {
 // RTRIM
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rtrim() {
     let session = create_session();
 
@@ -1270,7 +1270,7 @@ async fn test_rtrim() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rtrim_with_chars() {
     let session = create_session();
     let result = session
@@ -1280,7 +1280,7 @@ async fn test_rtrim_with_chars() {
     assert_table_eq!(result, [["***apple"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rtrim_multiple_chars() {
     let session = create_session();
     let result = session
@@ -1294,7 +1294,7 @@ async fn test_rtrim_multiple_chars() {
 // SAFE_CONVERT_BYTES_TO_STRING
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_convert_bytes_to_string() {
     let session = create_session();
     let result = session
@@ -1304,7 +1304,7 @@ async fn test_safe_convert_bytes_to_string() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_convert_bytes_to_string_invalid_utf8() {
     let session = create_session();
     let result = session
@@ -1318,7 +1318,7 @@ async fn test_safe_convert_bytes_to_string_invalid_utf8() {
 // SOUNDEX
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_soundex() {
     let session = create_session();
     let result = session
@@ -1328,7 +1328,7 @@ async fn test_soundex() {
     assert_table_eq!(result, [["A261"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_soundex_similar_names() {
     let session = create_session();
     let result = session
@@ -1342,7 +1342,7 @@ async fn test_soundex_similar_names() {
 // SPLIT
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_split() {
     let session = create_session();
     let result = session
@@ -1352,14 +1352,14 @@ async fn test_split() {
     assert_table_eq!(result, [[["a", "b", "c"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_split_default_delimiter() {
     let session = create_session();
     let result = session.execute_sql("SELECT SPLIT('a,b,c')").await.unwrap();
     assert_table_eq!(result, [[["a", "b", "c"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_split_space() {
     let session = create_session();
     let result = session
@@ -1369,21 +1369,21 @@ async fn test_split_space() {
     assert_table_eq!(result, [[["b", "c", "d"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_split_empty_string() {
     let session = create_session();
     let result = session.execute_sql("SELECT SPLIT('')").await.unwrap();
     assert_table_eq!(result, [[[""]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_split_no_delimiter() {
     let session = create_session();
     let result = session.execute_sql("SELECT SPLIT('a')").await.unwrap();
     assert_table_eq!(result, [[["a"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_split_empty_delimiter() {
     let session = create_session();
     let result = session
@@ -1397,7 +1397,7 @@ async fn test_split_empty_delimiter() {
 // STRPOS
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_strpos() {
     let session = create_session();
     let result = session
@@ -1407,7 +1407,7 @@ async fn test_strpos() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_strpos_not_found() {
     let session = create_session();
     let result = session
@@ -1417,7 +1417,7 @@ async fn test_strpos_not_found() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_strpos_beginning() {
     let session = create_session();
     let result = session
@@ -1427,7 +1427,7 @@ async fn test_strpos_beginning() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_strpos_null() {
     let session = create_session();
     let result = session
@@ -1441,7 +1441,7 @@ async fn test_strpos_null() {
 // SUBSTR / SUBSTRING
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_substring() {
     let session = create_session();
 
@@ -1453,7 +1453,7 @@ async fn test_substring() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_substr() {
     let session = create_session();
     let result = session
@@ -1463,7 +1463,7 @@ async fn test_substr() {
     assert_table_eq!(result, [["pple"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_substr_with_length() {
     let session = create_session();
     let result = session
@@ -1473,7 +1473,7 @@ async fn test_substr_with_length() {
     assert_table_eq!(result, [["pp"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_substr_negative_position() {
     let session = create_session();
     let result = session
@@ -1483,7 +1483,7 @@ async fn test_substr_negative_position() {
     assert_table_eq!(result, [["le"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_substr_exceeds_length() {
     let session = create_session();
     let result = session
@@ -1493,7 +1493,7 @@ async fn test_substr_exceeds_length() {
     assert_table_eq!(result, [["apple"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_substr_beyond_string() {
     let session = create_session();
     let result = session
@@ -1507,7 +1507,7 @@ async fn test_substr_beyond_string() {
 // TRANSLATE
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_translate() {
     let session = create_session();
     let result = session
@@ -1517,7 +1517,7 @@ async fn test_translate() {
     assert_table_eq!(result, [["Thiz iz a kuukie"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_translate_remove_chars() {
     let session = create_session();
     let result = session
@@ -1527,7 +1527,7 @@ async fn test_translate_remove_chars() {
     assert_table_eq!(result, [["xydef"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_translate_null() {
     let session = create_session();
     let result = session
@@ -1541,7 +1541,7 @@ async fn test_translate_null() {
 // TRIM
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_trim() {
     let session = create_session();
 
@@ -1553,7 +1553,7 @@ async fn test_trim() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_trim_with_chars() {
     let session = create_session();
     let result = session
@@ -1563,7 +1563,7 @@ async fn test_trim_with_chars() {
     assert_table_eq!(result, [["apple"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_trim_multiple_chars() {
     let session = create_session();
     let result = session
@@ -1573,7 +1573,7 @@ async fn test_trim_multiple_chars() {
     assert_table_eq!(result, [["apple"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_trim_concat() {
     let session = create_session();
     let result = session
@@ -1587,35 +1587,35 @@ async fn test_trim_concat() {
 // UNICODE
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unicode() {
     let session = create_session();
     let result = session.execute_sql("SELECT UNICODE('âbcd')").await.unwrap();
     assert_table_eq!(result, [[226]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unicode_single() {
     let session = create_session();
     let result = session.execute_sql("SELECT UNICODE('â')").await.unwrap();
     assert_table_eq!(result, [[226]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unicode_empty() {
     let session = create_session();
     let result = session.execute_sql("SELECT UNICODE('')").await.unwrap();
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unicode_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT UNICODE(NULL)").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unicode_ascii() {
     let session = create_session();
     let result = session.execute_sql("SELECT UNICODE('A')").await.unwrap();
@@ -1626,7 +1626,7 @@ async fn test_unicode_ascii() {
 // UPPER
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_upper() {
     let session = create_session();
 
@@ -1635,7 +1635,7 @@ async fn test_upper() {
     assert_table_eq!(result, [["HELLO"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_upper_mixed() {
     let session = create_session();
     let result = session
@@ -1645,7 +1645,7 @@ async fn test_upper_mixed() {
     assert_table_eq!(result, [["FOO BAR BAZ"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_upper_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT UPPER(NULL)").await.unwrap();
@@ -1656,7 +1656,7 @@ async fn test_upper_null() {
 // COALESCE (included for completeness - conditional function)
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce() {
     let session = create_session();
 
@@ -1668,7 +1668,7 @@ async fn test_coalesce() {
     assert_table_eq!(result, [["default"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce_first_non_null() {
     let session = create_session();
 
@@ -1680,7 +1680,7 @@ async fn test_coalesce_first_non_null() {
     assert_table_eq!(result, [["first"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif() {
     let session = create_session();
 
@@ -1692,7 +1692,7 @@ async fn test_nullif() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif_not_equal() {
     let session = create_session();
 
@@ -1708,7 +1708,7 @@ async fn test_nullif_not_equal() {
 // Integration tests
 // =============================================================================
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_functions_on_table() {
     let session = create_session();
 
@@ -1729,7 +1729,7 @@ async fn test_string_functions_on_table() {
     assert_table_eq!(result, [["HELLO", 5], ["WORLD", 5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concat_with_table() {
     let session = create_session();
 
@@ -1749,7 +1749,7 @@ async fn test_concat_with_table() {
     assert_table_eq!(result, [["Jane Smith"], ["John Doe"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_split_and_array() {
     let session = create_session();
 
@@ -1761,7 +1761,7 @@ async fn test_split_and_array() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_chained_string_functions() {
     let session = create_session();
 
@@ -1773,7 +1773,7 @@ async fn test_chained_string_functions() {
     assert_table_eq!(result, [["HELLO WORLD"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_in_query() {
     let session = create_session();
 

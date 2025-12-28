@@ -9,7 +9,7 @@ use super::{ConcurrentPlanExecutor, coerce_value};
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_insert(
         &self,
         table_name: &str,

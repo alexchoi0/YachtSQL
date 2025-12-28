@@ -20,6 +20,7 @@ mod session;
 mod async_executor;
 mod concurrent_catalog;
 mod concurrent_session;
+mod physical_planner;
 
 use std::num::NonZeroUsize;
 
@@ -31,6 +32,7 @@ pub use error::{Error, Result};
 pub use executor::{PlanExecutor, plan_schema_to_schema};
 pub use ir_evaluator::{IrEvaluator, UserFunctionDef};
 use lru::LruCache;
+pub use physical_planner::PhysicalPlanner;
 pub use plan::PhysicalPlan;
 pub use session::Session;
 use yachtsql_optimizer::OptimizedLogicalPlan;

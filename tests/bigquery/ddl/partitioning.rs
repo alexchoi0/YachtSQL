@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_by_date() {
     let session = create_session();
 
@@ -29,7 +29,7 @@ async fn test_partition_by_date() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_by_date_trunc() {
     let session = create_session();
 
@@ -57,7 +57,7 @@ async fn test_partition_by_date_trunc() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_by_timestamp() {
     let session = create_session();
 
@@ -85,7 +85,7 @@ async fn test_partition_by_timestamp() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_by_datetime() {
     let session = create_session();
 
@@ -112,7 +112,7 @@ async fn test_partition_by_datetime() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_by_integer_range() {
     let session = create_session();
 
@@ -139,7 +139,7 @@ async fn test_partition_by_integer_range() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_expiration() {
     let session = create_session();
 
@@ -169,7 +169,7 @@ async fn test_partition_expiration() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_require_partition_filter() {
     let session = create_session();
 
@@ -199,7 +199,7 @@ async fn test_require_partition_filter() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cluster_by_single_column() {
     let session = create_session();
 
@@ -227,7 +227,7 @@ async fn test_cluster_by_single_column() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cluster_by_multiple_columns() {
     let session = create_session();
 
@@ -256,7 +256,7 @@ async fn test_cluster_by_multiple_columns() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_and_cluster() {
     let session = create_session();
 
@@ -286,7 +286,7 @@ async fn test_partition_and_cluster() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_by_ingestion_time() {
     let session = create_session();
 
@@ -313,7 +313,7 @@ async fn test_partition_by_ingestion_time() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_external_table() {
     let session = create_session();
 
@@ -332,7 +332,7 @@ async fn test_external_table() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_external_table_with_schema() {
     let session = create_session();
 
@@ -351,7 +351,7 @@ async fn test_external_table_with_schema() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_with_description() {
     let session = create_session();
 
@@ -380,7 +380,7 @@ async fn test_table_with_description() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_with_labels() {
     let session = create_session();
 
@@ -408,7 +408,7 @@ async fn test_table_with_labels() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_with_expiration() {
     let session = create_session();
 
@@ -436,7 +436,7 @@ async fn test_table_with_expiration() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cluster_by_up_to_four_columns() {
     let session = create_session();
 
@@ -466,7 +466,7 @@ async fn test_cluster_by_up_to_four_columns() {
     assert_table_eq!(result, [[100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partition_filter_query() {
     let session = create_session();
 

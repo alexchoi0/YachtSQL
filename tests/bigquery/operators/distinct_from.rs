@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_integers() {
     let session = create_session();
 
@@ -12,7 +12,7 @@ async fn test_is_distinct_from_integers() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_same_integers() {
     let session = create_session();
 
@@ -23,7 +23,7 @@ async fn test_is_distinct_from_same_integers() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_null() {
     let session = create_session();
 
@@ -34,7 +34,7 @@ async fn test_is_distinct_from_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_both_null() {
     let session = create_session();
 
@@ -45,7 +45,7 @@ async fn test_is_distinct_from_both_null() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_distinct_from_integers() {
     let session = create_session();
 
@@ -56,7 +56,7 @@ async fn test_is_not_distinct_from_integers() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_distinct_from_different() {
     let session = create_session();
 
@@ -67,7 +67,7 @@ async fn test_is_not_distinct_from_different() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_distinct_from_null() {
     let session = create_session();
 
@@ -78,7 +78,7 @@ async fn test_is_not_distinct_from_null() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_distinct_from_both_null() {
     let session = create_session();
 
@@ -89,7 +89,7 @@ async fn test_is_not_distinct_from_both_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_strings() {
     let session = create_session();
 
@@ -100,7 +100,7 @@ async fn test_is_distinct_from_strings() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_same_strings() {
     let session = create_session();
 
@@ -111,7 +111,7 @@ async fn test_is_distinct_from_same_strings() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_with_column() {
     let session = create_session();
     session
@@ -130,7 +130,7 @@ async fn test_is_distinct_from_with_column() {
     assert_table_eq!(result, [[false], [true], [true], [false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_distinct_from_with_column() {
     let session = create_session();
     session
@@ -149,7 +149,7 @@ async fn test_is_not_distinct_from_with_column() {
     assert_table_eq!(result, [[true], [false], [false], [true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_in_where() {
     let session = create_session();
     session
@@ -168,7 +168,7 @@ async fn test_is_distinct_from_in_where() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_distinct_from_in_where() {
     let session = create_session();
     session
@@ -187,7 +187,7 @@ async fn test_is_not_distinct_from_in_where() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_in_join() {
     let session = create_session();
     session
@@ -213,7 +213,7 @@ async fn test_is_distinct_from_in_join() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_case_expression() {
     let session = create_session();
 
@@ -224,7 +224,7 @@ async fn test_is_distinct_from_case_expression() {
     assert_table_eq!(result, [["different"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_booleans() {
     let session = create_session();
 
@@ -235,7 +235,7 @@ async fn test_is_distinct_from_booleans() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_same_booleans() {
     let session = create_session();
 
@@ -246,7 +246,7 @@ async fn test_is_distinct_from_same_booleans() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_floats() {
     let session = create_session();
 
@@ -257,7 +257,7 @@ async fn test_is_distinct_from_floats() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_distinct_from_same_floats() {
     let session = create_session();
 

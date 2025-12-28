@@ -16,7 +16,7 @@ async fn setup_users_table(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_single_row() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -34,7 +34,7 @@ async fn test_delete_single_row() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_multiple_rows() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -49,7 +49,7 @@ async fn test_delete_multiple_rows() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_all_rows() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -61,7 +61,7 @@ async fn test_delete_all_rows() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_and_condition() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -79,7 +79,7 @@ async fn test_delete_with_and_condition() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_or_condition() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -94,7 +94,7 @@ async fn test_delete_with_or_condition() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_in_clause() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -109,7 +109,7 @@ async fn test_delete_with_in_clause() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_not_in_clause() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -124,7 +124,7 @@ async fn test_delete_with_not_in_clause() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_no_matching_rows() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -142,7 +142,7 @@ async fn test_delete_no_matching_rows() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_subquery() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -166,7 +166,7 @@ async fn test_delete_with_subquery() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_like_condition() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -184,7 +184,7 @@ async fn test_delete_with_like_condition() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_is_null() {
     let session = create_session();
 
@@ -210,7 +210,7 @@ async fn test_delete_with_is_null() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_between() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -228,7 +228,7 @@ async fn test_delete_with_between() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_table() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -240,7 +240,7 @@ async fn test_truncate_table() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_alias() {
     let session = create_session();
 
@@ -291,7 +291,7 @@ async fn test_delete_with_alias() {
     assert_table_eq!(result, [["dryer"], ["oven"], ["washer"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_with_exists() {
     let session = create_session();
 
@@ -342,7 +342,7 @@ async fn test_delete_with_exists() {
     assert_table_eq!(result, [["dryer"], ["washer"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_where_quantity_zero() {
     let session = create_session();
 
@@ -376,7 +376,7 @@ async fn test_delete_where_quantity_zero() {
     assert_table_eq!(result, [["dishwasher"], ["dryer"], ["microwave"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_without_from_keyword() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -394,7 +394,7 @@ async fn test_delete_without_from_keyword() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_where_true() {
     let session = create_session();
     setup_users_table(&session).await;

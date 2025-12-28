@@ -1,6 +1,6 @@
 [package]
 name = "yachtsql-functions"
-version = "0.1.0"
+version = "0.1.4"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Function implementations for YachtSQL"
@@ -21,8 +21,8 @@ all = ["core", "json", "network", "encryption", "approximate"]
 
 [dependencies]
 # Core types and errors
-yachtsql-common = { version = "0.1.0", path = "../common" }
-yachtsql-parser = { version = "0.1.0", path = "../parser" }
+yachtsql-common = { version = "0.1.4", path = "../common" }
+yachtsql-parser = { version = "0.1.4", path = "../parser" }
 
 # SQL parsing (needed for JSON functions)
 yachtsql-sqlparser = { version = "0.59", features = ["visitor"], optional = true }
@@ -92,5 +92,5 @@ debug_print = "1.0.0"
 hostname = "0.4"
 
 [dev-dependencies]
-yachtsql-common = { version = "0.1.0", path = "../common" }
-yachtsql-storage = { version = "0.1.0", path = "../storage" }
+yachtsql-common = { version = "0.1.4", path = "../common" }
+yachtsql-storage = { version = "0.1.4", path = "../storage" }

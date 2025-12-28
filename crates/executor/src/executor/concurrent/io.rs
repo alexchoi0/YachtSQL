@@ -20,7 +20,7 @@ use yachtsql_storage::{Field, Schema, Table};
 use super::ConcurrentPlanExecutor;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_export(
         &self,
         options: &ExportOptions,

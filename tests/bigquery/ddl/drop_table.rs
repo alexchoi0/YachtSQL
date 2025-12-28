@@ -1,6 +1,6 @@
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_table() {
     let session = create_session();
 
@@ -15,7 +15,7 @@ async fn test_drop_table() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_table_if_exists() {
     let session = create_session();
 
@@ -38,7 +38,7 @@ async fn test_drop_table_if_exists() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_multiple_tables() {
     let session = create_session();
 
@@ -63,7 +63,7 @@ async fn test_drop_multiple_tables() {
     assert!(result2.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_table_restrict() {
     let session = create_session();
 

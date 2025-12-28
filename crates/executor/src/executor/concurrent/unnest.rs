@@ -13,7 +13,7 @@ use crate::executor::window::{
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_unnest(
         &self,
         input: &PhysicalPlan,

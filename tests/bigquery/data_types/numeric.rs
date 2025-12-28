@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, n};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_int64_basic() {
     let session = create_session();
 
@@ -18,7 +18,7 @@ async fn test_int64_basic() {
     assert_table_eq!(result, [[42]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_int64_negative() {
     let session = create_session();
 
@@ -35,7 +35,7 @@ async fn test_int64_negative() {
     assert_table_eq!(result, [[-100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_int64_zero() {
     let session = create_session();
 
@@ -52,7 +52,7 @@ async fn test_int64_zero() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_float64_basic() {
     let session = create_session();
 
@@ -69,7 +69,7 @@ async fn test_float64_basic() {
     assert_table_eq!(result, [[3.11]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_float64_scientific() {
     let session = create_session();
 
@@ -86,7 +86,7 @@ async fn test_float64_scientific() {
     assert_table_eq!(result, [[1.5e10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_numeric_basic() {
     let session = create_session();
 
@@ -95,7 +95,7 @@ async fn test_numeric_basic() {
     assert_table_eq!(result, [[n("123.456")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_numeric_arithmetic() {
     let session = create_session();
 
@@ -104,7 +104,7 @@ async fn test_numeric_arithmetic() {
     assert_table_eq!(result, [[n("12.8")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_int64_() {
     let session = create_session();
 
@@ -121,7 +121,7 @@ async fn test_int64_() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_numeric_comparison() {
     let session = create_session();
 
@@ -142,7 +142,7 @@ async fn test_numeric_comparison() {
     assert_table_eq!(result, [[30], [50]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_numeric_in_expression() {
     let session = create_session();
 

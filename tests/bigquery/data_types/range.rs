@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, d};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_date_literal() {
     let session = create_session();
 
@@ -12,7 +12,7 @@ async fn test_range_date_literal() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_timestamp_literal() {
     let session = create_session();
 
@@ -24,7 +24,7 @@ async fn test_range_timestamp_literal() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_datetime_literal() {
     let session = create_session();
 
@@ -34,7 +34,7 @@ async fn test_range_datetime_literal() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_unbounded_start() {
     let session = create_session();
 
@@ -45,7 +45,7 @@ async fn test_range_unbounded_start() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_unbounded_end() {
     let session = create_session();
 
@@ -56,7 +56,7 @@ async fn test_range_unbounded_end() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_column() {
     let session = create_session();
     session
@@ -72,7 +72,7 @@ async fn test_range_column() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_start() {
     let session = create_session();
 
@@ -83,7 +83,7 @@ async fn test_range_start() {
     assert_table_eq!(result, [[d(2024, 1, 15)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_end() {
     let session = create_session();
 
@@ -94,7 +94,7 @@ async fn test_range_end() {
     assert_table_eq!(result, [[d(2024, 6, 30)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_contains() {
     let session = create_session();
 
@@ -107,7 +107,7 @@ async fn test_range_contains() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_contains_false() {
     let session = create_session();
 
@@ -120,7 +120,7 @@ async fn test_range_contains_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_overlaps() {
     let session = create_session();
 
@@ -136,7 +136,7 @@ async fn test_range_overlaps() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_overlaps_false() {
     let session = create_session();
 
@@ -152,7 +152,7 @@ async fn test_range_overlaps_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_intersect() {
     let session = create_session();
 
@@ -168,7 +168,7 @@ async fn test_range_intersect() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_generate_range_array() {
     let session = create_session();
 
@@ -178,7 +178,7 @@ async fn test_generate_range_array() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_in_where() {
     let session = create_session();
     session
@@ -203,7 +203,7 @@ async fn test_range_in_where() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_range_sessionize() {
     let session = create_session();
 

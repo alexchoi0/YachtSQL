@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, d};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_column() {
     let session = create_session();
     session
@@ -20,7 +20,7 @@ async fn test_date_column() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_range_query() {
     let session = create_session();
     session
@@ -37,7 +37,7 @@ async fn test_date_range_query() {
     assert_table_eq!(result, [["B"], ["C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_column() {
     let session = create_session();
     session
@@ -58,7 +58,7 @@ async fn test_timestamp_column() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_null_handling() {
     let session = create_session();
     session
@@ -79,7 +79,7 @@ async fn test_date_null_handling() {
     assert_table_eq!(result, [["A"], ["C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_sorting() {
     let session = create_session();
     session
@@ -97,7 +97,7 @@ async fn test_date_sorting() {
     assert_table_eq!(result, [["C"], ["B"], ["A"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_group_by() {
     let session = create_session();
     session
@@ -114,7 +114,7 @@ async fn test_date_group_by() {
     assert_table_eq!(result, [[d(2024, 1, 1), 250], [d(2024, 1, 2), 200]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_with_timezone_string() {
     let session = create_session();
     session
@@ -133,7 +133,7 @@ async fn test_timestamp_with_timezone_string() {
     assert_table_eq!(result, [["test"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_between() {
     let session = create_session();
     session
@@ -150,7 +150,7 @@ async fn test_date_between() {
     assert_table_eq!(result, [["B"], ["C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_distinct() {
     let session = create_session();
     session

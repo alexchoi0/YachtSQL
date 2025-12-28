@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_table() {
     let session = create_session();
     session
@@ -31,7 +31,7 @@ async fn test_truncate_table() {
     assert_table_eq!(after, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_preserves_schema() {
     let session = create_session();
     session
@@ -60,7 +60,7 @@ async fn test_truncate_preserves_schema() {
     assert_table_eq!(result, [[2, "new"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_empty_table() {
     let session = create_session();
     session
@@ -72,7 +72,7 @@ async fn test_truncate_empty_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_large_table() {
     let session = create_session();
     session
@@ -102,14 +102,14 @@ async fn test_truncate_large_table() {
     assert_table_eq!(after, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_nonexistent_table() {
     let session = create_session();
     let result = session.execute_sql("TRUNCATE TABLE nonexistent").await;
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_multiple_tables_sequentially() {
     let session = create_session();
     session
@@ -144,7 +144,7 @@ async fn test_truncate_multiple_tables_sequentially() {
     assert_table_eq!(r2, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_truncate_with_qualified_name() {
     let session = create_session();
     session

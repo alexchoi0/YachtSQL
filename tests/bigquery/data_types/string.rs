@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_basic() {
     let session = create_session();
 
@@ -18,7 +18,7 @@ async fn test_string_basic() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_empty() {
     let session = create_session();
 
@@ -35,7 +35,7 @@ async fn test_string_empty() {
     assert_table_eq!(result, [[""]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_with_spaces() {
     let session = create_session();
 
@@ -52,7 +52,7 @@ async fn test_string_with_spaces() {
     assert_table_eq!(result, [["hello world"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_() {
     let session = create_session();
 
@@ -69,7 +69,7 @@ async fn test_string_() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_comparison() {
     let session = create_session();
 
@@ -90,7 +90,7 @@ async fn test_string_comparison() {
     assert_table_eq!(result, [["cherry"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_equality() {
     let session = create_session();
 
@@ -111,7 +111,7 @@ async fn test_string_equality() {
     assert_table_eq!(result, [["apple"], ["apple"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_like() {
     let session = create_session();
 
@@ -132,7 +132,7 @@ async fn test_string_like() {
     assert_table_eq!(result, [["apple"], ["application"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_ordering() {
     let session = create_session();
 
@@ -153,7 +153,7 @@ async fn test_string_ordering() {
     assert_table_eq!(result, [["apple"], ["banana"], ["cherry"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_concat_operator() {
     let session = create_session();
 
@@ -165,7 +165,7 @@ async fn test_string_concat_operator() {
     assert_table_eq!(result, [["hello world"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_in_list() {
     let session = create_session();
 

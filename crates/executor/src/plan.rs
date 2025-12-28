@@ -8,7 +8,30 @@ use yachtsql_ir::{
 };
 use yachtsql_optimizer::{OptimizedLogicalPlan, SampleType};
 
-const PARALLEL_ROW_THRESHOLD: u64 = 5000;
+pub const PARALLEL_ROW_THRESHOLD: u64 = 1000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundType {
+    Compute,
+    Memory,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionHints {
+    pub parallel: bool,
+    pub bound_type: BoundType,
+    pub estimated_rows: u64,
+}
+
+impl Default for ExecutionHints {
+    fn default() -> Self {
+        Self {
+            parallel: false,
+            bound_type: BoundType::Compute,
+            estimated_rows: 0,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessType {
@@ -81,6 +104,7 @@ pub enum PhysicalPlan {
         condition: Option<Expr>,
         schema: PlanSchema,
         parallel: bool,
+        hints: ExecutionHints,
     },
 
     CrossJoin {
@@ -88,6 +112,7 @@ pub enum PhysicalPlan {
         right: Box<PhysicalPlan>,
         schema: PlanSchema,
         parallel: bool,
+        hints: ExecutionHints,
     },
 
     HashJoin {
@@ -98,6 +123,7 @@ pub enum PhysicalPlan {
         right_keys: Vec<Expr>,
         schema: PlanSchema,
         parallel: bool,
+        hints: ExecutionHints,
     },
 
     HashAggregate {
@@ -106,11 +132,13 @@ pub enum PhysicalPlan {
         aggregates: Vec<Expr>,
         schema: PlanSchema,
         grouping_sets: Option<Vec<Vec<usize>>>,
+        hints: ExecutionHints,
     },
 
     Sort {
         input: Box<PhysicalPlan>,
         sort_exprs: Vec<SortExpr>,
+        hints: ExecutionHints,
     },
 
     Limit {
@@ -134,6 +162,7 @@ pub enum PhysicalPlan {
         all: bool,
         schema: PlanSchema,
         parallel: bool,
+        hints: ExecutionHints,
     },
 
     Intersect {
@@ -142,6 +171,7 @@ pub enum PhysicalPlan {
         all: bool,
         schema: PlanSchema,
         parallel: bool,
+        hints: ExecutionHints,
     },
 
     Except {
@@ -150,12 +180,14 @@ pub enum PhysicalPlan {
         all: bool,
         schema: PlanSchema,
         parallel: bool,
+        hints: ExecutionHints,
     },
 
     Window {
         input: Box<PhysicalPlan>,
         window_exprs: Vec<Expr>,
         schema: PlanSchema,
+        hints: ExecutionHints,
     },
 
     Unnest {
@@ -173,6 +205,7 @@ pub enum PhysicalPlan {
         ctes: Vec<CteDefinition>,
         body: Box<PhysicalPlan>,
         parallel_ctes: Vec<usize>,
+        hints: ExecutionHints,
     },
 
     Values {
@@ -497,6 +530,7 @@ impl PhysicalPlan {
                     condition: condition.clone(),
                     schema: schema.clone(),
                     parallel,
+                    hints: ExecutionHints::default(),
                 }
             }
 
@@ -513,6 +547,7 @@ impl PhysicalPlan {
                     right: right_plan,
                     schema: schema.clone(),
                     parallel,
+                    hints: ExecutionHints::default(),
                 }
             }
 
@@ -535,6 +570,7 @@ impl PhysicalPlan {
                     right_keys: right_keys.clone(),
                     schema: schema.clone(),
                     parallel,
+                    hints: ExecutionHints::default(),
                 }
             }
 
@@ -550,11 +586,13 @@ impl PhysicalPlan {
                 aggregates: aggregates.clone(),
                 schema: schema.clone(),
                 grouping_sets: grouping_sets.clone(),
+                hints: ExecutionHints::default(),
             },
 
             OptimizedLogicalPlan::Sort { input, sort_exprs } => PhysicalPlan::Sort {
                 input: Box::new(Self::from_physical(input)),
                 sort_exprs: sort_exprs.clone(),
+                hints: ExecutionHints::default(),
             },
 
             OptimizedLogicalPlan::Limit {
@@ -593,6 +631,7 @@ impl PhysicalPlan {
                     all: *all,
                     schema: schema.clone(),
                     parallel,
+                    hints: ExecutionHints::default(),
                 }
             }
 
@@ -611,6 +650,7 @@ impl PhysicalPlan {
                     all: *all,
                     schema: schema.clone(),
                     parallel,
+                    hints: ExecutionHints::default(),
                 }
             }
 
@@ -629,6 +669,7 @@ impl PhysicalPlan {
                     all: *all,
                     schema: schema.clone(),
                     parallel,
+                    hints: ExecutionHints::default(),
                 }
             }
 
@@ -640,6 +681,7 @@ impl PhysicalPlan {
                 input: Box::new(Self::from_physical(input)),
                 window_exprs: window_exprs.clone(),
                 schema: schema.clone(),
+                hints: ExecutionHints::default(),
             },
 
             OptimizedLogicalPlan::Unnest {
@@ -676,6 +718,7 @@ impl PhysicalPlan {
                     ctes: ctes.clone(),
                     body: Box::new(Self::from_physical(body)),
                     parallel_ctes,
+                    hints: ExecutionHints::default(),
                 }
             }
 
@@ -1356,30 +1399,143 @@ impl PhysicalPlan {
         }
     }
 
-    fn is_memory_bound(&self) -> bool {
+    pub fn bound_type(&self) -> BoundType {
         match self {
-            PhysicalPlan::TableScan { .. } => true,
-            PhysicalPlan::Filter { input, .. }
-            | PhysicalPlan::Project { input, .. }
-            | PhysicalPlan::Limit { input, .. }
-            | PhysicalPlan::Sample { input, .. } => input.is_memory_bound(),
+            PhysicalPlan::TableScan { .. }
+            | PhysicalPlan::Values { .. }
+            | PhysicalPlan::Empty { .. } => BoundType::Memory,
+
+            PhysicalPlan::Limit { input, .. } | PhysicalPlan::Sample { input, .. } => {
+                input.bound_type()
+            }
+
+            PhysicalPlan::Filter { input, predicate } => {
+                if input.bound_type() == BoundType::Memory && !Self::is_expensive_expr(predicate) {
+                    BoundType::Memory
+                } else {
+                    BoundType::Compute
+                }
+            }
+
+            PhysicalPlan::Project {
+                input, expressions, ..
+            } => {
+                if input.bound_type() == BoundType::Memory
+                    && expressions.iter().all(|e| !Self::is_expensive_expr(e))
+                {
+                    BoundType::Memory
+                } else {
+                    BoundType::Compute
+                }
+            }
+
+            PhysicalPlan::Distinct { input } => input.bound_type(),
+
+            PhysicalPlan::Sort { .. }
+            | PhysicalPlan::TopN { .. }
+            | PhysicalPlan::HashAggregate { .. }
+            | PhysicalPlan::Window { .. }
+            | PhysicalPlan::NestedLoopJoin { .. }
+            | PhysicalPlan::HashJoin { .. }
+            | PhysicalPlan::CrossJoin { .. }
+            | PhysicalPlan::Union { .. }
+            | PhysicalPlan::Intersect { .. }
+            | PhysicalPlan::Except { .. }
+            | PhysicalPlan::Unnest { .. }
+            | PhysicalPlan::Qualify { .. }
+            | PhysicalPlan::GapFill { .. }
+            | PhysicalPlan::Merge { .. } => BoundType::Compute,
+
+            _ => BoundType::Compute,
+        }
+    }
+
+    fn is_expensive_expr(expr: &Expr) -> bool {
+        use yachtsql_ir::ScalarFunction as SF;
+        match expr {
+            Expr::ScalarFunction { name, args } => {
+                let expensive = matches!(
+                    name,
+                    SF::RegexpContains
+                        | SF::RegexpExtract
+                        | SF::RegexpExtractAll
+                        | SF::RegexpInstr
+                        | SF::RegexpReplace
+                        | SF::RegexpSubstr
+                        | SF::JsonExtract
+                        | SF::JsonExtractScalar
+                        | SF::JsonExtractArray
+                        | SF::JsonValue
+                        | SF::JsonQuery
+                        | SF::ParseJson
+                        | SF::ToJson
+                        | SF::ToJsonString
+                        | SF::Sqrt
+                        | SF::Power
+                        | SF::Pow
+                        | SF::Log
+                        | SF::Log10
+                        | SF::Exp
+                        | SF::Sin
+                        | SF::Cos
+                        | SF::Tan
+                        | SF::Asin
+                        | SF::Acos
+                        | SF::Atan
+                        | SF::Atan2
+                        | SF::Sinh
+                        | SF::Cosh
+                        | SF::Tanh
+                        | SF::Md5
+                        | SF::Sha1
+                        | SF::Sha256
+                        | SF::Sha512
+                );
+                expensive || args.iter().any(Self::is_expensive_expr)
+            }
+            Expr::Case {
+                operand,
+                when_clauses,
+                else_result,
+            } => {
+                operand.as_ref().is_some_and(|e| Self::is_expensive_expr(e))
+                    || when_clauses.iter().any(|wc| {
+                        Self::is_expensive_expr(&wc.condition)
+                            || Self::is_expensive_expr(&wc.result)
+                    })
+                    || else_result
+                        .as_ref()
+                        .is_some_and(|e| Self::is_expensive_expr(e))
+            }
+            Expr::Subquery(_) | Expr::ScalarSubquery(_) | Expr::ArraySubquery(_) => true,
+            Expr::BinaryOp { left, right, .. } => {
+                Self::is_expensive_expr(left) || Self::is_expensive_expr(right)
+            }
+            Expr::UnaryOp { expr, .. } => Self::is_expensive_expr(expr),
+            Expr::Like { expr, pattern, .. } => {
+                Self::is_expensive_expr(expr) || Self::is_expensive_expr(pattern)
+            }
+            Expr::InList { expr, list, .. } => {
+                Self::is_expensive_expr(expr) || list.iter().any(Self::is_expensive_expr)
+            }
+            Expr::Between {
+                expr, low, high, ..
+            } => {
+                Self::is_expensive_expr(expr)
+                    || Self::is_expensive_expr(low)
+                    || Self::is_expensive_expr(high)
+            }
+            Expr::Cast { expr, .. } => Self::is_expensive_expr(expr),
             _ => false,
         }
     }
 
     fn should_parallelize(left: &Self, right: &Self) -> bool {
-        if left.is_memory_bound() && right.is_memory_bound() {
-            return false;
-        }
         left.estimate_rows() >= PARALLEL_ROW_THRESHOLD
             && right.estimate_rows() >= PARALLEL_ROW_THRESHOLD
     }
 
     fn should_parallelize_union(inputs: &[Self]) -> bool {
-        let non_memory_bound = inputs.iter().filter(|p| !p.is_memory_bound()).count();
-        if non_memory_bound < 2 {
-            return false;
-        }
         inputs.len() >= 2
             && inputs
                 .iter()
@@ -1465,6 +1621,7 @@ impl PhysicalPlan {
                 ctes,
                 body,
                 parallel_ctes,
+                ..
             } => {
                 body.populate_row_counts(catalog);
                 *parallel_ctes = ctes

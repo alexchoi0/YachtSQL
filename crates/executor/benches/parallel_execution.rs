@@ -168,7 +168,7 @@ fn bench_complex_analytical_queries(c: &mut Criterion) {
     let mut group = c.benchmark_group("analytical_queries");
     group.sample_size(10);
 
-    for scale in [1000, 5000, 10000].iter() {
+    for scale in [500, 1000, 2000].iter() {
         let rt = Runtime::new().unwrap();
         let executor = AsyncQueryExecutor::new();
         setup_ecommerce_schema(&executor, *scale, &rt);
@@ -259,7 +259,7 @@ fn bench_customer_lifetime_value(c: &mut Criterion) {
     let mut group = c.benchmark_group("customer_ltv");
     group.sample_size(10);
 
-    for scale in [1000, 5000, 10000].iter() {
+    for scale in [500, 1000, 2000].iter() {
         let rt = Runtime::new().unwrap();
         let executor = AsyncQueryExecutor::new();
         setup_ecommerce_schema(&executor, *scale, &rt);
@@ -358,7 +358,7 @@ fn bench_revenue_with_window_functions(c: &mut Criterion) {
     let mut group = c.benchmark_group("window_functions");
     group.sample_size(10);
 
-    for scale in [1000, 5000, 10000].iter() {
+    for scale in [500, 1000, 2000].iter() {
         let rt = Runtime::new().unwrap();
         let executor = AsyncQueryExecutor::new();
         setup_ecommerce_schema(&executor, *scale, &rt);
@@ -455,7 +455,7 @@ fn bench_multi_cte_union(c: &mut Criterion) {
     let mut group = c.benchmark_group("multi_cte_union");
     group.sample_size(10);
 
-    for scale in [1000, 5000, 10000].iter() {
+    for scale in [500, 1000, 2000].iter() {
         let rt = Runtime::new().unwrap();
         let executor = AsyncQueryExecutor::new();
         setup_ecommerce_schema(&executor, *scale, &rt);
@@ -585,7 +585,7 @@ fn bench_large_join(c: &mut Criterion) {
             .await
             .unwrap();
 
-        for batch in 0..1000 {
+        for batch in 0..100 {
             let values: Vec<String> = (1..=1000)
                 .map(|i| {
                     let id = batch * 1000 + i;
@@ -600,7 +600,7 @@ fn bench_large_join(c: &mut Criterion) {
                 .await
                 .unwrap();
         }
-        for batch in 0..1000 {
+        for batch in 0..100 {
             let values: Vec<String> = (1..=1000)
                 .map(|i| {
                     let id = batch * 1000 + i;
@@ -624,7 +624,7 @@ fn bench_large_join(c: &mut Criterion) {
             .unwrap();
     });
 
-    group.bench_function("parallel_1M_join", |b| {
+    group.bench_function("parallel_100k_join", |b| {
         b.to_async(&rt).iter(|| async {
             let result = executor
                 .execute_sql(
@@ -632,7 +632,7 @@ fn bench_large_join(c: &mut Criterion) {
                 )
                 .await
                 .unwrap();
-            assert_eq!(result.row_count(), 1_000_000);
+            assert_eq!(result.row_count(), 100_000);
             result
         });
     });
@@ -644,7 +644,7 @@ fn bench_large_join(c: &mut Criterion) {
             .unwrap();
     });
 
-    group.bench_function("sequential_1M_join", |b| {
+    group.bench_function("sequential_100k_join", |b| {
         b.to_async(&rt).iter(|| async {
             let result = executor
                 .execute_sql(
@@ -652,7 +652,7 @@ fn bench_large_join(c: &mut Criterion) {
                 )
                 .await
                 .unwrap();
-            assert_eq!(result.row_count(), 1_000_000);
+            assert_eq!(result.row_count(), 100_000);
             result
         });
     });

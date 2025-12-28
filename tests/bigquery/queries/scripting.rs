@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, date};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_variable() {
     let session = create_session();
 
@@ -12,7 +12,7 @@ async fn test_declare_variable() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_with_default() {
     let session = create_session();
 
@@ -25,7 +25,7 @@ async fn test_declare_with_default() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_multiple() {
     let session = create_session();
 
@@ -38,7 +38,7 @@ async fn test_declare_multiple() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_string() {
     let session = create_session();
 
@@ -51,7 +51,7 @@ async fn test_declare_string() {
     assert_table_eq!(result, [["Hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_variable() {
     let session = create_session();
 
@@ -72,7 +72,7 @@ async fn test_set_variable() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_from_query() {
     let session = create_session();
     session
@@ -94,7 +94,7 @@ async fn test_set_from_query() {
     assert_table_eq!(result, [[60]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if_then() {
     let session = create_session();
 
@@ -117,7 +117,7 @@ async fn test_if_then() {
     assert_table_eq!(result, [["big"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if_then_else() {
     let session = create_session();
 
@@ -142,7 +142,7 @@ async fn test_if_then_else() {
     assert_table_eq!(result, [["small"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if_elseif_else() {
     let session = create_session();
 
@@ -169,7 +169,7 @@ async fn test_if_elseif_else() {
     assert_table_eq!(result, [["medium"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_loop_basic() {
     let session = create_session();
 
@@ -199,7 +199,7 @@ async fn test_loop_basic() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_while_loop() {
     let session = create_session();
 
@@ -226,7 +226,7 @@ async fn test_while_loop() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_repeat_loop() {
     let session = create_session();
 
@@ -249,7 +249,7 @@ async fn test_repeat_loop() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_loop() {
     let session = create_session();
 
@@ -271,7 +271,7 @@ async fn test_for_loop() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_break_continue() {
     let session = create_session();
 
@@ -304,7 +304,7 @@ async fn test_break_continue() {
     assert_table_eq!(result, [[12]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_begin_end_block() {
     let session = create_session();
 
@@ -323,7 +323,7 @@ async fn test_begin_end_block() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nested_blocks() {
     let session = create_session();
 
@@ -349,7 +349,7 @@ async fn test_nested_blocks() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exception_handling() {
     let session = create_session();
 
@@ -373,7 +373,7 @@ async fn test_exception_handling() {
     assert_table_eq!(result, [["caught"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_raise_exception() {
     let session = create_session();
 
@@ -383,7 +383,7 @@ async fn test_raise_exception() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_execute_immediate() {
     let session = create_session();
     session
@@ -407,7 +407,7 @@ async fn test_execute_immediate() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_execute_immediate_with_params() {
     let session = create_session();
     session
@@ -425,7 +425,7 @@ async fn test_execute_immediate_with_params() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_execute_immediate_ddl() {
     let session = create_session();
 
@@ -446,7 +446,7 @@ async fn test_execute_immediate_ddl() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_statement() {
     let session = create_session();
 
@@ -472,7 +472,7 @@ async fn test_case_statement() {
     assert_table_eq!(result, [["two"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_return_statement() {
     let session = create_session();
 
@@ -496,7 +496,7 @@ async fn test_return_statement() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_labeled_block() {
     let session = create_session();
 
@@ -521,7 +521,7 @@ async fn test_labeled_block() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_variable_in_query() {
     let session = create_session();
     session
@@ -545,7 +545,7 @@ async fn test_variable_in_query() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_system_variable() {
     let session = create_session();
 
@@ -556,7 +556,7 @@ async fn test_system_variable() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_system_variable() {
     let session = create_session();
 
@@ -569,7 +569,7 @@ async fn test_set_system_variable() {
     assert_table_eq!(result, [["America/Los_Angeles"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_type_inference() {
     let session = create_session();
 
@@ -579,7 +579,7 @@ async fn test_declare_type_inference() {
     assert_table_eq!(result, [[42]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_type_inference_string() {
     let session = create_session();
 
@@ -592,7 +592,7 @@ async fn test_declare_type_inference_string() {
     assert_table_eq!(result, [["Hello World"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_type_inference_from_expression() {
     let session = create_session();
 
@@ -605,7 +605,7 @@ async fn test_declare_type_inference_from_expression() {
     assert_table_eq!(result, [[20]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_date_default() {
     let session = create_session();
 
@@ -618,7 +618,7 @@ async fn test_declare_date_default() {
     assert_table_eq!(result, [[date(2024, 1, 15)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_float64() {
     let session = create_session();
 
@@ -631,7 +631,7 @@ async fn test_declare_float64() {
     assert_table_eq!(result, [[3.14159]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_bool() {
     let session = create_session();
 
@@ -644,7 +644,7 @@ async fn test_declare_bool() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_array() {
     let session = create_session();
 
@@ -657,7 +657,7 @@ async fn test_declare_array() {
     assert_table_eq!(result, [[[1, 2, 3]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_multiple_with_default() {
     let session = create_session();
 
@@ -670,7 +670,7 @@ async fn test_declare_multiple_with_default() {
     assert_table_eq!(result, [[0, 0, 0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_multiple_variables() {
     let session = create_session();
 
@@ -687,7 +687,7 @@ async fn test_set_multiple_variables() {
     assert_table_eq!(result, [[4, "foo", false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_from_struct_query() {
     let session = create_session();
 
@@ -703,7 +703,7 @@ async fn test_set_from_struct_query() {
     assert_table_eq!(result, [[10, 20]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_execute_immediate_into() {
     let session = create_session();
     session
@@ -726,7 +726,7 @@ async fn test_execute_immediate_into() {
     assert_table_eq!(result, [[1599]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_execute_immediate_using_positional() {
     let session = create_session();
 
@@ -741,7 +741,7 @@ async fn test_execute_immediate_using_positional() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_execute_immediate_using_named() {
     let session = create_session();
 
@@ -756,7 +756,7 @@ async fn test_execute_immediate_using_named() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_execute_immediate_dml() {
     let session = create_session();
 
@@ -779,7 +779,7 @@ async fn test_execute_immediate_dml() {
     assert_table_eq!(result, [["Widget"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exception_error_message() {
     let session = create_session();
 
@@ -806,7 +806,7 @@ async fn test_exception_error_message() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exception_statement_text() {
     let session = create_session();
 
@@ -830,7 +830,7 @@ async fn test_exception_statement_text() {
     assert_table_eq!(result, [["SELECT 1 / 0"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exception_reraise() {
     let session = create_session();
 
@@ -858,7 +858,7 @@ async fn test_exception_reraise() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_conditional() {
     let session = create_session();
 
@@ -883,7 +883,7 @@ async fn test_case_conditional() {
     assert_table_eq!(result, [["medium"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_conditional_no_match() {
     let session = create_session();
 
@@ -910,7 +910,7 @@ async fn test_case_conditional_no_match() {
     assert_table_eq!(result, [["default"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_search_expression_else() {
     let session = create_session();
 
@@ -935,7 +935,7 @@ async fn test_case_search_expression_else() {
     assert_table_eq!(result, [["Invalid product"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_while_with_break() {
     let session = create_session();
 
@@ -960,7 +960,7 @@ async fn test_while_with_break() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_while_never_executes() {
     let session = create_session();
 
@@ -982,7 +982,7 @@ async fn test_while_never_executes() {
     assert_table_eq!(result, [[100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_repeat_basic() {
     let session = create_session();
 
@@ -1010,7 +1010,7 @@ async fn test_repeat_basic() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_repeat_executes_at_least_once() {
     let session = create_session();
 
@@ -1033,7 +1033,7 @@ async fn test_repeat_executes_at_least_once() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_in_basic() {
     let session = create_session();
 
@@ -1056,7 +1056,7 @@ async fn test_for_in_basic() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_in_with_table() {
     let session = create_session();
 
@@ -1088,7 +1088,7 @@ async fn test_for_in_with_table() {
     assert_table_eq!(result, [[60]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_in_with_break() {
     let session = create_session();
 
@@ -1114,7 +1114,7 @@ async fn test_for_in_with_break() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_labeled_loop_leave() {
     let session = create_session();
 
@@ -1147,7 +1147,7 @@ async fn test_labeled_loop_leave() {
     assert_table_eq!(result, [[2, 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_labeled_loop_continue() {
     let session = create_session();
 
@@ -1177,7 +1177,7 @@ async fn test_labeled_loop_continue() {
     assert_table_eq!(result, [[5, 1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_labeled_begin_leave() {
     let session = create_session();
 
@@ -1201,7 +1201,7 @@ async fn test_labeled_begin_leave() {
     assert_table_eq!(result, [["in block"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_iterate_synonym() {
     let session = create_session();
 
@@ -1231,7 +1231,7 @@ async fn test_iterate_synonym() {
     assert_table_eq!(result, [[12]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_leave_synonym() {
     let session = create_session();
 
@@ -1256,7 +1256,7 @@ async fn test_leave_synonym() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_begin_transaction_commit() {
     let session = create_session();
 
@@ -1287,7 +1287,7 @@ async fn test_begin_transaction_commit() {
     assert_table_eq!(result, [[1, 50], [2, 250]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_begin_transaction_rollback() {
     let session = create_session();
 
@@ -1311,7 +1311,7 @@ async fn test_begin_transaction_rollback() {
     assert_table_eq!(result, [["existing"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_transaction_with_exception_rollback() {
     let session = create_session();
 
@@ -1345,7 +1345,7 @@ async fn test_transaction_with_exception_rollback() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_raise_with_message() {
     let session = create_session();
 
@@ -1357,7 +1357,7 @@ async fn test_raise_with_message() {
     assert!(err_msg.contains("Something went wrong"));
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_raise_and_catch() {
     let session = create_session();
 
@@ -1381,7 +1381,7 @@ async fn test_raise_and_catch() {
     assert_table_eq!(result, [["Custom error"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_return_in_block() {
     let session = create_session();
 
@@ -1405,7 +1405,7 @@ async fn test_return_in_block() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_return_in_loop() {
     let session = create_session();
 
@@ -1430,7 +1430,7 @@ async fn test_return_in_loop() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_variable_scope_in_block() {
     let session = create_session();
 
@@ -1453,7 +1453,7 @@ async fn test_variable_scope_in_block() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nested_if() {
     let session = create_session();
 
@@ -1486,7 +1486,7 @@ async fn test_nested_if() {
     assert_table_eq!(result, [["b greater"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_loop_with_multiple_exits() {
     let session = create_session();
 
@@ -1520,7 +1520,7 @@ async fn test_loop_with_multiple_exits() {
     assert_table_eq!(result, [[8, "square"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_complex_while_loop() {
     let session = create_session();
 
@@ -1547,7 +1547,7 @@ async fn test_complex_while_loop() {
     assert_table_eq!(result, [[120]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if_with_subquery_condition() {
     let session = create_session();
 
@@ -1582,7 +1582,7 @@ async fn test_if_with_subquery_condition() {
     assert_table_eq!(result, [["found"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_multiple_elseif() {
     let session = create_session();
 
@@ -1613,7 +1613,7 @@ async fn test_multiple_elseif() {
     assert_table_eq!(result, [["C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_with_multiple_statements() {
     let session = create_session();
 
@@ -1651,7 +1651,7 @@ async fn test_case_with_multiple_statements() {
     assert_table_eq!(result, [[10, 20]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_declare_struct() {
     let session = create_session();
 
@@ -1667,7 +1667,7 @@ async fn test_declare_struct() {
     assert_table_eq!(result, [["Alice", 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_variable_reassignment() {
     let session = create_session();
 
@@ -1683,7 +1683,7 @@ async fn test_variable_reassignment() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_loop_counter() {
     let session = create_session();
 

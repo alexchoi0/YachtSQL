@@ -22,7 +22,7 @@ async fn setup_large_table(session: &yachtsql::YachtSQLSession) {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_percent() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -34,7 +34,7 @@ async fn test_tablesample_percent() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_bernoulli() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -46,7 +46,7 @@ async fn test_tablesample_bernoulli() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_rows() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -58,7 +58,7 @@ async fn test_tablesample_rows() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_with_where() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -71,7 +71,7 @@ async fn test_tablesample_with_where() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_with_order_by() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -84,7 +84,7 @@ async fn test_tablesample_with_order_by() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_with_join() {
     let session = create_session();
     session
@@ -102,7 +102,7 @@ async fn test_tablesample_with_join() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_reproducible() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -116,7 +116,7 @@ async fn test_tablesample_reproducible() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_zero_percent() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -128,7 +128,7 @@ async fn test_tablesample_zero_percent() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_hundred_percent() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -140,7 +140,7 @@ async fn test_tablesample_hundred_percent() {
     assert_table_eq!(result, [[100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_in_subquery() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -153,7 +153,7 @@ async fn test_tablesample_in_subquery() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_with_group_by() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -164,7 +164,7 @@ async fn test_tablesample_with_group_by() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_with_aggregation() {
     let session = create_session();
     setup_large_table(&session).await;
@@ -177,7 +177,7 @@ async fn test_tablesample_with_aggregation() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_tablesample_alias() {
     let session = create_session();
     setup_large_table(&session).await;

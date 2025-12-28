@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_simple_addition() {
     let session = create_session();
 
@@ -22,7 +22,7 @@ async fn test_javascript_udf_simple_addition() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_string_manipulation() {
     let session = create_session();
 
@@ -46,7 +46,7 @@ async fn test_javascript_udf_string_manipulation() {
     assert_table_eq!(result, [["olleh"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_multiple_args() {
     let session = create_session();
 
@@ -70,7 +70,7 @@ async fn test_javascript_udf_multiple_args() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_float_math() {
     let session = create_session();
 
@@ -106,7 +106,7 @@ async fn test_javascript_udf_float_math() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_null_handling() {
     let session = create_session();
 
@@ -137,7 +137,7 @@ async fn test_javascript_udf_null_handling() {
     assert_table_eq!(result, [["not null"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_arrow_function() {
     let session = create_session();
 
@@ -161,7 +161,7 @@ async fn test_javascript_udf_arrow_function() {
     assert_table_eq!(result, [[42]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_with_table() {
     let session = create_session();
 
@@ -195,7 +195,7 @@ async fn test_javascript_udf_with_table() {
     assert_table_eq!(result, [[1, 100], [2, 400], [3, 900]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sql_udf_still_works() {
     let session = create_session();
 
@@ -209,7 +209,7 @@ async fn test_sql_udf_still_works() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_or_replace() {
     let session = create_session();
 
@@ -244,7 +244,7 @@ async fn test_javascript_udf_or_replace() {
     assert_table_eq!(result, [[105]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_json_parse() {
     let session = create_session();
 
@@ -268,7 +268,7 @@ async fn test_javascript_udf_json_parse() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_json_stringify() {
     let session = create_session();
 
@@ -292,7 +292,7 @@ async fn test_javascript_udf_json_stringify() {
     assert_table_eq!(result, [[r#"{"name":"Bob","age":25}"#]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_regex() {
     let session = create_session();
 
@@ -316,7 +316,7 @@ async fn test_javascript_udf_regex() {
     assert_table_eq!(result, [["123456"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_multi_statement() {
     let session = create_session();
 
@@ -345,7 +345,7 @@ async fn test_javascript_udf_multi_statement() {
     assert_table_eq!(result, [[55]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_array_operations() {
     let session = create_session();
 
@@ -370,7 +370,7 @@ async fn test_javascript_udf_array_operations() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_helper_function() {
     let session = create_session();
 
@@ -404,7 +404,7 @@ async fn test_javascript_udf_helper_function() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_conditional_logic() {
     let session = create_session();
 
@@ -433,7 +433,7 @@ async fn test_javascript_udf_conditional_logic() {
     assert_table_eq!(result, [["A", "B", "F"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_string_formatting() {
     let session = create_session();
 
@@ -460,7 +460,7 @@ async fn test_javascript_udf_string_formatting() {
     assert_table_eq!(result, [["(555) 123-4567"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_javascript_udf_math_functions() {
     let session = create_session();
 

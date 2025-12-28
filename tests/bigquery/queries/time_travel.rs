@@ -1,6 +1,6 @@
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_as_of_timestamp() {
     let session = create_session();
     session
@@ -18,7 +18,7 @@ async fn test_for_system_time_as_of_timestamp() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_as_of_literal() {
     let session = create_session();
     session
@@ -36,7 +36,7 @@ async fn test_for_system_time_as_of_literal() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_with_alias() {
     let session = create_session();
     session
@@ -54,7 +54,7 @@ async fn test_for_system_time_with_alias() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_in_join() {
     let session = create_session();
     session
@@ -83,7 +83,7 @@ async fn test_for_system_time_in_join() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_in_subquery() {
     let session = create_session();
     session
@@ -103,7 +103,7 @@ async fn test_for_system_time_in_subquery() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_with_where() {
     let session = create_session();
     session
@@ -122,7 +122,7 @@ async fn test_for_system_time_with_where() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_with_aggregation() {
     let session = create_session();
     session
@@ -140,7 +140,7 @@ async fn test_for_system_time_with_aggregation() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_different_times() {
     let session = create_session();
     session
@@ -160,7 +160,7 @@ async fn test_for_system_time_different_times() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_variable() {
     let session = create_session();
     session
@@ -183,7 +183,7 @@ async fn test_for_system_time_variable() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_with_cte() {
     let session = create_session();
     session
@@ -204,7 +204,7 @@ async fn test_for_system_time_with_cte() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_for_system_time_comparison() {
     let session = create_session();
     session
@@ -229,7 +229,7 @@ async fn test_for_system_time_comparison() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_assert_basic() {
     let session = create_session();
 
@@ -237,7 +237,7 @@ async fn test_assert_basic() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_assert_with_message() {
     let session = create_session();
 
@@ -247,7 +247,7 @@ async fn test_assert_with_message() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_assert_fails() {
     let session = create_session();
 
@@ -255,7 +255,7 @@ async fn test_assert_fails() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_assert_with_subquery() {
     let session = create_session();
     session
@@ -273,7 +273,7 @@ async fn test_assert_with_subquery() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_assert_not_null() {
     let session = create_session();
 
@@ -283,7 +283,7 @@ async fn test_assert_not_null() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_assert_comparison() {
     let session = create_session();
 

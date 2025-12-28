@@ -3,7 +3,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_stddev() {
     let session = create_session();
     session
@@ -22,7 +22,7 @@ async fn test_stddev() {
     assert_table_eq!(result, [[2.138090]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_stddev_pop() {
     let session = create_session();
     session
@@ -41,7 +41,7 @@ async fn test_stddev_pop() {
     assert_table_eq!(result, [[1.414214]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_stddev_samp() {
     let session = create_session();
     session
@@ -60,7 +60,7 @@ async fn test_stddev_samp() {
     assert_table_eq!(result, [[1.581139]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_variance() {
     let session = create_session();
     session
@@ -79,7 +79,7 @@ async fn test_variance() {
     assert_table_eq!(result, [[2.5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_var_pop() {
     let session = create_session();
     session
@@ -98,7 +98,7 @@ async fn test_var_pop() {
     assert_table_eq!(result, [[2.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_var_samp() {
     let session = create_session();
     session
@@ -117,7 +117,7 @@ async fn test_var_samp() {
     assert_table_eq!(result, [[2.5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_corr() {
     let session = create_session();
     session
@@ -136,7 +136,7 @@ async fn test_corr() {
     assert_table_eq!(result, [[1.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_covar_pop() {
     let session = create_session();
     session
@@ -155,7 +155,7 @@ async fn test_covar_pop() {
     assert_table_eq!(result, [[1.333333]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_covar_samp() {
     let session = create_session();
     session
@@ -174,7 +174,7 @@ async fn test_covar_samp() {
     assert_table_eq!(result, [[2.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_statistical_with_group_by() {
     let session = create_session();
     session

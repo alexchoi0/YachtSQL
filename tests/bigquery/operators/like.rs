@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_prefix() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_like_prefix() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_suffix() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_like_suffix() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_contains() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_like_contains() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_exact() {
     let session = create_session();
     let result = session
@@ -41,7 +41,7 @@ async fn test_like_exact() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_no_match() {
     let session = create_session();
     let result = session
@@ -51,7 +51,7 @@ async fn test_like_no_match() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_underscore_single_char() {
     let session = create_session();
     let result = session
@@ -61,7 +61,7 @@ async fn test_like_underscore_single_char() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_multiple_underscores() {
     let session = create_session();
     let result = session
@@ -71,7 +71,7 @@ async fn test_like_multiple_underscores() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_in_where_clause() {
     let session = create_session();
     session
@@ -90,7 +90,7 @@ async fn test_like_in_where_clause() {
     assert_table_eq!(result, [["alex"], ["alice"], ["anna"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_like() {
     let session = create_session();
     session
@@ -109,7 +109,7 @@ async fn test_not_like() {
     assert_table_eq!(result, [["banana"], ["orange"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_with_null() {
     let session = create_session();
     let result = session
@@ -119,14 +119,14 @@ async fn test_like_with_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_empty_string() {
     let session = create_session();
     let result = session.execute_sql("SELECT '' LIKE '%'").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_mixed_wildcards() {
     let session = create_session();
     let result = session
@@ -136,7 +136,7 @@ async fn test_like_mixed_wildcards() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_case_sensitive() {
     let session = create_session();
     let result = session
@@ -146,7 +146,7 @@ async fn test_like_case_sensitive() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_only_percent() {
     let session = create_session();
     let result = session
@@ -156,7 +156,7 @@ async fn test_like_only_percent() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_any_basic() {
     let session = create_session();
     let result = session
@@ -166,7 +166,7 @@ async fn test_like_any_basic() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_any_no_match() {
     let session = create_session();
     let result = session
@@ -176,7 +176,7 @@ async fn test_like_any_no_match() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_any_multiple_matches() {
     let session = create_session();
     let result = session
@@ -186,7 +186,7 @@ async fn test_like_any_multiple_matches() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_all_basic() {
     let session = create_session();
     let result = session
@@ -196,7 +196,7 @@ async fn test_like_all_basic() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_all_partial_match() {
     let session = create_session();
     let result = session
@@ -206,7 +206,7 @@ async fn test_like_all_partial_match() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_all_no_match() {
     let session = create_session();
     let result = session
@@ -216,7 +216,7 @@ async fn test_like_all_no_match() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_like_any() {
     let session = create_session();
     let result = session
@@ -226,7 +226,7 @@ async fn test_not_like_any() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_like_all() {
     let session = create_session();
     let result = session
@@ -236,7 +236,7 @@ async fn test_not_like_all() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_any_in_where() {
     let session = create_session();
     session
@@ -257,7 +257,7 @@ async fn test_like_any_in_where() {
     assert_table_eq!(result, [["apple"], ["apricot"], ["banana"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_all_in_where() {
     let session = create_session();
     session
@@ -276,7 +276,7 @@ async fn test_like_all_in_where() {
     assert_table_eq!(result, [["ABC123"], ["ABC456"], ["ABCDEF"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_any_with_underscore() {
     let session = create_session();
     let result = session
@@ -286,7 +286,7 @@ async fn test_like_any_with_underscore() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_all_with_underscore() {
     let session = create_session();
     let result = session
@@ -296,7 +296,7 @@ async fn test_like_all_with_underscore() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_any_empty_pattern() {
     let session = create_session();
     let result = session
@@ -306,7 +306,7 @@ async fn test_like_any_empty_pattern() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_any_with_null() {
     let session = create_session();
     let result = session
@@ -316,7 +316,7 @@ async fn test_like_any_with_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_like_all_with_null() {
     let session = create_session();
     let result = session

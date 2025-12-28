@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use futures::future::{join, join_all};
-use yachtsql_common::error::Result;
+use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_ir::PlanSchema;
 use yachtsql_storage::Table;
@@ -10,7 +9,7 @@ use super::ConcurrentPlanExecutor;
 use crate::executor::plan_schema_to_schema;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_union(
         &self,
         inputs: &[PhysicalPlan],
@@ -22,14 +21,20 @@ impl ConcurrentPlanExecutor<'_> {
         let mut result = Table::empty(result_schema);
         let mut seen: HashSet<Vec<Value>> = HashSet::new();
 
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-        let tables: Vec<Table> = if use_parallel && inputs.len() > 1 {
-            let futures: Vec<_> = inputs
+        let tables: Vec<Table> = if parallel && inputs.len() > 1 {
+            let handles: Vec<_> = inputs
                 .iter()
-                .map(|input| self.execute_plan(input))
+                .map(|input| {
+                    let executor = self.clone();
+                    let plan = input.clone();
+                    tokio::spawn(async move { executor.execute_plan(&plan).await })
+                })
                 .collect();
-            let results = join_all(futures).await;
-            results.into_iter().collect::<Result<Vec<_>>>()?
+            let results = futures::future::join_all(handles).await;
+            results
+                .into_iter()
+                .map(|r| r.map_err(|e| Error::Internal(e.to_string()))?)
+                .collect::<Result<Vec<_>>>()?
         } else {
             let mut tables = Vec::with_capacity(inputs.len());
             for input in inputs {
@@ -58,10 +63,19 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-        let (left_table, right_table) = if use_parallel {
-            let (l, r) = join(self.execute_plan(left), self.execute_plan(right)).await;
-            (l?, r?)
+        let (left_table, right_table) = if parallel {
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,
@@ -101,10 +115,19 @@ impl ConcurrentPlanExecutor<'_> {
         schema: &PlanSchema,
         parallel: bool,
     ) -> Result<Table> {
-        let use_parallel = parallel && self.is_parallel_execution_enabled();
-        let (left_table, right_table) = if use_parallel {
-            let (l, r) = join(self.execute_plan(left), self.execute_plan(right)).await;
-            (l?, r?)
+        let (left_table, right_table) = if parallel {
+            let executor_l = self.clone();
+            let executor_r = self.clone();
+            let left_plan = left.clone();
+            let right_plan = right.clone();
+            let (l, r) = tokio::join!(
+                tokio::spawn(async move { executor_l.execute_plan(&left_plan).await }),
+                tokio::spawn(async move { executor_r.execute_plan(&right_plan).await })
+            );
+            (
+                l.map_err(|e| Error::Internal(e.to_string()))??,
+                r.map_err(|e| Error::Internal(e.to_string()))??,
+            )
         } else {
             (
                 self.execute_plan(left).await?,

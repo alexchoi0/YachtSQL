@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_literal() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_struct_literal() {
     assert_table_eq!(result, [[1, "hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_field_access() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_struct_field_access() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_string_field_access() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_struct_string_field_access() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_in_table() {
     let session = create_session();
     session
@@ -49,7 +49,7 @@ async fn test_struct_in_table() {
     assert_table_eq!(result, [[1, "Alice"], [2, "Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_nested() {
     let session = create_session();
     let result = session
@@ -59,7 +59,7 @@ async fn test_struct_nested() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_nested_access() {
     let session = create_session();
     let result = session
@@ -69,7 +69,7 @@ async fn test_struct_nested_access() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_in_array() {
     let session = create_session();
     let result = session
@@ -79,7 +79,7 @@ async fn test_struct_in_array() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_with_null_field() {
     let session = create_session();
     let result = session
@@ -89,7 +89,7 @@ async fn test_struct_with_null_field() {
     assert_table_eq!(result, [[1, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_comparison() {
     let session = create_session();
     let result = session
@@ -99,7 +99,7 @@ async fn test_struct_comparison() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_comparison_false() {
     let session = create_session();
     let result = session
@@ -109,7 +109,7 @@ async fn test_struct_comparison_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_in_where() {
     let session = create_session();
     session
@@ -127,7 +127,7 @@ async fn test_struct_in_where() {
     assert_table_eq!(result, [[2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_in_group_by() {
     let session = create_session();
     session
@@ -144,7 +144,7 @@ async fn test_struct_in_group_by() {
     assert_table_eq!(result, [["A", 30], ["B", 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_in_order_by() {
     let session = create_session();
     session
@@ -162,7 +162,7 @@ async fn test_struct_in_order_by() {
     assert_table_eq!(result, [[2], [3], [1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_with_array_field() {
     let session = create_session();
     let result = session
@@ -172,7 +172,7 @@ async fn test_struct_with_array_field() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_unnest() {
     let session = create_session();
     let result = session
@@ -181,7 +181,7 @@ async fn test_struct_unnest() {
     assert_table_eq!(result, [[1, "x"], [2, "y"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_as_function_result() {
     let session = create_session();
     session
@@ -202,7 +202,7 @@ async fn test_struct_as_function_result() {
     assert_table_eq!(result, [[11], [22]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_is_null() {
     let session = create_session();
     let result = session
@@ -212,7 +212,7 @@ async fn test_struct_is_null() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_struct() {
     let session = create_session();
     session
@@ -231,7 +231,7 @@ async fn test_null_struct() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_struct_concat() {
     let session = create_session();
     let result = session

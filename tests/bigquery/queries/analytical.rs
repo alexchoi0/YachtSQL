@@ -38,7 +38,7 @@ async fn setup_sales_data(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sales_by_category() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -58,7 +58,7 @@ async fn test_sales_by_category() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sales_by_region_and_category() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -87,7 +87,7 @@ async fn test_sales_by_region_and_category() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_top_products_by_revenue() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -114,7 +114,7 @@ async fn test_top_products_by_revenue() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_monthly_revenue_trend() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -137,7 +137,7 @@ async fn test_monthly_revenue_trend() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_running_total() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -170,7 +170,7 @@ async fn test_running_total() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_moving_average() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -206,7 +206,7 @@ async fn test_moving_average() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rank_products_by_sales() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -237,7 +237,7 @@ async fn test_rank_products_by_sales() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_dense_rank_by_category() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -272,7 +272,7 @@ async fn test_dense_rank_by_category() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_percentile_analysis() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -305,7 +305,7 @@ async fn test_percentile_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ntile_quartiles() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -338,7 +338,7 @@ async fn test_ntile_quartiles() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lead_lag_analysis() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -372,7 +372,7 @@ async fn test_lead_lag_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_first_last_value() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -414,7 +414,7 @@ async fn test_first_last_value() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_customer_purchase_frequency() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -436,7 +436,7 @@ async fn test_customer_purchase_frequency() {
     assert_table_eq!(result, [[1001, 3, 1500, 500.0], [1002, 2, 1450, 725.0],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_year_over_year_comparison() {
     let session = create_session();
     session
@@ -482,7 +482,7 @@ async fn test_year_over_year_comparison() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cohort_analysis() {
     let session = create_session();
     session
@@ -534,7 +534,7 @@ async fn test_cohort_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_funnel_analysis() {
     let session = create_session();
     session
@@ -596,7 +596,7 @@ async fn test_funnel_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_retention_analysis() {
     let session = create_session();
     session
@@ -646,7 +646,7 @@ async fn test_retention_analysis() {
     assert_table_eq!(result, [[0, 5], [1, 4], [2, 2], [3, 1],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_abc_analysis() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -696,7 +696,7 @@ async fn test_abc_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rfm_analysis() {
     let session = create_session();
     session
@@ -761,7 +761,7 @@ async fn test_rfm_analysis() {
     assert_eq!(m_scores, vec![4, 3, 2, 1]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_series_decomposition() {
     let session = create_session();
     session
@@ -812,7 +812,7 @@ async fn test_time_series_decomposition() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sessionization() {
     let session = create_session();
     session
@@ -882,7 +882,7 @@ async fn test_sessionization() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_market_basket_analysis() {
     let session = create_session();
     session
@@ -950,7 +950,7 @@ async fn test_market_basket_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pareto_analysis() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -996,7 +996,7 @@ async fn test_pareto_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_growth_rates() {
     let session = create_session();
     session
@@ -1048,7 +1048,7 @@ async fn test_growth_rates() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_variance_analysis() {
     let session = create_session();
     session
@@ -1101,7 +1101,7 @@ async fn test_variance_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_weighted_average() {
     let session = create_session();
     session
@@ -1137,7 +1137,7 @@ async fn test_weighted_average() {
     assert_table_eq!(result, [[100000, 6.49]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_anomaly_detection_zscore() {
     let session = create_session();
     session
@@ -1196,7 +1196,7 @@ async fn test_anomaly_detection_zscore() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_data_quality_checks() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -1231,7 +1231,7 @@ async fn test_data_quality_checks() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_complex_nested_ctes_with_array_agg_limit() {
     let session = create_session();
     session
@@ -1440,7 +1440,7 @@ async fn test_complex_nested_ctes_with_array_agg_limit() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_multi_level_cte_with_correlated_subquery() {
     let session = create_session();
     session
@@ -1641,7 +1641,7 @@ async fn test_multi_level_cte_with_correlated_subquery() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_with_order_and_limit_in_subquery() {
     let session = create_session();
     session
@@ -1753,7 +1753,7 @@ async fn test_array_agg_with_order_and_limit_in_subquery() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_complex_window_with_array_agg_ordered() {
     let session = create_session();
     session
@@ -1894,7 +1894,7 @@ async fn test_complex_window_with_array_agg_ordered() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nested_aggregates_with_scalar_subqueries() {
     let session = create_session();
     session
@@ -2107,7 +2107,7 @@ async fn test_nested_aggregates_with_scalar_subqueries() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_recursive_like_hierarchy_with_arrays() {
     let session = create_session();
     session
@@ -2329,7 +2329,7 @@ async fn test_recursive_like_hierarchy_with_arrays() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_series_with_gaps_and_array_agg() {
     let session = create_session();
     session
@@ -2481,7 +2481,7 @@ async fn test_time_series_with_gaps_and_array_agg() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_complex_pivot_simulation_with_ctes() {
     let session = create_session();
     session
@@ -2674,7 +2674,7 @@ async fn test_complex_pivot_simulation_with_ctes() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_qualified_wildcard() {
     let session = create_session();
     session
@@ -2704,7 +2704,7 @@ async fn test_cte_qualified_wildcard() {
     assert_eq!(records.len(), 2);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unnest_with_complex_cte_and_array_operations() {
     let session = create_session();
     session
@@ -2812,7 +2812,7 @@ async fn test_unnest_with_complex_cte_and_array_operations() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unnest_cross_join_with_nested_structs() {
     let session = create_session();
     session
@@ -2927,7 +2927,7 @@ async fn test_unnest_cross_join_with_nested_structs() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unnest_with_window_functions_and_array_subquery() {
     let session = create_session();
     session
@@ -3052,7 +3052,7 @@ async fn test_unnest_with_window_functions_and_array_subquery() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unnest_multi_array_correlation() {
     let session = create_session();
     session
@@ -3171,7 +3171,7 @@ async fn test_unnest_multi_array_correlation() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unnest_with_lateral_join_simulation() {
     let session = create_session();
     session
@@ -3293,7 +3293,7 @@ async fn test_unnest_with_lateral_join_simulation() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_deep_nested_unnest_with_aggregations() {
     let session = create_session();
     session
@@ -3442,7 +3442,7 @@ async fn test_deep_nested_unnest_with_aggregations() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_debug_case_in_agg() {
     let session = create_session();
     setup_sales_data(&session).await;
@@ -3456,7 +3456,7 @@ async fn test_union_debug_case_in_agg() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_debug_with_case() {
     let session = create_session();
     setup_sales_data(&session).await;

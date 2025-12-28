@@ -11,7 +11,7 @@ async fn setup_sales_table(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_row_number() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -25,7 +25,7 @@ async fn test_qualify_row_number() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_rank() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -39,7 +39,7 @@ async fn test_qualify_rank() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_dense_rank() {
     let session = create_session();
     session
@@ -59,7 +59,7 @@ async fn test_qualify_dense_rank() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_with_where() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -70,7 +70,7 @@ async fn test_qualify_with_where() {
     assert_table_eq!(result, [[2, "Widget", 150]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_with_group_by() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -81,7 +81,7 @@ async fn test_qualify_with_group_by() {
     assert_table_eq!(result, [["West", 410]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_ntile() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -95,7 +95,7 @@ async fn test_qualify_ntile() {
     assert_table_eq!(result, [[4, 80], [6, 90]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_percent_rank() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -106,7 +106,7 @@ async fn test_qualify_percent_rank() {
     assert_table_eq!(result, [[2, 150], [3, 200], [5, 120]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_cume_dist() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -117,7 +117,7 @@ async fn test_qualify_cume_dist() {
     assert_table_eq!(result, [[1, 100], [4, 80], [6, 90]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_lag() {
     let session = create_session();
     session
@@ -138,7 +138,7 @@ async fn test_qualify_lag() {
     assert_table_eq!(result, [[2, 20], [4, 25]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_lead() {
     let session = create_session();
     session
@@ -159,7 +159,7 @@ async fn test_qualify_lead() {
     assert_table_eq!(result, [[1, 10], [3, 15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_first_value() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -170,7 +170,7 @@ async fn test_qualify_first_value() {
     assert_table_eq!(result, [[5, "Gadget", 120], [3, "Widget", 200],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_last_value() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -181,7 +181,7 @@ async fn test_qualify_last_value() {
     assert_table_eq!(result, [[5, "Gadget", 120], [3, "Widget", 200],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_multiple_conditions() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -195,7 +195,7 @@ async fn test_qualify_multiple_conditions() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_with_cte() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -206,7 +206,7 @@ async fn test_qualify_with_cte() {
     assert_table_eq!(result, [[5, "Gadget", 120], [3, "Widget", 200],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_qualify_with_aggregation() {
     let session = create_session();
     setup_sales_table(&session).await;

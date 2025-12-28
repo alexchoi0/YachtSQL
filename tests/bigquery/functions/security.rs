@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_generate_uuid() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_generate_uuid() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_generate_uuid_uniqueness() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_generate_uuid_uniqueness() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_generate_uuid_lowercase() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_generate_uuid_lowercase() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_generate_uuid_hyphen_positions() {
     let session = create_session();
     let result = session
@@ -49,7 +49,7 @@ async fn test_generate_uuid_hyphen_positions() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_session_user() {
     let session = create_session();
     let result = session
@@ -59,7 +59,7 @@ async fn test_session_user() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_current_user() {
     let session = create_session();
     let result = session
@@ -69,7 +69,7 @@ async fn test_current_user() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_string() {
     let session = create_session();
     let result = session
@@ -79,7 +79,7 @@ async fn test_format_string() {
     assert_table_eq!(result, [["cart has 5 items"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_float() {
     let session = create_session();
     let result = session
@@ -89,7 +89,7 @@ async fn test_format_float() {
     assert_table_eq!(result, [["3.12"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_date() {
     let session = create_session();
     let result = session
@@ -99,7 +99,7 @@ async fn test_format_date() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_divide() {
     let session = create_session();
     let result = session
@@ -109,7 +109,7 @@ async fn test_safe_divide() {
     assert_table_eq!(result, [[5.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_divide_by_zero() {
     let session = create_session();
     let result = session
@@ -119,7 +119,7 @@ async fn test_safe_divide_by_zero() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_multiply() {
     let session = create_session();
     let result = session
@@ -129,7 +129,7 @@ async fn test_safe_multiply() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_negate() {
     let session = create_session();
     let result = session
@@ -139,7 +139,7 @@ async fn test_safe_negate() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_add() {
     let session = create_session();
     let result = session
@@ -149,7 +149,7 @@ async fn test_safe_add() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_subtract() {
     let session = create_session();
     let result = session
@@ -159,7 +159,7 @@ async fn test_safe_subtract() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_convert_bytes_to_string() {
     let session = create_session();
     let result = session
@@ -169,7 +169,7 @@ async fn test_safe_convert_bytes_to_string() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_error_function() {
     let session = create_session();
     let result = session
@@ -179,7 +179,7 @@ async fn test_error_function() {
     assert_table_eq!(result, [["ok"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ifnull() {
     let session = create_session();
     let result = session
@@ -189,21 +189,21 @@ async fn test_ifnull() {
     assert_table_eq!(result, [["default"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULLIF(5, 5)").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif_not_equal() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULLIF(5, 3)").await.unwrap();
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_uuid_in_table() {
     let session = create_session();
     session

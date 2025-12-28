@@ -1,6 +1,6 @@
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_csv() {
     let session = create_session();
     session
@@ -25,7 +25,7 @@ async fn test_export_data_csv() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_json() {
     let session = create_session();
     session
@@ -48,7 +48,7 @@ async fn test_export_data_json() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_parquet() {
     let session = create_session();
     session
@@ -72,7 +72,7 @@ async fn test_export_data_parquet() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_avro() {
     let session = create_session();
     session
@@ -95,7 +95,7 @@ async fn test_export_data_avro() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_field_delimiter() {
     let session = create_session();
     session
@@ -119,7 +119,7 @@ async fn test_export_data_with_field_delimiter() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_query() {
     let session = create_session();
     session
@@ -142,7 +142,7 @@ async fn test_export_data_with_query() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_load_data_csv() {
     let session = create_session();
     session
@@ -162,7 +162,7 @@ async fn test_load_data_csv() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_load_data_overwrite() {
     let session = create_session();
     session
@@ -186,7 +186,7 @@ async fn test_load_data_overwrite() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_load_data_json() {
     let session = create_session();
     session
@@ -206,7 +206,7 @@ async fn test_load_data_json() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_load_data_parquet() {
     let session = create_session();
     session
@@ -226,7 +226,7 @@ async fn test_load_data_parquet() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_load_data_with_partition() {
     let session = create_session();
     session
@@ -248,7 +248,7 @@ async fn test_load_data_with_partition() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_load_data_with_schema_update() {
     let session = create_session();
     session
@@ -269,7 +269,7 @@ async fn test_load_data_with_schema_update() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_load_data_temp_table() {
     let session = create_session();
 
@@ -285,7 +285,7 @@ async fn test_load_data_temp_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_partitioned() {
     let session = create_session();
     session
@@ -413,7 +413,7 @@ mod local_parquet {
         temp_file
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_parquet_basic() {
         let session = create_session();
         session
@@ -449,7 +449,7 @@ mod local_parquet {
         assert_eq!(get_f64(&result, 2, 2), 88.0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_parquet_with_file_uri() {
         let session = create_session();
         session
@@ -473,7 +473,7 @@ mod local_parquet {
         assert_eq!(get_i64(&result, 0, 0), 3);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_parquet_overwrite() {
         let session = create_session();
         session
@@ -505,7 +505,7 @@ mod local_parquet {
         assert_eq!(get_i64(&result, 0, 2), 3);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_parquet_append() {
         let session = create_session();
         session
@@ -533,7 +533,7 @@ mod local_parquet {
         assert_eq!(get_i64(&result, 0, 0), 4);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_parquet_typed_columns() {
         let session = create_session();
         session
@@ -561,7 +561,7 @@ mod local_parquet {
         assert_eq!(get_i64(&result, 0, 1), 2);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_parquet_basic() {
         let session = create_session();
         session
@@ -613,7 +613,7 @@ mod local_parquet {
         assert_eq!(get_f64(&result, 2, 2), 2.5);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_parquet_with_aggregation() {
         let session = create_session();
         session
@@ -658,7 +658,7 @@ mod local_parquet {
         assert_eq!(get_i64(&result, 1, 1), 250);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_parquet_with_nulls() {
         let session = create_session();
         session
@@ -704,7 +704,7 @@ mod local_parquet {
         assert_eq!(get_string(&result, 1, 2), "C");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_roundtrip_all_basic_types() {
         let session = create_session();
         session
@@ -765,7 +765,7 @@ mod local_parquet {
         assert_eq!(original.num_rows(), imported.num_rows());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_roundtrip_date_datetime() {
         let session = create_session();
         session
@@ -819,7 +819,7 @@ mod local_parquet {
         assert_eq!(result.num_rows(), 2);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_filtered_query() {
         let session = create_session();
         session
@@ -869,7 +869,7 @@ mod local_parquet {
         assert_eq!(get_f64(&result, 1, 1), 200.0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_parquet_column_subset() {
         let session = create_session();
         session
@@ -900,7 +900,7 @@ mod local_parquet {
         assert!(is_null(&result, 1, 2));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_empty_result() {
         let session = create_session();
         session
@@ -919,7 +919,7 @@ mod local_parquet {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_parquet_file_not_found() {
         let session = create_session();
         session
@@ -937,7 +937,7 @@ mod local_parquet {
 mod load_data_parsing {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_into_basic() {
         let session = create_session();
         session
@@ -951,7 +951,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_overwrite_keyword() {
         let session = create_session();
         session
@@ -969,7 +969,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_with_column_list() {
         let session = create_session();
         session
@@ -983,7 +983,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_temp_table_with_schema() {
         let session = create_session();
 
@@ -996,7 +996,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_format_csv() {
         let session = create_session();
         session
@@ -1012,7 +1012,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_format_json() {
         let session = create_session();
         session
@@ -1028,7 +1028,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_format_parquet() {
         let session = create_session();
         session
@@ -1042,7 +1042,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_format_newline_delimited_json() {
         let session = create_session();
         session
@@ -1056,7 +1056,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_multiple_uris() {
         let session = create_session();
         session
@@ -1075,7 +1075,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_uri_with_wildcard() {
         let session = create_session();
         session
@@ -1089,7 +1089,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_csv_skip_leading_rows() {
         let session = create_session();
         session
@@ -1109,7 +1109,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_csv_field_delimiter() {
         let session = create_session();
         session
@@ -1129,7 +1129,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_csv_allow_jagged_rows() {
         let session = create_session();
         session
@@ -1149,7 +1149,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_csv_allow_quoted_newlines() {
         let session = create_session();
         session
@@ -1169,7 +1169,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_csv_null_marker() {
         let session = create_session();
         session
@@ -1189,7 +1189,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_csv_encoding() {
         let session = create_session();
         session
@@ -1209,7 +1209,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_csv_quote_character() {
         let session = create_session();
         session
@@ -1229,7 +1229,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_ignore_unknown_values() {
         let session = create_session();
         session
@@ -1249,7 +1249,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_max_bad_records() {
         let session = create_session();
         session
@@ -1269,7 +1269,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_compression_gzip() {
         let session = create_session();
         session
@@ -1289,7 +1289,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_case_insensitive_options() {
         let session = create_session();
         session
@@ -1309,7 +1309,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_qualified_table_name() {
         let session = create_session();
         session
@@ -1327,7 +1327,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_combined_csv_options() {
         let session = create_session();
         session
@@ -1352,7 +1352,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_parquet_enable_list_inference() {
         let session = create_session();
         session
@@ -1372,7 +1372,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_decimal_target_types() {
         let session = create_session();
         session
@@ -1392,7 +1392,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_missing_format_defaults_to_parquet() {
         let session = create_session();
         session
@@ -1406,7 +1406,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_missing_uris_error() {
         let session = create_session();
         session
@@ -1420,7 +1420,7 @@ mod load_data_parsing {
         assert!(result.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_missing_from_files_error() {
         let session = create_session();
         session
@@ -1432,7 +1432,7 @@ mod load_data_parsing {
         assert!(result.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_hive_partition_uri_prefix() {
         let session = create_session();
         session
@@ -1452,7 +1452,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_preserve_ascii_control_characters() {
         let session = create_session();
         session
@@ -1472,7 +1472,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_source_column_match_position() {
         let session = create_session();
         session
@@ -1492,7 +1492,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_source_column_match_name() {
         let session = create_session();
         session
@@ -1513,7 +1513,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_file_set_spec_type_file_system_match() {
         let session = create_session();
         session
@@ -1533,7 +1533,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_json_extension_geojson() {
         let session = create_session();
         session
@@ -1553,7 +1553,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_max_staleness() {
         let session = create_session();
         session
@@ -1573,7 +1573,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_timestamp_format() {
         let session = create_session();
         session
@@ -1593,7 +1593,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_date_format() {
         let session = create_session();
         session
@@ -1613,7 +1613,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_time_zone() {
         let session = create_session();
         session
@@ -1633,7 +1633,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_enum_as_string() {
         let session = create_session();
         session
@@ -1653,7 +1653,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_enable_logical_types() {
         let session = create_session();
         session
@@ -1673,7 +1673,7 @@ mod load_data_parsing {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_data_column_name_character_map() {
         let session = create_session();
         session
@@ -1721,7 +1721,7 @@ mod local_json {
         temp_file
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_json_basic() {
         let session = create_session();
         session
@@ -1757,7 +1757,7 @@ mod local_json {
         assert_eq!(get_f64(&result, 2, 2), 88.0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_json_with_file_uri() {
         let session = create_session();
         session
@@ -1781,7 +1781,7 @@ mod local_json {
         assert_eq!(get_i64(&result, 0, 0), 3);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_json_overwrite() {
         let session = create_session();
         session
@@ -1813,7 +1813,7 @@ mod local_json {
         assert_eq!(get_i64(&result, 0, 2), 3);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_json_append() {
         let session = create_session();
         session
@@ -1841,7 +1841,7 @@ mod local_json {
         assert_eq!(get_i64(&result, 0, 0), 4);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_json_typed_columns() {
         let session = create_session();
         session
@@ -1868,7 +1868,7 @@ mod local_json {
         assert_eq!(get_i64(&result, 0, 1), 2);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_json_basic() {
         let session = create_session();
         session
@@ -1920,7 +1920,7 @@ mod local_json {
         assert_eq!(get_f64(&result, 2, 2), 2.5);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_json_with_aggregation() {
         let session = create_session();
         session
@@ -1965,7 +1965,7 @@ mod local_json {
         assert_eq!(get_i64(&result, 1, 1), 250);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_json_with_nulls() {
         let session = create_session();
         session
@@ -2011,7 +2011,7 @@ mod local_json {
         assert_eq!(get_string(&result, 1, 2), "C");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_roundtrip_json_all_basic_types() {
         let session = create_session();
         session
@@ -2072,7 +2072,7 @@ mod local_json {
         assert_eq!(original.num_rows(), imported.num_rows());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_roundtrip_json_date() {
         let session = create_session();
         session
@@ -2124,7 +2124,7 @@ mod local_json {
         assert_eq!(result.num_rows(), 2);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_json_filtered_query() {
         let session = create_session();
         session
@@ -2174,7 +2174,7 @@ mod local_json {
         assert_eq!(get_f64(&result, 1, 1), 200.0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_json_empty_result() {
         let session = create_session();
         session
@@ -2193,7 +2193,7 @@ mod local_json {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_json_file_not_found() {
         let session = create_session();
         session
@@ -2207,7 +2207,7 @@ mod local_json {
         assert!(result.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_json_case_insensitive_columns() {
         let content = r#"{"ID": 1, "NAME": "Alice"}
 {"ID": 2, "NAME": "Bob"}"#;
@@ -2239,7 +2239,7 @@ mod local_json {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_gzip_compression() {
     let session = create_session();
     session
@@ -2263,7 +2263,7 @@ async fn test_export_data_gzip_compression() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_deflate_compression() {
     let session = create_session();
     session
@@ -2287,7 +2287,7 @@ async fn test_export_data_deflate_compression() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_snappy_compression_avro() {
     let session = create_session();
     session
@@ -2311,7 +2311,7 @@ async fn test_export_data_snappy_compression_avro() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_to_s3() {
     let session = create_session();
     session
@@ -2335,7 +2335,7 @@ async fn test_export_data_to_s3() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_csv_all_options() {
     let session = create_session();
     session
@@ -2361,7 +2361,7 @@ async fn test_export_data_csv_all_options() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_order_and_limit() {
     let session = create_session();
     session
@@ -2387,7 +2387,7 @@ async fn test_export_data_with_order_and_limit() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_missing_uri_error() {
     let session = create_session();
     session
@@ -2405,7 +2405,7 @@ async fn test_export_data_missing_uri_error() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_connection() {
     let session = create_session();
     session
@@ -2431,7 +2431,7 @@ async fn test_export_data_with_connection() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_backtick_connection() {
     let session = create_session();
     session
@@ -2456,7 +2456,7 @@ async fn test_export_data_with_backtick_connection() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_to_bigtable() {
     let session = create_session();
     session
@@ -2495,7 +2495,7 @@ async fn test_export_data_to_bigtable() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_to_bigtable_with_overwrite() {
     let session = create_session();
     session
@@ -2517,7 +2517,7 @@ async fn test_export_data_to_bigtable_with_overwrite() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_to_bigtable_with_truncate() {
     let session = create_session();
     session
@@ -2539,7 +2539,7 @@ async fn test_export_data_to_bigtable_with_truncate() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_to_bigtable_auto_create_column_families() {
     let session = create_session();
     session
@@ -2561,7 +2561,7 @@ async fn test_export_data_to_bigtable_auto_create_column_families() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_to_pubsub() {
     let session = create_session();
     session
@@ -2596,7 +2596,7 @@ async fn test_export_data_to_pubsub() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_to_spanner() {
     let session = create_session();
     session
@@ -2618,7 +2618,7 @@ async fn test_export_data_to_spanner() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_avro_with_logical_types() {
     let session = create_session();
     session
@@ -2641,7 +2641,7 @@ async fn test_export_data_avro_with_logical_types() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_case_insensitive_format() {
     let session = create_session();
     session
@@ -2664,7 +2664,7 @@ async fn test_export_data_case_insensitive_format() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_parquet_with_overwrite() {
     let session = create_session();
     session
@@ -2688,7 +2688,7 @@ async fn test_export_data_parquet_with_overwrite() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_subquery() {
     let session = create_session();
     session
@@ -2716,7 +2716,7 @@ async fn test_export_data_with_subquery() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_join() {
     let session = create_session();
     session
@@ -2751,7 +2751,7 @@ async fn test_export_data_with_join() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_cte() {
     let session = create_session();
     session
@@ -2779,7 +2779,7 @@ async fn test_export_data_with_cte() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_export_data_with_window_function() {
     let session = create_session();
     session
@@ -2877,7 +2877,7 @@ mod local_csv {
         temp_file
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_basic() {
         let session = create_session();
         session
@@ -2905,7 +2905,7 @@ mod local_csv {
         assert_eq!(get_f64(&result, 2, 0), 95.5);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_with_file_uri() {
         let session = create_session();
         session
@@ -2929,7 +2929,7 @@ mod local_csv {
         assert_eq!(get_i64(&result, 0, 0), 3);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_no_header() {
         let session = create_session();
         session
@@ -2957,7 +2957,7 @@ mod local_csv {
         assert_eq!(get_i64(&result, 2, 0), 100);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_overwrite() {
         let session = create_session();
         session
@@ -2987,7 +2987,7 @@ mod local_csv {
         assert_eq!(get_i64(&result, 0, 0), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_append() {
         let session = create_session();
         session
@@ -3015,7 +3015,7 @@ mod local_csv {
         assert_eq!(get_i64(&result, 0, 0), 4);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_with_tab_delimiter() {
         let session = create_session();
         session
@@ -3043,7 +3043,7 @@ mod local_csv {
         assert_eq!(get_f64(&result, 2, 0), 10.5);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_with_quoted_fields() {
         let session = create_session();
         session
@@ -3070,7 +3070,7 @@ mod local_csv {
         assert_eq!(get_string(&result, 2, 2), "Description with, comma");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_with_null_marker() {
         let session = create_session();
         session
@@ -3097,7 +3097,7 @@ mod local_csv {
         assert!(is_null(&result, 2, 2));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_with_typed_columns() {
         let session = create_session();
         session
@@ -3126,7 +3126,7 @@ mod local_csv {
         assert_eq!(get_f64(&result, 1, 0), 100.50);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_csv_basic() {
         let session = create_session();
         session
@@ -3169,7 +3169,7 @@ mod local_csv {
         assert_eq!(get_string(&result, 1, 0), "Apple");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_csv_with_field_delimiter() {
         let session = create_session();
         session
@@ -3211,7 +3211,7 @@ mod local_csv {
         assert_eq!(get_string(&result, 1, 0), "A");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_roundtrip_csv_all_basic_types() {
         let session = create_session();
         session
@@ -3272,7 +3272,7 @@ mod local_csv {
         assert_eq!(original.num_rows(), imported.num_rows());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_file_not_found() {
         let session = create_session();
         session
@@ -3286,7 +3286,7 @@ mod local_csv {
         assert!(result.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_column_subset() {
         let session = create_session();
         session
@@ -3313,7 +3313,7 @@ mod local_csv {
         assert_eq!(get_string(&result, 1, 0), "Alice");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_csv_with_nulls() {
         let session = create_session();
         session
@@ -3354,7 +3354,7 @@ mod local_csv {
         assert!(is_null(&result, 1, 1));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_export_csv_empty_result() {
         let session = create_session();
         session
@@ -3373,7 +3373,7 @@ mod local_csv {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_load_csv_multiple_files() {
         let session = create_session();
         session

@@ -11,7 +11,7 @@ async fn setup_sales_table(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rollup_single_column() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -22,7 +22,7 @@ async fn test_rollup_single_column() {
     assert_table_eq!(result, [["Gadget", 350], ["Widget", 550], [null, 900],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rollup_multiple_columns() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -44,7 +44,7 @@ async fn test_rollup_multiple_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rollup_three_columns() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -74,7 +74,7 @@ async fn test_rollup_three_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cube_single_column() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -85,7 +85,7 @@ async fn test_cube_single_column() {
     assert_table_eq!(result, [["Gadget", 350], ["Widget", 550], [null, 900],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cube_two_columns() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -109,7 +109,7 @@ async fn test_cube_two_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cube_three_columns() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -120,7 +120,7 @@ async fn test_cube_three_columns() {
     assert_table_eq!(result, [[27]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grouping_sets_basic() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -139,7 +139,7 @@ async fn test_grouping_sets_basic() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grouping_sets_with_empty() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -159,7 +159,7 @@ async fn test_grouping_sets_with_empty() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grouping_sets_multiple_columns() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -180,7 +180,7 @@ async fn test_grouping_sets_multiple_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grouping_function() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -202,7 +202,7 @@ async fn test_grouping_function() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grouping_id() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -226,7 +226,7 @@ async fn test_grouping_id() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rollup_with_having() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -237,7 +237,7 @@ async fn test_rollup_with_having() {
     assert_table_eq!(result, [["Widget", 550], [null, 900],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cube_with_where() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -261,7 +261,7 @@ async fn test_cube_with_where() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rollup_multiple_aggregates() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -283,7 +283,7 @@ async fn test_rollup_multiple_aggregates() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partial_rollup() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -312,7 +312,7 @@ async fn test_partial_rollup() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_partial_cube() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -345,7 +345,7 @@ async fn test_partial_cube() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_mixed_grouping() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -369,7 +369,7 @@ async fn test_mixed_grouping() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grouping_with_order_by_aggregate() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -393,7 +393,7 @@ async fn test_grouping_with_order_by_aggregate() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_grouping_case_expression() {
     let session = create_session();
     setup_sales_table(&session).await;

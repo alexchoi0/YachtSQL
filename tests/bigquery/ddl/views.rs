@@ -13,7 +13,7 @@ async fn setup_base_table(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_view() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -32,7 +32,7 @@ async fn test_create_view() {
     assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_view_with_columns() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -49,7 +49,7 @@ async fn test_create_view_with_columns() {
     assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"], ["Diana"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_view() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -70,7 +70,7 @@ async fn test_create_or_replace_view() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_view_if_not_exists() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -92,7 +92,7 @@ async fn test_create_view_if_not_exists() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_view() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -108,7 +108,7 @@ async fn test_drop_view() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_view_if_exists() {
     let session = create_session();
 
@@ -118,7 +118,7 @@ async fn test_drop_view_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_aggregation() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -134,7 +134,7 @@ async fn test_view_with_aggregation() {
     assert_table_eq!(result, [["Engineering", 2], ["Sales", 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_join() {
     let session = create_session();
     session
@@ -165,7 +165,7 @@ async fn test_view_with_join() {
     assert_table_eq!(result, [["Alice", "Engineering"], ["Bob", "Sales"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_subquery() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -181,7 +181,7 @@ async fn test_view_with_subquery() {
     assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_in_subquery() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -200,7 +200,7 @@ async fn test_view_in_subquery() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_cte() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -216,7 +216,7 @@ async fn test_view_with_cte() {
     assert_table_eq!(result, [["Alice"], ["Diana"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nested_views() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -238,7 +238,7 @@ async fn test_nested_views() {
     assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_materialized_view() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -254,7 +254,7 @@ async fn test_materialized_view() {
     assert_table_eq!(result, [["Engineering", 190000], ["Sales", 165000]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_options() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -270,7 +270,7 @@ async fn test_view_with_options() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_multiple_options() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -295,7 +295,7 @@ async fn test_view_with_multiple_options() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_materialized_view_with_options() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -322,7 +322,7 @@ async fn test_create_materialized_view_with_options() {
     assert_table_eq!(result, [["Engineering"], ["Sales"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_materialized_view_with_partition() {
     let session = create_session();
 
@@ -348,7 +348,7 @@ async fn test_create_materialized_view_with_partition() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_materialized_view_with_cluster() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -371,7 +371,7 @@ async fn test_create_materialized_view_with_cluster() {
     assert_table_eq!(result, [["Engineering", 2], ["Sales", 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_materialized_view_with_partition_and_cluster() {
     let session = create_session();
 
@@ -405,7 +405,7 @@ async fn test_create_materialized_view_with_partition_and_cluster() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_materialized_view_max_staleness() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -422,7 +422,7 @@ async fn test_create_materialized_view_max_staleness() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_materialized_view_allow_non_incremental() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -437,7 +437,7 @@ async fn test_create_materialized_view_allow_non_incremental() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_materialized_view() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -465,7 +465,7 @@ async fn test_create_or_replace_materialized_view() {
     assert_table_eq!(result, [["Engineering", 190000], ["Sales", 165000]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_materialized_view_if_not_exists() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -493,7 +493,7 @@ async fn test_create_materialized_view_if_not_exists() {
     assert_table_eq!(result, [["Engineering", 2], ["Sales", 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_materialized_view() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -515,7 +515,7 @@ async fn test_drop_materialized_view() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_materialized_view_if_exists() {
     let session = create_session();
 
@@ -525,7 +525,7 @@ async fn test_drop_materialized_view_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_view_set_options() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -543,7 +543,7 @@ async fn test_alter_view_set_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_view_set_multiple_options() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -564,7 +564,7 @@ async fn test_alter_view_set_multiple_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_materialized_view_set_options() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -589,7 +589,7 @@ async fn test_alter_materialized_view_set_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_qualified_name() {
     let session = create_session();
 
@@ -622,7 +622,7 @@ async fn test_view_with_qualified_name() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_collation() {
     let session = create_session();
 
@@ -646,7 +646,7 @@ async fn test_view_with_collation() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_security_invoker() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -667,7 +667,7 @@ async fn test_view_security_invoker() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_security_definer() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -688,7 +688,7 @@ async fn test_view_security_definer() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_order_by() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -707,7 +707,7 @@ async fn test_view_with_order_by() {
     assert_table_eq!(result, [["Alice"], ["Bob"], ["Diana"], ["Charlie"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_limit() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -723,7 +723,7 @@ async fn test_view_with_limit() {
     assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_union() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -757,7 +757,7 @@ async fn test_view_with_union() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_window_function() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -782,7 +782,7 @@ async fn test_view_with_window_function() {
     assert_table_eq!(result, [["Alice", 1], ["Diana", 1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_case_expression() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -818,7 +818,7 @@ async fn test_view_with_case_expression() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_distinct() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -835,7 +835,7 @@ async fn test_view_with_distinct() {
     assert_table_eq!(result, [["Engineering"], ["Sales"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_update_underlying_table() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -859,7 +859,7 @@ async fn test_view_update_underlying_table() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_materialized_view_with_complex_aggregation() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -892,7 +892,7 @@ async fn test_materialized_view_with_complex_aggregation() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_array_column() {
     let session = create_session();
 
@@ -918,7 +918,7 @@ async fn test_view_with_array_column() {
     assert_table_eq!(result, [[1, 2], [2, 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_view_with_struct_column() {
     let session = create_session();
 
@@ -946,7 +946,7 @@ async fn test_view_with_struct_column() {
     assert_table_eq!(result, [["Alice", 30], ["Bob", 25]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_view_alter_column() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -961,7 +961,7 @@ async fn test_alter_view_alter_column() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_materialized_view_alter_column() {
     let session = create_session();
     setup_base_table(&session).await;
@@ -981,7 +981,7 @@ async fn test_alter_materialized_view_alter_column() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_materialized_view_replica() {
     let session = create_session();
     setup_base_table(&session).await;

@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_contains() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_regexp_contains() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_contains_false() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_regexp_contains_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_contains_pattern() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_regexp_contains_pattern() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_extract() {
     let session = create_session();
     let result = session
@@ -41,7 +41,7 @@ async fn test_regexp_extract() {
     assert_table_eq!(result, [["example.com"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_extract_all() {
     let session = create_session();
     let result = session
@@ -51,7 +51,7 @@ async fn test_regexp_extract_all() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_replace() {
     let session = create_session();
     let result = session
@@ -61,7 +61,7 @@ async fn test_regexp_replace() {
     assert_table_eq!(result, [["hello there"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_replace_pattern() {
     let session = create_session();
     let result = session
@@ -71,7 +71,7 @@ async fn test_regexp_replace_pattern() {
     assert_table_eq!(result, [["abcXdef"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_instr() {
     let session = create_session();
     let result = session
@@ -81,7 +81,7 @@ async fn test_regexp_instr() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_instr_not_found() {
     let session = create_session();
     let result = session
@@ -91,7 +91,7 @@ async fn test_regexp_instr_not_found() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_substr() {
     let session = create_session();
     let result = session
@@ -101,7 +101,7 @@ async fn test_regexp_substr() {
     assert_table_eq!(result, [["123"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_contains_in_where() {
     let session = create_session();
     session
@@ -121,7 +121,7 @@ async fn test_regexp_contains_in_where() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_with_null() {
     let session = create_session();
     let result = session
@@ -131,7 +131,7 @@ async fn test_regexp_with_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_case_insensitive() {
     let session = create_session();
     let result = session
@@ -141,7 +141,7 @@ async fn test_regexp_case_insensitive() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_extract_with_group() {
     let session = create_session();
     let result = session
@@ -151,7 +151,7 @@ async fn test_regexp_extract_with_group() {
     assert_table_eq!(result, [["Smith"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_regexp_replace_with_backreference() {
     let session = create_session();
     let result = session

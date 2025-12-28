@@ -1065,4 +1065,150 @@ impl Accumulator {
             _ => {}
         }
     }
+
+    pub(crate) fn is_mergeable(&self) -> bool {
+        match self {
+            Accumulator::Count(_)
+            | Accumulator::CountIf(_)
+            | Accumulator::Sum(_)
+            | Accumulator::Avg { .. }
+            | Accumulator::Min(_)
+            | Accumulator::Max(_)
+            | Accumulator::CountDistinct(_)
+            | Accumulator::BitAnd(_)
+            | Accumulator::BitOr(_)
+            | Accumulator::BitXor(_)
+            | Accumulator::LogicalAnd(_)
+            | Accumulator::LogicalOr(_)
+            | Accumulator::SumIf(_)
+            | Accumulator::AvgIf { .. }
+            | Accumulator::MinIf(_)
+            | Accumulator::MaxIf(_) => true,
+            Accumulator::Variance { .. }
+            | Accumulator::Covariance { .. }
+            | Accumulator::ArrayAgg { .. }
+            | Accumulator::StringAgg { .. }
+            | Accumulator::First(_)
+            | Accumulator::Last(_)
+            | Accumulator::Grouping { .. }
+            | Accumulator::GroupingId { .. }
+            | Accumulator::ApproxQuantiles { .. }
+            | Accumulator::ApproxTopCount { .. }
+            | Accumulator::ApproxTopSum { .. } => false,
+        }
+    }
+
+    pub(crate) fn merge(&mut self, other: &Self) {
+        match (self, other) {
+            (Accumulator::Count(a), Accumulator::Count(b)) => *a += b,
+            (Accumulator::CountIf(a), Accumulator::CountIf(b)) => *a += b,
+            (Accumulator::Sum(a), Accumulator::Sum(b)) => {
+                *a = match (*a, *b) {
+                    (Some(x), Some(y)) => Some(x + y),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::Avg { sum: s1, count: c1 }, Accumulator::Avg { sum: s2, count: c2 }) => {
+                *s1 += s2;
+                *c1 += c2;
+            }
+            (Accumulator::Min(a), Accumulator::Min(b)) => {
+                *a = match (a.take(), b) {
+                    (Some(x), Some(y)) => Some(if &x < y { x } else { y.clone() }),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y.clone()),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::Max(a), Accumulator::Max(b)) => {
+                *a = match (a.take(), b) {
+                    (Some(x), Some(y)) => Some(if &x > y { x } else { y.clone() }),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y.clone()),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::CountDistinct(a), Accumulator::CountDistinct(b)) => {
+                for v in b {
+                    if !a.contains(v) {
+                        a.push(v.clone());
+                    }
+                }
+            }
+            (Accumulator::BitAnd(a), Accumulator::BitAnd(b)) => {
+                *a = match (*a, *b) {
+                    (Some(x), Some(y)) => Some(x & y),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::BitOr(a), Accumulator::BitOr(b)) => {
+                *a = match (*a, *b) {
+                    (Some(x), Some(y)) => Some(x | y),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::BitXor(a), Accumulator::BitXor(b)) => {
+                *a = match (*a, *b) {
+                    (Some(x), Some(y)) => Some(x ^ y),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::LogicalAnd(a), Accumulator::LogicalAnd(b)) => {
+                *a = match (*a, *b) {
+                    (Some(x), Some(y)) => Some(x && y),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::LogicalOr(a), Accumulator::LogicalOr(b)) => {
+                *a = match (*a, *b) {
+                    (Some(x), Some(y)) => Some(x || y),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::SumIf(a), Accumulator::SumIf(b)) => {
+                *a = match (*a, *b) {
+                    (Some(x), Some(y)) => Some(x + y),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y),
+                    (None, None) => None,
+                };
+            }
+            (
+                Accumulator::AvgIf { sum: s1, count: c1 },
+                Accumulator::AvgIf { sum: s2, count: c2 },
+            ) => {
+                *s1 += s2;
+                *c1 += c2;
+            }
+            (Accumulator::MinIf(a), Accumulator::MinIf(b)) => {
+                *a = match (a.take(), b) {
+                    (Some(x), Some(y)) => Some(if &x < y { x } else { y.clone() }),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y.clone()),
+                    (None, None) => None,
+                };
+            }
+            (Accumulator::MaxIf(a), Accumulator::MaxIf(b)) => {
+                *a = match (a.take(), b) {
+                    (Some(x), Some(y)) => Some(if &x > y { x } else { y.clone() }),
+                    (Some(x), None) => Some(x),
+                    (None, Some(y)) => Some(y.clone()),
+                    (None, None) => None,
+                };
+            }
+            _ => {}
+        }
+    }
 }

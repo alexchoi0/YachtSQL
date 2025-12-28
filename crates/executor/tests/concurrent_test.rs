@@ -1,6 +1,8 @@
+use std::time::Instant;
+
 use yachtsql_executor::AsyncQueryExecutor;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concurrent_reads_different_tables() {
     let executor = AsyncQueryExecutor::new();
 
@@ -37,7 +39,7 @@ async fn test_concurrent_reads_different_tables() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concurrent_reads_same_table() {
     let executor = AsyncQueryExecutor::new();
 
@@ -61,7 +63,7 @@ async fn test_concurrent_reads_same_table() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_concurrent_read_write_different_tables() {
     let executor = AsyncQueryExecutor::new();
 
@@ -98,7 +100,7 @@ async fn test_concurrent_read_write_different_tables() {
     assert!(result.row_count() >= 2);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sequential_writes_same_table() {
     let executor = AsyncQueryExecutor::new();
 
@@ -122,7 +124,7 @@ async fn test_sequential_writes_same_table() {
     assert_eq!(result.row_count(), 6);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_batch_execution() {
     let executor = AsyncQueryExecutor::new();
 
@@ -149,7 +151,7 @@ async fn test_batch_execution() {
     assert_eq!(results[2].as_ref().unwrap().row_count(), 1);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_read_write_isolation() {
     let executor = AsyncQueryExecutor::new();
 
@@ -190,7 +192,7 @@ async fn test_read_write_isolation() {
     assert_eq!(final_result.row_count(), 4);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_delete_during_reads() {
     let executor = AsyncQueryExecutor::new();
 
@@ -231,7 +233,7 @@ async fn test_delete_during_reads() {
     assert_eq!(final_result.row_count(), 5);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_during_reads() {
     let executor = AsyncQueryExecutor::new();
 
@@ -267,7 +269,7 @@ async fn test_update_during_reads() {
     assert_eq!(final_result.row_count(), 1);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_high_concurrency_reads() {
     let executor = AsyncQueryExecutor::new();
 
@@ -299,7 +301,7 @@ async fn test_high_concurrency_reads() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parallel_queries_on_multiple_tables() {
     let executor = AsyncQueryExecutor::new();
 
@@ -336,7 +338,7 @@ async fn test_parallel_queries_on_multiple_tables() {
     assert_eq!(success_count, 50);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parallel_join_execution() {
     let executor = AsyncQueryExecutor::new();
 
@@ -379,7 +381,7 @@ async fn test_parallel_join_execution() {
     assert_eq!(result.row_count(), 200);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parallel_union_execution() {
     let executor = AsyncQueryExecutor::new();
 
@@ -411,4 +413,177 @@ async fn test_parallel_union_execution() {
         .unwrap();
 
     assert_eq!(result.row_count(), 450);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn test_parallel_execution_is_faster_with_ctes_and_joins() {
+    let executor = AsyncQueryExecutor::new();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE left_table AS
+             SELECT CAST(x AS INT64) AS id, CAST(x AS FLOAT64) * 1.5 AS value, CONCAT('left_', CAST(x AS STRING)) AS name
+             FROM UNNEST(GENERATE_ARRAY(1, 50000)) AS x",
+        )
+        .await
+        .unwrap();
+
+    executor
+        .execute_sql(
+            "CREATE TABLE right_table AS
+             SELECT CAST(x AS INT64) AS id, CAST(x AS FLOAT64) * 2.5 AS amount, CONCAT('right_', CAST(x AS STRING)) AS label
+             FROM UNNEST(GENERATE_ARRAY(1, 50000)) AS x",
+        )
+        .await
+        .unwrap();
+
+    let query = r#"
+        SELECT l.id, l.value, l.name, r.amount, r.label
+        FROM left_table l
+        JOIN right_table r ON l.id = r.id
+        WHERE l.value > 100 AND r.amount > 200
+        ORDER BY l.id
+        LIMIT 1000
+    "#;
+
+    let warmup_iterations = 2;
+    let test_iterations = 5;
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = TRUE")
+        .await
+        .unwrap();
+    for _ in 0..warmup_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = FALSE")
+        .await
+        .unwrap();
+    for _ in 0..warmup_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = TRUE")
+        .await
+        .unwrap();
+    let start = Instant::now();
+    for _ in 0..test_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+    let parallel_time = start.elapsed();
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = FALSE")
+        .await
+        .unwrap();
+    let start = Instant::now();
+    for _ in 0..test_iterations {
+        executor.execute_sql(query).await.unwrap();
+    }
+    let sequential_time = start.elapsed();
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = TRUE")
+        .await
+        .unwrap();
+    let parallel_result = executor.execute_sql(query).await.unwrap();
+
+    executor
+        .execute_sql("SET PARALLEL_EXECUTION = FALSE")
+        .await
+        .unwrap();
+    let sequential_result = executor.execute_sql(query).await.unwrap();
+    assert_eq!(parallel_result.row_count(), sequential_result.row_count());
+
+    eprintln!(
+        "Parallel: {:?} ({:.2} ms/query), Sequential: {:?} ({:.2} ms/query)",
+        parallel_time,
+        parallel_time.as_millis() as f64 / test_iterations as f64,
+        sequential_time,
+        sequential_time.as_millis() as f64 / test_iterations as f64
+    );
+
+    let speedup = sequential_time.as_secs_f64() / parallel_time.as_secs_f64();
+    eprintln!("Speedup: {:.2}x", speedup);
+
+    assert!(
+        parallel_time <= sequential_time,
+        "Parallel ({:?}) should be faster than or equal to sequential ({:?})",
+        parallel_time,
+        sequential_time
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_qualified_table_names_project_dataset() {
+    let executor = AsyncQueryExecutor::new();
+
+    executor
+        .catalog()
+        .set_default_project(Some("myproject".to_string()));
+
+    executor
+        .execute_sql("CREATE TABLE ds1.table1 (id INT64, name STRING)")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE ds1.table2 (id INT64, value FLOAT64)")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE ds2.table3 (id INT64, data STRING)")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("CREATE TABLE otherproject.ds1.table4 (id INT64, count INT64)")
+        .await
+        .unwrap();
+
+    let projects = executor.catalog().get_projects();
+    assert!(projects.contains(&"MYPROJECT".to_string()));
+    assert!(projects.contains(&"OTHERPROJECT".to_string()));
+
+    let datasets = executor.catalog().get_datasets("myproject");
+    assert!(datasets.contains(&"DS1".to_string()));
+    assert!(datasets.contains(&"DS2".to_string()));
+
+    let tables = executor.catalog().get_tables_in_dataset("myproject", "ds1");
+    assert!(tables.contains(&"TABLE1".to_string()));
+    assert!(tables.contains(&"TABLE2".to_string()));
+
+    executor
+        .execute_sql("INSERT INTO ds1.table1 VALUES (1, 'Alice'), (2, 'Bob')")
+        .await
+        .unwrap();
+    executor
+        .execute_sql("INSERT INTO ds1.table2 VALUES (1, 1.5), (2, 2.5)")
+        .await
+        .unwrap();
+
+    let result = executor
+        .execute_sql("SELECT t1.id, t1.name, t2.value FROM ds1.table1 t1 JOIN ds1.table2 t2 ON t1.id = t2.id")
+        .await
+        .unwrap();
+    assert_eq!(result.row_count(), 2);
+
+    let result = executor
+        .execute_sql("SELECT * FROM ds2.table3")
+        .await
+        .unwrap();
+    assert_eq!(result.row_count(), 0);
+
+    executor.execute_sql("DROP TABLE ds1.table1").await.unwrap();
+
+    let tables_after_drop = executor.catalog().get_tables_in_dataset("myproject", "ds1");
+    assert!(!tables_after_drop.contains(&"TABLE1".to_string()));
+    assert!(tables_after_drop.contains(&"TABLE2".to_string()));
+
+    let result = executor.execute_sql("SELECT * FROM ds1.table2").await;
+    assert!(result.is_ok());
+
+    let result = executor.execute_sql("SELECT * FROM ds1.table1").await;
+    assert!(result.is_err());
 }

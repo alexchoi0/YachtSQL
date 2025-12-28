@@ -1,28 +1,28 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_literal() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULL").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULL IS NULL").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_is_not_() {
     let session = create_session();
     let result = session.execute_sql("SELECT 5 IS NOT NULL").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_in_table() {
     let session = create_session();
     session
@@ -41,21 +41,21 @@ async fn test_null_in_table() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_not_equal() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULL = NULL").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_arithmetic() {
     let session = create_session();
     let result = session.execute_sql("SELECT 5 + NULL").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce_with_() {
     let session = create_session();
     let result = session
@@ -65,7 +65,7 @@ async fn test_coalesce_with_() {
     assert_table_eq!(result, [["default"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce_first_not_() {
     let session = create_session();
     let result = session
@@ -75,7 +75,7 @@ async fn test_coalesce_first_not_() {
     assert_table_eq!(result, [["first"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if() {
     let session = create_session();
     let result = session
@@ -85,7 +85,7 @@ async fn test_if() {
     assert_table_eq!(result, [["default"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ifnull_not_() {
     let session = create_session();
     let result = session
@@ -95,21 +95,21 @@ async fn test_ifnull_not_() {
     assert_table_eq!(result, [["value"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif_equal() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULLIF(5, 5)").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif_not_equal() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULLIF(5, 10)").await.unwrap();
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_in_where_clause() {
     let session = create_session();
     session
@@ -128,7 +128,7 @@ async fn test_null_in_where_clause() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_order_by() {
     let session = create_session();
     session
@@ -147,7 +147,7 @@ async fn test_null_order_by() {
     assert_table_eq!(result, [[2], [3], [1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_null_order_by_last() {
     let session = create_session();
     session
@@ -166,7 +166,7 @@ async fn test_null_order_by_last() {
     assert_table_eq!(result, [[3], [1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_ignores_() {
     let session = create_session();
     session
@@ -185,7 +185,7 @@ async fn test_count_ignores_() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_star_includes_() {
     let session = create_session();
     session

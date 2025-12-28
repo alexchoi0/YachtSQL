@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_snapshot_table() {
     let session = create_session();
     session
@@ -19,7 +19,7 @@ async fn test_create_snapshot_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_snapshot_if_not_exists() {
     let session = create_session();
     session
@@ -42,7 +42,7 @@ async fn test_create_snapshot_if_not_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_snapshot_with_expiration() {
     let session = create_session();
     session
@@ -64,7 +64,7 @@ async fn test_create_snapshot_with_expiration() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_snapshot_for_system_time() {
     let session = create_session();
     session
@@ -86,7 +86,7 @@ async fn test_create_snapshot_for_system_time() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_snapshot_table_query() {
     let session = create_session();
     session
@@ -110,7 +110,7 @@ async fn test_snapshot_table_query() {
     assert_table_eq!(result, [["Alice"], ["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_snapshot_isolation() {
     let session = create_session();
     session
@@ -145,7 +145,7 @@ async fn test_snapshot_isolation() {
     assert_table_eq!(original_result, [[999]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_snapshot_table() {
     let session = create_session();
     session
@@ -169,7 +169,7 @@ async fn test_drop_snapshot_table() {
     assert!(query_result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_snapshot_if_exists() {
     let session = create_session();
 
@@ -179,7 +179,7 @@ async fn test_drop_snapshot_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_snapshot_with_description() {
     let session = create_session();
     session
@@ -201,7 +201,7 @@ async fn test_snapshot_with_description() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_snapshot_with_labels() {
     let session = create_session();
     session
@@ -223,7 +223,7 @@ async fn test_snapshot_with_labels() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_restore_from_snapshot() {
     let session = create_session();
     session
@@ -257,7 +257,7 @@ async fn test_restore_from_snapshot() {
     assert_table_eq!(count, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_snapshot_complex_table() {
     let session = create_session();
     session
@@ -284,7 +284,7 @@ async fn test_snapshot_complex_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_snapshot_partitioned_table() {
     let session = create_session();
     session
@@ -312,7 +312,7 @@ async fn test_snapshot_partitioned_table() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_snapshot_clustered_table() {
     let session = create_session();
     session

@@ -21,7 +21,7 @@ async fn setup_tables(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_subquery_in_where_in() {
     let session = create_session();
     setup_tables(&session).await;
@@ -33,7 +33,7 @@ async fn test_subquery_in_where_in() {
     assert_table_eq!(result, [["Alice"], ["Bob"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_subquery_in_where_not_in() {
     let session = create_session();
     setup_tables(&session).await;
@@ -45,7 +45,7 @@ async fn test_subquery_in_where_not_in() {
     assert_table_eq!(result, [["Alice"], ["Bob"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_subquery_in_from_clause() {
     let session = create_session();
     setup_tables(&session).await;
@@ -57,7 +57,7 @@ async fn test_subquery_in_from_clause() {
     assert_table_eq!(result, [["Bob", 60000], ["Diana", 70000],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_subquery_literal_values() {
     let session = create_session();
 
@@ -69,7 +69,7 @@ async fn test_subquery_literal_values() {
     assert_table_eq!(result, [["apple", "carrot"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_with_qualified_star() {
     let session = create_session();
 
@@ -88,7 +88,7 @@ async fn test_cte_with_qualified_star() {
     assert_table_eq!(result, [["milk", "eggs", "bread"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_with_star() {
     let session = create_session();
 
@@ -107,7 +107,7 @@ async fn test_cte_with_star() {
     assert_table_eq!(result, [["milk", "eggs", "bread"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_struct_offset_star() {
     let session = create_session();
 
@@ -125,7 +125,7 @@ async fn test_array_struct_offset_star() {
     assert_table_eq!(result, [["Seattle", "Washington"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_star_except() {
     let session = create_session();
 
@@ -144,7 +144,7 @@ async fn test_select_star_except() {
     assert_table_eq!(result, [["sprocket", 200]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_select_star_replace() {
     let session = create_session();
 
@@ -163,7 +163,7 @@ async fn test_select_star_replace() {
     assert_table_eq!(result, [[5, "sprocket", 400]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_subquery_with_aggregation() {
     let session = create_session();
     setup_tables(&session).await;
@@ -175,7 +175,7 @@ async fn test_subquery_with_aggregation() {
     assert_table_eq!(result, [["Bob"], ["Diana"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exists_subquery() {
     let session = create_session();
     setup_tables(&session).await;
@@ -187,7 +187,7 @@ async fn test_exists_subquery() {
     assert_table_eq!(result, [["Engineering"], ["Sales"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_exists_subquery() {
     let session = create_session();
 
@@ -215,7 +215,7 @@ async fn test_not_exists_subquery() {
     assert_table_eq!(result, [["Gadget"], ["Gizmo"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nested_subquery() {
     let session = create_session();
     setup_tables(&session).await;
@@ -227,7 +227,7 @@ async fn test_nested_subquery() {
     assert_table_eq!(result, [["Charlie"], ["Diana"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_dedup_pattern_with_row_number() {
     let session = create_session();
     session
@@ -264,7 +264,7 @@ async fn test_dedup_pattern_with_row_number() {
     assert_table_eq!(result, [[1, "b"], [2, "c"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_ignore_nulls() {
     let session = create_session();
     session
@@ -288,7 +288,7 @@ async fn test_array_agg_ignore_nulls() {
     assert_table_eq!(result, [[1, ["a", "b"]], [2, ["c"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_backtick_quoted_table() {
     let session = create_session();
     session
@@ -308,7 +308,7 @@ async fn test_backtick_quoted_table() {
     assert_table_eq!(result, [[1, "test"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_backtick_bigquery_qualified_table() {
     let session = create_session();
     session
@@ -332,7 +332,7 @@ async fn test_backtick_bigquery_qualified_table() {
     assert_table_eq!(result, [[1, "hello"], [2, "world"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_backtick_mixed_operations() {
     let session = create_session();
     session
@@ -367,7 +367,7 @@ async fn test_backtick_mixed_operations() {
     assert_table_eq!(result, [[1, "updated"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_correlated_scalar_subquery_order_by_non_projected() {
     let session = create_session();
     setup_tables(&session).await;
@@ -391,7 +391,7 @@ async fn test_correlated_scalar_subquery_order_by_non_projected() {
     assert_table_eq!(result, [[1, "Engineering", "Bob"], [2, "Sales", "Diana"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_with_order_by() {
     let session = create_session();
     session
@@ -412,7 +412,7 @@ async fn test_array_agg_with_order_by() {
     assert_table_eq!(result, [[1, ["B", "C", "A"]], [2, ["X"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_ignore_nulls_with_order_by() {
     let session = create_session();
     session
@@ -430,7 +430,7 @@ async fn test_array_agg_ignore_nulls_with_order_by() {
     assert_table_eq!(result, [[1, ["B", "A"]], [2, ["X"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_offset_on_array() {
     let session = create_session();
     session
@@ -450,7 +450,7 @@ async fn test_safe_offset_on_array() {
     assert_table_eq!(result, [[1, "a"], [2, "x"], [3, null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exists_with_unnest() {
     let session = create_session();
     session
@@ -468,7 +468,7 @@ async fn test_exists_with_unnest() {
     assert_table_eq!(result, [[1, true], [2, false], [3, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exists_with_unnest_like_pattern() {
     let session = create_session();
     session
@@ -486,7 +486,7 @@ async fn test_exists_with_unnest_like_pattern() {
     assert_table_eq!(result, [[1, false], [2, false], [3, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exists_with_unnest_in_list() {
     let session = create_session();
     session
@@ -504,7 +504,7 @@ async fn test_exists_with_unnest_in_list() {
     assert_table_eq!(result, [[1, true], [2, false], [3, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_farm_fingerprint() {
     let session = create_session();
 
@@ -524,7 +524,7 @@ async fn test_farm_fingerprint() {
     assert_table_eq!(result2, [[true, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_generate_timestamp_array() {
     let session = create_session();
 
@@ -535,7 +535,7 @@ async fn test_generate_timestamp_array() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_generate_date_array() {
     let session = create_session();
 
@@ -548,7 +548,7 @@ async fn test_generate_date_array() {
     assert_eq!(arr.len(), 5);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_logical_or() {
     let session = create_session();
     session
@@ -572,7 +572,7 @@ async fn test_logical_or() {
     assert_table_eq!(result, [[1, true], [2, false], [3, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_logical_and() {
     let session = create_session();
     session
@@ -596,7 +596,7 @@ async fn test_logical_and() {
     assert_table_eq!(result, [[1, true], [2, false], [3, null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_select_as_struct() {
     let session = create_session();
     session
@@ -631,7 +631,7 @@ async fn test_array_select_as_struct() {
     assert_eq!(s1[1].1.as_str().unwrap(), "Bob");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_temp_function_basic() {
     let session = create_session();
     session
@@ -647,7 +647,7 @@ async fn test_temp_function_basic() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_temp_function_string() {
     let session = create_session();
     session
@@ -663,7 +663,7 @@ async fn test_temp_function_string() {
     assert_table_eq!(result, [["Hello, World!"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_temp_function_complex() {
     let session = create_session();
     session
@@ -691,7 +691,7 @@ async fn test_temp_function_complex() {
     assert_table_eq!(result, [[true, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_temp_function_in_expression() {
     let session = create_session();
     session
@@ -707,7 +707,7 @@ async fn test_temp_function_in_expression() {
     assert_table_eq!(result, [[7, 32]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_complex_union_with_nested_subqueries() {
     let session = create_session();
 
@@ -783,7 +783,7 @@ async fn test_complex_union_with_nested_subqueries() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_struct_field_access() {
     let session = create_session();
 
@@ -855,7 +855,7 @@ async fn test_array_agg_struct_field_access() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_ignore_nulls_limit_debug() {
     let session = create_session();
 
@@ -904,7 +904,7 @@ async fn test_array_agg_ignore_nulls_limit_debug() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_ignore_nulls_limit_safe_offset() {
     let session = create_session();
 
@@ -952,7 +952,7 @@ async fn test_array_agg_ignore_nulls_limit_safe_offset() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_agg_in_union_all() {
     let session = create_session();
 
@@ -1028,7 +1028,7 @@ async fn setup_players_mascots(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_scalar_subquery_in_select() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1054,7 +1054,7 @@ async fn test_scalar_subquery_in_select() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_scalar_subquery_with_aggregate() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1088,7 +1088,7 @@ async fn setup_npcs(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_subquery_basic() {
     let session = create_session();
     setup_npcs(&session).await;
@@ -1103,7 +1103,7 @@ async fn test_array_subquery_basic() {
     assert_table_eq!(result, [[["jujul", "niles"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_subquery_empty_result() {
     let session = create_session();
     setup_npcs(&session).await;
@@ -1116,7 +1116,7 @@ async fn test_array_subquery_empty_result() {
     assert_table_eq!(result, [[[]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_subquery_with_filter() {
     let session = create_session();
     session
@@ -1136,7 +1136,7 @@ async fn test_array_subquery_with_filter() {
     assert_table_eq!(result, [[["Laptop", "Phone"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_scalar_subquery_returns_null_when_no_match() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1160,7 +1160,7 @@ async fn test_scalar_subquery_returns_null_when_no_match() {
     assert_table_eq!(result, [["nobody", null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_scalar_subquery_in_where_clause() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1178,7 +1178,7 @@ async fn test_scalar_subquery_in_where_clause() {
     assert_table_eq!(result, [["corba", 43], ["gorbie", 29],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_scalar_subquery_in_case() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1207,7 +1207,7 @@ async fn test_scalar_subquery_in_case() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_array_subquery_with_limit() {
     let session = create_session();
     setup_npcs(&session).await;
@@ -1220,7 +1220,7 @@ async fn test_array_subquery_with_limit() {
     assert_table_eq!(result, [[["jujul", "kira"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_subquery_exists() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1233,7 +1233,7 @@ async fn test_in_subquery_exists() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_subquery_not_exists() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1246,7 +1246,7 @@ async fn test_in_subquery_not_exists() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_in_subquery() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1259,7 +1259,7 @@ async fn test_not_in_subquery() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_subquery_empty_result() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1274,7 +1274,7 @@ async fn test_in_subquery_empty_result() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exists_subquery_true() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1287,7 +1287,7 @@ async fn test_exists_subquery_true() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exists_subquery_false() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1300,7 +1300,7 @@ async fn test_exists_subquery_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_exists_subquery_multiple_columns() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1315,7 +1315,7 @@ async fn test_exists_subquery_multiple_columns() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_subquery_basic() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1327,7 +1327,7 @@ async fn test_table_subquery_basic() {
     assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_subquery_with_filter() {
     let session = create_session();
     setup_npcs(&session).await;
@@ -1344,7 +1344,7 @@ async fn test_table_subquery_with_filter() {
     assert_table_eq!(result, [["jujul"], ["niles"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_table_subquery_with_cte() {
     let session = create_session();
     setup_npcs(&session).await;
@@ -1364,7 +1364,7 @@ async fn test_table_subquery_with_cte() {
     assert_table_eq!(result, [["jujul"], ["niles"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_subquery_with_column() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1382,7 +1382,7 @@ async fn test_in_subquery_with_column() {
     assert_table_eq!(result, [["gorbie", "red"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_exists_subquery_in_select() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1397,7 +1397,7 @@ async fn test_not_exists_subquery_in_select() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_unnest_array_subquery() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1410,7 +1410,7 @@ async fn test_in_unnest_array_subquery() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_doc_example_expression_subquery_mascot() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1437,7 +1437,7 @@ async fn test_doc_example_expression_subquery_mascot() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_doc_example_expression_subquery_avg() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1463,7 +1463,7 @@ async fn test_doc_example_expression_subquery_avg() {
     assert!((avg - 24.666666).abs() < 0.01);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_doc_example_array_subquery_red_team() {
     let session = create_session();
     setup_npcs(&session).await;
@@ -1479,7 +1479,7 @@ async fn test_doc_example_array_subquery_red_team() {
     assert_table_eq!(result, [[["jujul", "niles"]]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_doc_example_in_subquery() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1495,7 +1495,7 @@ async fn test_doc_example_in_subquery() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_doc_example_exists_subquery() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1511,7 +1511,7 @@ async fn test_doc_example_exists_subquery() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_doc_example_table_subquery() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1528,7 +1528,7 @@ async fn test_doc_example_table_subquery() {
     assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_doc_example_table_subquery_with_cte() {
     let session = create_session();
     setup_npcs(&session).await;
@@ -1549,7 +1549,7 @@ async fn test_doc_example_table_subquery_with_cte() {
     assert_table_eq!(result, [["jujul"], ["niles"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_volatile_subquery_rand() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1569,7 +1569,7 @@ async fn test_volatile_subquery_rand() {
     assert!(records.len() <= 3);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_volatile_subquery_rand_always_true() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1588,7 +1588,7 @@ async fn test_volatile_subquery_rand_always_true() {
     assert_table_eq!(result, [["corba"], ["gorbie"], ["junelyn"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_volatile_subquery_rand_always_false() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1625,7 +1625,7 @@ async fn setup_players_mascots_with_sparrow(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_correlated_subquery_not_exists_unassigned_mascot() {
     let session = create_session();
     setup_players_mascots_with_sparrow(&session).await;
@@ -1644,7 +1644,7 @@ async fn test_correlated_subquery_not_exists_unassigned_mascot() {
     assert_table_eq!(result, [["sparrow"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_correlated_scalar_subquery_player_mascot() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1670,7 +1670,7 @@ async fn test_correlated_scalar_subquery_player_mascot() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_correlated_subquery_exists_with_condition() {
     let session = create_session();
     setup_players_mascots(&session).await;
@@ -1687,7 +1687,7 @@ async fn test_correlated_subquery_exists_with_condition() {
     assert_table_eq!(result, [["corba"], ["gorbie"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_correlated_subquery_count() {
     let session = create_session();
     session
@@ -1720,7 +1720,7 @@ async fn test_correlated_subquery_count() {
     assert_table_eq!(result, [["Alice", 2], ["Bob", 1], ["Charlie", 0],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_correlated_subquery_max() {
     let session = create_session();
     session

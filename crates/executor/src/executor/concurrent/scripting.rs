@@ -8,7 +8,7 @@ use super::{ConcurrentPlanExecutor, default_value_for_type};
 use crate::ir_evaluator::IrEvaluator;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_call(&self, procedure_name: &str, args: &[Expr]) -> Result<Table> {
         use yachtsql_ir::ProcedureArgMode;
 
@@ -768,7 +768,7 @@ impl ConcurrentPlanExecutor<'_> {
     }
 
     async fn execute_dynamic_sql(&self, sql: &str) -> Result<Table> {
-        let logical_plan = yachtsql_parser::parse_and_plan(sql, self.catalog)?;
+        let logical_plan = yachtsql_parser::parse_and_plan(sql, &*self.catalog)?;
         let physical = optimize(&logical_plan)?;
         let executor_plan = PhysicalPlan::from_physical(&physical);
 

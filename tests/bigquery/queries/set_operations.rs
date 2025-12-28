@@ -22,7 +22,7 @@ async fn setup_tables(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_all() {
     let session = create_session();
     setup_tables(&session).await;
@@ -45,7 +45,7 @@ async fn test_union_all() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_distinct() {
     let session = create_session();
     setup_tables(&session).await;
@@ -58,7 +58,7 @@ async fn test_union_distinct() {
     assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"], ["Diana"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_intersect() {
     let session = create_session();
     setup_tables(&session).await;
@@ -71,7 +71,7 @@ async fn test_intersect() {
     assert_table_eq!(result, [["Bob"], ["Charlie"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_except() {
     let session = create_session();
     setup_tables(&session).await;
@@ -84,7 +84,7 @@ async fn test_except() {
     assert_table_eq!(result, [["Alice"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_with_multiple_columns() {
     let session = create_session();
     setup_tables(&session).await;
@@ -100,7 +100,7 @@ async fn test_union_with_multiple_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_three_tables() {
     let session = create_session();
 
@@ -137,7 +137,7 @@ async fn test_union_three_tables() {
     assert_table_eq!(result, [[1], [2], [3], [4],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_with_where_clause() {
     let session = create_session();
     setup_tables(&session).await;
@@ -149,7 +149,7 @@ async fn test_union_with_where_clause() {
     assert_table_eq!(result, [["Bob"], ["Charlie"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_except_reverse() {
     let session = create_session();
     setup_tables(&session).await;
@@ -162,7 +162,7 @@ async fn test_except_reverse() {
     assert_table_eq!(result, [["Diana"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_distinct_explicit() {
     let session = create_session();
     setup_tables(&session).await;
@@ -177,7 +177,7 @@ async fn test_union_distinct_explicit() {
     assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"], ["Diana"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_intersect_distinct() {
     let session = create_session();
     setup_tables(&session).await;
@@ -192,7 +192,7 @@ async fn test_intersect_distinct() {
     assert_table_eq!(result, [["Bob"], ["Charlie"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_intersect_all() {
     let session = create_session();
     session
@@ -220,7 +220,7 @@ async fn test_intersect_all() {
     assert_table_eq!(result, [["Alice"], ["Bob"], ["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_except_distinct() {
     let session = create_session();
     setup_tables(&session).await;
@@ -235,7 +235,7 @@ async fn test_except_distinct() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_except_all() {
     let session = create_session();
     session
@@ -265,7 +265,7 @@ async fn test_except_all() {
     assert_table_eq!(result, [["Alice"], ["Alice"], ["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_mixed_set_operations() {
     let session = create_session();
     session
@@ -303,7 +303,7 @@ async fn test_mixed_set_operations() {
     assert_table_eq!(result, [[3], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_operations_with_null() {
     let session = create_session();
     session
@@ -331,7 +331,7 @@ async fn test_set_operations_with_null() {
     assert_table_eq!(result, [[null], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_except_with_subquery() {
     let session = create_session();
     setup_tables(&session).await;
@@ -349,7 +349,7 @@ async fn test_except_with_subquery() {
     assert_table_eq!(result, [["Alice"], ["Bob"], ["Charlie"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_union_intersect_precedence() {
     let session = create_session();
     session
@@ -387,7 +387,7 @@ async fn test_union_intersect_precedence() {
     assert_table_eq!(result, [[1], [2], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_operation_with_cte() {
     let session = create_session();
     setup_tables(&session).await;
@@ -407,7 +407,7 @@ async fn test_set_operation_with_cte() {
     assert_table_eq!(result, [["Bob"], ["Charlie"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_set_operation_corresponding() {
     let session = create_session();
     session

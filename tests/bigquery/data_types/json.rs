@@ -3,7 +3,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_literal() {
     let session = create_session();
 
@@ -14,7 +14,7 @@ async fn test_json_literal() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_column() {
     let session = create_session();
     session
@@ -33,7 +33,7 @@ async fn test_json_column() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_() {
     let session = create_session();
 
@@ -44,7 +44,7 @@ async fn test_json_() {
     assert_table_eq!(result, [["null"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_boolean() {
     let session = create_session();
 
@@ -55,7 +55,7 @@ async fn test_json_boolean() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_number() {
     let session = create_session();
 
@@ -66,7 +66,7 @@ async fn test_json_number() {
     assert_table_eq!(result, [[42]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_array() {
     let session = create_session();
 
@@ -77,7 +77,7 @@ async fn test_json_array() {
     assert_table_eq!(result, [["array"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_nested() {
     let session = create_session();
 
@@ -90,7 +90,7 @@ async fn test_json_nested() {
     assert_table_eq!(result, [["[1,2,3]"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_access_field() {
     let session = create_session();
 
@@ -101,7 +101,7 @@ async fn test_json_access_field() {
     assert_table_eq!(result, [["Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_access_array_element() {
     let session = create_session();
 
@@ -112,7 +112,7 @@ async fn test_json_access_array_element() {
     assert_table_eq!(result, [["20"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_dot_notation() {
     let session = create_session();
     session
@@ -133,7 +133,7 @@ async fn test_json_dot_notation() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_subscript_notation() {
     let session = create_session();
     session
@@ -152,7 +152,7 @@ async fn test_json_subscript_notation() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_json() {
     let session = create_session();
 
@@ -163,7 +163,7 @@ async fn test_parse_json() {
     assert_table_eq!(result, [["1"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_json() {
     let session = create_session();
 
@@ -174,7 +174,7 @@ async fn test_to_json() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_to_json_string() {
     let session = create_session();
 
@@ -185,7 +185,7 @@ async fn test_to_json_string() {
     assert_table_eq!(result, [["{\"x\":1,\"y\":2}"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_type() {
     let session = create_session();
 
@@ -196,7 +196,7 @@ async fn test_json_type() {
     assert_table_eq!(result, [["string"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_type_object() {
     let session = create_session();
 
@@ -207,7 +207,7 @@ async fn test_json_type_object() {
     assert_table_eq!(result, [["object"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_type_array() {
     let session = create_session();
 
@@ -218,7 +218,7 @@ async fn test_json_type_array() {
     assert_table_eq!(result, [["array"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_type_number() {
     let session = create_session();
 
@@ -229,7 +229,7 @@ async fn test_json_type_number() {
     assert_table_eq!(result, [["number"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_type_boolean() {
     let session = create_session();
 
@@ -240,7 +240,7 @@ async fn test_json_type_boolean() {
     assert_table_eq!(result, [["boolean"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_query() {
     let session = create_session();
 
@@ -251,7 +251,7 @@ async fn test_json_query() {
     assert_table_eq!(result, [["{\"b\":1}"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_query_array() {
     let session = create_session();
 
@@ -262,7 +262,7 @@ async fn test_json_query_array() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_value_array() {
     let session = create_session();
 
@@ -273,7 +273,7 @@ async fn test_json_value_array() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_bool_from_json() {
     let session = create_session();
 
@@ -284,7 +284,7 @@ async fn test_bool_from_json() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_int64_from_json() {
     let session = create_session();
 
@@ -295,7 +295,7 @@ async fn test_int64_from_json() {
     assert_table_eq!(result, [[42]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_float64_from_json() {
     let session = create_session();
 
@@ -306,7 +306,7 @@ async fn test_float64_from_json() {
     assert_table_eq!(result, [[3.14]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_from_json() {
     let session = create_session();
 
@@ -317,7 +317,7 @@ async fn test_string_from_json() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_object() {
     let session = create_session();
 
@@ -328,7 +328,7 @@ async fn test_json_object() {
     assert_table_eq!(result, [["value"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_array_func() {
     let session = create_session();
 
@@ -339,7 +339,7 @@ async fn test_json_array_func() {
     assert_table_eq!(result, [["[1,2,3]"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_set() {
     let session = create_session();
 
@@ -350,7 +350,7 @@ async fn test_json_set() {
     assert_table_eq!(result, [["2"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_strip_nulls() {
     let session = create_session();
 
@@ -361,7 +361,7 @@ async fn test_json_strip_nulls() {
     assert_table_eq!(result, [["{\"a\":1}"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_remove() {
     let session = create_session();
 
@@ -372,7 +372,7 @@ async fn test_json_remove() {
     assert_table_eq!(result, [["{\"a\":1}"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lax_json_value() {
     let session = create_session();
 
@@ -383,7 +383,7 @@ async fn test_lax_json_value() {
     assert_table_eq!(result, [[123]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_in_table() {
     let session = create_session();
     session
@@ -412,7 +412,7 @@ async fn test_json_in_table() {
     assert_table_eq!(result, [["Widget"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_json_keys() {
     let session = create_session();
 

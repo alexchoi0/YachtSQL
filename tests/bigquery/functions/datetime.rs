@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, d, dt, null, tm, ts, ts_ms};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_current_date() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_current_date() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_current_timestamp() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_current_timestamp() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_literal() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_date_literal() {
     assert_table_eq!(result, [[d(2024, 1, 15)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_year() {
     let session = create_session();
     let result = session
@@ -41,7 +41,7 @@ async fn test_extract_year() {
     assert_table_eq!(result, [[2024]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_month() {
     let session = create_session();
     let result = session
@@ -51,7 +51,7 @@ async fn test_extract_month() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_day() {
     let session = create_session();
     let result = session
@@ -61,7 +61,7 @@ async fn test_extract_day() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_comparison() {
     let session = create_session();
     session
@@ -79,7 +79,7 @@ async fn test_date_comparison() {
     assert_table_eq!(result, [["B"], ["C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_ordering() {
     let session = create_session();
     session
@@ -97,7 +97,7 @@ async fn test_date_ordering() {
     assert_table_eq!(result, [["A"], ["B"], ["C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_literal() {
     let session = create_session();
     let result = session
@@ -107,7 +107,7 @@ async fn test_timestamp_literal() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 10, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_hour() {
     let session = create_session();
     let result = session
@@ -117,7 +117,7 @@ async fn test_extract_hour() {
     assert_table_eq!(result, [[14]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_minute() {
     let session = create_session();
     let result = session
@@ -127,7 +127,7 @@ async fn test_extract_minute() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_second() {
     let session = create_session();
     let result = session
@@ -137,7 +137,7 @@ async fn test_extract_second() {
     assert_table_eq!(result, [[45]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_with_null() {
     let session = create_session();
     session
@@ -156,7 +156,7 @@ async fn test_date_with_null() {
     assert_table_eq!(result, [["B"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_dayofweek() {
     let session = create_session();
     let result = session
@@ -166,7 +166,7 @@ async fn test_extract_dayofweek() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_in_group_by() {
     let session = create_session();
     session
@@ -186,7 +186,7 @@ async fn test_date_in_group_by() {
     assert_table_eq!(result, [[d(2024, 1, 1), 300], [d(2024, 1, 2), 150]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_add() {
     let session = create_session();
     let result = session
@@ -196,7 +196,7 @@ async fn test_date_add() {
     assert_table_eq!(result, [[d(2024, 1, 25)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_sub() {
     let session = create_session();
     let result = session
@@ -206,7 +206,7 @@ async fn test_date_sub() {
     assert_table_eq!(result, [[d(2024, 1, 5)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_diff() {
     let session = create_session();
     let result = session
@@ -216,7 +216,7 @@ async fn test_date_diff() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_trunc() {
     let session = create_session();
     let result = session
@@ -226,7 +226,7 @@ async fn test_date_trunc() {
     assert_table_eq!(result, [[d(2024, 6, 1)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_date_from_unix_date() {
     let session = create_session();
     let result = session
@@ -236,7 +236,7 @@ async fn test_date_from_unix_date() {
     assert_table_eq!(result, [[d(2024, 1, 1)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_date() {
     let session = create_session();
     let result = session
@@ -246,7 +246,7 @@ async fn test_unix_date() {
     assert_table_eq!(result, [[19723]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_date() {
     let session = create_session();
     let result = session
@@ -256,7 +256,7 @@ async fn test_parse_date() {
     assert_table_eq!(result, [[d(2024, 6, 15)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_date() {
     let session = create_session();
     let result = session
@@ -266,7 +266,7 @@ async fn test_format_date() {
     assert_table_eq!(result, [["2024/06/15"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_last_day() {
     let session = create_session();
     let result = session
@@ -276,7 +276,7 @@ async fn test_last_day() {
     assert_table_eq!(result, [[d(2024, 2, 29)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_add() {
     let session = create_session();
     let result = session
@@ -286,7 +286,7 @@ async fn test_timestamp_add() {
     assert_table_eq!(result, [[ts(2024, 1, 15, 11, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_sub() {
     let session = create_session();
     let result = session
@@ -296,7 +296,7 @@ async fn test_timestamp_sub() {
     assert_table_eq!(result, [[ts(2024, 1, 15, 9, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff() {
     let session = create_session();
     let result = session
@@ -305,7 +305,7 @@ async fn test_timestamp_diff() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc() {
     let session = create_session();
     let result = session
@@ -315,7 +315,7 @@ async fn test_timestamp_trunc() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 14, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_timestamp() {
     let session = create_session();
     let result = session
@@ -325,7 +325,7 @@ async fn test_parse_timestamp() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_timestamp() {
     let session = create_session();
     let result = session
@@ -335,7 +335,7 @@ async fn test_format_timestamp() {
     assert_table_eq!(result, [["2024/06/15 14:30"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_seconds() {
     let session = create_session();
     let result = session
@@ -345,7 +345,7 @@ async fn test_unix_seconds() {
     assert_table_eq!(result, [[1704067200]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_seconds() {
     let session = create_session();
     let result = session
@@ -355,7 +355,7 @@ async fn test_timestamp_seconds() {
     assert_table_eq!(result, [[ts(2024, 1, 1, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_millis() {
     let session = create_session();
     let result = session
@@ -365,7 +365,7 @@ async fn test_unix_millis() {
     assert_table_eq!(result, [[1704067200000i64]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_millis() {
     let session = create_session();
     let result = session
@@ -375,7 +375,7 @@ async fn test_timestamp_millis() {
     assert_table_eq!(result, [[ts(2024, 1, 1, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_micros() {
     let session = create_session();
     let result = session
@@ -385,7 +385,7 @@ async fn test_unix_micros() {
     assert_table_eq!(result, [[1704067200000000i64]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_micros() {
     let session = create_session();
     let result = session
@@ -395,14 +395,14 @@ async fn test_timestamp_micros() {
     assert_table_eq!(result, [[ts(2024, 1, 1, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_literal() {
     let session = create_session();
     let result = session.execute_sql("SELECT TIME '14:30:00'").await.unwrap();
     assert_table_eq!(result, [[tm(14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_add() {
     let session = create_session();
     let result = session
@@ -412,7 +412,7 @@ async fn test_time_add() {
     assert_table_eq!(result, [[tm(10, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_sub() {
     let session = create_session();
     let result = session
@@ -422,7 +422,7 @@ async fn test_time_sub() {
     assert_table_eq!(result, [[tm(9, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_diff() {
     let session = create_session();
     let result = session
@@ -432,7 +432,7 @@ async fn test_time_diff() {
     assert_table_eq!(result, [[4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_trunc() {
     let session = create_session();
     let result = session
@@ -442,7 +442,7 @@ async fn test_time_trunc() {
     assert_table_eq!(result, [[tm(14, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_literal() {
     let session = create_session();
     let result = session
@@ -452,7 +452,7 @@ async fn test_datetime_literal() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_add() {
     let session = create_session();
     let result = session
@@ -462,7 +462,7 @@ async fn test_datetime_add() {
     assert_table_eq!(result, [[dt(2024, 1, 16, 10, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_sub() {
     let session = create_session();
     let result = session
@@ -472,7 +472,7 @@ async fn test_datetime_sub() {
     assert_table_eq!(result, [[dt(2024, 1, 14, 10, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_diff() {
     let session = create_session();
     let result = session
@@ -481,7 +481,7 @@ async fn test_datetime_diff() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_trunc() {
     let session = create_session();
     let result = session
@@ -491,7 +491,7 @@ async fn test_datetime_trunc() {
     assert_table_eq!(result, [[dt(2024, 6, 1, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_week() {
     let session = create_session();
     let result = session
@@ -501,7 +501,7 @@ async fn test_extract_week() {
     assert_table_eq!(result, [[23]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_week_sunday() {
     let session = create_session();
     let result = session
@@ -511,7 +511,7 @@ async fn test_extract_week_sunday() {
     assert_table_eq!(result, [[23]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_week_monday() {
     let session = create_session();
     let result = session
@@ -521,7 +521,7 @@ async fn test_extract_week_monday() {
     assert_table_eq!(result, [[24]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_isoweek() {
     let session = create_session();
     let result = session
@@ -531,7 +531,7 @@ async fn test_extract_isoweek() {
     assert_table_eq!(result, [[24]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_week_zero() {
     let session = create_session();
     let result = session
@@ -541,7 +541,7 @@ async fn test_extract_week_zero() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_quarter() {
     let session = create_session();
     let result = session
@@ -551,7 +551,7 @@ async fn test_extract_quarter() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_dayofyear() {
     let session = create_session();
     let result = session
@@ -561,7 +561,7 @@ async fn test_extract_dayofyear() {
     assert_table_eq!(result, [[167]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_constructor_from_parts() {
     let session = create_session();
     let result = session
@@ -571,7 +571,7 @@ async fn test_datetime_constructor_from_parts() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 45)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_constructor_from_date_and_time() {
     let session = create_session();
     let result = session
@@ -581,7 +581,7 @@ async fn test_datetime_constructor_from_date_and_time() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_constructor_from_date() {
     let session = create_session();
     let result = session
@@ -591,7 +591,7 @@ async fn test_datetime_constructor_from_date() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_constructor_from_timestamp() {
     let session = create_session();
     let result = session
@@ -601,7 +601,7 @@ async fn test_datetime_constructor_from_timestamp() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_constructor_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT DATETIME(NULL)").await.unwrap();
@@ -609,7 +609,7 @@ async fn test_datetime_constructor_null() {
     assert!(result.get_row(0).unwrap().values()[0].is_null());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_constructor_from_string() {
     let session = create_session();
     let result = session
@@ -619,7 +619,7 @@ async fn test_datetime_constructor_from_string() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_current_time() {
     let session = create_session();
     let result = session
@@ -629,7 +629,7 @@ async fn test_current_time() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_current_time_no_parens() {
     let session = create_session();
     let result = session
@@ -639,7 +639,7 @@ async fn test_current_time_no_parens() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_hour_from_time() {
     let session = create_session();
     let result = session
@@ -649,7 +649,7 @@ async fn test_extract_hour_from_time() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_minute_from_time() {
     let session = create_session();
     let result = session
@@ -659,7 +659,7 @@ async fn test_extract_minute_from_time() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_second_from_time() {
     let session = create_session();
     let result = session
@@ -669,7 +669,7 @@ async fn test_extract_second_from_time() {
     assert_table_eq!(result, [[45]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_time_basic() {
     let session = create_session();
     let result = session
@@ -679,7 +679,7 @@ async fn test_format_time_basic() {
     assert_table_eq!(result, [["15:30"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_time_full() {
     let session = create_session();
     let result = session
@@ -689,7 +689,7 @@ async fn test_format_time_full() {
     assert_table_eq!(result, [["15:30:45"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_time_12_hour() {
     let session = create_session();
     let result = session
@@ -699,7 +699,7 @@ async fn test_format_time_12_hour() {
     assert_table_eq!(result, [["03:30 PM"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_time_hour_only() {
     let session = create_session();
     let result = session
@@ -709,7 +709,7 @@ async fn test_parse_time_hour_only() {
     assert_table_eq!(result, [[tm(15, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_time_full() {
     let session = create_session();
     let result = session
@@ -719,7 +719,7 @@ async fn test_parse_time_full() {
     assert_table_eq!(result, [[tm(14, 30, 45)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_time_12_hour() {
     let session = create_session();
     let result = session
@@ -729,7 +729,7 @@ async fn test_parse_time_12_hour() {
     assert_table_eq!(result, [[tm(14, 23, 38)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_time_t_format() {
     let session = create_session();
     let result = session
@@ -739,14 +739,14 @@ async fn test_parse_time_t_format() {
     assert_table_eq!(result, [[tm(7, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_constructor_from_parts() {
     let session = create_session();
     let result = session.execute_sql("SELECT TIME(15, 30, 0)").await.unwrap();
     assert_table_eq!(result, [[tm(15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_constructor_from_timestamp() {
     let session = create_session();
     let result = session
@@ -756,7 +756,7 @@ async fn test_time_constructor_from_timestamp() {
     assert_table_eq!(result, [[tm(15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_constructor_from_datetime() {
     let session = create_session();
     let result = session
@@ -766,7 +766,7 @@ async fn test_time_constructor_from_datetime() {
     assert_table_eq!(result, [[tm(15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_add_hour() {
     let session = create_session();
     let result = session
@@ -776,7 +776,7 @@ async fn test_time_add_hour() {
     assert_table_eq!(result, [[tm(15, 40, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_add_second() {
     let session = create_session();
     let result = session
@@ -786,7 +786,7 @@ async fn test_time_add_second() {
     assert_table_eq!(result, [[tm(15, 30, 45)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_add_wrap_around() {
     let session = create_session();
     let result = session
@@ -796,7 +796,7 @@ async fn test_time_add_wrap_around() {
     assert_table_eq!(result, [[tm(0, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_diff_minute() {
     let session = create_session();
     let result = session
@@ -806,7 +806,7 @@ async fn test_time_diff_minute() {
     assert_table_eq!(result, [[55]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_diff_second() {
     let session = create_session();
     let result = session
@@ -816,7 +816,7 @@ async fn test_time_diff_second() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_diff_negative() {
     let session = create_session();
     let result = session
@@ -826,7 +826,7 @@ async fn test_time_diff_negative() {
     assert_table_eq!(result, [[-4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_sub_hour() {
     let session = create_session();
     let result = session
@@ -836,7 +836,7 @@ async fn test_time_sub_hour() {
     assert_table_eq!(result, [[tm(14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_sub_second() {
     let session = create_session();
     let result = session
@@ -846,7 +846,7 @@ async fn test_time_sub_second() {
     assert_table_eq!(result, [[tm(15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_sub_wrap_around() {
     let session = create_session();
     let result = session
@@ -856,7 +856,7 @@ async fn test_time_sub_wrap_around() {
     assert_table_eq!(result, [[tm(23, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_trunc_minute() {
     let session = create_session();
     let result = session
@@ -866,7 +866,7 @@ async fn test_time_trunc_minute() {
     assert_table_eq!(result, [[tm(15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_time_trunc_second() {
     let session = create_session();
     let result = session
@@ -876,7 +876,7 @@ async fn test_time_trunc_second() {
     assert_table_eq!(result, [[tm(15, 30, 45)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_microsecond_from_timestamp() {
     let session = create_session();
     let result = session
@@ -886,7 +886,7 @@ async fn test_extract_microsecond_from_timestamp() {
     assert_table_eq!(result, [[123456]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_millisecond_from_timestamp() {
     let session = create_session();
     let result = session
@@ -896,7 +896,7 @@ async fn test_extract_millisecond_from_timestamp() {
     assert_table_eq!(result, [[123]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_dayofweek_from_timestamp() {
     let session = create_session();
     let result = session
@@ -906,7 +906,7 @@ async fn test_extract_dayofweek_from_timestamp() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_dayofyear_from_timestamp() {
     let session = create_session();
     let result = session
@@ -916,7 +916,7 @@ async fn test_extract_dayofyear_from_timestamp() {
     assert_table_eq!(result, [[167]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_week_from_timestamp() {
     let session = create_session();
     let result = session
@@ -926,7 +926,7 @@ async fn test_extract_week_from_timestamp() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_isoweek_from_timestamp() {
     let session = create_session();
     let result = session
@@ -936,7 +936,7 @@ async fn test_extract_isoweek_from_timestamp() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_isoyear_from_timestamp() {
     let session = create_session();
     let result = session
@@ -946,7 +946,7 @@ async fn test_extract_isoyear_from_timestamp() {
     assert_table_eq!(result, [[2005]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_isoyear_boundary() {
     let session = create_session();
     let result = session
@@ -955,7 +955,7 @@ async fn test_extract_isoyear_boundary() {
     assert_table_eq!(result, [[2008, 2007]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_date_from_timestamp() {
     let session = create_session();
     let result = session
@@ -965,7 +965,7 @@ async fn test_extract_date_from_timestamp() {
     assert_table_eq!(result, [[d(2024, 6, 15)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_time_from_timestamp() {
     let session = create_session();
     let result = session
@@ -975,7 +975,7 @@ async fn test_extract_time_from_timestamp() {
     assert_table_eq!(result, [[tm(14, 30, 45)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_week_sunday_from_timestamp() {
     let session = create_session();
     let result = session
@@ -985,7 +985,7 @@ async fn test_extract_week_sunday_from_timestamp() {
     assert_table_eq!(result, [[45]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_extract_week_monday_from_timestamp() {
     let session = create_session();
     let result = session
@@ -995,7 +995,7 @@ async fn test_extract_week_monday_from_timestamp() {
     assert_table_eq!(result, [[45]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_timestamp_custom() {
     let session = create_session();
     let result = session
@@ -1005,7 +1005,7 @@ async fn test_format_timestamp_custom() {
     assert_table_eq!(result, [["Sun Dec 25 15:30:55 2050"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_timestamp_date_only() {
     let session = create_session();
     let result = session
@@ -1015,7 +1015,7 @@ async fn test_format_timestamp_date_only() {
     assert_table_eq!(result, [["Dec-25-2050"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_timestamp_month_year() {
     let session = create_session();
     let result = session
@@ -1025,7 +1025,7 @@ async fn test_format_timestamp_month_year() {
     assert_table_eq!(result, [["Dec 2050"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_format_timestamp_iso() {
     let session = create_session();
     let result = session
@@ -1037,7 +1037,7 @@ async fn test_format_timestamp_iso() {
     assert_table_eq!(result, [["2050-12-25T15:30:55Z"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_timestamp_c_format() {
     let session = create_session();
     let result = session
@@ -1047,7 +1047,7 @@ async fn test_parse_timestamp_c_format() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 7, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_timestamp_date_only() {
     let session = create_session();
     let result = session
@@ -1057,7 +1057,7 @@ async fn test_parse_timestamp_date_only() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_parse_timestamp_with_am_pm() {
     let session = create_session();
     let result = session
@@ -1067,7 +1067,7 @@ async fn test_parse_timestamp_with_am_pm() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_constructor_from_string() {
     let session = create_session();
     let result = session
@@ -1077,7 +1077,7 @@ async fn test_timestamp_constructor_from_string() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_constructor_from_string_with_timezone() {
     let session = create_session();
     let result = session
@@ -1087,7 +1087,7 @@ async fn test_timestamp_constructor_from_string_with_timezone() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 23, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_constructor_from_date() {
     let session = create_session();
     let result = session
@@ -1097,7 +1097,7 @@ async fn test_timestamp_constructor_from_date() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_constructor_from_datetime() {
     let session = create_session();
     let result = session
@@ -1107,7 +1107,7 @@ async fn test_timestamp_constructor_from_datetime() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_from_timestamp() {
     let session = create_session();
     let result = session
@@ -1117,7 +1117,7 @@ async fn test_string_from_timestamp() {
     assert_table_eq!(result, [["2008-12-25 15:30:00.000000 UTC"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_add_minute() {
     let session = create_session();
     let result = session
@@ -1127,7 +1127,7 @@ async fn test_timestamp_add_minute() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 15, 40, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_add_second() {
     let session = create_session();
     let result = session
@@ -1137,7 +1137,7 @@ async fn test_timestamp_add_second() {
     assert_table_eq!(result, [[ts(2024, 1, 15, 10, 0, 30)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_add_day() {
     let session = create_session();
     let result = session
@@ -1147,7 +1147,7 @@ async fn test_timestamp_add_day() {
     assert_table_eq!(result, [[ts(2024, 1, 20, 10, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_add_millisecond() {
     let session = create_session();
     let result = session
@@ -1159,7 +1159,7 @@ async fn test_timestamp_add_millisecond() {
     assert_table_eq!(result, [[ts_ms(2024, 1, 15, 10, 0, 0, 500)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_sub_minute() {
     let session = create_session();
     let result = session
@@ -1169,7 +1169,7 @@ async fn test_timestamp_sub_minute() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 15, 20, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_sub_second() {
     let session = create_session();
     let result = session
@@ -1179,7 +1179,7 @@ async fn test_timestamp_sub_second() {
     assert_table_eq!(result, [[ts(2024, 1, 15, 10, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_sub_day() {
     let session = create_session();
     let result = session
@@ -1189,7 +1189,7 @@ async fn test_timestamp_sub_day() {
     assert_table_eq!(result, [[ts(2024, 1, 15, 10, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_minute() {
     let session = create_session();
     let result = session
@@ -1198,7 +1198,7 @@ async fn test_timestamp_diff_minute() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_second() {
     let session = create_session();
     let result = session
@@ -1207,7 +1207,7 @@ async fn test_timestamp_diff_second() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_day() {
     let session = create_session();
     let result = session
@@ -1216,7 +1216,7 @@ async fn test_timestamp_diff_day() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_negative_date_only() {
     let session = create_session();
     let result = session
@@ -1226,7 +1226,7 @@ async fn test_timestamp_diff_negative_date_only() {
     assert_table_eq!(result, [[-61]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_negative() {
     let session = create_session();
     let result = session
@@ -1237,7 +1237,7 @@ async fn test_timestamp_diff_negative() {
     assert_table_eq!(result, [[-2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_large() {
     let session = create_session();
     let result = session
@@ -1246,7 +1246,7 @@ async fn test_timestamp_diff_large() {
     assert_table_eq!(result, [[13410]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_partial_hour() {
     let session = create_session();
     let result = session
@@ -1255,7 +1255,7 @@ async fn test_timestamp_diff_partial_hour() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_day() {
     let session = create_session();
     let result = session
@@ -1265,7 +1265,7 @@ async fn test_timestamp_trunc_day() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_minute() {
     let session = create_session();
     let result = session
@@ -1275,7 +1275,7 @@ async fn test_timestamp_trunc_minute() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_second() {
     let session = create_session();
     let result = session
@@ -1285,7 +1285,7 @@ async fn test_timestamp_trunc_second() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 14, 30, 45)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_month() {
     let session = create_session();
     let result = session
@@ -1295,7 +1295,7 @@ async fn test_timestamp_trunc_month() {
     assert_table_eq!(result, [[ts(2024, 6, 1, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_year() {
     let session = create_session();
     let result = session
@@ -1305,7 +1305,7 @@ async fn test_timestamp_trunc_year() {
     assert_table_eq!(result, [[ts(2024, 1, 1, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_quarter() {
     let session = create_session();
     let result = session
@@ -1315,7 +1315,7 @@ async fn test_timestamp_trunc_quarter() {
     assert_table_eq!(result, [[ts(2024, 4, 1, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_week() {
     let session = create_session();
     let result = session
@@ -1325,7 +1325,7 @@ async fn test_timestamp_trunc_week() {
     assert_table_eq!(result, [[ts(2024, 6, 9, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_week_monday() {
     let session = create_session();
     let result = session
@@ -1337,7 +1337,7 @@ async fn test_timestamp_trunc_week_monday() {
     assert_table_eq!(result, [[ts(2017, 10, 30, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_isoweek() {
     let session = create_session();
     let result = session
@@ -1347,7 +1347,7 @@ async fn test_timestamp_trunc_isoweek() {
     assert_table_eq!(result, [[ts(2024, 6, 10, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_isoyear() {
     let session = create_session();
     let result = session
@@ -1357,7 +1357,7 @@ async fn test_timestamp_trunc_isoyear() {
     assert_table_eq!(result, [[ts(2014, 12, 29, 0, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_seconds_specific() {
     let session = create_session();
     let result = session
@@ -1367,7 +1367,7 @@ async fn test_unix_seconds_specific() {
     assert_table_eq!(result, [[1230219000]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_millis_specific() {
     let session = create_session();
     let result = session
@@ -1377,7 +1377,7 @@ async fn test_unix_millis_specific() {
     assert_table_eq!(result, [[1230219000000i64]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_micros_specific() {
     let session = create_session();
     let result = session
@@ -1387,7 +1387,7 @@ async fn test_unix_micros_specific() {
     assert_table_eq!(result, [[1230219000000000i64]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_seconds_specific() {
     let session = create_session();
     let result = session
@@ -1397,7 +1397,7 @@ async fn test_timestamp_seconds_specific() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_millis_specific() {
     let session = create_session();
     let result = session
@@ -1407,7 +1407,7 @@ async fn test_timestamp_millis_specific() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_micros_specific() {
     let session = create_session();
     let result = session
@@ -1417,7 +1417,7 @@ async fn test_timestamp_micros_specific() {
     assert_table_eq!(result, [[ts(2008, 12, 25, 15, 30, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_millis_with_fractional() {
     let session = create_session();
     let result = session
@@ -1427,7 +1427,7 @@ async fn test_unix_millis_with_fractional() {
     assert_table_eq!(result, [[1i64]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unix_seconds_with_fractional() {
     let session = create_session();
     let result = session
@@ -1437,14 +1437,14 @@ async fn test_unix_seconds_with_fractional() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_with_null() {
     let session = create_session();
     let result = session.execute_sql("SELECT TIMESTAMP(NULL)").await.unwrap();
     assert_table_eq!(result, [[null()]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_add_with_null() {
     let session = create_session();
     let result = session
@@ -1454,7 +1454,7 @@ async fn test_timestamp_add_with_null() {
     assert_table_eq!(result, [[null()]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_diff_with_null() {
     let session = create_session();
     let result = session
@@ -1464,7 +1464,7 @@ async fn test_timestamp_diff_with_null() {
     assert_table_eq!(result, [[null()]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_trunc_with_null() {
     let session = create_session();
     let result = session
@@ -1474,7 +1474,7 @@ async fn test_timestamp_trunc_with_null() {
     assert_table_eq!(result, [[null()]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_from_timestamp_basic() {
     let session = create_session();
     let result = session
@@ -1484,7 +1484,7 @@ async fn test_string_from_timestamp_basic() {
     assert_table_eq!(result, [["2024-06-15 14:30:00.000000 UTC"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_string_from_timestamp_null() {
     let session = create_session();
     let result = session
@@ -1494,7 +1494,7 @@ async fn test_string_from_timestamp_null() {
     assert_table_eq!(result, [[null()]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_bucket_12_hour() {
     let session = create_session();
     let result = session
@@ -1504,7 +1504,7 @@ async fn test_datetime_bucket_12_hour() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 12, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_datetime_bucket_with_origin() {
     let session = create_session();
     let result = session
@@ -1513,7 +1513,7 @@ async fn test_datetime_bucket_with_origin() {
     assert_table_eq!(result, [[dt(2024, 6, 15, 6, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_bucket_12_hour() {
     let session = create_session();
     let result = session
@@ -1523,7 +1523,7 @@ async fn test_timestamp_bucket_12_hour() {
     assert_table_eq!(result, [[ts(2024, 6, 15, 12, 0, 0)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_timestamp_bucket_with_origin() {
     let session = create_session();
     let result = session

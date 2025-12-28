@@ -1,4 +1,6 @@
-use yachtsql_common::error::Result;
+use std::collections::{HashMap, HashSet};
+
+use yachtsql_common::error::{Error, Result};
 use yachtsql_common::types::Value;
 use yachtsql_ir::{CteDefinition, LogicalPlan, SetOperationType};
 use yachtsql_storage::{Field, Schema, Table};
@@ -7,32 +9,131 @@ use super::ConcurrentPlanExecutor;
 use crate::executor::plan_schema_to_schema;
 use crate::plan::PhysicalPlan;
 
-impl ConcurrentPlanExecutor<'_> {
+impl ConcurrentPlanExecutor {
     pub(crate) async fn execute_cte(
         &self,
         ctes: &[CteDefinition],
         body: &PhysicalPlan,
-        _parallel_ctes: &[usize],
+        parallel_ctes: &[usize],
     ) -> Result<Table> {
-        for cte in ctes {
-            if cte.recursive {
-                self.execute_recursive_cte(cte).await?;
-            } else {
-                let physical_cte = yachtsql_optimizer::optimize(&cte.query)?;
-                let cte_plan = PhysicalPlan::from_physical(&physical_cte);
-                let mut cte_result = self.execute_plan(&cte_plan).await?;
+        if ctes.is_empty() {
+            return self.execute_plan(body).await;
+        }
 
-                if let Some(ref columns) = cte.columns {
-                    cte_result = self.apply_cte_column_aliases(&cte_result, columns)?;
+        let cte_names: Vec<String> = ctes.iter().map(|c| c.name.to_uppercase()).collect();
+        let deps = Self::build_cte_dependencies(ctes, &cte_names);
+        let waves = Self::topological_waves(ctes.len(), &deps);
+
+        for wave in waves {
+            let wave_ctes: Vec<(usize, &CteDefinition)> =
+                wave.iter().map(|&i| (i, &ctes[i])).collect();
+
+            let has_recursive = wave_ctes.iter().any(|(_, c)| c.recursive);
+            let can_parallel = !has_recursive
+                && wave_ctes.len() > 1
+                && wave_ctes.iter().any(|(i, _)| parallel_ctes.contains(i));
+
+            if can_parallel {
+                let handles: Vec<_> = wave_ctes
+                    .iter()
+                    .map(|(_, cte)| {
+                        let executor = self.clone();
+                        let query = cte.query.clone();
+                        let name = cte.name.to_uppercase();
+                        let columns = cte.columns.clone();
+                        tokio::spawn(async move {
+                            let physical_cte = yachtsql_optimizer::optimize(&query)?;
+                            let cte_plan = PhysicalPlan::from_physical(&physical_cte);
+                            let cte_result = executor.execute_plan(&cte_plan).await?;
+                            Ok((name, cte_result, columns))
+                        })
+                    })
+                    .collect();
+                let results: Vec<
+                    std::result::Result<Result<(String, Table, Option<Vec<String>>)>, _>,
+                > = futures::future::join_all(handles).await;
+
+                for result in results {
+                    let (name, mut table, columns) =
+                        result.map_err(|e| Error::Internal(e.to_string()))??;
+                    if let Some(ref cols) = columns {
+                        table = self.apply_cte_column_aliases(&table, cols)?;
+                    }
+                    self.cte_results.write().unwrap().insert(name, table);
                 }
+            } else {
+                for (_, cte) in wave_ctes {
+                    if cte.recursive {
+                        self.execute_recursive_cte(cte).await?;
+                    } else {
+                        let physical_cte = yachtsql_optimizer::optimize(&cte.query)?;
+                        let cte_plan = PhysicalPlan::from_physical(&physical_cte);
+                        let mut cte_result = self.execute_plan(&cte_plan).await?;
 
-                self.cte_results
-                    .write()
-                    .unwrap()
-                    .insert(cte.name.to_uppercase(), cte_result);
+                        if let Some(ref columns) = cte.columns {
+                            cte_result = self.apply_cte_column_aliases(&cte_result, columns)?;
+                        }
+
+                        self.cte_results
+                            .write()
+                            .unwrap()
+                            .insert(cte.name.to_uppercase(), cte_result);
+                    }
+                }
             }
         }
         self.execute_plan(body).await
+    }
+
+    fn build_cte_dependencies(
+        ctes: &[CteDefinition],
+        cte_names: &[String],
+    ) -> HashMap<usize, HashSet<usize>> {
+        let mut deps: HashMap<usize, HashSet<usize>> = HashMap::new();
+        for (i, cte) in ctes.iter().enumerate() {
+            let mut cte_deps = HashSet::new();
+            for (j, name) in cte_names.iter().enumerate() {
+                if i != j && Self::references_table(&cte.query, name) {
+                    cte_deps.insert(j);
+                }
+            }
+            deps.insert(i, cte_deps);
+        }
+        deps
+    }
+
+    fn topological_waves(n: usize, deps: &HashMap<usize, HashSet<usize>>) -> Vec<Vec<usize>> {
+        let mut waves = Vec::new();
+        let mut executed: HashSet<usize> = HashSet::new();
+        let mut remaining: HashSet<usize> = (0..n).collect();
+
+        while !remaining.is_empty() {
+            let ready: Vec<usize> = remaining
+                .iter()
+                .filter(|&i| {
+                    deps.get(i)
+                        .map(|d| d.iter().all(|dep| executed.contains(dep)))
+                        .unwrap_or(true)
+                })
+                .copied()
+                .collect();
+
+            if ready.is_empty() {
+                let fallback: Vec<usize> = remaining.iter().copied().collect();
+                waves.push(fallback.clone());
+                for i in fallback {
+                    executed.insert(i);
+                    remaining.remove(&i);
+                }
+            } else {
+                waves.push(ready.clone());
+                for i in ready {
+                    executed.insert(i);
+                    remaining.remove(&i);
+                }
+            }
+        }
+        waves
     }
 
     pub(crate) fn apply_cte_column_aliases(

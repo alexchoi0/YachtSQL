@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, numeric};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column() {
     let session = create_session();
 
@@ -33,7 +33,7 @@ async fn test_alter_table_add_column() {
     assert_table_eq!(result, [[1, "Alice", null], [2, "Bob", 30],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_drop_column() {
     let session = create_session();
 
@@ -57,7 +57,7 @@ async fn test_alter_table_drop_column() {
     assert_table_eq!(result, [[1, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_rename_column() {
     let session = create_session();
 
@@ -84,7 +84,7 @@ async fn test_alter_table_rename_column() {
     assert_table_eq!(result, [[1, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_rename_table() {
     let session = create_session();
 
@@ -108,7 +108,7 @@ async fn test_alter_table_rename_table() {
     assert_table_eq!(result, [[1, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_with_default() {
     let session = create_session();
 
@@ -132,7 +132,7 @@ async fn test_alter_table_add_column_with_default() {
     assert_table_eq!(result, [[1, "Alice", "active"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_constraint() {
     let session = create_session();
 
@@ -156,7 +156,7 @@ async fn test_alter_table_add_constraint() {
     assert_table_eq!(result, [[1, "test@example.com"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_set_not_null() {
     let session = create_session();
 
@@ -179,7 +179,7 @@ async fn test_alter_table_set_not_null() {
     assert_table_eq!(result, [[1, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_drop_not_null() {
     let session = create_session();
 
@@ -202,7 +202,7 @@ async fn test_alter_table_drop_not_null() {
     assert_table_eq!(result, [[1, null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_set_options() {
     let session = create_session();
 
@@ -228,7 +228,7 @@ async fn test_alter_table_set_options() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_multiple_columns() {
     let session = create_session();
 
@@ -254,7 +254,7 @@ async fn test_alter_table_add_multiple_columns() {
     assert_table_eq!(result, [[1, "Alice", 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_alter_column_set_default() {
     let session = create_session();
 
@@ -280,7 +280,7 @@ async fn test_alter_table_alter_column_set_default() {
     assert_table_eq!(result, [[1, "pending"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_alter_column_drop_default() {
     let session = create_session();
 
@@ -306,7 +306,7 @@ async fn test_alter_table_alter_column_drop_default() {
     assert_table_eq!(result, [[1, null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_if_exists() {
     let session = create_session();
 
@@ -316,7 +316,7 @@ async fn test_alter_table_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_drop_constraint() {
     let session = create_session();
 
@@ -347,7 +347,7 @@ async fn test_alter_table_drop_constraint() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_alter_column_set_data_type() {
     let session = create_session();
 
@@ -362,7 +362,7 @@ async fn test_alter_table_alter_column_set_data_type() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_primary_key() {
     let session = create_session();
 
@@ -377,7 +377,7 @@ async fn test_alter_table_add_primary_key() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_drop_primary_key() {
     let session = create_session();
 
@@ -392,7 +392,7 @@ async fn test_alter_table_drop_primary_key() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_view_set_options() {
     let session = create_session();
 
@@ -412,7 +412,7 @@ async fn test_alter_view_set_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_materialized_view_set_options() {
     let session = create_session();
 
@@ -431,7 +431,7 @@ async fn test_alter_materialized_view_set_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_if_not_exists() {
     let session = create_session();
 
@@ -462,7 +462,7 @@ async fn test_alter_table_add_column_if_not_exists() {
     assert_table_eq!(result, [[1, "Alice", 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_drop_column_if_exists() {
     let session = create_session();
 
@@ -493,7 +493,7 @@ async fn test_alter_table_drop_column_if_exists() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_rename_multiple_columns() {
     let session = create_session();
 
@@ -519,7 +519,7 @@ async fn test_alter_table_rename_multiple_columns() {
     assert_table_eq!(result, [[1, "test", 3.14]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_with_struct() {
     let session = create_session();
 
@@ -544,7 +544,7 @@ async fn test_alter_table_add_column_with_struct() {
     assert_table_eq!(result, [[1, "NYC"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_with_array() {
     let session = create_session();
 
@@ -570,7 +570,7 @@ async fn test_alter_table_add_column_with_array() {
     assert_table_eq!(result, [[1, "rust"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_foreign_key() {
     let session = create_session();
 
@@ -602,7 +602,7 @@ async fn test_alter_table_add_foreign_key() {
     assert_table_eq!(result, [[1, 1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_drop_foreign_key() {
     let session = create_session();
 
@@ -627,7 +627,7 @@ async fn test_alter_table_drop_foreign_key() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_set_default_collate() {
     let session = create_session();
 
@@ -658,7 +658,7 @@ async fn test_alter_table_set_default_collate() {
     assert_table_eq!(result, [[1, "Test", "Description"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_column_set_options() {
     let session = create_session();
 
@@ -683,7 +683,7 @@ async fn test_alter_column_set_options() {
     assert_table_eq!(result, [[1, numeric("123.456")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_set_options_multiple() {
     let session = create_session();
 
@@ -715,7 +715,7 @@ async fn test_alter_table_set_options_multiple() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_with_geography() {
     let session = create_session();
 
@@ -738,7 +738,7 @@ async fn test_alter_table_add_column_with_geography() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_with_json() {
     let session = create_session();
 
@@ -764,7 +764,7 @@ async fn test_alter_table_add_column_with_json() {
     assert_table_eq!(result, [[1, "value"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_position() {
     let session = create_session();
 
@@ -790,7 +790,7 @@ async fn test_alter_table_add_column_position() {
     assert_table_eq!(result, [[1, 30, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_alter_column_set_data_type_widening() {
     let session = create_session();
 
@@ -816,7 +816,7 @@ async fn test_alter_table_alter_column_set_data_type_widening() {
     assert_table_eq!(result, [[1, numeric("100")]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_with_qualified_name() {
     let session = create_session();
 
@@ -847,7 +847,7 @@ async fn test_alter_table_with_qualified_name() {
     assert_table_eq!(result, [[1, "Test"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_check_constraint() {
     let session = create_session();
 
@@ -873,7 +873,7 @@ async fn test_alter_table_add_check_constraint() {
     assert_table_eq!(result, [[1, 25]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_alter_column_collate() {
     let session = create_session();
 
@@ -899,7 +899,7 @@ async fn test_alter_table_alter_column_collate() {
     assert_table_eq!(result, [[1, "Test"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_nested_struct_column() {
     let session = create_session();
 
@@ -935,7 +935,7 @@ async fn test_alter_table_add_nested_struct_column() {
     assert_table_eq!(result, [[1, "John"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_array_of_struct_column() {
     let session = create_session();
 
@@ -967,7 +967,7 @@ async fn test_alter_table_add_array_of_struct_column() {
     assert_table_eq!(result, [[1, "Widget"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_set_partition_expiration() {
     let session = create_session();
 
@@ -985,7 +985,7 @@ async fn test_alter_table_set_partition_expiration() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_set_require_partition_filter() {
     let session = create_session();
 
@@ -1003,7 +1003,7 @@ async fn test_alter_table_set_require_partition_filter() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_composite_primary_key() {
     let session = create_session();
 
@@ -1031,7 +1031,7 @@ async fn test_alter_table_add_composite_primary_key() {
     assert_table_eq!(result, [[1, 1, "Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_composite_foreign_key() {
     let session = create_session();
 
@@ -1065,7 +1065,7 @@ async fn test_alter_table_add_composite_foreign_key() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_view_alter_column() {
     let session = create_session();
 
@@ -1087,7 +1087,7 @@ async fn test_alter_view_alter_column() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_materialized_view_enable_refresh() {
     let session = create_session();
 
@@ -1110,7 +1110,7 @@ async fn test_alter_materialized_view_enable_refresh() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_with_range() {
     let session = create_session();
 
@@ -1138,7 +1138,7 @@ async fn test_alter_table_add_column_with_range() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_table_add_column_with_interval() {
     let session = create_session();
 

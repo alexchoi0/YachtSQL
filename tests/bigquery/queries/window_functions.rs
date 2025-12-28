@@ -12,7 +12,7 @@ async fn setup_tables(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_row_number() {
     let session = create_session();
     setup_tables(&session).await;
@@ -35,7 +35,7 @@ async fn test_row_number() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_row_number_with_partition() {
     let session = create_session();
     setup_tables(&session).await;
@@ -58,7 +58,7 @@ async fn test_row_number_with_partition() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_rank() {
     let session = create_session();
 
@@ -83,7 +83,7 @@ async fn test_rank() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_dense_rank() {
     let session = create_session();
 
@@ -108,7 +108,7 @@ async fn test_dense_rank() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_ntile() {
     let session = create_session();
     setup_tables(&session).await;
@@ -131,7 +131,7 @@ async fn test_ntile() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lag() {
     let session = create_session();
     setup_tables(&session).await;
@@ -154,7 +154,7 @@ async fn test_lag() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lag_with_offset() {
     let session = create_session();
     setup_tables(&session).await;
@@ -177,7 +177,7 @@ async fn test_lag_with_offset() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lag_with_default() {
     let session = create_session();
     setup_tables(&session).await;
@@ -200,7 +200,7 @@ async fn test_lag_with_default() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_lead() {
     let session = create_session();
     setup_tables(&session).await;
@@ -223,7 +223,7 @@ async fn test_lead() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_first_value() {
     let session = create_session();
     setup_tables(&session).await;
@@ -246,7 +246,7 @@ async fn test_first_value() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_last_value() {
     let session = create_session();
     setup_tables(&session).await;
@@ -269,7 +269,7 @@ async fn test_last_value() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sum_over() {
     let session = create_session();
     setup_tables(&session).await;
@@ -292,7 +292,7 @@ async fn test_sum_over() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_avg_over_partition() {
     let session = create_session();
     setup_tables(&session).await;
@@ -315,7 +315,7 @@ async fn test_avg_over_partition() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_over() {
     let session = create_session();
     setup_tables(&session).await;
@@ -338,7 +338,7 @@ async fn test_count_over() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_min_max_over() {
     let session = create_session();
     setup_tables(&session).await;
@@ -361,7 +361,7 @@ async fn test_min_max_over() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_window_frame_rows() {
     let session = create_session();
     setup_tables(&session).await;
@@ -384,7 +384,7 @@ async fn test_window_frame_rows() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_window_frame_range() {
     let session = create_session();
     setup_tables(&session).await;
@@ -407,7 +407,7 @@ async fn test_window_frame_range() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_multiple_window_functions() {
     let session = create_session();
     setup_tables(&session).await;
@@ -430,7 +430,7 @@ async fn test_multiple_window_functions() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_percent_rank() {
     let session = create_session();
     setup_tables(&session).await;
@@ -453,7 +453,7 @@ async fn test_percent_rank() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cume_dist() {
     let session = create_session();
     setup_tables(&session).await;
@@ -476,7 +476,7 @@ async fn test_cume_dist() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_named_window() {
     let session = create_session();
     setup_tables(&session).await;
@@ -503,7 +503,7 @@ async fn test_named_window() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_named_window_with_partition() {
     let session = create_session();
     setup_tables(&session).await;
@@ -530,7 +530,7 @@ async fn test_named_window_with_partition() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_named_window_with_rows_between() {
     let session = create_session();
     setup_tables(&session).await;

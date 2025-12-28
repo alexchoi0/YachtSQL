@@ -10,7 +10,7 @@ async fn setup_sales_table(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_basic() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -20,7 +20,7 @@ async fn test_pivot_basic() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_with_alias() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -30,7 +30,7 @@ async fn test_pivot_with_alias() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_multiple_aggregates() {
     let session = create_session();
     session
@@ -46,7 +46,7 @@ async fn test_pivot_multiple_aggregates() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_with_where() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -56,7 +56,7 @@ async fn test_pivot_with_where() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_avg() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -69,7 +69,7 @@ async fn test_pivot_avg() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_count() {
     let session = create_session();
     session
@@ -88,7 +88,7 @@ async fn test_pivot_count() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unpivot_basic() {
     let session = create_session();
     session
@@ -106,7 +106,7 @@ async fn test_unpivot_basic() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unpivot_with_alias() {
     let session = create_session();
     session
@@ -123,7 +123,7 @@ async fn test_unpivot_with_alias() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unpivot_include_nulls() {
     let session = create_session();
     session
@@ -140,7 +140,7 @@ async fn test_unpivot_include_nulls() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unpivot_exclude_nulls() {
     let session = create_session();
     session
@@ -157,7 +157,7 @@ async fn test_unpivot_exclude_nulls() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_in_subquery() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -167,7 +167,7 @@ async fn test_pivot_in_subquery() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_pivot_with_null_values() {
     let session = create_session();
     session
@@ -187,7 +187,7 @@ async fn test_pivot_with_null_values() {
     assert!(result.is_ok() || result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_unpivot_multiple_columns() {
     let session = create_session();
     session

@@ -1,6 +1,6 @@
 [package]
 name = "yachtsql-storage"
-version = "0.1.0"
+version = "0.1.4"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "YachtSQL storage engine with columnar storage for BigQuery"
@@ -11,7 +11,7 @@ keywords = ["sql", "database", "bigquery", "columnar"]
 categories = ["database"]
 
 [dependencies]
-yachtsql-common = { version = "0.1.0", path = "../common" }
+yachtsql-common = { version = "0.1.4", path = "../common" }
 
 aligned-vec = "0.6"
 indexmap = { version = "2.12", features = ["serde"] }

@@ -29,7 +29,7 @@ async fn setup_test_schema(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_schemata() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -44,7 +44,7 @@ async fn test_information_schema_schemata() {
     assert_table_eq!(result, [["test_schema"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_tables() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -67,7 +67,7 @@ async fn test_information_schema_tables() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_tables_base_table() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -83,7 +83,7 @@ async fn test_information_schema_tables_base_table() {
     assert_table_eq!(result, [["orders"], ["users"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_tables_view() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -98,7 +98,7 @@ async fn test_information_schema_tables_view() {
     assert_table_eq!(result, [["active_users"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_columns() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -122,7 +122,7 @@ async fn test_information_schema_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_columns_ordinal_position() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -141,7 +141,7 @@ async fn test_information_schema_columns_ordinal_position() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_columns_nullable() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -158,7 +158,7 @@ async fn test_information_schema_columns_nullable() {
     assert_table_eq!(result, [["id"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_views() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -176,7 +176,7 @@ async fn test_information_schema_views() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_constraints() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -198,7 +198,7 @@ async fn test_information_schema_table_constraints() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_key_column_usage() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -220,7 +220,7 @@ async fn test_information_schema_key_column_usage() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_column_field_paths() {
     let session = create_session();
     session
@@ -242,7 +242,7 @@ async fn test_information_schema_column_field_paths() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_options() {
     let session = create_session();
     session
@@ -262,7 +262,7 @@ async fn test_information_schema_table_options() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_routines() {
     let session = create_session();
     session
@@ -279,7 +279,7 @@ async fn test_information_schema_routines() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_parameters() {
     let session = create_session();
     session
@@ -296,7 +296,7 @@ async fn test_information_schema_parameters() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_partitions() {
     let session = create_session();
     session
@@ -322,7 +322,7 @@ async fn test_information_schema_partitions() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_all_columns() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -337,7 +337,7 @@ async fn test_information_schema_all_columns() {
     assert_table_eq!(result, [[8]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_join_tables_columns() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -356,7 +356,7 @@ async fn test_information_schema_join_tables_columns() {
     assert_table_eq!(result, [["orders", 4], ["users", 4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_column_default() {
     let session = create_session();
     session
@@ -379,7 +379,7 @@ async fn test_information_schema_column_default() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_data_types() {
     let session = create_session();
     session
@@ -422,7 +422,7 @@ async fn test_information_schema_data_types() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_search_columns() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -445,7 +445,7 @@ async fn test_information_schema_search_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_catalog() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -459,7 +459,7 @@ async fn test_information_schema_table_catalog() {
     assert_table_eq!(result, [["default"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_check_constraints() {
     let session = create_session();
     session
@@ -491,7 +491,7 @@ async fn test_information_schema_check_constraints() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_referential_constraints() {
     let session = create_session();
     session
@@ -518,7 +518,7 @@ async fn test_information_schema_referential_constraints() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_constraint_column_usage() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -539,7 +539,7 @@ async fn test_information_schema_constraint_column_usage() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_domains() {
     let session = create_session();
 
@@ -552,7 +552,7 @@ async fn test_information_schema_domains() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_character_sets() {
     let session = create_session();
 
@@ -565,7 +565,7 @@ async fn test_information_schema_character_sets() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_collations() {
     let session = create_session();
 
@@ -578,7 +578,7 @@ async fn test_information_schema_collations() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_enabled_roles() {
     let session = create_session();
 
@@ -588,7 +588,7 @@ async fn test_information_schema_enabled_roles() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_applicable_roles() {
     let session = create_session();
 
@@ -601,7 +601,7 @@ async fn test_information_schema_applicable_roles() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_privileges() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -616,7 +616,7 @@ async fn test_information_schema_table_privileges() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_column_privileges() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -631,7 +631,7 @@ async fn test_information_schema_column_privileges() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_usage_privileges() {
     let session = create_session();
 
@@ -644,7 +644,7 @@ async fn test_information_schema_usage_privileges() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_sessions() {
     let session = create_session();
 
@@ -654,7 +654,7 @@ async fn test_information_schema_sessions() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs() {
     let session = create_session();
 
@@ -668,7 +668,7 @@ async fn test_information_schema_jobs() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_streaming_timeline() {
     let session = create_session();
 
@@ -682,7 +682,7 @@ async fn test_information_schema_streaming_timeline() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_object_privileges() {
     let session = create_session();
 
@@ -696,7 +696,7 @@ async fn test_information_schema_object_privileges() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_complex_query() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -734,7 +734,7 @@ async fn test_information_schema_complex_query() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_schema_discovery() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -779,7 +779,7 @@ async fn test_information_schema_schema_discovery() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_schemata_options() {
     let session = create_session();
     session
@@ -806,7 +806,7 @@ async fn test_information_schema_schemata_options() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_routine_options() {
     let session = create_session();
     session
@@ -830,7 +830,7 @@ async fn test_information_schema_routine_options() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_materialized_views() {
     let session = create_session();
     session
@@ -861,7 +861,7 @@ async fn test_information_schema_materialized_views() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_dataset_qualifier() {
     let session = create_session();
     session.execute_sql("CREATE SCHEMA my_dataset").await.unwrap();
@@ -879,7 +879,7 @@ async fn test_information_schema_dataset_qualifier() {
     assert_table_eq!(result, [["my_table"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_dataset_qualifier_columns() {
     let session = create_session();
     session.execute_sql("CREATE SCHEMA test_ds").await.unwrap();
@@ -911,7 +911,7 @@ async fn test_information_schema_dataset_qualifier_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_search_indexes() {
     let session = create_session();
     session
@@ -936,7 +936,7 @@ async fn test_information_schema_search_indexes() {
     assert_table_eq!(result, [["idx_content", "searchable"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_search_index_columns() {
     let session = create_session();
     session
@@ -966,7 +966,7 @@ async fn test_information_schema_search_index_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_search_index_options() {
     let session = create_session();
     session
@@ -992,7 +992,7 @@ async fn test_information_schema_search_index_options() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_vector_indexes() {
     let session = create_session();
     session
@@ -1020,7 +1020,7 @@ async fn test_information_schema_vector_indexes() {
     assert_table_eq!(result, [["vec_idx", "embeddings", "ACTIVE"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_vector_index_columns() {
     let session = create_session();
     session
@@ -1045,7 +1045,7 @@ async fn test_information_schema_vector_index_columns() {
     assert_table_eq!(result, [["v_idx", "vec"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_vector_index_options() {
     let session = create_session();
     session
@@ -1075,7 +1075,7 @@ async fn test_information_schema_vector_index_options() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_storage() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -1097,7 +1097,7 @@ async fn test_information_schema_table_storage() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_storage_by_project() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -1116,7 +1116,7 @@ async fn test_information_schema_table_storage_by_project() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_reservations() {
     let session = create_session();
 
@@ -1129,7 +1129,7 @@ async fn test_information_schema_reservations() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_capacity_commitments() {
     let session = create_session();
 
@@ -1142,7 +1142,7 @@ async fn test_information_schema_capacity_commitments() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_assignments() {
     let session = create_session();
 
@@ -1155,7 +1155,7 @@ async fn test_information_schema_assignments() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs_by_project() {
     let session = create_session();
 
@@ -1169,7 +1169,7 @@ async fn test_information_schema_jobs_by_project() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs_timeline() {
     let session = create_session();
 
@@ -1183,7 +1183,7 @@ async fn test_information_schema_jobs_timeline() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_sessions_by_project() {
     let session = create_session();
 
@@ -1196,7 +1196,7 @@ async fn test_information_schema_sessions_by_project() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_bi_capacities() {
     let session = create_session();
 
@@ -1209,7 +1209,7 @@ async fn test_information_schema_bi_capacities() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_schemata_links() {
     let session = create_session();
     session.execute_sql("CREATE SCHEMA linked_schema").await.unwrap();
@@ -1223,7 +1223,7 @@ async fn test_information_schema_schemata_links() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_schemata_replicas() {
     let session = create_session();
 
@@ -1236,7 +1236,7 @@ async fn test_information_schema_schemata_replicas() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_snapshots() {
     let session = create_session();
     session
@@ -1252,7 +1252,7 @@ async fn test_information_schema_table_snapshots() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_insights() {
     let session = create_session();
 
@@ -1265,7 +1265,7 @@ async fn test_information_schema_insights() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_recommendations() {
     let session = create_session();
 
@@ -1278,7 +1278,7 @@ async fn test_information_schema_recommendations() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_write_api_timeline() {
     let session = create_session();
 
@@ -1292,7 +1292,7 @@ async fn test_information_schema_write_api_timeline() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_project_options() {
     let session = create_session();
 
@@ -1305,7 +1305,7 @@ async fn test_information_schema_project_options() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_effective_project_options() {
     let session = create_session();
 
@@ -1318,7 +1318,7 @@ async fn test_information_schema_effective_project_options() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_shared_dataset_usage() {
     let session = create_session();
 
@@ -1331,7 +1331,7 @@ async fn test_information_schema_shared_dataset_usage() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_project_qualified() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -1347,7 +1347,7 @@ async fn test_information_schema_project_qualified() {
     assert_table_eq!(result, [["orders"], ["users"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_region_qualified() {
     let session = create_session();
     setup_test_schema(&session).await;
@@ -1362,7 +1362,7 @@ async fn test_information_schema_region_qualified() {
     assert_table_eq!(result, [["test_schema"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_routines_detailed() {
     let session = create_session();
     session
@@ -1386,7 +1386,7 @@ async fn test_information_schema_routines_detailed() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_parameters_detailed() {
     let session = create_session();
     session
@@ -1414,7 +1414,7 @@ async fn test_information_schema_parameters_detailed() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_streaming_timeline_by_folder() {
     let session = create_session();
 
@@ -1428,7 +1428,7 @@ async fn test_information_schema_streaming_timeline_by_folder() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_streaming_timeline_by_organization() {
     let session = create_session();
 
@@ -1442,7 +1442,7 @@ async fn test_information_schema_streaming_timeline_by_organization() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_storage_by_folder() {
     let session = create_session();
 
@@ -1455,7 +1455,7 @@ async fn test_information_schema_table_storage_by_folder() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_table_storage_by_organization() {
     let session = create_session();
 
@@ -1468,7 +1468,7 @@ async fn test_information_schema_table_storage_by_organization() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs_by_folder() {
     let session = create_session();
 
@@ -1482,7 +1482,7 @@ async fn test_information_schema_jobs_by_folder() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs_by_organization() {
     let session = create_session();
 
@@ -1496,7 +1496,7 @@ async fn test_information_schema_jobs_by_organization() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs_timeline_by_user() {
     let session = create_session();
 
@@ -1510,7 +1510,7 @@ async fn test_information_schema_jobs_timeline_by_user() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs_timeline_by_folder() {
     let session = create_session();
 
@@ -1524,7 +1524,7 @@ async fn test_information_schema_jobs_timeline_by_folder() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_information_schema_jobs_timeline_by_organization() {
     let session = create_session();
 

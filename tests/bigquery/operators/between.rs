@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_integers() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_between_integers() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_lower_bound() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_between_lower_bound() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_upper_bound() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_between_upper_bound() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_outside_range() {
     let session = create_session();
     let result = session
@@ -41,7 +41,7 @@ async fn test_between_outside_range() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_between() {
     let session = create_session();
     let result = session
@@ -51,7 +51,7 @@ async fn test_not_between() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_strings() {
     let session = create_session();
     let result = session
@@ -61,7 +61,7 @@ async fn test_between_strings() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_in_where_clause() {
     let session = create_session();
     session
@@ -80,7 +80,7 @@ async fn test_between_in_where_clause() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_between_in_where_clause() {
     let session = create_session();
     session
@@ -99,7 +99,7 @@ async fn test_not_between_in_where_clause() {
     assert_table_eq!(result, [[1], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_with_null() {
     let session = create_session();
     let result = session
@@ -109,7 +109,7 @@ async fn test_between_with_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_negative_numbers() {
     let session = create_session();
     let result = session
@@ -119,7 +119,7 @@ async fn test_between_negative_numbers() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_between_with_expressions() {
     let session = create_session();
     let result = session

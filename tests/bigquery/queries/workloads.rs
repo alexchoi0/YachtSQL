@@ -118,7 +118,7 @@ async fn setup_ecommerce_schema(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_executive_dashboard_kpis() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -141,7 +141,7 @@ async fn test_executive_dashboard_kpis() {
     assert_table_eq!(result, [[6, 4, 5128, 2125, 500.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sales_by_geography() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -172,7 +172,7 @@ async fn test_sales_by_geography() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_category_performance() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -216,7 +216,7 @@ async fn test_category_performance() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_customer_lifetime_value() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -270,7 +270,7 @@ async fn test_customer_lifetime_value() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_product_affinity_analysis() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -306,7 +306,7 @@ async fn test_product_affinity_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_inventory_velocity() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -343,7 +343,7 @@ async fn test_inventory_velocity() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_customer_segmentation() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -384,7 +384,7 @@ async fn test_customer_segmentation() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_conversion_funnel() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -415,7 +415,7 @@ async fn test_conversion_funnel() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_status_breakdown() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -442,7 +442,7 @@ async fn test_order_status_breakdown() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_daily_sales_trend() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -474,7 +474,7 @@ async fn test_daily_sales_trend() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_discount_impact_analysis() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -515,7 +515,7 @@ async fn test_discount_impact_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_new_vs_returning_customers() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -542,7 +542,7 @@ async fn test_new_vs_returning_customers() {
     assert_table_eq!(result, [[d(2024, 1, 1), 4, 1], [d(2024, 2, 1), 0, 1],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_average_basket_composition() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -581,7 +581,7 @@ async fn test_average_basket_composition() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_customer_acquisition_by_month() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -610,7 +610,7 @@ async fn test_customer_acquisition_by_month() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_product_margin_analysis() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -689,7 +689,7 @@ async fn test_product_margin_analysis() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_order_size_distribution() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -729,7 +729,7 @@ async fn test_order_size_distribution() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_sell_opportunities() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -785,7 +785,7 @@ async fn test_cross_sell_opportunities() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_revenue_concentration() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -830,7 +830,7 @@ async fn test_revenue_concentration() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_days_between_orders() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;
@@ -858,7 +858,7 @@ async fn test_days_between_orders() {
     assert_table_eq!(result, [[1, 11.0, 5, 17],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_category_share_of_wallet() {
     let session = create_session();
     setup_ecommerce_schema(&session).await;

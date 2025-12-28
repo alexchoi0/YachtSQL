@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_true() {
     let session = create_session();
 
@@ -18,7 +18,7 @@ async fn test_boolean_true() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_false() {
     let session = create_session();
 
@@ -35,7 +35,7 @@ async fn test_boolean_false() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_() {
     let session = create_session();
 
@@ -52,7 +52,7 @@ async fn test_boolean_() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_and() {
     let session = create_session();
 
@@ -64,7 +64,7 @@ async fn test_boolean_and() {
     assert_table_eq!(result, [[true, false, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_or() {
     let session = create_session();
 
@@ -76,7 +76,7 @@ async fn test_boolean_or() {
     assert_table_eq!(result, [[true, true, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_not() {
     let session = create_session();
 
@@ -88,7 +88,7 @@ async fn test_boolean_not() {
     assert_table_eq!(result, [[false, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_filter() {
     let session = create_session();
 
@@ -109,7 +109,7 @@ async fn test_boolean_filter() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_comparison_result() {
     let session = create_session();
 
@@ -121,7 +121,7 @@ async fn test_boolean_comparison_result() {
     assert_table_eq!(result, [[true, false, true, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_case_when() {
     let session = create_session();
 
@@ -144,7 +144,7 @@ async fn test_boolean_case_when() {
     assert_table_eq!(result, [[1, false], [2, true], [3, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_null_and() {
     let session = create_session();
 
@@ -156,7 +156,7 @@ async fn test_boolean_null_and() {
     assert_table_eq!(result, [[null, false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_boolean_null_or() {
     let session = create_session();
 

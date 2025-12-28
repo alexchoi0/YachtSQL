@@ -1,6 +1,6 @@
 [package]
 name = "yachtsql-optimizer"
-version = "0.1.0"
+version = "0.1.4"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "YachtSQL query optimizer - transforms LogicalPlan to PhysicalPlan"
@@ -11,8 +11,8 @@ keywords = ["sql", "database", "bigquery", "optimizer"]
 categories = ["database"]
 
 [dependencies]
-yachtsql-common = { version = "0.1.0", path = "../common" }
-yachtsql-ir = { version = "0.1.0", path = "../ir" }
+yachtsql-common = { version = "0.1.4", path = "../common" }
+yachtsql-ir = { version = "0.1.4", path = "../ir" }
 serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]

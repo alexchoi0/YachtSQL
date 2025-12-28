@@ -11,7 +11,7 @@ mod unnest;
 mod utils;
 
 use std::collections::{HashMap, HashSet};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use arrow::array::Array;
 use async_recursion::async_recursion;
@@ -130,20 +130,21 @@ fn compare_values_for_sort(a: &Value, b: &Value) -> std::cmp::Ordering {
     }
 }
 
-pub struct ConcurrentPlanExecutor<'a> {
-    pub(crate) catalog: &'a ConcurrentCatalog,
-    pub(crate) session: &'a ConcurrentSession,
-    pub(crate) tables: TableLockSet,
-    pub(crate) variables: RwLock<HashMap<String, Value>>,
-    pub(crate) system_variables: RwLock<HashMap<String, Value>>,
-    pub(crate) cte_results: RwLock<HashMap<String, Table>>,
-    pub(crate) user_function_defs: RwLock<HashMap<String, UserFunctionDef>>,
+#[derive(Clone)]
+pub struct ConcurrentPlanExecutor {
+    pub(crate) catalog: Arc<ConcurrentCatalog>,
+    pub(crate) session: Arc<ConcurrentSession>,
+    pub(crate) tables: Arc<TableLockSet>,
+    pub(crate) variables: Arc<RwLock<HashMap<String, Value>>>,
+    pub(crate) system_variables: Arc<RwLock<HashMap<String, Value>>>,
+    pub(crate) cte_results: Arc<RwLock<HashMap<String, Table>>>,
+    pub(crate) user_function_defs: Arc<RwLock<HashMap<String, UserFunctionDef>>>,
 }
 
-impl<'a> ConcurrentPlanExecutor<'a> {
+impl ConcurrentPlanExecutor {
     pub fn new(
-        catalog: &'a ConcurrentCatalog,
-        session: &'a ConcurrentSession,
+        catalog: Arc<ConcurrentCatalog>,
+        session: Arc<ConcurrentSession>,
         tables: TableLockSet,
     ) -> Self {
         let user_function_defs = catalog
@@ -171,11 +172,11 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         Self {
             catalog,
             session,
-            tables,
-            variables: RwLock::new(variables),
-            system_variables: RwLock::new(system_variables),
-            cte_results: RwLock::new(HashMap::new()),
-            user_function_defs: RwLock::new(user_function_defs),
+            tables: Arc::new(tables),
+            variables: Arc::new(RwLock::new(variables)),
+            system_variables: Arc::new(RwLock::new(system_variables)),
+            cte_results: Arc::new(RwLock::new(HashMap::new())),
+            user_function_defs: Arc::new(RwLock::new(user_function_defs)),
         }
     }
 
@@ -213,32 +214,12 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         self.user_function_defs.read().unwrap()
     }
 
-    pub(crate) fn is_parallel_execution_enabled(&self) -> bool {
-        if let Some(val) = self.variables.read().unwrap().get("PARALLEL_EXECUTION") {
-            return val.as_bool().unwrap_or(true);
-        }
-
-        if let Some(val) = self
-            .system_variables
-            .read()
-            .unwrap()
-            .get("PARALLEL_EXECUTION")
-        {
-            return val.as_bool().unwrap_or(true);
-        }
-
-        match std::env::var("YACHTSQL_PARALLEL_EXECUTION") {
-            Ok(val) => !val.eq_ignore_ascii_case("false") && val != "0",
-            Err(_) => true,
-        }
-    }
-
     pub async fn execute(&self, plan: &OptimizedLogicalPlan) -> Result<Table> {
         let executor_plan = PhysicalPlan::from_physical(plan);
         self.execute_plan(&executor_plan).await
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub async fn execute_plan(&self, plan: &PhysicalPlan) -> Result<Table> {
         match plan {
             PhysicalPlan::TableScan {
@@ -263,7 +244,8 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 join_type,
                 condition,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
                 self.execute_nested_loop_join(
                     left,
@@ -271,7 +253,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                     join_type,
                     condition.as_ref(),
                     schema,
-                    *parallel,
+                    hints.parallel,
                 )
                 .await
             }
@@ -279,9 +261,10 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 left,
                 right,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
-                self.execute_cross_join(left, right, schema, *parallel)
+                self.execute_cross_join(left, right, schema, hints.parallel)
                     .await
             }
             PhysicalPlan::HashJoin {
@@ -291,10 +274,17 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 left_keys,
                 right_keys,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
                 self.execute_hash_join(
-                    left, right, join_type, left_keys, right_keys, schema, *parallel,
+                    left,
+                    right,
+                    join_type,
+                    left_keys,
+                    right_keys,
+                    schema,
+                    hints.parallel,
                 )
                 .await
             }
@@ -304,11 +294,21 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 aggregates,
                 schema,
                 grouping_sets,
+                hints,
             } => {
-                self.execute_aggregate(input, group_by, aggregates, schema, grouping_sets.as_ref())
-                    .await
+                self.execute_aggregate(
+                    input,
+                    group_by,
+                    aggregates,
+                    schema,
+                    grouping_sets.as_ref(),
+                    hints.parallel,
+                )
+                .await
             }
-            PhysicalPlan::Sort { input, sort_exprs } => self.execute_sort(input, sort_exprs).await,
+            PhysicalPlan::Sort {
+                input, sort_exprs, ..
+            } => self.execute_sort(input, sort_exprs).await,
             PhysicalPlan::Limit {
                 input,
                 limit,
@@ -324,16 +324,21 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 inputs,
                 all,
                 schema,
-                parallel,
-            } => self.execute_union(inputs, *all, schema, *parallel).await,
+                hints,
+                ..
+            } => {
+                self.execute_union(inputs, *all, schema, hints.parallel)
+                    .await
+            }
             PhysicalPlan::Intersect {
                 left,
                 right,
                 all,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
-                self.execute_intersect(left, right, *all, schema, *parallel)
+                self.execute_intersect(left, right, *all, schema, hints.parallel)
                     .await
             }
             PhysicalPlan::Except {
@@ -341,20 +346,23 @@ impl<'a> ConcurrentPlanExecutor<'a> {
                 right,
                 all,
                 schema,
-                parallel,
+                hints,
+                ..
             } => {
-                self.execute_except(left, right, *all, schema, *parallel)
+                self.execute_except(left, right, *all, schema, hints.parallel)
                     .await
             }
             PhysicalPlan::Window {
                 input,
                 window_exprs,
                 schema,
+                ..
             } => self.execute_window(input, window_exprs, schema).await,
             PhysicalPlan::WithCte {
                 ctes,
                 body,
                 parallel_ctes,
+                ..
             } => self.execute_cte(ctes, body, parallel_ctes).await,
             PhysicalPlan::Unnest {
                 input,
@@ -674,7 +682,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     async fn eval_expr_with_subqueries(
         &self,
         expr: &Expr,
@@ -1405,7 +1413,7 @@ impl<'a> ConcurrentPlanExecutor<'a> {
         }
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     async fn resolve_subqueries_in_expr(&self, expr: &Expr) -> Result<Expr> {
         match expr {
             Expr::InSubquery {

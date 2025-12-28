@@ -13,7 +13,7 @@ async fn setup_table(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_star() {
     let session = create_session();
     setup_table(&session).await;
@@ -26,7 +26,7 @@ async fn test_count_star() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_column() {
     let session = create_session();
     setup_table(&session).await;
@@ -39,7 +39,7 @@ async fn test_count_column() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_with_nulls() {
     let session = create_session();
 
@@ -60,7 +60,7 @@ async fn test_count_with_nulls() {
     assert_table_eq!(result, [[4, 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sum() {
     let session = create_session();
     setup_table(&session).await;
@@ -73,7 +73,7 @@ async fn test_sum() {
     assert_table_eq!(result, [[150]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_avg() {
     let session = create_session();
     setup_table(&session).await;
@@ -86,7 +86,7 @@ async fn test_avg() {
     assert_table_eq!(result, [[30.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_min() {
     let session = create_session();
     setup_table(&session).await;
@@ -99,7 +99,7 @@ async fn test_min() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_max() {
     let session = create_session();
     setup_table(&session).await;
@@ -112,7 +112,7 @@ async fn test_max() {
     assert_table_eq!(result, [[50]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_multiple_aggregates() {
     let session = create_session();
     setup_table(&session).await;
@@ -125,7 +125,7 @@ async fn test_multiple_aggregates() {
     assert_table_eq!(result, [[5, 150, 10, 50]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_aggregate_with_where() {
     let session = create_session();
     setup_table(&session).await;
@@ -138,7 +138,7 @@ async fn test_aggregate_with_where() {
     assert_table_eq!(result, [[120]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_aggregate_empty_result() {
     let session = create_session();
     setup_table(&session).await;
@@ -151,7 +151,7 @@ async fn test_aggregate_empty_result() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_empty_result() {
     let session = create_session();
     setup_table(&session).await;
@@ -164,7 +164,7 @@ async fn test_count_empty_result() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sum_with_expression() {
     let session = create_session();
     setup_table(&session).await;
@@ -177,7 +177,7 @@ async fn test_sum_with_expression() {
     assert_table_eq!(result, [[300]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_distinct() {
     let session = create_session();
     setup_table(&session).await;
@@ -190,7 +190,7 @@ async fn test_count_distinct() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_if() {
     let session = create_session();
     setup_table(&session).await;
@@ -203,7 +203,7 @@ async fn test_count_if() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_countif() {
     let session = create_session();
     setup_table(&session).await;
@@ -216,7 +216,7 @@ async fn test_countif() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sum_if() {
     let session = create_session();
     setup_table(&session).await;
@@ -229,7 +229,7 @@ async fn test_sum_if() {
     assert_table_eq!(result, [[120]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_sumif() {
     let session = create_session();
     setup_table(&session).await;
@@ -242,7 +242,7 @@ async fn test_sumif() {
     assert_table_eq!(result, [[120]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_listagg() {
     let session = create_session();
     setup_table(&session).await;
@@ -255,7 +255,7 @@ async fn test_listagg() {
     assert_table_eq!(result, [["A,A,B,B,B"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_xmlagg() {
     let session = create_session();
     session

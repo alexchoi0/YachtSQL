@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, date};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_sql() {
     let session = create_session();
 
@@ -14,7 +14,7 @@ async fn test_create_function_sql() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_string() {
     let session = create_session();
 
@@ -29,7 +29,7 @@ async fn test_create_function_string() {
     assert_table_eq!(result, [["Hello, World"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_function() {
     let session = create_session();
 
@@ -47,7 +47,7 @@ async fn test_create_or_replace_function() {
     assert_table_eq!(result, [[30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_if_not_exists() {
     let session = create_session();
 
@@ -70,7 +70,7 @@ async fn test_create_function_if_not_exists() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_temp_function() {
     let session = create_session();
 
@@ -83,7 +83,7 @@ async fn test_create_temp_function() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_multiple_params() {
     let session = create_session();
 
@@ -96,7 +96,7 @@ async fn test_create_function_multiple_params() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_function() {
     let session = create_session();
 
@@ -111,7 +111,7 @@ async fn test_drop_function() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_function_if_exists() {
     let session = create_session();
 
@@ -121,7 +121,7 @@ async fn test_drop_function_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_case() {
     let session = create_session();
 
@@ -142,7 +142,7 @@ async fn test_create_function_with_case() {
     assert_table_eq!(result, [["negative"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_coalesce() {
     let session = create_session();
 
@@ -158,7 +158,7 @@ async fn test_create_function_with_coalesce() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_in_where_clause() {
     let session = create_session();
     session
@@ -181,7 +181,7 @@ async fn test_function_in_where_clause() {
     assert_table_eq!(result, [[2], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_in_select() {
     let session = create_session();
     session
@@ -204,7 +204,7 @@ async fn test_function_in_select() {
     assert_table_eq!(result, [[10, 20], [20, 40]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_procedure() {
     let session = create_session();
 
@@ -225,7 +225,7 @@ async fn test_create_procedure() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_procedure() {
     let session = create_session();
 
@@ -253,7 +253,7 @@ async fn test_create_or_replace_procedure() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_procedure() {
     let session = create_session();
 
@@ -276,7 +276,7 @@ async fn test_drop_procedure() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_procedure_if_exists() {
     let session = create_session();
 
@@ -286,7 +286,7 @@ async fn test_drop_procedure_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_out_param() {
     let session = create_session();
 
@@ -304,7 +304,7 @@ async fn test_procedure_with_out_param() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_inout_param() {
     let session = create_session();
 
@@ -325,7 +325,7 @@ async fn test_procedure_with_inout_param() {
     assert_table_eq!(result, [[11]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_with_struct_return() {
     let session = create_session();
 
@@ -342,7 +342,7 @@ async fn test_function_with_struct_return() {
     assert_table_eq!(result, [[1, 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_with_array_return() {
     let session = create_session();
 
@@ -360,7 +360,7 @@ async fn test_function_with_array_return() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_nested_call() {
     let session = create_session();
 
@@ -377,7 +377,7 @@ async fn test_function_nested_call() {
     assert_table_eq!(result, [[12]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_aggregate_function() {
     let session = create_session();
 
@@ -409,7 +409,7 @@ async fn test_create_aggregate_function() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_aggregate_function_with_multiple_args() {
     let session = create_session();
 
@@ -441,7 +441,7 @@ async fn test_create_aggregate_function_with_multiple_args() {
     assert_table_eq!(result, [[23.333333333333332]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_aggregate_function() {
     let session = create_session();
 
@@ -464,7 +464,7 @@ async fn test_create_or_replace_aggregate_function() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_aggregate_function() {
     let session = create_session();
 
@@ -486,7 +486,7 @@ async fn test_drop_aggregate_function() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_table_function() {
     let session = create_session();
 
@@ -509,7 +509,7 @@ async fn test_create_table_function() {
     assert_table_eq!(result, [[1, 20], [2, 40]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_table_function_any_type() {
     let session = create_session();
 
@@ -531,7 +531,7 @@ async fn test_create_table_function_any_type() {
     assert_table_eq!(result, [["Alice"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_or_replace_table_function() {
     let session = create_session();
 
@@ -560,7 +560,7 @@ async fn test_create_or_replace_table_function() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_table_function() {
     let session = create_session();
 
@@ -582,7 +582,7 @@ async fn test_drop_table_function() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_options() {
     let session = create_session();
 
@@ -600,7 +600,7 @@ async fn test_create_function_with_options() {
     assert_table_eq!(result, [[6]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_javascript() {
     let session = create_session();
 
@@ -623,7 +623,7 @@ async fn test_create_function_javascript() {
     assert_table_eq!(result, [[12.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_remote() {
     let session = create_session();
 
@@ -640,7 +640,7 @@ async fn test_create_function_remote() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_declare() {
     let session = create_session();
 
@@ -663,7 +663,7 @@ async fn test_procedure_with_declare() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_if() {
     let session = create_session();
 
@@ -685,7 +685,7 @@ async fn test_procedure_with_if() {
     assert_table_eq!(result, [["positive"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_loop() {
     let session = create_session();
 
@@ -709,7 +709,7 @@ async fn test_procedure_with_loop() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_exception_handling() {
     let session = create_session();
 
@@ -734,7 +734,7 @@ async fn test_procedure_with_exception_handling() {
     assert_table_eq!(result, [["caught"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_if_not_exists() {
     let session = create_session();
 
@@ -762,7 +762,7 @@ async fn test_procedure_if_not_exists() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_deterministic() {
     let session = create_session();
 
@@ -780,7 +780,7 @@ async fn test_create_function_deterministic() {
     assert_table_eq!(result, [[10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_not_deterministic() {
     let session = create_session();
 
@@ -798,7 +798,7 @@ async fn test_create_function_not_deterministic() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_security_definer() {
     let session = create_session();
 
@@ -816,7 +816,7 @@ async fn test_create_function_with_security_definer() {
     assert_table_eq!(result, [[11]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_security_invoker() {
     let session = create_session();
 
@@ -837,7 +837,7 @@ async fn test_create_function_with_security_invoker() {
     assert_table_eq!(result, [[11]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_data_governance() {
     let session = create_session();
 
@@ -852,7 +852,7 @@ async fn test_create_function_with_data_governance() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_aggregate_function_with_over() {
     let session = create_session();
 
@@ -884,7 +884,7 @@ async fn test_create_aggregate_function_with_over() {
     assert_table_eq!(result, [["A", 2], ["B", 1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_aggregate_function_with_filter() {
     let session = create_session();
 
@@ -914,7 +914,7 @@ async fn test_create_aggregate_function_with_filter() {
     assert_table_eq!(result, [[40]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_table_function_with_multiple_params() {
     let session = create_session();
 
@@ -936,7 +936,7 @@ async fn test_create_table_function_with_multiple_params() {
     assert_table_eq!(result, [[0], [2], [4], [6], [8], [10]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_table_function_with_struct_output() {
     let session = create_session();
 
@@ -959,7 +959,7 @@ async fn test_create_table_function_with_struct_output() {
     assert_table_eq!(result, [["Mr. Alice"], ["Mr. Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_any_type() {
     let session = create_session();
 
@@ -981,7 +981,7 @@ async fn test_create_function_with_any_type() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_lambda() {
     let session = create_session();
 
@@ -1000,7 +1000,7 @@ async fn test_create_function_with_lambda() {
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_in_schema() {
     let session = create_session();
 
@@ -1025,7 +1025,7 @@ async fn test_create_function_in_schema() {
     assert_table_eq!(result, [[50]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_function_with_signature() {
     let session = create_session();
 
@@ -1043,7 +1043,7 @@ async fn test_drop_function_with_signature() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_returns_table() {
     let session = create_session();
 
@@ -1065,7 +1065,7 @@ async fn test_create_function_returns_table() {
     assert_table_eq!(result, [[1, "Alice"], [2, "Bob"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_for_loop() {
     let session = create_session();
 
@@ -1087,7 +1087,7 @@ async fn test_procedure_with_for_loop() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_repeat() {
     let session = create_session();
 
@@ -1112,7 +1112,7 @@ async fn test_procedure_with_repeat() {
     assert_table_eq!(result, [[15]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_case_statement() {
     let session = create_session();
 
@@ -1134,7 +1134,7 @@ async fn test_procedure_with_case_statement() {
     assert_table_eq!(result, [["two"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_leave() {
     let session = create_session();
 
@@ -1159,7 +1159,7 @@ async fn test_procedure_with_leave() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_iterate() {
     let session = create_session();
 
@@ -1189,7 +1189,7 @@ async fn test_procedure_with_iterate() {
     assert_table_eq!(result, [[9]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_raise() {
     let session = create_session();
 
@@ -1210,7 +1210,7 @@ async fn test_procedure_with_raise() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_transaction() {
     let session = create_session();
 
@@ -1241,7 +1241,7 @@ async fn test_procedure_with_transaction() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_rollback() {
     let session = create_session();
 
@@ -1271,7 +1271,7 @@ async fn test_procedure_with_rollback() {
     assert_table_eq!(result, [[0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_python() {
     let session = create_session();
 
@@ -1292,7 +1292,7 @@ def py_add(x, y):
     assert_table_eq!(result, [[7]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_python_with_dependencies() {
     let session = create_session();
 
@@ -1312,7 +1312,7 @@ def py_calc(x):
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_javascript_with_library() {
     let session = create_session();
 
@@ -1330,7 +1330,7 @@ async fn test_create_function_javascript_with_library() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_function_set_options() {
     let session = create_session();
 
@@ -1345,7 +1345,7 @@ async fn test_alter_function_set_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_alter_procedure_set_options() {
     let session = create_session();
 
@@ -1365,7 +1365,7 @@ async fn test_alter_procedure_set_options() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_aggregate_function_if_not_exists() {
     let session = create_session();
 
@@ -1388,7 +1388,7 @@ async fn test_create_aggregate_function_if_not_exists() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_table_function_if_not_exists() {
     let session = create_session();
 
@@ -1417,7 +1417,7 @@ async fn test_create_table_function_if_not_exists() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_table_function_if_exists() {
     let session = create_session();
 
@@ -1427,7 +1427,7 @@ async fn test_drop_table_function_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_drop_aggregate_function_if_exists() {
     let session = create_session();
 
@@ -1437,7 +1437,7 @@ async fn test_drop_aggregate_function_if_exists() {
     assert!(result.is_ok());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_create_function_with_qualified_types() {
     let session = create_session();
 
@@ -1451,7 +1451,7 @@ async fn test_create_function_with_qualified_types() {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_with_default_parameter() {
     let session = create_session();
 
@@ -1477,7 +1477,7 @@ async fn test_function_with_default_parameter() {
     assert_table_eq!(result, [[25]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_with_options() {
     let session = create_session();
 
@@ -1502,7 +1502,7 @@ async fn test_procedure_with_options() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_with_float64_return() {
     let session = create_session();
 
@@ -1518,7 +1518,7 @@ async fn test_function_with_float64_return() {
     assert_table_eq!(result, [[2.5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_with_bool_return() {
     let session = create_session();
 
@@ -1534,7 +1534,7 @@ async fn test_function_with_bool_return() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_with_null_handling() {
     let session = create_session();
 
@@ -1550,7 +1550,7 @@ async fn test_function_with_null_handling() {
     assert_table_eq!(result, [[42]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_with_date_return() {
     let session = create_session();
 
@@ -1568,7 +1568,7 @@ async fn test_function_with_date_return() {
     assert_table_eq!(result, [[date(2024, 1, 16)]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_procedure_returning_multiple_columns() {
     let session = create_session();
 
@@ -1586,7 +1586,7 @@ async fn test_procedure_returning_multiple_columns() {
     assert_table_eq!(result, [[1, "Alice", 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_function_recursive_call() {
     let session = create_session();
 

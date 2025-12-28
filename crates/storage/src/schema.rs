@@ -188,7 +188,7 @@ impl Default for Schema {
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_schema_creation() {
         let mut schema = Schema::new();
         schema.add_field(Field::nullable("id", DataType::Int64));
@@ -200,7 +200,7 @@ mod tests {
         assert!(schema.field("missing").is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn test_schema_validation() {
         let mut schema = Schema::new();
         schema.add_field(Field::nullable("id", DataType::Int64));

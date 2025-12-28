@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_single_column() {
     let session = create_session();
     session
@@ -19,7 +19,7 @@ async fn test_distinct_single_column() {
     assert_table_eq!(result, [["blue"], ["green"], ["red"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_multiple_columns() {
     let session = create_session();
     session
@@ -40,7 +40,7 @@ async fn test_distinct_multiple_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_with_null() {
     let session = create_session();
     session
@@ -59,7 +59,7 @@ async fn test_distinct_with_null() {
     assert_table_eq!(result, [[null], [1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_distinct() {
     let session = create_session();
     session
@@ -78,7 +78,7 @@ async fn test_count_distinct() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_with_where() {
     let session = create_session();
     session
@@ -99,7 +99,7 @@ async fn test_distinct_with_where() {
     assert_table_eq!(result, [["a"], ["b"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_with_order_by() {
     let session = create_session();
     session
@@ -118,7 +118,7 @@ async fn test_distinct_with_order_by() {
     assert_table_eq!(result, [[100], [75], [50]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_with_limit() {
     let session = create_session();
     session
@@ -137,7 +137,7 @@ async fn test_distinct_with_limit() {
     assert_table_eq!(result, [[1], [2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_all_same() {
     let session = create_session();
     session
@@ -156,7 +156,7 @@ async fn test_distinct_all_same() {
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_distinct_all_different() {
     let session = create_session();
     session

@@ -22,7 +22,7 @@ async fn setup_tables(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_update_when_matched() {
     let session = create_session();
     setup_tables(&session).await;
@@ -41,7 +41,7 @@ async fn test_merge_update_when_matched() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_insert_when_not_matched() {
     let session = create_session();
     setup_tables(&session).await;
@@ -57,7 +57,7 @@ async fn test_merge_insert_when_not_matched() {
     assert_table_eq!(result, [[1], [2], [3], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_delete_when_matched() {
     let session = create_session();
     setup_tables(&session).await;
@@ -74,7 +74,7 @@ async fn test_merge_delete_when_matched() {
     assert_table_eq!(result, [[1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_update_and_insert() {
     let session = create_session();
     setup_tables(&session).await;
@@ -93,7 +93,7 @@ async fn test_merge_update_and_insert() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_with_condition() {
     let session = create_session();
     setup_tables(&session).await;
@@ -109,7 +109,7 @@ async fn test_merge_with_condition() {
     assert_table_eq!(result, [[3, 35]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_update_delete_insert() {
     let session = create_session();
     setup_tables(&session).await;
@@ -125,7 +125,7 @@ async fn test_merge_update_delete_insert() {
     assert_table_eq!(result, [[1], [2], [4]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_with_subquery_source() {
     let session = create_session();
     session
@@ -156,7 +156,7 @@ async fn test_merge_with_subquery_source() {
     assert_table_eq!(result, [[1, 10], [2, 25], [3, 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_insert_row() {
     let session = create_session();
     session
@@ -186,7 +186,7 @@ async fn test_merge_insert_row() {
     assert_table_eq!(result, [[1, "new", 100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_when_not_matched_by_source() {
     let session = create_session();
     session
@@ -217,7 +217,7 @@ async fn test_merge_when_not_matched_by_source() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_all_clauses() {
     let session = create_session();
     session
@@ -248,7 +248,7 @@ async fn test_merge_all_clauses() {
     assert_table_eq!(result, [[2, 25], [4, 40]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_with_constants() {
     let session = create_session();
     session
@@ -279,7 +279,7 @@ async fn test_merge_with_constants() {
     assert_table_eq!(result, [[1, "updated"], [2, "new"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_insert_new_items_with_condition() {
     let session = create_session();
 
@@ -356,7 +356,7 @@ async fn test_merge_insert_new_items_with_condition() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_update_and_delete_with_condition() {
     let session = create_session();
 
@@ -396,7 +396,7 @@ async fn test_merge_update_and_delete_with_condition() {
     assert_table_eq!(result, [["dryer", 20], ["washer", 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_false_predicate_replace() {
     let session = create_session();
 
@@ -451,7 +451,7 @@ async fn test_merge_false_predicate_replace() {
     assert_table_eq!(result, [["dryer"], ["microwave"], ["oven"], ["washer"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_with_avg_subquery() {
     let session = create_session();
 
@@ -526,7 +526,7 @@ async fn test_merge_with_avg_subquery() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_with_joined_source() {
     let session = create_session();
 
@@ -605,7 +605,7 @@ async fn test_merge_with_joined_source() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_without_into_keyword() {
     let session = create_session();
     session
@@ -643,7 +643,7 @@ async fn test_merge_without_into_keyword() {
     assert_table_eq!(result, [[1, 20], [2, 30]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_merge_update_by_source_condition() {
     let session = create_session();
 

@@ -12,7 +12,7 @@ async fn setup_sales_table(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_single_column() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -25,7 +25,7 @@ async fn test_group_by_single_column() {
     assert_table_eq!(result, [["Electronics", 400], ["Furniture", 450],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_with_count() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -38,7 +38,7 @@ async fn test_group_by_with_count() {
     assert_table_eq!(result, [["Electronics", 3], ["Furniture", 2],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_with_avg() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -54,7 +54,7 @@ async fn test_group_by_with_avg() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_with_min_max() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -69,7 +69,7 @@ async fn test_group_by_with_min_max() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_multiple_columns() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -89,7 +89,7 @@ async fn test_group_by_multiple_columns() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_with_having() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -101,7 +101,7 @@ async fn test_group_by_with_having() {
     assert_table_eq!(result, [["Furniture", 450],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_with_having_count() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -113,7 +113,7 @@ async fn test_group_by_with_having_count() {
     assert_table_eq!(result, [["Electronics", 3],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_with_where_and_having() {
     let session = create_session();
     setup_sales_table(&session).await;
@@ -125,7 +125,7 @@ async fn test_group_by_with_where_and_having() {
     assert_table_eq!(result, [["Electronics", 200], ["Furniture", 150],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_all_rows_same_group() {
     let session = create_session();
 
@@ -146,7 +146,7 @@ async fn test_group_by_all_rows_same_group() {
     assert_table_eq!(result, [[60, 3, 20.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_group_by_with_null_values() {
     let session = create_session();
 
@@ -167,7 +167,7 @@ async fn test_group_by_with_null_values() {
     assert_table_eq!(result, [["A", 30], [null(), 70]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_count_distinct() {
     let session = create_session();
     setup_sales_table(&session).await;

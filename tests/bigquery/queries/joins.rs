@@ -23,7 +23,7 @@ async fn setup_tables(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_inner_join() {
     let session = create_session();
     setup_tables(&session).await;
@@ -42,7 +42,7 @@ async fn test_inner_join() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_left_join() {
     let session = create_session();
     setup_tables(&session).await;
@@ -62,7 +62,7 @@ async fn test_left_join() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_full_outer_join() {
     let session = create_session();
     setup_tables(&session).await;
@@ -83,7 +83,7 @@ async fn test_full_outer_join() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_join() {
     let session = create_session();
 
@@ -112,7 +112,7 @@ async fn test_cross_join() {
     assert_table_eq!(result, [[1, 10], [1, 20], [2, 10], [2, 20],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_self_join() {
     let session = create_session();
 
@@ -137,7 +137,7 @@ async fn test_self_join() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_self_join_with_inequality() {
     let session = create_session();
 
@@ -157,7 +157,7 @@ async fn test_self_join_with_inequality() {
     assert_table_eq!(result, [[1, 2], [1, 3], [2, 3],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_self_join_with_inequality() {
     let session = create_session();
 
@@ -177,7 +177,7 @@ async fn test_cte_self_join_with_inequality() {
     assert_table_eq!(result, [[1, 2], [1, 3], [2, 3],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_self_join_with_compound_condition() {
     let session = create_session();
 
@@ -202,7 +202,7 @@ async fn test_cte_self_join_with_compound_condition() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_self_join_with_additional_joins() {
     let session = create_session();
 
@@ -233,7 +233,7 @@ async fn test_cte_self_join_with_additional_joins() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_self_join_with_having() {
     let session = create_session();
 
@@ -264,7 +264,7 @@ async fn test_cte_self_join_with_having() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_anti_join_pattern() {
     let session = create_session();
 
@@ -292,7 +292,7 @@ async fn test_anti_join_pattern() {
     assert_table_eq!(result, [[2, "Bob"], [3, "Charlie"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_join_anti_pattern() {
     let session = create_session();
 
@@ -344,7 +344,7 @@ async fn test_cross_join_anti_pattern() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_join_anti_pattern_with_ctes() {
     let session = create_session();
 
@@ -398,7 +398,7 @@ async fn test_cross_join_anti_pattern_with_ctes() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_sell_pattern() {
     let session = create_session();
 
@@ -454,7 +454,7 @@ async fn test_cross_sell_pattern() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_used_twice() {
     let session = create_session();
 
@@ -484,7 +484,7 @@ async fn test_cte_used_twice() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_multiple_left_joins_to_same_cte() {
     let session = create_session();
 
@@ -520,7 +520,7 @@ async fn test_multiple_left_joins_to_same_cte() {
     assert_table_eq!(result, [[1, "A", "A"], [2, "B", "B"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_sell_pattern_no_group() {
     let session = create_session();
 
@@ -569,7 +569,7 @@ async fn test_cross_sell_pattern_no_group() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_sell_pattern_with_where() {
     let session = create_session();
 
@@ -619,7 +619,7 @@ async fn test_cross_sell_pattern_with_where() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_sell_pattern_with_group() {
     let session = create_session();
 
@@ -674,7 +674,7 @@ async fn test_cross_sell_pattern_with_group() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cross_sell_pattern_with_having() {
     let session = create_session();
 
@@ -730,7 +730,7 @@ async fn test_cross_sell_pattern_with_having() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_join_with_where_clause() {
     let session = create_session();
     setup_tables(&session).await;
@@ -745,7 +745,7 @@ async fn test_join_with_where_clause() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_join_multiple_conditions() {
     let session = create_session();
 
@@ -773,7 +773,7 @@ async fn test_join_multiple_conditions() {
     assert_table_eq!(result, [[1, "Widget"], [2, "Gadget"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_join_three_tables() {
     let session = create_session();
 
@@ -809,7 +809,7 @@ async fn test_join_three_tables() {
     assert_table_eq!(result, [["Alice", "Widget"], ["Bob", "Gadget"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_null_keys_do_not_match() {
     let session = create_session();
 
@@ -838,7 +838,7 @@ async fn test_hash_join_null_keys_do_not_match() {
     assert_table_eq!(result, [["A", "X"], ["C", "Z"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_multiple_keys() {
     let session = create_session();
 
@@ -881,7 +881,7 @@ async fn test_hash_join_multiple_keys() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_duplicate_keys() {
     let session = create_session();
 
@@ -915,7 +915,7 @@ async fn test_hash_join_duplicate_keys() {
     assert_table_eq!(result, [[1, "Alice"], [2, "Alice"], [3, "Bob"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_many_to_many() {
     let session = create_session();
 
@@ -958,7 +958,7 @@ async fn test_hash_join_many_to_many() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_cte_to_cte() {
     let session = create_session();
 
@@ -1002,7 +1002,7 @@ async fn test_hash_join_cte_to_cte() {
     assert_table_eq!(result, [[1, "2024-01-01", "2024-01-02"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_cte_referencing_another_cte() {
     let session = create_session();
 
@@ -1045,7 +1045,7 @@ async fn test_hash_join_cte_referencing_another_cte() {
     assert_table_eq!(result, [[1, 3], [2, 2],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_large_dataset() {
     let session = create_session();
 
@@ -1090,7 +1090,7 @@ async fn test_hash_join_large_dataset() {
     assert_table_eq!(result, [[100, 49500, 49500],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_string_keys() {
     let session = create_session();
 
@@ -1125,7 +1125,7 @@ async fn test_hash_join_string_keys() {
     assert_table_eq!(result, [["Gadget", 50], ["Widget", 100],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_float_keys() {
     let session = create_session();
 
@@ -1159,7 +1159,7 @@ async fn test_hash_join_float_keys() {
     assert_table_eq!(result, [["A", "Low"], ["B", "Medium"], ["C", "High"],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_no_matches() {
     let session = create_session();
 
@@ -1188,7 +1188,7 @@ async fn test_hash_join_no_matches() {
     assert_eq!(result.row_count(), 0);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hash_join_preserves_column_order() {
     let session = create_session();
 

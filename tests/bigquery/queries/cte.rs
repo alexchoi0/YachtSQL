@@ -15,7 +15,7 @@ async fn setup_tables(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_simple_cte() {
     let session = create_session();
     setup_tables(&session).await;
@@ -29,7 +29,7 @@ async fn test_simple_cte() {
     assert_table_eq!(result, [["CEO"], ["VP"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_with_column_aliases() {
     let session = create_session();
     setup_tables(&session).await;
@@ -43,7 +43,7 @@ async fn test_cte_with_column_aliases() {
     assert_table_eq!(result, [["CEO"], ["VP"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_multiple_ctes() {
     let session = create_session();
     setup_tables(&session).await;
@@ -57,7 +57,7 @@ async fn test_multiple_ctes() {
     assert_table_eq!(result, [["VP"], ["Manager"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_used_multiple_times() {
     let session = create_session();
     setup_tables(&session).await;
@@ -71,7 +71,7 @@ async fn test_cte_used_multiple_times() {
     assert_table_eq!(result, [[4, 132500.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_with_join() {
     let session = create_session();
     setup_tables(&session).await;
@@ -88,7 +88,7 @@ async fn test_cte_with_join() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte() {
     let session = create_session();
@@ -106,7 +106,7 @@ async fn test_recursive_cte() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_with_limit() {
     let session = create_session();
@@ -129,7 +129,7 @@ async fn test_recursive_cte_with_limit() {
     assert_table_eq!(result, [[1], [2], [3], [4], [5],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_with_aggregation() {
     let session = create_session();
     setup_tables(&session).await;
@@ -143,7 +143,7 @@ async fn test_cte_with_aggregation() {
     assert_table_eq!(result, [["CEO"], ["VP"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_in_subquery() {
     let session = create_session();
     setup_tables(&session).await;
@@ -157,7 +157,7 @@ async fn test_cte_in_subquery() {
     assert_table_eq!(result, [["CEO"], ["VP"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_cte_with_insert() {
     let session = create_session();
@@ -182,7 +182,7 @@ async fn test_cte_with_insert() {
     assert_table_eq!(result, [["CEO"], ["VP"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_cte_with_update() {
     let session = create_session();
@@ -202,7 +202,7 @@ async fn test_cte_with_update() {
     assert_table_eq!(result, [[88000]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_cte_with_delete() {
     let session = create_session();
@@ -222,7 +222,7 @@ async fn test_cte_with_delete() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_fibonacci() {
     let session = create_session();
@@ -258,7 +258,7 @@ async fn test_recursive_cte_fibonacci() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_path_finding() {
     let session = create_session();
@@ -300,7 +300,7 @@ async fn test_recursive_cte_path_finding() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_tree_aggregation() {
     let session = create_session();
@@ -352,7 +352,7 @@ async fn test_recursive_cte_tree_aggregation() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_generate_series() {
     let session = create_session();
@@ -385,7 +385,7 @@ async fn test_recursive_cte_generate_series() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_max_depth() {
     let session = create_session();
@@ -407,7 +407,7 @@ async fn test_recursive_cte_max_depth() {
     assert_table_eq!(result, [[100]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_with_aggregation() {
     let session = create_session();
@@ -456,7 +456,7 @@ async fn test_recursive_cte_with_aggregation() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_multiple_anchors() {
     let session = create_session();
@@ -490,7 +490,7 @@ async fn test_recursive_cte_multiple_anchors() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 
 async fn test_recursive_cte_string_accumulation() {
     let session = create_session();
@@ -522,7 +522,7 @@ async fn test_recursive_cte_string_accumulation() {
     assert_table_eq!(result, [["Hello World from SQL"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_referencing_another_cte() {
     let session = create_session();
     setup_tables(&session).await;
@@ -541,7 +541,7 @@ async fn test_cte_referencing_another_cte() {
     assert_table_eq!(result, [["CEO"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cte_with_window_functions() {
     let session = create_session();
     setup_tables(&session).await;

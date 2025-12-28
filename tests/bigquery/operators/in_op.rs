@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_integers() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_in_integers() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_in_integers() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_not_in_integers() {
     assert_table_eq!(result, [[false]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_strings() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_in_strings() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_where_clause() {
     let session = create_session();
     session
@@ -52,7 +52,7 @@ async fn test_in_where_clause() {
     assert_table_eq!(result, [["apple"], ["cherry"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_not_in_where_clause() {
     let session = create_session();
     session
@@ -71,7 +71,7 @@ async fn test_not_in_where_clause() {
     assert_table_eq!(result, [[1], [3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_with_null() {
     let session = create_session();
     let result = session
@@ -81,7 +81,7 @@ async fn test_in_with_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_list_with_null() {
     let session = create_session();
     let result = session
@@ -91,7 +91,7 @@ async fn test_in_list_with_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_empty_result() {
     let session = create_session();
     session
@@ -110,14 +110,14 @@ async fn test_in_empty_result() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_single_value() {
     let session = create_session();
     let result = session.execute_sql("SELECT 5 IN (5)").await.unwrap();
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_in_with_expressions() {
     let session = create_session();
     let result = session

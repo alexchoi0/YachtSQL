@@ -1,6 +1,6 @@
 [package]
 name = "yachtsql-ir"
-version = "0.1.0"
+version = "0.1.4"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "YachtSQL intermediate representation (IR) for logical plans and expressions"
@@ -12,11 +12,11 @@ categories = ["database"]
 
 [dependencies]
 # Core types and errors
-yachtsql-common = { version = "0.1.0", path = "../common" }
-yachtsql-storage = { version = "0.1.0", path = "../storage" }
+yachtsql-common = { version = "0.1.4", path = "../common" }
+yachtsql-storage = { version = "0.1.4", path = "../storage" }
 
 # SQL parsing
-yachtsql-sqlparser = { version = "0.59", features = ["visitor"] }
+yachtsql-sqlparser = { version = "0.60.1", features = ["visitor"] }
 
 # Data structures
 indexmap = { version = "2.12", features = ["serde"] }

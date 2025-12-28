@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::{create_session, date};
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_int_to_string() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_cast_int_to_string() {
     assert_table_eq!(result, [["123"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_string_to_int() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_cast_string_to_int() {
     assert_table_eq!(result, [[456]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_float_to_int() {
     let session = create_session();
     let result = session
@@ -31,7 +31,7 @@ async fn test_cast_float_to_int() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_int_to_float() {
     let session = create_session();
     let result = session
@@ -41,7 +41,7 @@ async fn test_cast_int_to_float() {
     assert_table_eq!(result, [[5.0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_string_to_bool() {
     let session = create_session();
     let result = session
@@ -51,7 +51,7 @@ async fn test_cast_string_to_bool() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_bool_to_string() {
     let session = create_session();
     let result = session
@@ -61,7 +61,7 @@ async fn test_cast_bool_to_string() {
     assert_table_eq!(result, [["true"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_cast_valid() {
     let session = create_session();
     let result = session
@@ -71,7 +71,7 @@ async fn test_safe_cast_valid() {
     assert_table_eq!(result, [[123]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_safe_cast_invalid() {
     let session = create_session();
     let result = session
@@ -81,7 +81,7 @@ async fn test_safe_cast_invalid() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_null() {
     let session = create_session();
     let result = session
@@ -91,7 +91,7 @@ async fn test_cast_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_with_column() {
     let session = create_session();
     session
@@ -110,7 +110,7 @@ async fn test_cast_with_column() {
     assert_table_eq!(result, [["100"], ["200"], ["300"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_in_where() {
     let session = create_session();
     session
@@ -129,7 +129,7 @@ async fn test_cast_in_where() {
     assert_table_eq!(result, [["20"], ["30"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_date_to_string() {
     let session = create_session();
     let result = session
@@ -139,7 +139,7 @@ async fn test_cast_date_to_string() {
     assert_table_eq!(result, [["2024-01-15"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_cast_string_to_date() {
     let session = create_session();
     let result = session

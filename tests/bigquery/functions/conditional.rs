@@ -1,7 +1,7 @@
 use crate::assert_table_eq;
 use crate::common::create_session;
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_simple() {
     let session = create_session();
     let result = session
@@ -11,7 +11,7 @@ async fn test_case_simple() {
     assert_table_eq!(result, [["one"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_searched() {
     let session = create_session();
     let result = session
@@ -21,7 +21,7 @@ async fn test_case_searched() {
     assert_table_eq!(result, [["yes"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_multiple_conditions() {
     let session = create_session();
     session
@@ -39,7 +39,7 @@ async fn test_case_multiple_conditions() {
     assert_table_eq!(result, [["A", "A"], ["B", "B"], ["C", "C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_no_else() {
     let session = create_session();
     let result = session
@@ -49,7 +49,7 @@ async fn test_case_no_else() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce_first_non_null() {
     let session = create_session();
     let result = session
@@ -59,7 +59,7 @@ async fn test_coalesce_first_non_null() {
     assert_table_eq!(result, [["hello"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce_all_null() {
     let session = create_session();
     let result = session
@@ -69,7 +69,7 @@ async fn test_coalesce_all_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce_first_not_null() {
     let session = create_session();
     let result = session
@@ -79,21 +79,21 @@ async fn test_coalesce_first_not_null() {
     assert_table_eq!(result, [["first"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif_equal() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULLIF(5, 5)").await.unwrap();
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif_not_equal() {
     let session = create_session();
     let result = session.execute_sql("SELECT NULLIF(5, 3)").await.unwrap();
     assert_table_eq!(result, [[5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nullif_strings() {
     let session = create_session();
     let result = session
@@ -103,7 +103,7 @@ async fn test_nullif_strings() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if_true() {
     let session = create_session();
     let result = session
@@ -113,7 +113,7 @@ async fn test_if_true() {
     assert_table_eq!(result, [["yes"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if_false() {
     let session = create_session();
     let result = session
@@ -123,7 +123,7 @@ async fn test_if_false() {
     assert_table_eq!(result, [["no"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_if_with_expression() {
     let session = create_session();
     let result = session
@@ -133,7 +133,7 @@ async fn test_if_with_expression() {
     assert_table_eq!(result, [["greater"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_case_in_where() {
     let session = create_session();
     session
@@ -151,7 +151,7 @@ async fn test_case_in_where() {
     assert_table_eq!(result, [["B"], ["C"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_nested_case() {
     let session = create_session();
     let result = session
@@ -160,7 +160,7 @@ async fn test_nested_case() {
     assert_table_eq!(result, [["both"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_coalesce_in_where() {
     let session = create_session();
     session

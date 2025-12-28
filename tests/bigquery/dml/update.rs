@@ -16,7 +16,7 @@ async fn setup_users_table(session: &YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_single_column() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -34,7 +34,7 @@ async fn test_update_single_column() {
     assert_table_eq!(result, [[31]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_multiple_columns() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -52,7 +52,7 @@ async fn test_update_multiple_columns() {
     assert_table_eq!(result, [["Alicia", 31]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_all_rows() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -70,7 +70,7 @@ async fn test_update_all_rows() {
     assert_table_eq!(result, [[1, 31], [2, 26], [3, 36],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_expression() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -88,7 +88,7 @@ async fn test_update_with_expression() {
     assert_table_eq!(result, [[60]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_multiple_conditions() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -106,7 +106,7 @@ async fn test_update_with_multiple_conditions() {
     assert_table_eq!(result, [["Alice", 40]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_or_condition() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -124,7 +124,7 @@ async fn test_update_with_or_condition() {
     assert_table_eq!(result, [[1, 50], [3, 50],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_set_null() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -142,7 +142,7 @@ async fn test_update_set_null() {
     assert_table_eq!(result, [[null]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_no_matching_rows() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -160,7 +160,7 @@ async fn test_update_no_matching_rows() {
     assert_table_eq!(result, []);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_in_clause() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -178,7 +178,7 @@ async fn test_update_with_in_clause() {
     assert_table_eq!(result, [[1, 99], [3, 99],]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_like_condition() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -196,7 +196,7 @@ async fn test_update_with_like_condition() {
     assert_table_eq!(result, [["Alice", 0]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_from_clause() {
     let session = create_session();
 
@@ -253,7 +253,7 @@ async fn test_update_with_from_clause() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_subquery_in_set() {
     let session = create_session();
 
@@ -307,7 +307,7 @@ async fn test_update_with_subquery_in_set() {
     assert_table_eq!(result, [["dryer", 230], ["washer", 110]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_nested_struct_field() {
     let session = create_session();
 
@@ -352,7 +352,7 @@ async fn test_update_nested_struct_field() {
     assert_table_eq!(result, [["washer", "white", "1 year"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_entire_struct() {
     let session = create_session();
 
@@ -391,7 +391,7 @@ async fn test_update_entire_struct() {
     assert_table_eq!(result, [["white"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_default_keyword() {
     let session = create_session();
 
@@ -435,7 +435,7 @@ async fn test_update_with_default_keyword() {
     assert_table_eq!(result, [["washer", 0, true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_array_append() {
     let session = create_session();
 
@@ -478,7 +478,7 @@ async fn test_update_array_append() {
     assert_table_eq!(result, [["dryer", 0], ["washer", 1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_three_table_join() {
     let session = create_session();
 
@@ -552,7 +552,7 @@ async fn test_update_with_three_table_join() {
     assert_table_eq!(result, [["oven", true], ["washer", true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_where_true() {
     let session = create_session();
     setup_users_table(&session).await;
@@ -570,7 +570,7 @@ async fn test_update_where_true() {
     assert_table_eq!(result, [[1, 31], [2, 26], [3, 36]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_with_join_on_clause() {
     let session = create_session();
 
@@ -642,7 +642,7 @@ async fn test_update_with_join_on_clause() {
     assert_table_eq!(result, [["oven"], ["washer"]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_repeated_records_with_array_subquery() {
     let session = create_session();
 
@@ -688,7 +688,7 @@ async fn test_update_repeated_records_with_array_subquery() {
     assert_table_eq!(result, [["dryer", 0], ["washer", 1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_delete_from_repeated_records() {
     let session = create_session();
 
@@ -733,7 +733,7 @@ async fn test_update_delete_from_repeated_records() {
     assert_table_eq!(result, [["dryer", 0], ["washer", 1]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_update_append_second_entry_to_repeated_records() {
     let session = create_session();
 

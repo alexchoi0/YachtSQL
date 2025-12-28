@@ -11,7 +11,7 @@ async fn setup_data(session: &yachtsql::YachtSQLSession) {
         .unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_count_distinct() {
     let session = create_session();
     setup_data(&session).await;
@@ -23,7 +23,7 @@ async fn test_approx_count_distinct() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_count_distinct_with_group() {
     let session = create_session();
     session
@@ -40,7 +40,7 @@ async fn test_approx_count_distinct_with_group() {
     assert_table_eq!(result, [[1, 2], [2, 1], [3, 2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_quantiles() {
     let session = create_session();
     setup_data(&session).await;
@@ -52,7 +52,7 @@ async fn test_approx_quantiles() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_quantiles_with_group() {
     let session = create_session();
     setup_data(&session).await;
@@ -63,7 +63,7 @@ async fn test_approx_quantiles_with_group() {
     assert_table_eq!(result, [[3]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_top_count() {
     let session = create_session();
     session
@@ -81,7 +81,7 @@ async fn test_approx_top_count() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_top_sum() {
     let session = create_session();
     session
@@ -102,7 +102,7 @@ async fn test_approx_top_sum() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_count_distinct_null() {
     let session = create_session();
     session
@@ -121,7 +121,7 @@ async fn test_approx_count_distinct_null() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_quantiles_ignore_nulls() {
     let session = create_session();
     session
@@ -140,7 +140,7 @@ async fn test_approx_quantiles_ignore_nulls() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_quantiles_respect_nulls() {
     let session = create_session();
     session
@@ -159,7 +159,7 @@ async fn test_approx_quantiles_respect_nulls() {
     assert_table_eq!(result, [[true]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hll_count_init() {
     let session = create_session();
     session
@@ -177,7 +177,7 @@ async fn test_hll_count_init() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hll_count_merge() {
     let session = create_session();
     session
@@ -194,7 +194,7 @@ async fn test_hll_count_merge() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hll_count_merge_partial() {
     let session = create_session();
     session
@@ -211,7 +211,7 @@ async fn test_hll_count_merge_partial() {
     assert_table_eq!(result, [[2]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_hll_count_extract() {
     let session = create_session();
     session
@@ -232,7 +232,7 @@ async fn test_hll_count_extract() {
     assert_table_eq!(result, [[3], [5]]);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 async fn test_approx_count_distinct_large_dataset() {
     let session = create_session();
     session
