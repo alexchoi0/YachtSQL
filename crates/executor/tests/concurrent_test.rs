@@ -522,51 +522,68 @@ async fn test_qualified_table_names_project_dataset() {
     let executor = AsyncQueryExecutor::new();
 
     executor
-        .execute_sql("CREATE TABLE proj1.ds1.table1 (id INT64, name STRING)")
+        .catalog()
+        .set_default_project(Some("myproject".to_string()));
+
+    executor
+        .execute_sql("CREATE TABLE ds1.table1 (id INT64, name STRING)")
         .await
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE proj1.ds1.table2 (id INT64, value FLOAT64)")
+        .execute_sql("CREATE TABLE ds1.table2 (id INT64, value FLOAT64)")
         .await
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE proj1.ds2.table3 (id INT64, data STRING)")
+        .execute_sql("CREATE TABLE ds2.table3 (id INT64, data STRING)")
         .await
         .unwrap();
     executor
-        .execute_sql("CREATE TABLE proj2.ds1.table4 (id INT64, count INT64)")
+        .execute_sql("CREATE TABLE otherproject.ds1.table4 (id INT64, count INT64)")
         .await
         .unwrap();
 
+    let projects = executor.catalog().get_projects();
+    assert!(projects.contains(&"MYPROJECT".to_string()));
+    assert!(projects.contains(&"OTHERPROJECT".to_string()));
+
+    let datasets = executor.catalog().get_datasets("myproject");
+    assert!(datasets.contains(&"DS1".to_string()));
+    assert!(datasets.contains(&"DS2".to_string()));
+
+    let tables = executor.catalog().get_tables_in_dataset("myproject", "ds1");
+    assert!(tables.contains(&"TABLE1".to_string()));
+    assert!(tables.contains(&"TABLE2".to_string()));
+
     executor
-        .execute_sql("INSERT INTO proj1.ds1.table1 VALUES (1, 'Alice'), (2, 'Bob')")
+        .execute_sql("INSERT INTO ds1.table1 VALUES (1, 'Alice'), (2, 'Bob')")
         .await
         .unwrap();
     executor
-        .execute_sql("INSERT INTO proj1.ds1.table2 VALUES (1, 1.5), (2, 2.5)")
+        .execute_sql("INSERT INTO ds1.table2 VALUES (1, 1.5), (2, 2.5)")
         .await
         .unwrap();
 
     let result = executor
-        .execute_sql("SELECT t1.id, t1.name, t2.value FROM proj1.ds1.table1 t1 JOIN proj1.ds1.table2 t2 ON t1.id = t2.id")
+        .execute_sql("SELECT t1.id, t1.name, t2.value FROM ds1.table1 t1 JOIN ds1.table2 t2 ON t1.id = t2.id")
         .await
         .unwrap();
     assert_eq!(result.row_count(), 2);
 
     let result = executor
-        .execute_sql("SELECT * FROM proj1.ds2.table3")
+        .execute_sql("SELECT * FROM ds2.table3")
         .await
         .unwrap();
     assert_eq!(result.row_count(), 0);
 
-    executor
-        .execute_sql("DROP TABLE proj1.ds1.table1")
-        .await
-        .unwrap();
+    executor.execute_sql("DROP TABLE ds1.table1").await.unwrap();
 
-    let result = executor.execute_sql("SELECT * FROM proj1.ds1.table2").await;
+    let tables_after_drop = executor.catalog().get_tables_in_dataset("myproject", "ds1");
+    assert!(!tables_after_drop.contains(&"TABLE1".to_string()));
+    assert!(tables_after_drop.contains(&"TABLE2".to_string()));
+
+    let result = executor.execute_sql("SELECT * FROM ds1.table2").await;
     assert!(result.is_ok());
 
-    let result = executor.execute_sql("SELECT * FROM proj1.ds1.table1").await;
+    let result = executor.execute_sql("SELECT * FROM ds1.table1").await;
     assert!(result.is_err());
 }

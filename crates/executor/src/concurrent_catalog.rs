@@ -164,6 +164,7 @@ pub struct ConcurrentCatalog {
     search_path: RwLock<Vec<String>>,
     dropped_schemas: DashMap<String, DroppedSchemaData>,
     transaction_snapshot: RwLock<Option<TransactionSnapshot>>,
+    default_project: RwLock<Option<String>>,
     projects: DashMap<String, HashSet<String>>,
     dataset_tables: DashMap<String, HashSet<String>>,
 }
@@ -182,14 +183,27 @@ impl ConcurrentCatalog {
             search_path: RwLock::new(Vec::new()),
             dropped_schemas: DashMap::new(),
             transaction_snapshot: RwLock::new(None),
+            default_project: RwLock::new(None),
             projects: DashMap::new(),
             dataset_tables: DashMap::new(),
         }
     }
 
+    pub fn set_default_project(&self, project: Option<String>) {
+        *self.default_project.write() = project.map(|p| p.to_uppercase());
+    }
+
+    pub fn get_default_project(&self) -> Option<String> {
+        self.default_project.read().clone()
+    }
+
     fn add_to_indexes(&self, key: &str) {
         let qn = QualifiedName::parse(key);
-        if let (Some(project), Some(dataset)) = (&qn.project, &qn.dataset) {
+        let project = qn
+            .project
+            .clone()
+            .or_else(|| self.default_project.read().clone());
+        if let (Some(project), Some(dataset)) = (project, &qn.dataset) {
             self.projects
                 .entry(project.clone())
                 .or_default()
@@ -204,7 +218,11 @@ impl ConcurrentCatalog {
 
     fn remove_from_indexes(&self, key: &str) {
         let qn = QualifiedName::parse(key);
-        if let (Some(project), Some(dataset)) = (&qn.project, &qn.dataset) {
+        let project = qn
+            .project
+            .clone()
+            .or_else(|| self.default_project.read().clone());
+        if let (Some(project), Some(dataset)) = (project, &qn.dataset) {
             let dataset_key = format!("{}.{}", project, dataset);
             if let Some(mut tables) = self.dataset_tables.get_mut(&dataset_key) {
                 tables.remove(&qn.table);
